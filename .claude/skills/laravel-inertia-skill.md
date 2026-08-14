@@ -12,6 +12,15 @@ Cross-reference `.claude/rules/backend-standards.md`,
 `database-standards.md`, and `security-standards.md` for the *why*; this
 file is the *in what order*.
 
+**Worked example:** the CRM Lead module (`app/Models/Lead.php`,
+`app/Services/LeadService.php`, `app/Http/Controllers/CRM/LeadController.php`,
+`app/Http/Requests/CRM/StoreLeadRequest.php`, `resources/js/Pages/CRM/Index.tsx`,
+`tests/Feature/CRM/LeadTest.php`) follows every step below end-to-end —
+copy its shape for the next module rather than starting from a blank
+file. Note it only implements what its sprint task actually scoped
+(`index`+`store`; no `edit`/`update`/`updateStatus` yet — those are a
+later sprint's task) — don't build ahead of what's asked either.
+
 ## 0. Read first
 
 - The relevant PRD §4.x section (features + business rules) for the module.

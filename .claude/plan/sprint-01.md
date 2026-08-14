@@ -2,7 +2,7 @@
 
 > Sumber: `.claude/File Skema/Daiku v1.0.0/Daiku-Task-Schedule.csv`. Tanggal di CSV memakai kalender placeholder (mulai 2025-01-06) dari draft awal — jadikan acuan **urutan minggu** (Week N), bukan tanggal absolut, saat sprint ini benar-benar dimulai. Checklist di bawah boleh dicentang langsung di file ini seiring progres.
 
-**Ringkasan status:** 8 selesai · 2 sebagian · 14 belum mulai (dari 24 task).
+**Ringkasan status:** 20 selesai · 1 sebagian · 3 belum mulai (dari 24 task).
 
 ## Ido Refael Siregar
 
@@ -16,19 +16,25 @@
   - 📌 **Status:** Sebagian. `docker-compose.yml` + `Dockerfile` + `docker/nginx/default.conf` sudah dibuat, pakai **MySQL** (mengikuti PRD §3.2, bukan Postgres seperti tertulis di kolom Catatan) + redis + soketi + nginx. Belum pernah dijalankan/diuji — Docker tidak tersedia di environment dev saat ini.
 - [x] **[Auth]** Install Laravel Breeze + Spatie Permission + seed 9 roles — *Backend · 4 jam* _(Catatan CSV: role: CEO,Marketing,Designer,dll)_
   - 📌 **Status:** Selesai. 9 role (CEO, MARKETING, DESIGNER, ESTIMATOR, PM, QA, FINANCE, LOGISTICS, FIELD_STAFF) di-seed via `RoleSeeder`, user CEO awal dibuat (`ceo@daikuinterior.com`).
-- [ ] **[Auth]** Middleware RBAC + route group per role (web.php) — *Backend · 4 jam*
-  - 📌 **Status:** Sebagian. Alias middleware `role`/`permission`/`role_or_permission` (Spatie) sudah didaftarkan di `bootstrap/app.php` dan diuji (`RbacMiddlewareTest`) — sebelumnya route `role:` akan error karena Laravel 11 tidak auto-register alias package. Route group per modul (`Route::middleware(['auth','role:...'])->group(...)`) belum ada karena belum ada controller modul untuk digrup.
+- [x] **[Auth]** Middleware RBAC + route group per role (web.php) — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Alias middleware `role`/`permission`/`role_or_permission` (Spatie) didaftarkan di `bootstrap/app.php` (diuji di `RbacMiddlewareTest`) dan sekarang benar-benar dipakai di route group nyata: `crm.leads.*` (`role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM` untuk read, `role:CEO|MARKETING` untuk write) dan `users.*` (`role:CEO`) di `routes/web.php`.
 - [x] **[Auth]** Redirect post-login per role + AppLayout.tsx (sidebar+topbar) — *Fullstack · 4 jam*
   - 📌 **Status:** Selesai. `AppLayout.tsx` (sidebar fixed kiri per divisi + topbar dengan bell notifikasi & avatar dropdown) sudah dibuat. `RoleRedirectService` + `AuthenticatedSessionController` sudah redirect berdasarkan role (diuji via `RoleRedirectServiceTest`) — saat ini semua role masih resolve ke `/dashboard` karena belum ada landing page khusus per role, tapi mekanismenya sudah lengkap: tinggal isi `RoleRedirectService::ROLE_ROUTES` begitu halaman per-role dibangun.
 
 ### Week 2 (2025-01-13)
 
-- [ ] **[Auth]** Login page UI + error handling Inertia form — *Frontend · 2 jam*
-- [ ] **[Auth]** User Management: CRUD user + assign role — *Fullstack · 2 jam*
-- [ ] **[CRM]** Database migration: leads, pipeline_logs — *Backend · 4 jam*
-- [ ] **[CRM]** Lead model + PipelineLog model + relasi Eloquent — *Backend · 4 jam* _(Catatan CSV: scope: byStatus, byPriority)_
-- [ ] **[CRM]** LeadController + StoreLeadRequest + LeadService — *Backend · 4 jam* _(Catatan CSV: thin controller pattern)_
-- [ ] **[CRM]** Lead index page: tabel + filter status/prioritas — *Frontend · 4 jam*
+- [x] **[Auth]** Login page UI + error handling Inertia form — *Frontend · 2 jam*
+  - 📌 **Status:** Selesai. `Pages/Auth/Login.tsx` di-restyle penuh ke shadcn/Daiku (Input/Label/Checkbox/Button, teks Bahasa Indonesia, error inline per field).
+- [x] **[Auth]** User Management: CRUD user + assign role — *Fullstack · 2 jam*
+  - 📌 **Status:** Selesai. `Auth\UserController` (CEO-only, route `users.*`) + `UserService` (create/update + assignRole/syncRoles) + `Pages/Auth/Users/{Index,Create,Edit}.tsx` (RHF+Zod, DataTable, Switch untuk is_active). Diuji di `UserManagementTest` (akses CEO-only + assign/ubah role).
+- [x] **[CRM]** Database migration: leads, pipeline_logs — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Migrasi `leads` (PRD §4.1 + §5.1, termasuk field kategori/layanan/kota/gender/lost_reason dari narasi §4.1) dan `pipeline_logs` (append-only).
+- [x] **[CRM]** Lead model + PipelineLog model + relasi Eloquent — *Backend · 4 jam* _(Catatan CSV: scope: byStatus, byPriority)_
+  - 📌 **Status:** Selesai. `Lead` (scope `byStatus`, `byPriority`, `overdueFollowUp`; relasi `assignee()`/`creator()`/`pipelineLogs()`) + `PipelineLog` (append-only, `UPDATED_AT = null`) + enum native `LeadStatus`/`LeadPriority` di `app/Enums/`.
+- [x] **[CRM]** LeadController + StoreLeadRequest + LeadService — *Backend · 4 jam* _(Catatan CSV: thin controller pattern)_
+  - 📌 **Status:** Selesai. `CRM\LeadController` (thin — `index`+`store`; `edit`/`update`/`updateStatus` menyusul Sprint 2 sesuai baris CSV berikutnya) + `StoreLeadRequest` + `LeadService::create()`/`changeStatus()` (aturan alasan-lost-wajib & LOST-terminal, auto-tulis PipelineLog). Diuji di `CRM/LeadTest`.
+- [x] **[CRM]** Lead index page: tabel + filter status/prioritas — *Frontend · 4 jam*
+  - 📌 **Status:** Selesai. `Pages/CRM/Index.tsx` — DataTable + StatusChip + filter status/prioritas + search nama klien, follow-up lewat tanggal di-highlight merah.
 
 
 ## Jonathan Sigalingging
@@ -49,9 +55,14 @@
 
 ### Week 2 (2025-01-13)
 
-- [ ] **[Setup]** Buat Sidebar navigasi dengan conditional menu per role — *Frontend · 4 jam*
-- [ ] **[Projects]** Database migration: projects, milestones, tasks — *Backend · 4 jam*
-- [ ] **[Projects]** Database migration: progress_logs, daily_task_forms — *Backend · 4 jam*
-- [ ] **[Projects]** Database migration: overtime_requests, penalties, family_gathering_fund — *Backend · 4 jam*
-- [ ] **[Finance]** Database migration: termins, finance_transactions, qa_forms, materials, assets — *Backend · 4 jam*
+- [x] **[Setup]** Buat Sidebar navigasi dengan conditional menu per role — *Frontend · 4 jam*
+  - 📌 **Status:** Selesai. `NAV_GROUPS` di `AppLayout.tsx` di-beri properti `roles` per item, dipetakan dari matriks RBAC PRD §7.1 (grup/menu yang rolenya tidak punya akses sama sekali disembunyikan, bukan sekadar di-disable).
+- [x] **[Projects]** Database migration: projects, milestones, tasks — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Migrasi `projects`, `milestones`, `tasks` (PRD §4.4/§4.5 + §5.1) — model/controller-nya baru masuk Sprint 2 (lihat sprint-02.md).
+- [x] **[Projects]** Database migration: progress_logs, daily_task_forms — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Migrasi `progress_logs` (append-only) dan `daily_task_forms` (unique per task+tanggal, PRD §4.5).
+- [x] **[Projects]** Database migration: overtime_requests, penalties, family_gathering_fund — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Migrasi `overtime_requests` (approval PM→Finance terpisah), `penalties`, `family_gathering_fund` (append-only).
+- [x] **[Finance]** Database migration: termins, finance_transactions, qa_forms, materials, assets — *Backend · 4 jam*
+  - 📌 **Status:** Selesai. Migrasi `termins`, `finance_transactions` (kolom `bank_account_id` PRD §4.7 sengaja ditunda ke Sprint 4 — lihat komentar migrasi), `qa_forms`, `materials`, `assets`.
 

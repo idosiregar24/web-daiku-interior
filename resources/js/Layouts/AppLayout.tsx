@@ -34,6 +34,7 @@ import {
     ShieldCheck,
     User as UserIcon,
     Users,
+    UserCog,
     Wallet,
 } from 'lucide-react';
 import { PropsWithChildren, ReactNode } from 'react';
@@ -55,6 +56,10 @@ type NavGroup = {
 // Sidebar structure mirrors PRD section 4 (System Modules) grouped by
 // division. Modules without a `routeName` yet render disabled — their
 // controllers/pages land in later phases per the roadmap (PRD 10.2).
+// `roles` mirrors the RBAC matrix (PRD §7.1) — a group/item is hidden
+// entirely (not just disabled) for roles with no access ("-") to every
+// item in it. Read access ("R") is enough to see the item; only routes
+// gate the finer Create/Update/Delete distinctions server-side.
 const NAV_GROUPS: NavGroup[] = [
     {
         label: 'Utama',
@@ -65,25 +70,62 @@ const NAV_GROUPS: NavGroup[] = [
     {
         label: 'Presales',
         items: [
-            { label: 'CRM / Pipeline', icon: Users },
-            { label: 'Desain', icon: Palette },
-            { label: 'Quotation', icon: FileText },
+            {
+                label: 'CRM / Pipeline',
+                icon: Users,
+                routeName: 'crm.leads.index',
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM'],
+            },
+            {
+                label: 'Desain',
+                icon: Palette,
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA'],
+            },
+            {
+                label: 'Quotation',
+                icon: FileText,
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'FINANCE'],
+            },
         ],
     },
     {
         label: 'Eksekusi',
         items: [
-            { label: 'Proyek', icon: FolderKanban },
-            { label: 'Task', icon: ListChecks },
-            { label: 'Lembur', icon: Clock },
-            { label: 'QA', icon: ShieldCheck },
+            {
+                label: 'Proyek',
+                icon: FolderKanban,
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF'],
+            },
+            {
+                label: 'Task',
+                icon: ListChecks,
+                roles: ['CEO', 'PM', 'FIELD_STAFF'],
+            },
+            {
+                label: 'Lembur',
+                icon: Clock,
+                roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'],
+            },
+            {
+                label: 'QA',
+                icon: ShieldCheck,
+                roles: ['CEO', 'PM', 'QA'],
+            },
         ],
     },
     {
         label: 'Operasional',
         items: [
-            { label: 'Finance', icon: Wallet },
-            { label: 'Logistik', icon: Package },
+            {
+                label: 'Finance',
+                icon: Wallet,
+                roles: ['CEO', 'PM', 'FINANCE'],
+            },
+            {
+                label: 'Logistik',
+                icon: Package,
+                roles: ['CEO', 'ESTIMATOR', 'PM', 'LOGISTICS'],
+            },
         ],
     },
     {
@@ -92,6 +134,12 @@ const NAV_GROUPS: NavGroup[] = [
             {
                 label: 'Analytics',
                 icon: BarChart3,
+                roles: ['CEO'],
+            },
+            {
+                label: 'User Management',
+                icon: UserCog,
+                routeName: 'users.index',
                 roles: ['CEO'],
             },
         ],

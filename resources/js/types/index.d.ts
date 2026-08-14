@@ -32,6 +32,16 @@ export type PageProps<
     };
 };
 
+/** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
+export interface PaginatedData<T> {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    links: { url: string | null; label: string; active: boolean }[];
+}
+
 /** PRD 4.1 — CRM / Presales */
 export type LeadPriority = 'HOT' | 'WARM' | 'COLD';
 export type LeadStatus = 'FOLLOW_UP' | 'DEAL_DESAIN' | 'CLOSING' | 'LOST';
@@ -48,10 +58,20 @@ export interface Lead {
     contact: string;
     source: string;
     priority: LeadPriority;
+    category: LeadCategory | null;
+    service: string | null;
+    city: string | null;
+    gender: string | null;
+    order_detail: string | null;
     status: LeadStatus;
     assigned_to: number;
+    /** Loaded via `with('assignee:id,name')` — see Lead::assignee() for why it isn't named `assignedTo`. */
+    assignee?: Pick<User, 'id' | 'name'>;
+    creator?: Pick<User, 'id' | 'name'>;
     follow_up_date: string | null;
+    lost_reason: string | null;
     notes: string | null;
+    created_by: number;
     created_at: string;
     updated_at: string;
 }
