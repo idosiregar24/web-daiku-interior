@@ -1,0 +1,143 @@
+Versi Dokumen,Sprint,Tanggal,Minggu,Bulan,Person,Modul,Task,Tipe,Estimasi (jam),Status,Catatan
+v1.0.0,Sprint 1,2025-01-06,Week 1,Bulan 1,Ido Refael Siregar,Setup,Init Laravel 11 + Inertia.js v2 + React 18 + TypeScript,Setup,2,Not Started,composer create-project + npm install
+v1.0.0,Sprint 1,2025-01-06,Week 1,Bulan 1,Ido Refael Siregar,Setup,Konfigurasi Tailwind CSS + shadcn/ui + Daiku theme token,Setup,2,Not Started,"warna daiku-yellow, border radius, font"
+v1.0.0,Sprint 1,2025-01-07,Week 1,Bulan 1,Ido Refael Siregar,Setup,"Setup Docker Compose: postgres, redis, soketi, nginx",Setup,4,Not Started,docker-compose.yml lengkap
+v1.0.0,Sprint 1,2025-01-08,Week 1,Bulan 1,Ido Refael Siregar,Auth,Install Laravel Breeze + Spatie Permission + seed 9 roles,Backend,4,Not Started,"role: CEO,Marketing,Designer,dll"
+v1.0.0,Sprint 1,2025-01-09,Week 1,Bulan 1,Ido Refael Siregar,Auth,Middleware RBAC + route group per role (web.php),Backend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-10,Week 1,Bulan 1,Ido Refael Siregar,Auth,Redirect post-login per role + AppLayout.tsx (sidebar+topbar),Fullstack,4,Not Started,
+v1.0.0,Sprint 1,2025-01-06,Week 1,Bulan 1,Jonathan Sigalingging,Setup,"Clone repo + setup local environment (PHP 8.3, Node, MySQL, Redis)",Setup,2,Not Started,
+v1.0.0,Sprint 1,2025-01-06,Week 1,Bulan 1,Jonathan Sigalingging,Setup,Belajar: Laravel 11 basics + Eloquent ORM (dokumentasi resmi),Learning,2,Not Started,
+v1.0.0,Sprint 1,2025-01-07,Week 1,Bulan 1,Jonathan Sigalingging,Setup,Belajar: Inertia.js konsep + cara kerja page component,Learning,2,Not Started,
+v1.0.0,Sprint 1,2025-01-07,Week 1,Bulan 1,Jonathan Sigalingging,Setup,"Database migration: users, roles, permissions (Spatie)",Backend,2,Not Started,
+v1.0.0,Sprint 1,2025-01-08,Week 1,Bulan 1,Jonathan Sigalingging,Setup,"Buat komponen UI dasar: Button, Card, Badge, StatusChip",Frontend,4,Not Started,shadcn + Daiku theme
+v1.0.0,Sprint 1,2025-01-09,Week 1,Bulan 1,Jonathan Sigalingging,Setup,"Buat komponen: Table (TanStack), Modal, Dropdown, PageHeader",Frontend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-10,Week 1,Bulan 1,Jonathan Sigalingging,Setup,"Buat komponen: Form input, Select, DatePicker, Textarea + AuthLayout",Frontend,4,Not Started,React Hook Form + Zod
+v1.0.0,Sprint 1,2025-01-13,Week 2,Bulan 1,Ido Refael Siregar,Auth,Login page UI + error handling Inertia form,Frontend,2,Not Started,
+v1.0.0,Sprint 1,2025-01-13,Week 2,Bulan 1,Ido Refael Siregar,Auth,User Management: CRUD user + assign role,Fullstack,2,Not Started,
+v1.0.0,Sprint 1,2025-01-14,Week 2,Bulan 1,Ido Refael Siregar,CRM,"Database migration: leads, pipeline_logs",Backend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-15,Week 2,Bulan 1,Ido Refael Siregar,CRM,Lead model + PipelineLog model + relasi Eloquent,Backend,4,Not Started,"scope: byStatus, byPriority"
+v1.0.0,Sprint 1,2025-01-16,Week 2,Bulan 1,Ido Refael Siregar,CRM,LeadController + StoreLeadRequest + LeadService,Backend,4,Not Started,thin controller pattern
+v1.0.0,Sprint 1,2025-01-17,Week 2,Bulan 1,Ido Refael Siregar,CRM,Lead index page: tabel + filter status/prioritas,Frontend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-13,Week 2,Bulan 1,Jonathan Sigalingging,Setup,Buat Sidebar navigasi dengan conditional menu per role,Frontend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-14,Week 2,Bulan 1,Jonathan Sigalingging,Projects,"Database migration: projects, milestones, tasks",Backend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-15,Week 2,Bulan 1,Jonathan Sigalingging,Projects,"Database migration: progress_logs, daily_task_forms",Backend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-16,Week 2,Bulan 1,Jonathan Sigalingging,Projects,"Database migration: overtime_requests, penalties, family_gathering_fund",Backend,4,Not Started,
+v1.0.0,Sprint 1,2025-01-17,Week 2,Bulan 1,Jonathan Sigalingging,Finance,"Database migration: termins, finance_transactions, qa_forms, materials, assets",Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-20,Week 3,Bulan 1,Ido Refael Siregar,CRM,Lead create/edit form modal + validasi client-side,Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-21,Week 3,Bulan 1,Ido Refael Siregar,CRM,Pipeline status update + PipelineLog otomatis di LeadService,Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-22,Week 3,Bulan 1,Ido Refael Siregar,CRM,Follow-up date reminder: notif + tampil di dashboard Marketing,Fullstack,4,Not Started,
+v1.0.0,Sprint 2,2025-01-23,Week 3,Bulan 1,Ido Refael Siregar,CRM,Lead → Deal: konfirmasi + trigger buat Project draft otomatis,Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-24,Week 3,Bulan 1,Ido Refael Siregar,Design,DesignController + Design model + relasi Lead,Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-20,Week 3,Bulan 1,Jonathan Sigalingging,Projects,Project model + Milestone model + Task model + relasi,Backend,4,Not Started,"fillable, scope, relasi"
+v1.0.0,Sprint 2,2025-01-21,Week 3,Bulan 1,Jonathan Sigalingging,Projects,"ProjectController: index, show, store + StoreProjectRequest",Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-22,Week 3,Bulan 1,Jonathan Sigalingging,Projects,Project index page: daftar proyek + status chip + filter PM,Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-23,Week 3,Bulan 1,Jonathan Sigalingging,Projects,"Project detail page: layout tab (Overview, Milestone, Task, Finance)",Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-24,Week 3,Bulan 1,Jonathan Sigalingging,Projects,MilestoneController: CRUD + urutan order + MilestoneService,Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-27,Week 4,Bulan 1,Ido Refael Siregar,Design,Design page UI: brief form + input URL + status badge,Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-28,Week 4,Bulan 1,Ido Refael Siregar,Design,Client ACC button + konfirmasi modal + trigger buka Quotation,Fullstack,4,Not Started,
+v1.0.0,Sprint 2,2025-01-29,Week 4,Bulan 1,Ido Refael Siregar,Quotation,"Database migration: quotations, quotation_items, quotation_approvals",Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-30,Week 4,Bulan 1,Ido Refael Siregar,Quotation,QuotationController + QuotationService + Form Request,Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-31,Week 4,Bulan 1,Ido Refael Siregar,Quotation,Quotation builder UI: tambah/hapus item RAB + kalkulasi otomatis,Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-27,Week 4,Bulan 1,Jonathan Sigalingging,Projects,Milestone list component: timeline visual per proyek,Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-28,Week 4,Bulan 1,Jonathan Sigalingging,Tasks,"TaskController: index, store, updateStatus + StoreTaskRequest",Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-29,Week 4,Bulan 1,Jonathan Sigalingging,Tasks,"Task model: is_locked logic + scope overdue, byAssignee",Backend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-30,Week 4,Bulan 1,Jonathan Sigalingging,Tasks,"Task assignment form PM: pilih tukang, due date, rate per task",Frontend,4,Not Started,
+v1.0.0,Sprint 2,2025-01-31,Week 4,Bulan 1,Jonathan Sigalingging,Tasks,Task list PM: filter by milestone/assignee/status,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-03,Week 5,Bulan 2,Ido Refael Siregar,Quotation,Quotation approval flow: CEO approve → PM approve (sequential),Backend,4,Not Started,QuotationApproval model
+v1.0.0,Sprint 3,2025-02-04,Week 5,Bulan 2,Ido Refael Siregar,Quotation,Quotation approval UI: tombol approve/reject + catatan,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-05,Week 5,Bulan 2,Ido Refael Siregar,Quotation,Export PDF quotation: DomPDF template RAB Daiku,Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-06,Week 5,Bulan 2,Ido Refael Siregar,CRM,Pipeline dashboard Marketing: funnel chart + statistik lead,Frontend,4,Not Started,Recharts
+v1.0.0,Sprint 3,2025-02-07,Week 5,Bulan 2,Ido Refael Siregar,Review,Code review Jonathan Sigalingging + update dokumentasi + bug fix minggu 1-4,Review,4,Not Started,
+v1.0.0,Sprint 3,2025-02-03,Week 5,Bulan 2,Jonathan Sigalingging,Tasks,"Task list page Tukang: hanya task sendiri, immutable (no edit btn)",Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-04,Week 5,Bulan 2,Jonathan Sigalingging,Tasks,Task status update Tukang: PENDING→IN_PROGRESS→DONE,Fullstack,4,Not Started,policy: hanya assignee
+v1.0.0,Sprint 3,2025-02-05,Week 5,Bulan 2,Jonathan Sigalingging,DailyForm,"DailyTaskFormController: store, index by date + validasi 1/task/hari",Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-06,Week 5,Bulan 2,Jonathan Sigalingging,DailyForm,Daily form page Tukang: form per task aktif hari ini,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-07,Week 5,Bulan 2,Jonathan Sigalingging,DailyForm,Validasi deadline 21:00: form tidak bisa disubmit setelah jam 21:00,Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-10,Week 6,Bulan 2,Ido Refael Siregar,Penalty,"PenaltyService: cek form harian missing, generate penalti Rp50.000",Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-11,Week 6,Bulan 2,Ido Refael Siregar,Penalty,DailyPenaltyJob: dispatch jam 21:00 Senin–Sabtu via Laravel Scheduler,Backend,4,Not Started,routes/console.php
+v1.0.0,Sprint 3,2025-02-12,Week 6,Bulan 2,Ido Refael Siregar,Penalty,FamilyGatheringFund: akumulasi penalti otomatis + model,Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-13,Week 6,Bulan 2,Ido Refael Siregar,Penalty,FamilyGatheringFund page Finance: total dana + riwayat,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-14,Week 6,Bulan 2,Ido Refael Siregar,Review,Code review Jonathan Sigalingging + integration test alur presales end-to-end,Review,4,Not Started,Lead→Design→Quotation→Deal
+v1.0.0,Sprint 3,2025-02-10,Week 6,Bulan 2,Jonathan Sigalingging,Overtime,OvertimeRequest model + OvertimeController: store (Tukang),Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-11,Week 6,Bulan 2,Jonathan Sigalingging,Overtime,Overtime approval PM: list pengajuan + approve/reject form,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-12,Week 6,Bulan 2,Jonathan Sigalingging,Overtime,Overtime approval Finance: list pending finance + approve + catat EXPENSE,Frontend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-13,Week 6,Bulan 2,Jonathan Sigalingging,Overtime,OvertimeService: alur status PENDING→APPROVED_PM→APPROVED_FINANCE,Backend,4,Not Started,
+v1.0.0,Sprint 3,2025-02-14,Week 6,Bulan 2,Jonathan Sigalingging,Overtime,"Overtime request form Tukang: jam, rate, tanggal, alasan",Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-17,Week 7,Bulan 2,Ido Refael Siregar,QA,QAForm model + auto-create trigger saat PM mark milestone selesai,Backend,4,Not Started,observer atau service
+v1.0.0,Sprint 4,2025-02-18,Week 7,Bulan 2,Ido Refael Siregar,QA,"QAFormController: show, update (approve/reject + checklist)",Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-19,Week 7,Bulan 2,Ido Refael Siregar,QA,QA form page: checklist item list + approve/reject + catatan,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-20,Week 7,Bulan 2,Ido Refael Siregar,QA,Blocking mechanism: milestone berikutnya locked jika QA pending,Backend,4,Not Started,policy / service check
+v1.0.0,Sprint 4,2025-02-21,Week 7,Bulan 2,Ido Refael Siregar,QA,Rejection counter: jika reject 2x → notif otomatis ke CEO,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-17,Week 7,Bulan 2,Jonathan Sigalingging,Projects,ProgressLogController + ProgressLog model,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-18,Week 7,Bulan 2,Jonathan Sigalingging,Projects,Progress log form PM: persentase + deskripsi + URL referensi,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-19,Week 7,Bulan 2,Jonathan Sigalingging,Projects,Progress timeline component: log kronologis per proyek,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-20,Week 7,Bulan 2,Jonathan Sigalingging,Projects,Project overview: progress bar dari log terbaru,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-21,Week 7,Bulan 2,Jonathan Sigalingging,Tasks,Task overdue detection: update status OVERDUE via scheduled job tengah malam,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-24,Week 8,Bulan 2,Ido Refael Siregar,Finance,TerminController + TerminService: CRUD + jadwal Sabtu otomatis,Backend,4,Not Started,getNextSaturday logic
+v1.0.0,Sprint 4,2025-02-25,Week 8,Bulan 2,Ido Refael Siregar,Finance,Validasi total persentase termin = 100% di TerminService,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-26,Week 8,Bulan 2,Ido Refael Siregar,Finance,Termin list page Finance: status chip + tombol mark as paid,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-27,Week 8,Bulan 2,Ido Refael Siregar,Finance,Export invoice PDF per termin: DomPDF template,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-28,Week 8,Bulan 2,Ido Refael Siregar,Finance,TerminReminderJob: notif H-3 sebelum jadwal termin ke Finance,Backend,4,Not Started,Laravel Scheduler
+v1.0.0,Sprint 4,2025-02-24,Week 8,Bulan 2,Jonathan Sigalingging,Finance,FinanceTransactionController + model,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-25,Week 8,Bulan 2,Jonathan Sigalingging,Finance,Cash flow dashboard: chart pemasukan vs pengeluaran 6 bulan,Frontend,4,Not Started,Recharts bar chart
+v1.0.0,Sprint 4,2025-02-26,Week 8,Bulan 2,Jonathan Sigalingging,Finance,Transaksi list: filter by type/tanggal/proyek + total summary,Frontend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-27,Week 8,Bulan 2,Jonathan Sigalingging,Finance,Export Excel laporan cash flow bulanan: Laravel Excel,Backend,4,Not Started,
+v1.0.0,Sprint 4,2025-02-28,Week 8,Bulan 2,Jonathan Sigalingging,Finance,Pencatatan upah tukang per task selesai + staff payment list,Fullstack,4,Not Started,
+v1.0.0,Sprint 5,2025-03-03,Week 9,Bulan 3,Ido Refael Siregar,Logistics,MaterialController + Material model + margin kalkulasi otomatis,Backend,4,Not Started,sellPrice - costPrice
+v1.0.0,Sprint 5,2025-03-04,Week 9,Bulan 3,Ido Refael Siregar,Logistics,Material list page: tabel + margin profit + alert stok minimum,Frontend,4,Not Started,badge merah jika < min_stock
+v1.0.0,Sprint 5,2025-03-05,Week 9,Bulan 3,Ido Refael Siregar,Logistics,Stok management: penerimaan + pemakaian per proyek,Fullstack,4,Not Started,validasi stok tidak negatif
+v1.0.0,Sprint 5,2025-03-06,Week 9,Bulan 3,Ido Refael Siregar,Logistics,AssetController + Asset model + CRUD aset inventaris,Fullstack,4,Not Started,
+v1.0.0,Sprint 5,2025-03-07,Week 9,Bulan 3,Ido Refael Siregar,Logistics,Export Excel: daftar material + aset,Backend,4,Not Started,Laravel Excel
+v1.0.0,Sprint 5,2025-03-03,Week 9,Bulan 3,Jonathan Sigalingging,Notifications,Setup Laravel Echo + Soketi di frontend (echo.ts),Setup,4,Not Started,pusher-js + private channel
+v1.0.0,Sprint 5,2025-03-04,Week 9,Bulan 3,Jonathan Sigalingging,Notifications,NotificationController + Laravel Notification class base,Backend,4,Not Started,
+v1.0.0,Sprint 5,2025-03-05,Week 9,Bulan 3,Jonathan Sigalingging,Notifications,Broadcast: NotificationCreated event → Echo private channel user,Backend,4,Not Started,
+v1.0.0,Sprint 5,2025-03-06,Week 9,Bulan 3,Jonathan Sigalingging,Notifications,Notification bell realtime: subscribe Echo channel di React,Frontend,4,Not Started,badge counter update live
+v1.0.0,Sprint 5,2025-03-07,Week 9,Bulan 3,Jonathan Sigalingging,Notifications,"Notification list page: mark as read, mark all read, riwayat 90 hari",Frontend,4,Not Started,
+v1.0.0,Sprint 5,2025-03-10,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: lead follow-up jatuh tempo → Marketing,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-10,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: design ACC → Estimator + PM,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-11,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: quotation submit → CEO + PM,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-11,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: quotation approve/reject → Estimator + Marketing,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-12,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: deal confirmed → PM + CEO + Finance + Logistics,Backend,4,Not Started,
+v1.0.0,Sprint 5,2025-03-13,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: task overdue → PM proyek terkait,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-13,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: penalti dijatuhkan → Tukang + Finance,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-14,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: termin overdue → Finance + CEO,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-14,Week 10,Bulan 3,Ido Refael Siregar,Notifications,Trigger: QA reject 2x berturut-turut → CEO,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-10,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: task baru di-assign → Tukang bersangkutan,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-10,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: QA form dibuat → tim QA,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-11,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: QA approve/reject → PM proyek,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-11,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: overtime approved PM → Tukang + Finance,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-12,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: overtime approved Finance → Tukang,Backend,2,Not Started,
+v1.0.0,Sprint 5,2025-03-12,Week 10,Bulan 3,Jonathan Sigalingging,Notifications,Trigger: daily form belum diisi jam 20:00 (reminder) → Tukang,Backend,2,Not Started,30 menit sebelum penalti
+v1.0.0,Sprint 5,2025-03-13,Week 10,Bulan 3,Jonathan Sigalingging,Analytics,AnalyticsController: query agregasi per widget CEO,Backend,4,Not Started,
+v1.0.0,Sprint 5,2025-03-14,Week 10,Bulan 3,Jonathan Sigalingging,Analytics,CEO Dashboard layout: grid widget + data dari AnalyticsController,Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-17,Week 11,Bulan 3,Ido Refael Siregar,Analytics,Widget: pipeline funnel chart (Recharts),Frontend,3,Not Started,
+v1.0.0,Sprint 6,2025-03-17,Week 11,Bulan 3,Ido Refael Siregar,Analytics,Widget: active projects overview + progress bar,Frontend,1,Not Started,
+v1.0.0,Sprint 6,2025-03-18,Week 11,Bulan 3,Ido Refael Siregar,Analytics,Widget: revenue vs target chart 6 bulan,Frontend,4,Not Started,input target manual per bulan
+v1.0.0,Sprint 6,2025-03-19,Week 11,Bulan 3,Ido Refael Siregar,Analytics,Widget: penalty summary + family gathering fund total,Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-20,Week 11,Bulan 3,Ido Refael Siregar,Analytics,Widget: team performance PM + overdue heatmap,Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-21,Week 11,Bulan 3,Ido Refael Siregar,Analytics,"Partial dashboard per divisi (Marketing, Finance, Logistics)",Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-17,Week 11,Bulan 3,Jonathan Sigalingging,Logistics,ProjectMaterial: kebutuhan material per proyek + input pemakaian,Fullstack,4,Not Started,
+v1.0.0,Sprint 6,2025-03-18,Week 11,Bulan 3,Jonathan Sigalingging,Projects,Milestone status auto-update: OVERDUE jika lewat targetDate (scheduler),Backend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-19,Week 11,Bulan 3,Jonathan Sigalingging,Projects,Project selesai flow: semua milestone COMPLETED → project COMPLETED,Backend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-20,Week 11,Bulan 3,Jonathan Sigalingging,Tasks,PM task board: kanban-lite per milestone (groupBy status),Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-21,Week 11,Bulan 3,Jonathan Sigalingging,Tasks,Penalty list PM: per tukang + total + link ke family fund,Frontend,4,Not Started,
+v1.0.0,Sprint 6,2025-03-24,Week 12,Bulan 3,Ido Refael Siregar,Testing,"Unit test: PenaltyService (form missing, tidak ganda)",Testing,4,Not Started,Pest PHP
+v1.0.0,Sprint 6,2025-03-25,Week 12,Bulan 3,Ido Refael Siregar,Testing,"Unit test: TerminService (jadwal Sabtu, validasi total 100%)",Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-26,Week 12,Bulan 3,Ido Refael Siregar,Testing,Feature test: alur presales Lead→Design→Quotation→Deal→Project,Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-27,Week 12,Bulan 3,Ido Refael Siregar,Testing,RBAC test: semua role × semua route sensitif,Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-28,Week 12,Bulan 3,Ido Refael Siregar,Testing,Bug fix sprint: semua issue dari hasil testing,Bugfix,4,Not Started,
+v1.0.0,Sprint 6,2025-03-24,Week 12,Bulan 3,Jonathan Sigalingging,Testing,"Unit test: OvertimeService (approval flow, status transition)",Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-25,Week 12,Bulan 3,Jonathan Sigalingging,Testing,Feature test: task lock mechanism + status update Tukang,Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-26,Week 12,Bulan 3,Jonathan Sigalingging,Testing,Feature test: QA blocking mechanism + rejection counter,Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-27,Week 12,Bulan 3,Jonathan Sigalingging,Testing,Feature test: Finance termin + family gathering fund,Testing,4,Not Started,
+v1.0.0,Sprint 6,2025-03-28,Week 12,Bulan 3,Jonathan Sigalingging,Testing,Bug fix sprint + regression test,Bugfix,4,Not Started,
+v1.0.0,Sprint 7,2025-03-31,Week 13,Bulan 4,Ido Refael Siregar,UAT,Setup staging server: deploy ke VPS + env config + seed data dummy,DevOps,4,Not Started,
+v1.0.0,Sprint 7,2025-04-01,Week 13,Bulan 4,Ido Refael Siregar,UAT,"UAT sesi 1: Marketing + Designer (CRM, Design, Quotation)",UAT,4,Not Started,
+v1.0.0,Sprint 7,2025-04-02,Week 13,Bulan 4,Ido Refael Siregar,UAT,"UAT sesi 2: PM + Tukang (Task, Daily Form, Overtime, QA)",UAT,4,Not Started,
+v1.0.0,Sprint 7,2025-04-03,Week 13,Bulan 4,Ido Refael Siregar,UAT,"UAT sesi 3: Finance + CEO (Cash Flow, Termin, Dashboard)",UAT,4,Not Started,
+v1.0.0,Sprint 7,2025-04-04,Week 13,Bulan 4,Ido Refael Siregar,UAT,Kompilasi feedback UAT + prioritas fix,UAT,4,Not Started,
+v1.0.0,Sprint 7,2025-03-31,Week 13,Bulan 4,Jonathan Sigalingging,Setup,GitHub Actions CI/CD pipeline: test → staging → production,DevOps,4,Not Started,
+v1.0.0,Sprint 7,2025-04-01,Week 13,Bulan 4,Jonathan Sigalingging,Bugfix,"Fix UAT feedback batch 1: Task, Daily Form, Penalty, Overtime",Bugfix,4,Not Started,
+v1.0.0,Sprint 7,2025-04-02,Week 13,Bulan 4,Jonathan Sigalingging,Bugfix,"Fix UAT feedback batch 2: QA, Finance, Logistics",Bugfix,4,Not Started,
+v1.0.0,Sprint 7,2025-04-03,Week 13,Bulan 4,Jonathan Sigalingging,Security,Rate limiting + audit log aksi sensitif + XSS check,Security,4,Not Started,
+v1.0.0,Sprint 7,2025-04-04,Week 13,Bulan 4,Jonathan Sigalingging,Docs,Seed data production-ready + dokumentasi teknis singkat,Docs,4,Not Started,
