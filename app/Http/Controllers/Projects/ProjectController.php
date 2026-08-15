@@ -48,6 +48,7 @@ class ProjectController extends Controller
         $user = $request->user();
         $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'QA', 'SUPERADMIN']);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
+        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
 
         $project->load(['pm:id,name', 'lead:id,client_name']);
 
@@ -58,7 +59,9 @@ class ProjectController extends Controller
                 : [],
             'canViewMilestones' => $canViewMilestones,
             'canManageMilestones' => $canManageMilestones,
-            'tasks' => $project->tasks()->with('assignee:id,name')->latest()->get(),
+            'canManageTasks' => $canManageTasks,
+            'tasks' => $project->tasks()->with(['assignee:id,name', 'milestone:id,name'])->latest()->get(),
+            'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name']) : [],
         ]);
     }
 

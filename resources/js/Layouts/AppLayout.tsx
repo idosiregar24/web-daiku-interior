@@ -99,11 +99,13 @@ const NAV_GROUPS: NavGroup[] = [
             {
                 label: 'Desain',
                 icon: Palette,
+                routeName: 'design.index',
                 roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA'],
             },
             {
                 label: 'Quotation',
                 icon: FileText,
+                routeName: 'quotations.index',
                 roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'FINANCE'],
             },
         ],
@@ -120,6 +122,7 @@ const NAV_GROUPS: NavGroup[] = [
             {
                 label: 'Task',
                 icon: ListChecks,
+                routeName: 'tasks.index',
                 roles: ['CEO', 'PM', 'FIELD_STAFF'],
             },
             {

@@ -12,6 +12,8 @@ use App\Http\Controllers\MasterData\MasterDataController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProjectController;
+use App\Http\Controllers\Projects\TaskController;
+use App\Http\Controllers\Quotation\QuotationController;
 use App\Http\Controllers\Settings\SiteSettingController;
 use App\Services\RoleRedirectService;
 use Illuminate\Support\Facades\Route;
@@ -66,13 +68,52 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
         ->name('leads.confirmDeal');
 });
 
-// Design — PRD §4.2 / §7.1 "Design Brief" row (DES has CRUD). Only the
-// entry point that opens a design brief from a DEAL_DESAIN lead is wired
-// this sprint (.claude/plan/sprint-02.md Week 3) — the rest of the module
-// (status transitions, brief form UI) is Week 4.
+// Design — PRD §4.2 / §7.1 "Design Brief" row (DES has CRUD, everyone
+// else on the row R). "Design – Client ACC" is its own row with different
+// access (MKT + DES both U, not CEO/PM) — PRD explicitly gives Marketing
+// a say here since they're the ones talking to the client.
 Route::post('crm/leads/{lead}/design', [DesignController::class, 'store'])
     ->middleware(['auth', 'role:DESIGNER'])
     ->name('crm.leads.design.store');
+
+Route::middleware('auth')->prefix('design')->name('design.')->group(function () {
+    Route::get('/', [DesignController::class, 'index'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA')
+        ->name('index');
+
+    Route::get('{design}', [DesignController::class, 'show'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA')
+        ->name('show');
+
+    Route::put('{design}', [DesignController::class, 'update'])
+        ->middleware('role:DESIGNER')
+        ->name('update');
+
+    Route::post('{design}/client-acc', [DesignController::class, 'clientAcc'])
+        ->middleware('role:MARKETING|DESIGNER')
+        ->name('clientAcc');
+});
+
+// Quotation — PRD §4.3 / §7.1 "Quotation" row: broad read, Estimator-only
+// CRUD (RAB builder). Dual CEO→PM approval isn't wired yet — see
+// QuotationController's docblock, that's .claude/plan/sprint-03.md Week 5.
+Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(function () {
+    Route::get('/', [QuotationController::class, 'index'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
+        ->name('index');
+
+    Route::get('{quotation}', [QuotationController::class, 'show'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
+        ->name('show');
+
+    Route::put('{quotation}/items', [QuotationController::class, 'updateItems'])
+        ->middleware('role:ESTIMATOR')
+        ->name('items.update');
+
+    Route::post('{quotation}/submit', [QuotationController::class, 'submit'])
+        ->middleware('role:ESTIMATOR')
+        ->name('submit');
+});
 
 // Projects — PRD §4.4 / §7.1 "Project (overview)" row: broad read access,
 // PM (+ CEO, admin oversight) for create. Field Staff read is scoped to
@@ -105,6 +146,21 @@ Route::middleware(['auth', 'role:CEO|PM'])->group(function () {
     Route::delete('milestones/{milestone}', [MilestoneController::class, 'destroy'])
         ->name('milestones.destroy');
 });
+
+// Tasks — PRD §7.1 "Task – Create/Edit" (PM CRUD, CEO R-only) / "Task –
+// Update Status" (PM U, Field Staff U† own task only — enforced by
+// TaskPolicy, see AppServiceProvider's SUPERADMIN Gate::before bypass).
+Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('tasks')->name('tasks.')->group(function () {
+    Route::get('/', [TaskController::class, 'index'])->name('index');
+});
+
+Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
+    ->middleware(['auth', 'role:PM'])
+    ->name('tasks.store');
+
+Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
+    ->middleware(['auth', 'role:PM|FIELD_STAFF'])
+    ->name('tasks.updateStatus');
 
 // User Management — CEO-only (assigning roles is an admin-level action;
 // not itemized in the PRD §7.1 matrix, so scoped to the role that already

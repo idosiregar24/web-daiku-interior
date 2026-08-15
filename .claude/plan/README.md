@@ -11,7 +11,7 @@ Fase **Foundation** (setup stack sesuai PRD §3) sudah dikerjakan di luar urutan
 | Sprint | Minggu | Bulan | Fokus Modul | Status | File |
 |---|---|---|---|---|---|
 | Sprint 1 | Week 1–Week 2 | Bulan 1 | Setup, Auth, CRM, Projects, Finance | 20 selesai / 1 sebagian / 3 belum (24) | [sprint-01.md](sprint-01.md) |
-| Sprint 2 | Week 3–Week 4 | Bulan 1 | CRM, Design, Projects, Quotation, Tasks | 9 selesai / 1 sebagian / 10 belum (20) | [sprint-02.md](sprint-02.md) |
+| Sprint 2 | Week 3–Week 4 | Bulan 1 | CRM, Design, Projects, Quotation, Tasks | 19 selesai / 1 sebagian / 0 belum (20) | [sprint-02.md](sprint-02.md) |
 | Sprint 3 | Week 5–Week 6 | Bulan 2 | Quotation, CRM, Review, Tasks, DailyForm, Penalty, Overtime | 0 selesai / 0 sebagian / 20 belum (20) | [sprint-03.md](sprint-03.md) |
 | Sprint 4 | Week 7–Week 8 | Bulan 2 | QA, Projects, Tasks, Finance | 0 selesai / 0 sebagian / 20 belum (20) | [sprint-04.md](sprint-04.md) |
 | Sprint 5 | Week 9–Week 10 | Bulan 3 | Logistics, Notifications, Analytics | 0 selesai / 1 sebagian / 26 belum (27) | [sprint-05.md](sprint-05.md) |
@@ -96,6 +96,88 @@ Requested directly by the user, not from PRD §7.1 or the CSV. Two additions:
 - Pagination controls are still not rendered on any index page (Lead,
   Project) — carried over from Sprint 1's Lead index, not something this
   sprint introduced or fixed.
+
+## Sprint 2 Week 4 — Design brief UI + Client ACC + Quotation RAB builder (done 2026-08-15, Ido's tasks only)
+
+- **QuotationStatus's SUBMITTED→CEO_REVIEW→PM_REVIEW→SENT_TO_CLIENT nuance
+  deliberately left unresolved this week.** PRD §4.3 lists 7 status values
+  in sequence but never states which transitions are "awaiting X" vs
+  "X already happened" — genuinely ambiguous prose. Since
+  `.claude/plan/sprint-03.md` Week 5 owns the actual approval flow
+  ("Quotation approval flow: CEO approve → PM approve (sequential)"),
+  `QuotationService` only implements DRAFT→SUBMITTED (`submit()`) this
+  week; resolving the CEO_REVIEW/PM_REVIEW semantics is deferred to
+  whoever builds that flow, not decided prematurely here. See
+  `QuotationStatus`'s docblock.
+- **Design status has no validated transition graph**, unlike
+  `LeadService::changeStatus()`. PRD describes the 13 `DesignStatus`
+  values as a pipeline but no business rule ties specific transitions to
+  specific actors the way Lead's pipeline does — `DesignController::update()`
+  accepts any status value in one plain field update (same pattern as
+  `MilestoneService::update()`). `clientAcc()` is the one transition that
+  **is** guarded (must be `WAITING_ACC_DESAIN`, must not already be
+  ACC'd) since PRD is explicit about that one.
+- **`client_acc` → `GAMBAR_RAB` skips resting at `ACC_DESAIN`.** PRD:
+  "Client ACC: Konfirmasi ACC desain → trigger ke tahap Gambar RAB →
+  Penawaran" — read as one atomic step (ACC confirmation directly opens
+  the RAB stage) rather than two separate manual transitions.
+- **No daily `delay_hari` recalculation job.** PRD §4.2 "Sistem hitung
+  `delay_hari` otomatis setiap hari" describes a scheduled job; not built
+  this week (not itemized in the Week 4 CSV tasks) — `designs.delay_hari`
+  stays at its migration default (0) until that job exists. `deadline` IS
+  computed (on create/update, from `start_date + target_hari`), just not
+  the daily delay check against it.
+- **`quotation_approvals` table exists but nothing writes to it yet** —
+  created this week per the migration task, consumed starting Week 5.
+  `approver_role` stores `'CEO'`/`'PM'` (matching this codebase's Spatie
+  role slugs), not `daiku_schema.sql`'s literal `'PROJECT_MANAGER'`.
+- **Bug caught during testing, not left in:** `DesignController::clientAcc()`
+  originally read `$design->quotation` to get the redirect target —
+  `Design` has no such relation (Quotation relates to `Lead`, not
+  `Design`, both being lead_id siblings). Fixed to go through
+  `$design->lead->quotation`; a feature test now covers the full
+  clientAcc → Quotation redirect path so this can't silently regress.
+
+## Sprint 2 Week 4 continued — "Desain"/"Quotation" nav bug fix + Jonathan's Tasks module (done 2026-08-15)
+
+- **Root cause of "fitur Design belum terbuka":** `Design/Show.tsx` and
+  `Quotation/Show.tsx` (built earlier the same day) were only reachable by
+  URL — the sidebar's "Desain"/"Quotation" entries had no `routeName`, so
+  per CLAUDE.md golden rule #8 they always rendered disabled ("Segera"),
+  making genuinely-working pages look unbuilt. Fixed by adding
+  `DesignController::index()`/`QuotationController::index()` (list pages,
+  `Design/Index.tsx`/`Quotation/Index.tsx`) and wiring both nav entries to
+  them — the same fix was needed on both, not just Design.
+- **First Policy in the codebase (`TaskPolicy`).** Laravel 11's default
+  `Controller` skeleton doesn't include `AuthorizesRequests`, so
+  `$this->authorize()` didn't exist yet — added the trait to the base
+  `app/Http/Controllers/Controller.php`. Also added a `Gate::before` in
+  `AppServiceProvider` so `SUPERADMIN` bypasses every Policy the way it
+  already bypasses `role:` route middleware — without it, SUPERADMIN would
+  have been blocked by `TaskPolicy::updateStatus()`'s ownership check,
+  contradicting its god-mode design (see the SUPERADMIN section above).
+  Future Policies (`Project::view()`, `Penalty::view()` — flagged in
+  security-standards.md §2) get this bypass for free.
+- **`tasks.kendala`/`tasks.note` columns added this week** — the original
+  Week 3 tasks migration's own docblock already promised "hanya
+  status/kendala/note yang bisa diubah" but never actually added those two
+  columns (daiku_schema.sql has them; flagged in the Schema discovery
+  section below since Week 3). Added via a follow-up migration now that
+  `TaskController::updateStatus()` is the feature that actually needs them.
+- **`OVER` is not a manually-selectable task status** — PRD: "Status OVER
+  otomatis diset oleh sistem jika task belum DONE melewati due_date".
+  `UpdateTaskStatusRequest` excludes it from the allowed values; no
+  scheduled job sets it automatically yet (same deferral pattern as
+  `designs.delay_hari` above — not itemized as a Week 4 CSV task).
+- **Task creation vs. status update deliberately split across two pages:**
+  `Projects/Show.tsx`'s Task tab (PM, project-scoped — mirrors how
+  Milestones are created there) vs. the new global `Tasks/Index.tsx`
+  (PRD §4.5 "Task List: Tukang melihat daftar task yang di-assign ke
+  mereka" — Field Staff's actual daily view, filterable by
+  milestone/assignee/status for PM/CEO).
+- **Milestone timeline** (`Components/modules/projects/MilestoneTimeline.tsx`)
+  is a vertical connected-dot layout, not horizontal — reads the same at
+  any viewport width with plain Tailwind, no charting library needed.
 
 ## ⚠️ Schema discovery: `daiku_schema.sql` (found 2026-08-15, not yet reconciled)
 

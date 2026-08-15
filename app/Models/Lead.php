@@ -73,6 +73,11 @@ class Lead extends Model
         return $this->hasOne(Design::class);
     }
 
+    public function quotation(): HasOne
+    {
+        return $this->hasOne(Quotation::class);
+    }
+
     public function scopeByStatus(Builder $query, ?string $status): Builder
     {
         return $query->when($status, fn (Builder $q) => $q->where('status', $status));

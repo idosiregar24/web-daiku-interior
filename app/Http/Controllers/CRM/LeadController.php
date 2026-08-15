@@ -21,7 +21,7 @@ class LeadController extends Controller
     public function index(Request $request): Response
     {
         $leads = Lead::query()
-            ->with(['assignee:id,name', 'creator:id,name'])
+            ->with(['assignee:id,name', 'creator:id,name', 'design:id,lead_id'])
             ->byStatus($request->string('status')->value() ?: null)
             ->byPriority($request->string('priority')->value() ?: null)
             ->when($request->filled('search'), fn ($query) => $query->where(
@@ -38,6 +38,7 @@ class LeadController extends Controller
             'filters' => $request->only(['status', 'priority', 'search']),
             'marketers' => User::role('MARKETING')->orderBy('name')->get(['id', 'name']),
             'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
+            'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name']),
             // Sumber Lead — Master Data list (SuperAdmin-editable, see
             // MasterData\LeadSourceController). `leads.source` itself stays
             // a free string column (see lead_sources migration docblock),

@@ -1,13 +1,16 @@
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
+import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
+import { MilestoneTimeline } from '@/Components/modules/projects/MilestoneTimeline';
+import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
+import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Milestone, Project, Task } from '@/types';
+import type { Milestone, Project, Task, User } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 interface ProjectShowProps {
@@ -15,7 +18,9 @@ interface ProjectShowProps {
     milestones: Milestone[];
     canViewMilestones: boolean;
     canManageMilestones: boolean;
+    canManageTasks: boolean;
     tasks: Task[];
+    fieldStaff: Pick<User, 'id' | 'name'>[];
 }
 
 function formatRupiah(value: string | number) {
@@ -106,39 +111,12 @@ function MilestoneTab({
                     Belum ada milestone.
                 </p>
             ) : (
-                <ol className="space-y-2">
-                    {milestones.map((milestone, index) => (
-                        <li
-                            key={milestone.id}
-                            className="flex items-center justify-between gap-4 rounded-lg border border-daiku-border p-3"
-                        >
-                            <div className="flex items-center gap-3">
-                                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-daiku-yellow-light text-xs font-semibold text-daiku-dark">
-                                    {index + 1}
-                                </span>
-                                <div>
-                                    <p className="text-sm font-medium text-daiku-dark">{milestone.name}</p>
-                                    <p className="text-xs text-daiku-muted">
-                                        Target: {formatDate(milestone.target_date)}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                                <StatusChip status={milestone.status} />
-                                {canManage && (
-                                    <>
-                                        <Button variant="ghost" size="icon-sm" onClick={() => openEdit(milestone)}>
-                                            <Pencil className="size-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon-sm" onClick={() => onDelete(milestone)}>
-                                            <Trash2 className="size-4 text-error" />
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
-                        </li>
-                    ))}
-                </ol>
+                <MilestoneTimeline
+                    milestones={milestones}
+                    canManage={canManage}
+                    onEdit={openEdit}
+                    onDelete={onDelete}
+                />
             )}
 
             {canManage && (
@@ -153,41 +131,90 @@ function MilestoneTab({
     );
 }
 
-function TaskTab({ tasks }: { tasks: Task[] }) {
-    if (tasks.length === 0) {
-        return (
-            <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                Belum ada task. Penugasan task ke tukang dibangun pada Sprint 2 Week 4.
-            </p>
-        );
+function TaskTab({
+    project,
+    milestones,
+    tasks,
+    canManage,
+    fieldStaff,
+}: {
+    project: Project;
+    milestones: Milestone[];
+    tasks: Task[];
+    canManage: boolean;
+    fieldStaff: Pick<User, 'id' | 'name'>[];
+}) {
+    const [assignOpen, setAssignOpen] = useState(false);
+    const [statusOpen, setStatusOpen] = useState(false);
+    const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+    function openStatus(task: Task) {
+        setActiveTask(task);
+        setStatusOpen(true);
     }
 
     return (
-        <div className="overflow-hidden rounded-lg border border-daiku-border">
-            <table className="w-full text-sm">
-                <thead className="bg-daiku-yellow-light">
-                    <tr>
-                        <th className="p-2 text-left font-medium">Judul</th>
-                        <th className="p-2 text-left font-medium">Assignee</th>
-                        <th className="p-2 text-left font-medium">Status</th>
-                        <th className="p-2 text-left font-medium">Prioritas</th>
-                        <th className="p-2 text-left font-medium">Jatuh Tempo</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {tasks.map((task) => (
-                        <tr key={task.id} className="border-t border-daiku-border">
-                            <td className="p-2 font-medium">{task.title}</td>
-                            <td className="p-2 text-daiku-muted">{task.assignee?.name ?? '—'}</td>
-                            <td className="p-2">
-                                <StatusChip status={task.status} />
-                            </td>
-                            <td className="p-2 text-daiku-muted">{task.priority}</td>
-                            <td className="p-2 text-daiku-muted">{formatDate(task.due_date)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div>
+            {canManage && (
+                <div className="mb-4 flex justify-end">
+                    <Button size="sm" onClick={() => setAssignOpen(true)}>
+                        <Plus className="size-4" />
+                        Tambah Task
+                    </Button>
+                </div>
+            )}
+
+            {tasks.length === 0 ? (
+                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
+                    Belum ada task.
+                </p>
+            ) : (
+                <div className="overflow-hidden rounded-lg border border-daiku-border">
+                    <table className="w-full text-sm">
+                        <thead className="bg-daiku-yellow-light">
+                            <tr>
+                                <th className="p-2 text-left font-medium">Judul</th>
+                                <th className="p-2 text-left font-medium">Assignee</th>
+                                <th className="p-2 text-left font-medium">Status</th>
+                                <th className="p-2 text-left font-medium">Prioritas</th>
+                                <th className="p-2 text-left font-medium">Jatuh Tempo</th>
+                                <th className="w-32 p-2" />
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tasks.map((task) => (
+                                <tr key={task.id} className="border-t border-daiku-border">
+                                    <td className="p-2 font-medium">{task.title}</td>
+                                    <td className="p-2 text-daiku-muted">{task.assignee?.name ?? '—'}</td>
+                                    <td className="p-2">
+                                        <StatusChip status={task.status} />
+                                    </td>
+                                    <td className="p-2 text-daiku-muted">{task.priority}</td>
+                                    <td className="p-2 text-daiku-muted">{formatDate(task.due_date)}</td>
+                                    <td className="p-2">
+                                        {canManage && (
+                                            <Button variant="outline" size="sm" onClick={() => openStatus(task)}>
+                                                Update Status
+                                            </Button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {canManage && (
+                <TaskFormDialog
+                    open={assignOpen}
+                    onOpenChange={setAssignOpen}
+                    projectId={project.id}
+                    milestones={milestones}
+                    fieldStaff={fieldStaff}
+                />
+            )}
+            <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
         </div>
     );
 }
@@ -200,7 +227,15 @@ function FinanceTab() {
     );
 }
 
-export default function ProjectShow({ project, milestones, canViewMilestones, canManageMilestones, tasks }: ProjectShowProps) {
+export default function ProjectShow({
+    project,
+    milestones,
+    canViewMilestones,
+    canManageMilestones,
+    canManageTasks,
+    tasks,
+    fieldStaff,
+}: ProjectShowProps) {
     return (
         <AppLayout
             breadcrumbs={[
@@ -235,7 +270,13 @@ export default function ProjectShow({ project, milestones, canViewMilestones, ca
                     />
                 </TabsContent>
                 <TabsContent value="task" className="mt-4">
-                    <TaskTab tasks={tasks} />
+                    <TaskTab
+                        project={project}
+                        milestones={milestones}
+                        tasks={tasks}
+                        canManage={canManageTasks}
+                        fieldStaff={fieldStaff}
+                    />
                 </TabsContent>
                 <TabsContent value="finance" className="mt-4">
                     <FinanceTab />

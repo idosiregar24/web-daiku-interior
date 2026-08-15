@@ -72,6 +72,8 @@ export interface Lead {
     /** Loaded via `with('assignee:id,name')` — see Lead::assignee() for why it isn't named `assignedTo`. */
     assignee?: Pick<User, 'id' | 'name'>;
     creator?: Pick<User, 'id' | 'name'>;
+    /** Loaded via `with('design:id,lead_id')` — presence alone tells the CRM index whether to show "Buka Desain" or "Lihat Desain". */
+    design?: Pick<Design, 'id'> | null;
     follow_up_date: string | null;
     lost_reason: string | null;
     notes: string | null;
@@ -139,6 +141,31 @@ export type QuotationStatus =
     | 'APPROVED'
     | 'REJECTED';
 
+export interface QuotationItem {
+    id: number;
+    quotation_id: number;
+    description: string;
+    qty: number;
+    unit: string;
+    unit_price: string;
+    total_price: string;
+    sort_order: number;
+}
+
+export interface Quotation {
+    id: number;
+    lead_id: number;
+    lead?: Pick<Lead, 'id' | 'client_name'>;
+    total_amount: string;
+    status: QuotationStatus;
+    valid_until: string | null;
+    version: number;
+    created_by: number;
+    items?: QuotationItem[];
+    created_at: string;
+    updated_at: string;
+}
+
 /** PRD 4.4 — Project Management */
 export type ProjectStatus = 'ACTIVE' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
 export type MilestoneStatus =
@@ -167,6 +194,7 @@ export interface Project {
 export interface Milestone {
     id: number;
     project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
     name: string;
     target_date: string;
     status: MilestoneStatus;
@@ -182,7 +210,9 @@ export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 export interface Task {
     id: number;
     project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
     milestone_id: number | null;
+    milestone?: Pick<Milestone, 'id' | 'name'>;
     title: string;
     description: string | null;
     assignee_id: number | null;
@@ -192,6 +222,8 @@ export interface Task {
     status: TaskStatus;
     priority: TaskPriority;
     is_locked: boolean;
+    kendala: string | null;
+    note: string | null;
     rate_per_task: string | null;
     completed_at: string | null;
     created_at: string;

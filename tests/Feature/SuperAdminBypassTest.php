@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Task;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Route;
@@ -42,4 +43,16 @@ test('superadmin has full access to CRM leads', function () {
     $superadmin->assignRole('SUPERADMIN');
 
     $this->actingAs($superadmin)->get(route('crm.leads.index'))->assertOk();
+});
+
+test('superadmin bypasses TaskPolicy via Gate::before, updating a task that is not their own', function () {
+    $superadmin = User::factory()->create();
+    $superadmin->assignRole('SUPERADMIN');
+    $task = Task::factory()->create(['status' => 'PENDING']);
+
+    $this->actingAs($superadmin)->patch(route('tasks.updateStatus', ['task' => $task->id]), [
+        'status' => 'DONE',
+    ])->assertRedirect();
+
+    expect($task->fresh()->status->value)->toBe('DONE');
 });

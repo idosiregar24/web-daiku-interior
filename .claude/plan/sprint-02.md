@@ -2,7 +2,7 @@
 
 > Sumber: `.claude/File Skema/Daiku v1.0.0/Daiku-Task-Schedule.csv`. Tanggal di CSV memakai kalender placeholder (mulai 2025-01-06) dari draft awal — jadikan acuan **urutan minggu** (Week N), bukan tanggal absolut, saat sprint ini benar-benar dimulai. Checklist di bawah boleh dicentang langsung di file ini seiring progres.
 
-**Ringkasan status:** 9 selesai · 1 sebagian · 10 belum mulai (dari 20 task).
+**Ringkasan status:** 19 selesai · 1 sebagian · 0 belum mulai (dari 20 task).
 
 ## Ido Refael Siregar
 
@@ -17,11 +17,14 @@
 
 ### Week 4 (2025-01-27)
 
-- [ ] **[Design]** Design page UI: brief form + input URL + status badge — *Frontend · 4 jam*
-- [ ] **[Design]** Client ACC button + konfirmasi modal + trigger buka Quotation — *Fullstack · 4 jam*
-- [ ] **[Quotation]** Database migration: quotations, quotation_items, quotation_approvals — *Backend · 4 jam*
-- [ ] **[Quotation]** QuotationController + QuotationService + Form Request — *Backend · 4 jam*
-- [ ] **[Quotation]** Quotation builder UI: tambah/hapus item RAB + kalkulasi otomatis — *Frontend · 4 jam*
+- [x] **[Design]** Design page UI: brief form + input URL + status badge — *Frontend · 4 jam*
+- [x] **[Design]** Client ACC button + konfirmasi modal + trigger buka Quotation — *Fullstack · 4 jam*
+- [x] **[Quotation]** Database migration: quotations, quotation_items, quotation_approvals — *Backend · 4 jam*
+- [x] **[Quotation]** QuotationController + QuotationService + Form Request — *Backend · 4 jam*
+  _(Catatan: RAB builder — create/items/submit to DRAFT→SUBMITTED. CEO→PM
+  dual approval is its own task line on `.claude/plan/sprint-03.md` Week 5
+  ("Quotation approval flow: CEO approve → PM approve"), not duplicated here.)_
+- [x] **[Quotation]** Quotation builder UI: tambah/hapus item RAB + kalkulasi otomatis — *Frontend · 4 jam*
 
 
 ## Jonathan Sigalingging
@@ -36,9 +39,12 @@
 
 ### Week 4 (2025-01-27)
 
-- [ ] **[Projects]** Milestone list component: timeline visual per proyek — *Frontend · 4 jam*
-- [ ] **[Tasks]** TaskController: index, store, updateStatus + StoreTaskRequest — *Backend · 4 jam*
-- [ ] **[Tasks]** Task model: is_locked logic + scope overdue, byAssignee — *Backend · 4 jam*
-- [ ] **[Tasks]** Task assignment form PM: pilih tukang, due date, rate per task — *Frontend · 4 jam*
-- [ ] **[Tasks]** Task list PM: filter by milestone/assignee/status — *Frontend · 4 jam*
+- [x] **[Projects]** Milestone list component: timeline visual per proyek — *Frontend · 4 jam*
+- [x] **[Tasks]** TaskController: index, store, updateStatus + StoreTaskRequest — *Backend · 4 jam*
+- [x] **[Tasks]** Task model: is_locked logic + scope overdue, byAssignee — *Backend · 4 jam*
+  _(Catatan: scopes were already in place from Week 3; "is_locked logic"
+  itself — Field Staff can only touch status/kendala/note — is enforced by
+  the new `TaskPolicy`, not just the `is_locked` column.)_
+- [x] **[Tasks]** Task assignment form PM: pilih tukang, due date, rate per task — *Frontend · 4 jam*
+- [x] **[Tasks]** Task list PM: filter by milestone/assignee/status — *Frontend · 4 jam*
 

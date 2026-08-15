@@ -24,6 +24,8 @@ class Task extends Model
         'status',
         'priority',
         'is_locked',
+        'kendala',
+        'note',
         'rate_per_task',
         'completed_at',
     ];
@@ -76,8 +78,4 @@ class Task extends Model
         return $query->where('due_date', '<', now()->toDateString())
             ->where('status', '!=', TaskStatus::Done->value);
     }
-
-    // TaskPolicy (title/description/due_date are PM-only once is_locked —
-    // security-standards.md §2) lands with TaskController in Sprint 2
-    // Week 4, not here — no controller exists yet to attach it to.
 }

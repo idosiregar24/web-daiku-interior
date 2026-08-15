@@ -19,9 +19,10 @@ import {
 import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
+import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Lead, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -31,18 +32,24 @@ interface LeadIndexProps {
     filters: { status?: string; priority?: string; search?: string };
     marketers: Pick<User, 'id' | 'name'>[];
     projectManagers: Pick<User, 'id' | 'name'>[];
+    designers: Pick<User, 'id' | 'name'>[];
     leadSources: LeadSourceOption[];
 }
 
 const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'CLOSING', 'LOST'];
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 
-export default function LeadIndex({ leads, filters, marketers, projectManagers, leadSources }: LeadIndexProps) {
+export default function LeadIndex({ leads, filters, marketers, projectManagers, designers, leadSources }: LeadIndexProps) {
+    const { auth } = usePage<PageProps>().props;
+    const role = auth.user?.role;
+    const canOpenDesign = role === 'DESIGNER' || role === 'SUPERADMIN';
+
     const [search, setSearch] = useState(filters.search ?? '');
 
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
     const [dealOpen, setDealOpen] = useState(false);
+    const [designOpen, setDesignOpen] = useState(false);
     const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
     function applyFilter(next: Partial<typeof filters>) {
@@ -71,6 +78,11 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
     function openDeal(lead: Lead) {
         setActiveLead(lead);
         setDealOpen(true);
+    }
+
+    function openDesign(lead: Lead) {
+        setActiveLead(lead);
+        setDesignOpen(true);
     }
 
     const columns: ColumnDef<Lead>[] = [
@@ -146,6 +158,19 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                             >
                                 Konfirmasi Deal
                             </DropdownMenuItem>
+                            {canOpenDesign && lead.status === 'DEAL_DESAIN' && (
+                                lead.design ? (
+                                    <DropdownMenuItem asChild>
+                                        <Link href={route('design.show', { design: lead.design.id })}>
+                                            Lihat Desain
+                                        </Link>
+                                    </DropdownMenuItem>
+                                ) : (
+                                    <DropdownMenuItem onSelect={() => openDesign(lead)}>
+                                        Buka Desain
+                                    </DropdownMenuItem>
+                                )
+                            )}
                         </DropdownMenuContent>
                     </DropdownMenu>
                 );
@@ -239,6 +264,14 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 lead={activeLead}
                 projectManagers={projectManagers}
             />
+            {canOpenDesign && (
+                <OpenDesignDialog
+                    open={designOpen}
+                    onOpenChange={setDesignOpen}
+                    lead={activeLead}
+                    designers={designers}
+                />
+            )}
         </AppLayout>
     );
 }
