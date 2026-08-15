@@ -3,7 +3,10 @@
 // Schema & Entities) and section 7 (RBAC). Extend per-module as controllers
 // and Inertia pages are built out.
 
-/** PRD 2 — Stakeholders & Users */
+/**
+ * PRD 2 — Stakeholders & Users. `SUPERADMIN` is a technical admin role
+ * added outside the PRD — see database/seeders/RoleSeeder.php.
+ */
 export type Role =
     | 'CEO'
     | 'MARKETING'
@@ -13,7 +16,8 @@ export type Role =
     | 'QA'
     | 'FINANCE'
     | 'LOGISTICS'
-    | 'FIELD_STAFF';
+    | 'FIELD_STAFF'
+    | 'SUPERADMIN';
 
 export interface User {
     id: number;
@@ -92,6 +96,39 @@ export type DesignStatus =
     | 'HOLD_CLIENT'
     | 'REVISI_CLIENT';
 
+/** Shared between Design.jenis_project and future Project.jenis_project — see App\Enums\ProjectType. */
+export type ProjectType =
+    | 'TOKO'
+    | 'CAFE'
+    | 'RENOVASI'
+    | 'KAMAR_SET'
+    | 'KITCHEN_SET'
+    | 'KANTOR'
+    | 'ARSITEKTURAL'
+    | 'RUANG_TAMU_TV'
+    | 'RETAIL_TOKO'
+    | 'LAINNYA';
+
+export interface Design {
+    id: number;
+    lead_id: number;
+    pic_id: number | null;
+    pic?: Pick<User, 'id' | 'name'>;
+    jenis_project: ProjectType | null;
+    status: DesignStatus;
+    target_hari: number | null;
+    start_date: string | null;
+    deadline: string | null;
+    delay_hari: number;
+    design_urls: string[] | null;
+    brief_note: string | null;
+    problem: string | null;
+    client_acc: boolean;
+    acc_date: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 /** PRD 4.3 — Quotation / RAB */
 export type QuotationStatus =
     | 'DRAFT'
@@ -111,9 +148,55 @@ export type MilestoneStatus =
     | 'COMPLETED'
     | 'OVERDUE';
 
+export interface Project {
+    id: number;
+    lead_id: number;
+    name: string;
+    pm_id: number;
+    /** Loaded via `with('pm:id,name')` — see Project::pm() for why it isn't named `projectManager`. */
+    pm?: Pick<User, 'id' | 'name'>;
+    lead?: Pick<Lead, 'id' | 'client_name'>;
+    status: ProjectStatus;
+    start_date: string | null;
+    end_date: string | null;
+    contract_value: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Milestone {
+    id: number;
+    project_id: number;
+    name: string;
+    target_date: string;
+    status: MilestoneStatus;
+    order: number;
+    created_at: string;
+    updated_at: string;
+}
+
 /** PRD 4.5 — Task Management (Field Staff) */
 export type TaskStatus = 'PENDING' | 'ONPROGRESS' | 'PENGECEKAN' | 'DONE' | 'OVER';
 export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface Task {
+    id: number;
+    project_id: number;
+    milestone_id: number | null;
+    title: string;
+    description: string | null;
+    assignee_id: number | null;
+    assignee?: Pick<User, 'id' | 'name'>;
+    created_by: number;
+    due_date: string | null;
+    status: TaskStatus;
+    priority: TaskPriority;
+    is_locked: boolean;
+    rate_per_task: string | null;
+    completed_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
 
 /** PRD 4.6 — QA */
 export type QAStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
@@ -135,4 +218,61 @@ export interface AppNotification {
     is_read: boolean;
     metadata: Record<string, unknown> | null;
     created_at: string;
+}
+
+/**
+ * Master Data (SuperAdmin-only, added on request — not in the original
+ * PRD). Reference tables other modules will point to by ID; see
+ * app/Http/Controllers/MasterData. Named `*Option`/`Branch`/`BankAccount`
+ * rather than reusing `LeadCategory` (already a status-style union above)
+ * to avoid a name collision.
+ */
+export interface Branch {
+    id: number;
+    name: string;
+    code: string;
+    address: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface LeadSourceOption {
+    id: number;
+    name: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface LeadCategoryOption {
+    id: number;
+    name: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface BankAccount {
+    id: number;
+    bank_name: string;
+    account_no: string;
+    label: string;
+    balance: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * Site Settings — general company/application profile, CEO + SUPERADMIN
+ * only (added on request, not in PRD). Singleton — see
+ * App\Models\SiteSetting::current().
+ */
+export interface SiteSetting {
+    id: number;
+    site_name: string;
+    company_address: string | null;
+    company_phone: string | null;
+    company_email: string | null;
+    company_logo_url: string | null;
+    created_at: string;
+    updated_at: string;
 }

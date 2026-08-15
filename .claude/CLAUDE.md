@@ -45,25 +45,36 @@ status): [`plan/README.md`](plan/README.md). Source task list:
 
 ## Golden rules (the ones people actually get wrong)
 
-1. **RBAC matrix (PRD §7.1) is a contract.** Every new route needs the
+1. **`.claude/File Skema/Daiku v1.0.0/daiku_schema.sql` exists and is more
+   authoritative than PRD §5.1's prose schema sketch where they disagree**
+   (ULID-style PKs, richer ENUMs, several tables §5.1 never sketched at all
+   — staff_loans, supplier_debts, finance_allocation_configs, audit_logs,
+   quotations, designs, etc.). Read it before building any module whose
+   tables aren't shipped yet. The already-shipped Lead/RBAC/User tables
+   stay on bigint PKs for now — see `.claude/plan/README.md` "Schema
+   discovery" section for the full list of what hasn't been reconciled.
+2. **RBAC matrix (PRD §7.1) is a contract.** Every new route needs the
    right `role:` middleware *and*, where PRD says "R\*" (own data only) or
    describes an ownership rule, a Policy — not just a role check.
-2. **`users` has no `role` column.** Roles are Spatie
+   Exception: `SUPERADMIN` is a technical admin role added outside the
+   PRD (`database/seeders/RoleSeeder.php`) with unconditional god-mode
+   access to every `role:`-gated route — see `app/Http/Middleware/RoleMiddleware.php`.
+3. **`users` has no `role` column.** Roles are Spatie
    (`$user->hasRole()`/`assignRole()`) — see `RoleSeeder`. Don't
    re-introduce a redundant enum column.
-3. **Tailwind v4, not v3.** Colors live in `resources/css/app.css`
+4. **Tailwind v4, not v3.** Colors live in `resources/css/app.css`
    (`@theme` blocks), not `tailwind.config.js` (deleted — v4 is CSS-first).
    Never hardcode hex/default-Tailwind colors; use the Daiku tokens.
-4. **`Components` folder is capitalized.** `npx shadcn add` generates
+5. **`Components` folder is capitalized.** `npx shadcn add` generates
    lowercase `@/components/...` imports — fix the casing to
    `@/Components/...` immediately or the TypeScript build breaks (Windows
    hides the case collision locally; CI won't).
-5. **Task immutability (PRD §4.5):** Field Staff can only change a task's
+6. **Task immutability (PRD §4.5):** Field Staff can only change a task's
    `status`/`kendala`/`note` — never `title`/`description`/`due_date`.
    Enforce via Policy, not just frontend hiding of the fields.
-6. **Audit trail is append-only** (PRD §9.4) — no `destroy` route/policy
+7. **Audit trail is append-only** (PRD §9.4) — no `destroy` route/policy
    ever, for anyone, on audit/finance/penalty logs.
-7. **Sidebar nav (`Layouts/AppLayout.tsx`) tracks reality.** A module's
+8. **Sidebar nav (`Layouts/AppLayout.tsx`) tracks reality.** A module's
    `NAV_GROUPS` entry gets a real `routeName` only once its `index` route
    actually exists — until then it renders disabled ("Segera").
 

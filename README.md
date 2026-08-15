@@ -52,15 +52,36 @@ CREATE DATABASE daiku_interior CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 ```bash
-php artisan migrate --seed   # migrasi + seed 9 role RBAC + 1 user CEO
+php artisan migrate --seed   # migrasi + seed 9 role RBAC + 1 user demo per role
 npm run build                 # atau: npm run dev untuk mode watch
 ```
 
-Login awal (dari seeder, ganti password setelah login pertama):
+> ⚠️ Ini semua **akun demo untuk dev/UAT lokal** (PRD §11.1) — jangan
+> pernah jalankan seeder ini di production. `php artisan test` aman
+> dijalankan kapan saja tanpa mengganggu data ini (lihat `phpunit.xml`
+> — test jalan di SQLite in-memory terisolasi, bukan MySQL dev).
+
+Login awal (dari seeder, ganti password setelah login pertama — semua akun pakai password yang sama):
 
 | Email | Password | Role |
 |---|---|---|
 | `ceo@daikuinterior.com` | `password` | CEO |
+| `marketing@daikuinterior.com` | `password` | MARKETING |
+| `designer@daikuinterior.com` | `password` | DESIGNER |
+| `estimator@daikuinterior.com` | `password` | ESTIMATOR |
+| `pm@daikuinterior.com` | `password` | PM |
+| `qa@daikuinterior.com` | `password` | QA |
+| `finance@daikuinterior.com` | `password` | FINANCE |
+| `logistics@daikuinterior.com` | `password` | LOGISTICS |
+| `fieldstaff@daikuinterior.com` | `password` | FIELD_STAFF |
+| `superadmin@daikuinterior.com` | `password` | SUPERADMIN *(teknis, di luar PRD — lihat catatan di bawah)* |
+
+> **SUPERADMIN** bukan role dari PRD §7.1 — ini role admin teknis
+> tambahan dengan akses penuh ke semua modul (god-mode, lihat
+> `app/Http/Middleware/RoleMiddleware.php`) plus CRUD **Data Master**
+> (Cabang, Sumber Lead, Kategori Customer, Rekening Bank —
+> `/master-data`). Detail & alasan penambahan:
+> [`.claude/plan/README.md`](.claude/plan/README.md).
 
 ## Menjalankan
 

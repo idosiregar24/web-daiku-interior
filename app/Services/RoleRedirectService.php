@@ -30,6 +30,10 @@ class RoleRedirectService
         'FINANCE' => 'dashboard',
         'LOGISTICS' => 'dashboard',
         'FIELD_STAFF' => 'dashboard',
+        // SUPERADMIN is a technical role (RoleSeeder), not a PRD §7.1
+        // business role — lands straight on its own tool instead of the
+        // business dashboard.
+        'SUPERADMIN' => 'master-data.index',
     ];
 
     /**

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Lead extends Model
 {
@@ -62,8 +63,15 @@ class Lead extends Model
         return $this->hasMany(PipelineLog::class)->latest('created_at');
     }
 
-    // project() relation lands once the Project model exists (Sprint 2 —
-    // see .claude/plan/sprint-02.md), not before.
+    public function project(): HasOne
+    {
+        return $this->hasOne(Project::class);
+    }
+
+    public function design(): HasOne
+    {
+        return $this->hasOne(Design::class);
+    }
 
     public function scopeByStatus(Builder $query, ?string $status): Builder
     {

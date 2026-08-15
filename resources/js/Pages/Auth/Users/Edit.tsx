@@ -67,7 +67,12 @@ export default function EditUser({ user, roles }: EditUserProps) {
     }
 
     return (
-        <AppLayout header={<h2 className="text-base font-semibold text-daiku-dark">User Management</h2>}>
+        <AppLayout
+            breadcrumbs={[
+                { label: 'User Management', routeName: 'users.index' },
+                { label: 'Edit User' },
+            ]}
+        >
             <Head title={`Edit ${user.name}`} />
 
             <PageHeader title="Edit User" description={`Perbarui data dan role untuk ${user.name}.`} />

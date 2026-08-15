@@ -18,7 +18,7 @@ class LeadFactory extends Factory
         return [
             'client_name' => fake()->name(),
             'contact' => fake()->phoneNumber(),
-            'source' => fake()->randomElement(['Instagram', 'TikTok', 'Referral', 'Walk-in', 'WhatsApp', 'Marketplace', 'Iklan Sosmed', 'Website']),
+            'source' => fake()->randomElement(['Instagram', 'Website', 'Referral/Rekomendasi', 'Walk-in', 'WhatsApp', 'TikTok', 'Marketplace', 'Existing', 'Iklan Sosmed', 'Lainnya']),
             'priority' => fake()->randomElement(LeadPriority::cases())->value,
             'category' => fake()->randomElement(['RESIDENTIAL', 'KOMERSIAL', 'DEVELOPER', 'KONTRAKTOR', 'LAINNYA']),
             'status' => LeadStatus::FollowUp->value,

@@ -10,13 +10,7 @@ export default function Edit({
     status,
 }: PageProps<{ mustVerifyEmail: boolean; status?: string }>) {
     return (
-        <AppLayout
-            header={
-                <h2 className="text-base font-semibold text-daiku-dark">
-                    Profile
-                </h2>
-            }
-        >
+        <AppLayout breadcrumbs={[{ label: 'Profil Saya' }]}>
             <Head title="Profile" />
 
             <div className="py-12">

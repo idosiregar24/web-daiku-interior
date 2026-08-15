@@ -1,6 +1,14 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
+import {
+    Breadcrumb,
+    BreadcrumbItem,
+    BreadcrumbLink,
+    BreadcrumbList,
+    BreadcrumbPage,
+    BreadcrumbSeparator,
+} from '@/Components/ui/breadcrumb';
 import { Button } from '@/Components/ui/button';
 import {
     DropdownMenu,
@@ -35,9 +43,21 @@ import {
     User as UserIcon,
     Users,
     UserCog,
+    Database,
+    Settings,
     Wallet,
 } from 'lucide-react';
-import { PropsWithChildren, ReactNode } from 'react';
+import { Fragment, PropsWithChildren, ReactNode } from 'react';
+
+/**
+ * Topbar breadcrumb trail — PRD §8.3 "Top Bar: Breadcrumb + user avatar +
+ * notification bell". Last entry (or any entry without `routeName`) renders
+ * as the current, non-clickable page.
+ */
+export type BreadcrumbEntry = {
+    label: string;
+    routeName?: string;
+};
 
 type NavItem = {
     label: string;
@@ -94,6 +114,7 @@ const NAV_GROUPS: NavGroup[] = [
             {
                 label: 'Proyek',
                 icon: FolderKanban,
+                routeName: 'projects.index',
                 roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF'],
             },
             {
@@ -144,6 +165,23 @@ const NAV_GROUPS: NavGroup[] = [
             },
         ],
     },
+    {
+        label: 'Sistem',
+        items: [
+            {
+                label: 'Data Master',
+                icon: Database,
+                routeName: 'master-data.index',
+                roles: ['SUPERADMIN'],
+            },
+            {
+                label: 'Pengaturan Situs',
+                icon: Settings,
+                routeName: 'settings.edit',
+                roles: ['CEO', 'SUPERADMIN'],
+            },
+        ],
+    },
 ];
 
 function initials(name: string) {
@@ -162,8 +200,13 @@ function SidebarNav() {
     return (
         <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4">
             {NAV_GROUPS.map((group) => {
+                // SUPERADMIN is god-mode (see database/seeders/RoleSeeder.php) —
+                // sees every nav item regardless of its `roles` list.
                 const items = group.items.filter(
-                    (item) => !item.roles || (role && item.roles.includes(role)),
+                    (item) =>
+                        !item.roles ||
+                        role === 'SUPERADMIN' ||
+                        (role && item.roles.includes(role)),
                 );
 
                 if (items.length === 0) {
@@ -240,7 +283,40 @@ function SidebarBrand() {
     );
 }
 
-function Topbar({ header }: { header?: ReactNode }) {
+function TopbarBreadcrumb({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
+    return (
+        <Breadcrumb>
+            <BreadcrumbList>
+                {breadcrumbs.map((item, index) => {
+                    const isLast = index === breadcrumbs.length - 1;
+
+                    return (
+                        <Fragment key={item.label}>
+                            <BreadcrumbItem>
+                                {isLast || !item.routeName ? (
+                                    <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                                ) : (
+                                    <BreadcrumbLink asChild>
+                                        <Link href={route(item.routeName)}>{item.label}</Link>
+                                    </BreadcrumbLink>
+                                )}
+                            </BreadcrumbItem>
+                            {!isLast && <BreadcrumbSeparator />}
+                        </Fragment>
+                    );
+                })}
+            </BreadcrumbList>
+        </Breadcrumb>
+    );
+}
+
+function Topbar({
+    breadcrumbs,
+    header,
+}: {
+    breadcrumbs?: BreadcrumbEntry[];
+    header?: ReactNode;
+}) {
     const { auth } = usePage<PageProps>().props;
     const user = auth.user;
 
@@ -259,7 +335,11 @@ function Topbar({ header }: { header?: ReactNode }) {
                         <SidebarNav />
                     </SheetContent>
                 </Sheet>
-                <div className="text-sm text-daiku-muted">{header}</div>
+                {breadcrumbs && breadcrumbs.length > 0 ? (
+                    <TopbarBreadcrumb breadcrumbs={breadcrumbs} />
+                ) : (
+                    <div className="text-sm text-daiku-muted">{header}</div>
+                )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -326,9 +406,10 @@ function Topbar({ header }: { header?: ReactNode }) {
 }
 
 export default function AppLayout({
+    breadcrumbs,
     header,
     children,
-}: PropsWithChildren<{ header?: ReactNode }>) {
+}: PropsWithChildren<{ breadcrumbs?: BreadcrumbEntry[]; header?: ReactNode }>) {
     return (
         <div className="flex min-h-screen bg-daiku-gray">
             <aside className="hidden w-64 shrink-0 flex-col border-r border-daiku-border bg-white lg:flex">
@@ -337,7 +418,7 @@ export default function AppLayout({
             </aside>
 
             <div className="flex min-w-0 flex-1 flex-col">
-                <Topbar header={header} />
+                <Topbar breadcrumbs={breadcrumbs} header={header} />
                 <main className="flex-1 p-4 sm:p-6">{children}</main>
             </div>
         </div>

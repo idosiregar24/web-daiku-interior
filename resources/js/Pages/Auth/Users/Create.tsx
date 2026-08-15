@@ -50,7 +50,12 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
     }
 
     return (
-        <AppLayout header={<h2 className="text-base font-semibold text-daiku-dark">User Management</h2>}>
+        <AppLayout
+            breadcrumbs={[
+                { label: 'User Management', routeName: 'users.index' },
+                { label: 'Tambah User' },
+            ]}
+        >
             <Head title="Tambah User" />
 
             <PageHeader title="Tambah User" description="Buat akun baru dan tentukan role RBAC-nya." />

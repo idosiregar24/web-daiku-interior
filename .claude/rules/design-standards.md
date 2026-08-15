@@ -80,6 +80,11 @@ jangan duplikasi mapping ini di tiap halaman.
   fixed kiri dikelompokkan per divisi + topbar). Tambah entri modul baru ke
   `NAV_GROUPS` di file itu begitu route-nya siap — lihat komentar di file
   tsb.
+- Topbar pakai **breadcrumb** (PRD §8.3), bukan judul teks polos — kirim
+  prop `breadcrumbs={[{ label: '...', routeName: '...' }, { label: '...' }]}`
+  ke `<AppLayout>` (entry terakhir tanpa `routeName` = halaman saat ini,
+  tidak bisa diklik). Prop `header` lama masih didukung sebagai fallback
+  kalau `breadcrumbs` tidak dikirim, tapi jangan pakai untuk halaman baru.
 - Halaman auth (login/register/dst) pakai `Layouts/AuthLayout.tsx`
   (background `bg-daiku-cream`, card terpusat).
 - Card: `<Card>` shadcn (sudah `shadow-sm rounded-lg border`) — jangan

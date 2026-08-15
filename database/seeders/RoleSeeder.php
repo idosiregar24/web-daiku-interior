@@ -11,6 +11,12 @@ class RoleSeeder extends Seeder
      * The nine stakeholder roles from PRD section 2 (Stakeholders & Users).
      * Permissions per module are defined later against the RBAC matrix in
      * PRD section 7.1 as each module's controllers/policies are built.
+     *
+     * `SUPERADMIN` is NOT part of the PRD — it's a technical admin role
+     * added on top, with unconditional access to everything (see
+     * app/Http/Middleware/RoleMiddleware.php) plus CRUD over Master Data
+     * (Branches, Lead Sources, Lead Categories — app/Http/Controllers/MasterData).
+     * It exists for system administration, separate from CEO's business role.
      */
     private const ROLES = [
         'CEO',
@@ -22,6 +28,7 @@ class RoleSeeder extends Seeder
         'FINANCE',
         'LOGISTICS',
         'FIELD_STAFF',
+        'SUPERADMIN',
     ];
 
     /**

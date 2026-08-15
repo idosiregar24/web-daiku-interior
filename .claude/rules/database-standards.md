@@ -49,7 +49,10 @@ punya:
 `users` **tidak** punya kolom `role` ENUM meskipun sketsa skema PRD §5.1
 menuliskannya. Role dikelola sepenuhnya oleh Spatie Laravel Permission
 (`model_has_roles` pivot, `config/permission.php`) — lihat
-`database/seeders/RoleSeeder.php` untuk 9 role yang sudah di-seed. Jangan
+`database/seeders/RoleSeeder.php` untuk 10 role yang sudah di-seed (9 dari
+PRD §2 + `SUPERADMIN`, role admin teknis di luar PRD dengan akses god-mode
+ke semua route `role:`-gated — lihat `app/Http/Middleware/RoleMiddleware.php`
+dan `.claude/plan/README.md`). Jangan
 tambahkan kolom `role` baru; gunakan `$user->hasRole('PM')`,
 `$user->assignRole('QA')` dsb. Kolom `is_active` (boolean) memang ada di
 `users` karena Spatie tidak menyediakannya.
