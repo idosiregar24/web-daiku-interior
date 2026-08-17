@@ -8,9 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Append-only (PRD §9.4 spirit — approval decisions are never edited or
- * deleted once recorded). No controller/route wired to this yet — see
- * the migration's docblock; the approval flow itself lands
- * .claude/plan/sprint-03.md Week 5.
+ * deleted once recorded); written only from QuotationService's
+ * ceoDecision()/pmDecision() — no direct controller/route of its own.
  */
 class QuotationApproval extends Model
 {

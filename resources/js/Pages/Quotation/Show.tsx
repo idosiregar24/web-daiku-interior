@@ -1,7 +1,7 @@
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import {
     Form,
     FormControl,
@@ -10,17 +10,21 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Quotation } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { FileDown, Plus, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 interface QuotationShowProps {
     quotation: Quotation & { lead: { id: number; client_name: string } };
     canManage: boolean;
+    canCeoDecide: boolean;
+    canPmDecide: boolean;
 }
 
 const itemSchema = z.object({
@@ -56,7 +60,12 @@ function formatRupiah(value: string | number) {
  * page's Client ACC trigger. Only editable while DRAFT (see
  * QuotationService::replaceItems()) — CEO/PM approval UI is Week 5.
  */
-export default function QuotationShow({ quotation, canManage }: QuotationShowProps) {
+export default function QuotationShow({ quotation, canManage, canCeoDecide, canPmDecide }: QuotationShowProps) {
+    const [decisionDialog, setDecisionDialog] = useState<{
+        role: 'CEO' | 'PM';
+        decision: 'approve' | 'reject';
+    } | null>(null);
+
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: {
@@ -119,7 +128,17 @@ export default function QuotationShow({ quotation, canManage }: QuotationShowPro
             <PageHeader
                 title={`Quotation: ${quotation.lead.client_name}`}
                 description={`Versi ${quotation.version} · dibuat dari desain yang sudah di-ACC klien.`}
-                actions={<StatusChip status={quotation.status} />}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <StatusChip status={quotation.status} />
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={route('quotations.pdf', { quotation: quotation.id })} target="_blank" rel="noopener noreferrer">
+                                <FileDown className="size-4" />
+                                Export PDF
+                            </a>
+                        </Button>
+                    </div>
+                }
             />
 
             <Card>
@@ -275,14 +294,93 @@ export default function QuotationShow({ quotation, canManage }: QuotationShowPro
 
                             {!isDraft && (
                                 <p className="text-sm text-daiku-muted">
-                                    Quotation sudah disubmit — item RAB tidak bisa diubah lagi. Alur approval CEO → PM
-                                    menyusul pada sprint berikutnya.
+                                    Quotation sudah disubmit — item RAB tidak bisa diubah lagi.
                                 </p>
                             )}
                         </form>
                     </Form>
                 </CardContent>
             </Card>
+
+            {(canCeoDecide || canPmDecide) && (quotation.status === 'SUBMITTED' || quotation.status === 'CEO_REVIEW') && (
+                <Card className="mt-4">
+                    <CardHeader>
+                        <CardTitle className="text-base">Approval</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {canCeoDecide && quotation.status === 'SUBMITTED' && (
+                            <div className="flex items-center gap-2">
+                                <p className="flex-1 text-sm text-daiku-muted">Menunggu review CEO.</p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setDecisionDialog({ role: 'CEO', decision: 'reject' })}
+                                >
+                                    Tolak
+                                </Button>
+                                <Button size="sm" onClick={() => setDecisionDialog({ role: 'CEO', decision: 'approve' })}>
+                                    Setujui (CEO)
+                                </Button>
+                            </div>
+                        )}
+                        {canPmDecide && quotation.status === 'CEO_REVIEW' && (
+                            <div className="flex items-center gap-2">
+                                <p className="flex-1 text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setDecisionDialog({ role: 'PM', decision: 'reject' })}
+                                >
+                                    Tolak
+                                </Button>
+                                <Button size="sm" onClick={() => setDecisionDialog({ role: 'PM', decision: 'approve' })}>
+                                    Setujui (PM)
+                                </Button>
+                            </div>
+                        )}
+                        {!canCeoDecide && quotation.status === 'SUBMITTED' && (
+                            <p className="text-sm text-daiku-muted">Menunggu review CEO.</p>
+                        )}
+                        {!canPmDecide && quotation.status === 'CEO_REVIEW' && (
+                            <p className="text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {quotation.approvals && quotation.approvals.length > 0 && (
+                <Card className="mt-4">
+                    <CardHeader>
+                        <CardTitle className="text-base">Riwayat Approval</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        {quotation.approvals.map((approval) => (
+                            <div key={approval.id} className="flex items-start justify-between gap-4 border-b border-daiku-border pb-3 last:border-0 last:pb-0">
+                                <div>
+                                    <p className="text-sm font-medium text-daiku-dark">
+                                        {approval.approver?.name ?? '—'} ({approval.approver_role})
+                                    </p>
+                                    {approval.note && <p className="text-sm text-daiku-muted">{approval.note}</p>}
+                                    <p className="text-xs text-daiku-muted">
+                                        {new Date(approval.created_at).toLocaleString('id-ID')}
+                                    </p>
+                                </div>
+                                <StatusChip status={approval.status} />
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            )}
+
+            {decisionDialog && (
+                <QuotationDecisionDialog
+                    open={!!decisionDialog}
+                    onOpenChange={(open) => !open && setDecisionDialog(null)}
+                    quotation={quotation}
+                    role={decisionDialog.role}
+                    decision={decisionDialog.decision}
+                />
+            )}
         </AppLayout>
     );
 }

@@ -52,4 +52,16 @@ class TaskService
 
         return $task->fresh();
     }
+
+    /**
+     * PRD §4.5 "Status OVER otomatis diset oleh sistem jika task belum
+     * DONE melewati due_date" — dispatched at midnight (TaskOverdueJob,
+     * see routes/console.php). Idempotent: re-running only touches tasks
+     * still not-DONE and past due, so it never "un-overdues" a task moved
+     * on to DONE afterward.
+     */
+    public function markOverdueTasks(): int
+    {
+        return Task::query()->overdue()->update(['status' => TaskStatus::Over->value]);
+    }
 }

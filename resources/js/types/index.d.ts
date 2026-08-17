@@ -34,6 +34,8 @@ export type PageProps<
     auth: {
         user: User;
     };
+    /** Shared on every Inertia navigation (see HandleInertiaRequests) — not real-time, see AppNotification. */
+    notifications: AppNotification[];
 };
 
 /** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
@@ -152,6 +154,17 @@ export interface QuotationItem {
     sort_order: number;
 }
 
+export interface QuotationApproval {
+    id: number;
+    quotation_id: number;
+    approver_id: number;
+    approver?: Pick<User, 'id' | 'name'>;
+    approver_role: 'CEO' | 'PM';
+    status: 'APPROVED' | 'REJECTED';
+    note: string | null;
+    created_at: string;
+}
+
 export interface Quotation {
     id: number;
     lead_id: number;
@@ -162,6 +175,7 @@ export interface Quotation {
     version: number;
     created_by: number;
     items?: QuotationItem[];
+    approvals?: QuotationApproval[];
     created_at: string;
     updated_at: string;
 }
@@ -230,8 +244,56 @@ export interface Task {
     updated_at: string;
 }
 
+export interface DailyTaskForm {
+    id: number;
+    task_id: number;
+    task?: Pick<Task, 'id' | 'title' | 'project_id'> & { project?: Pick<Project, 'id' | 'name'> };
+    staff_id: number;
+    staff?: Pick<User, 'id' | 'name'>;
+    work_date: string;
+    status_update: TaskStatus;
+    kendala: string | null;
+    notes: string | null;
+    submitted_at: string;
+}
+
+/** PRD 4.4 — Progress Log */
+export interface ProgressLog {
+    id: number;
+    project_id: number;
+    logged_by: number;
+    logger?: Pick<User, 'id' | 'name'>;
+    percentage: number;
+    description: string;
+    ref_urls: string[] | null;
+    log_date: string;
+    created_at: string;
+}
+
 /** PRD 4.6 — QA */
 export type QAStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface ChecklistItem {
+    label: string;
+    passed: boolean;
+    note: string | null;
+}
+
+export interface QaForm {
+    id: number;
+    project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
+    milestone_id: number;
+    milestone?: Pick<Milestone, 'id' | 'name' | 'order' | 'status'>;
+    reviewer_id: number | null;
+    reviewer?: Pick<User, 'id' | 'name'>;
+    status: QAStatus;
+    checklist_data: ChecklistItem[];
+    rejection_count: number;
+    notes: string | null;
+    reviewed_at: string | null;
+    created_at: string;
+}
 
 /** PRD 4.5 / Overtime schema — Pengajuan Lembur */
 export type OvertimeStatus =
@@ -239,6 +301,121 @@ export type OvertimeStatus =
     | 'APPROVED_PM'
     | 'APPROVED_FINANCE'
     | 'REJECTED';
+
+export interface OvertimeRequest {
+    id: number;
+    staff_id: number;
+    staff?: Pick<User, 'id' | 'name'>;
+    project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
+    task_id: number | null;
+    hours: string;
+    rate_per_hour: string;
+    total_amount: string;
+    work_date: string;
+    reason: string;
+    reject_note: string | null;
+    status: OvertimeStatus;
+    pm_approved_by: number | null;
+    pm_approved_at: string | null;
+    finance_approved_by: number | null;
+    finance_approved_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/** PRD 6.5 — Logika Penalti Harian */
+export interface Penalty {
+    id: number;
+    staff_id: number;
+    staff?: Pick<User, 'id' | 'name'>;
+    type: string;
+    reference_id: number | null;
+    amount: string;
+    date_occurred: string;
+    is_deducted: boolean;
+    created_at: string;
+}
+
+/** PRD 4.7 — Dana Family Gathering */
+export interface FamilyGatheringFund {
+    id: number;
+    type: 'INCOME' | 'EXPENSE';
+    amount: string;
+    description: string | null;
+    source_penalty_id: number | null;
+    sourcePenalty?: Pick<Penalty, 'id'> & { staff?: Pick<User, 'id' | 'name'> };
+    recorded_by: number;
+    recorder?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+}
+
+/** PRD 4.4/4.7/6.4 — Termin (Finance – Termin) */
+export type TerminStatus = 'SCHEDULED' | 'INVOICED' | 'PAID' | 'OVERDUE';
+
+export interface Termin {
+    id: number;
+    project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
+    milestone_id: number | null;
+    milestone?: Pick<Milestone, 'id' | 'name'>;
+    termin_number: number;
+    percentage: number;
+    amount: string;
+    scheduled_date: string;
+    status: TerminStatus;
+    bank_account_id: number | null;
+    bankAccount?: Pick<BankAccount, 'id' | 'label'>;
+    invoice_url: string | null;
+    paid_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/** PRD 4.7 — Finance Transaction */
+export type FinanceTransactionType = 'PEMASUKAN' | 'PENGELUARAN';
+
+export type FinanceCategory =
+    | 'DOWN_PAYMENT'
+    | 'TERMIN'
+    | 'OPERASIONAL'
+    | 'PINJAMAN'
+    | 'BELI_BAHAN'
+    | 'ANGSURAN'
+    | 'GAJI_KARYAWAN'
+    | 'LEMBUR_BONUS'
+    | 'LOGISTIK'
+    | 'HUTANG_IDEAL'
+    | 'PEGANGAN'
+    | 'JASA_DESAIN'
+    | 'VENDOR'
+    | 'PINDAH_DANA'
+    | 'KONSUMSI'
+    | 'CONSUMABLE'
+    | 'PERALATAN_ASET'
+    | 'BBM'
+    | 'OWNER'
+    | 'PENALTY_COLLECT'
+    | 'LAINNYA';
+
+export interface FinanceTransaction {
+    id: number;
+    project_id: number | null;
+    project?: Pick<Project, 'id' | 'name'> | null;
+    bank_account_id: number | null;
+    bankAccount?: Pick<BankAccount, 'id' | 'label'> | null;
+    type: FinanceTransactionType;
+    kategori: FinanceCategory | null;
+    amount: string;
+    description: string | null;
+    reference_id: number | null;
+    date: string;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    attachments: string[] | null;
+    created_at: string;
+    updated_at: string;
+}
 
 /** PRD 5.1 — Notifications */
 export interface AppNotification {

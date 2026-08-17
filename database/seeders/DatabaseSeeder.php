@@ -34,10 +34,19 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
+        $this->call(MasterDataSeeder::class);
 
         foreach (self::DEMO_USERS as $role => $attributes) {
             $user = User::factory()->create($attributes);
             $user->assignRole($role);
         }
+
+        // Walks the full presales→execution→payroll business process
+        // through the real Service layer (Lead→Design→Quotation→Project→
+        // Task→DailyForm→Penalty→Overtime) so there's something real to
+        // click through, not just isolated rows — see DemoDataSeeder's
+        // own docblock. Same "local/staging/UAT only" caveat as
+        // DEMO_USERS above.
+        $this->call(DemoDataSeeder::class);
     }
 }

@@ -14,7 +14,7 @@ const TONE_CLASS: Record<Tone, string> = {
 /**
  * Every status value across the domain unions in `@/types` (LeadStatus,
  * DesignStatus, QuotationStatus, ProjectStatus, MilestoneStatus,
- * TaskStatus, QAStatus, OvertimeStatus), mapped once to a semantic tone —
+ * TaskStatus, QAStatus, OvertimeStatus, TerminStatus), mapped once to a semantic tone —
  * see .claude/rules/design-standards.md §3. Add new statuses here as new
  * modules land instead of re-deriving a color per page.
  */
@@ -63,6 +63,10 @@ const STATUS_TONE: Record<string, Tone> = {
     // Overtime — OvertimeStatus
     APPROVED_PM: 'info',
     APPROVED_FINANCE: 'success',
+    // Termin — TerminStatus (PENDING/APPROVED/REJECTED/OVERDUE reused from above)
+    SCHEDULED: 'neutral',
+    INVOICED: 'info',
+    PAID: 'success',
 };
 
 function humanize(status: string) {

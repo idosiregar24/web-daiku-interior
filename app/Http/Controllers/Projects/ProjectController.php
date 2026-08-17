@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Projects;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreProjectRequest;
+use App\Models\BankAccount;
 use App\Models\Lead;
 use App\Models\Project;
 use App\Models\User;
@@ -49,19 +50,40 @@ class ProjectController extends Controller
         $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'QA', 'SUPERADMIN']);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
         $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        // PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read, PM CRUD.
+        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'DESIGNER', 'PM', 'QA', 'FINANCE', 'SUPERADMIN']);
+        $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        // PRD §7.1 "Finance – Termin" row: CEO/FIN read, PM create-only —
+        // PM sees what they scheduled through this project-scoped prop
+        // rather than the Finance-only global list (finance.termins.index).
+        $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']);
+        $canCreateTermins = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        $canMarkTerminPaid = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
 
         $project->load(['pm:id,name', 'lead:id,client_name']);
 
         return Inertia::render('Projects/Show', [
             'project' => $project,
             'milestones' => $canViewMilestones
-                ? $project->milestones
+                ? $project->milestones()->with('qaForm:id,milestone_id,status,rejection_count')->get()
                 : [],
             'canViewMilestones' => $canViewMilestones,
             'canManageMilestones' => $canManageMilestones,
             'canManageTasks' => $canManageTasks,
             'tasks' => $project->tasks()->with(['assignee:id,name', 'milestone:id,name'])->latest()->get(),
             'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name']) : [],
+            'progressLogs' => $canViewProgressLogs
+                ? $project->progressLogs()->with('logger:id,name')->get()
+                : [],
+            'canViewProgressLogs' => $canViewProgressLogs,
+            'canManageProgressLogs' => $canManageProgressLogs,
+            'termins' => $canViewTermins
+                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label'])->get()
+                : [],
+            'canViewTermins' => $canViewTermins,
+            'canCreateTermins' => $canCreateTermins,
+            'canMarkTerminPaid' => $canMarkTerminPaid,
+            'bankAccounts' => $canCreateTermins ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']) : [],
         ]);
     }
 

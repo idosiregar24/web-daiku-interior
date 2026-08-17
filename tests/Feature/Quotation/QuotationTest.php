@@ -3,6 +3,7 @@
 use App\Enums\QuotationStatus;
 use App\Models\Design;
 use App\Models\Quotation;
+use App\Models\QuotationApproval;
 use App\Models\QuotationItem;
 use App\Models\User;
 use App\Services\QuotationService;
@@ -134,4 +135,80 @@ test('estimator can submit a quotation for review', function () {
         ->assertRedirect();
 
     expect($quotation->fresh()->status)->toBe(QuotationStatus::Submitted);
+});
+
+test('CEO can approve a submitted quotation, advancing it to CEO_REVIEW', function () {
+    $ceo = User::factory()->create();
+    $ceo->assignRole('CEO');
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
+
+    $this->actingAs($ceo)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'approve',
+    ])->assertRedirect();
+
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::CeoReview)
+        ->and(QuotationApproval::where('quotation_id', $quotation->id)->where('approver_role', 'CEO')->exists())->toBeTrue();
+});
+
+test('CEO rejecting a quotation requires a note and sends it back to DRAFT', function () {
+    $ceo = User::factory()->create();
+    $ceo->assignRole('CEO');
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
+
+    $this->actingAs($ceo)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'reject',
+    ])->assertSessionHasErrors('note');
+
+    $this->actingAs($ceo)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'reject',
+        'note' => 'Harga terlalu tinggi.',
+    ])->assertRedirect();
+
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::Draft);
+});
+
+test('PM cannot approve a quotation before CEO has', function () {
+    $pm = User::factory()->create();
+    $pm->assignRole('PM');
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
+
+    $this->actingAs($pm)->post(route('quotations.pmDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'approve',
+    ])->assertSessionHasErrors('status');
+
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::Submitted);
+});
+
+test('PM approving after CEO marks the quotation SENT_TO_CLIENT', function () {
+    $pm = User::factory()->create();
+    $pm->assignRole('PM');
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::CeoReview->value]);
+
+    $this->actingAs($pm)->post(route('quotations.pmDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'approve',
+    ])->assertRedirect();
+
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::SentToClient);
+});
+
+test('roles other than CEO/PM cannot make quotation approval decisions', function () {
+    $estimator = User::factory()->create();
+    $estimator->assignRole('ESTIMATOR');
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
+
+    $this->actingAs($estimator)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), [
+        'decision' => 'approve',
+    ])->assertForbidden();
+});
+
+test('roles with read access can export a quotation PDF', function () {
+    $ceo = User::factory()->create();
+    $ceo->assignRole('CEO');
+    $quotation = Quotation::factory()->create();
+    QuotationItem::factory()->create(['quotation_id' => $quotation->id]);
+
+    $response = $this->actingAs($ceo)->get(route('quotations.pdf', ['quotation' => $quotation->id]));
+
+    $response->assertOk();
+    expect($response->headers->get('Content-Type'))->toContain('application/pdf');
 });

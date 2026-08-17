@@ -3,18 +3,23 @@
 namespace App\Http\Controllers\Quotation;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Quotation\QuotationDecisionRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Quotation;
+use App\Models\SiteSetting;
 use App\Services\QuotationService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * PRD §4.3. RAB builder only this sprint (.claude/plan/sprint-02.md Week
- * 4) — see QuotationStatus/QuotationService docblocks for what's deferred
- * to Week 5 (CEO/PM approval actions, PDF export, SENT_TO_CLIENT+).
+ * PRD §4.3. RAB builder (Sprint 2 Week 4) + CEO→PM dual approval + PDF
+ * export (Sprint 3 Week 5) — see QuotationService's docblock for the
+ * approval state machine and what's still deliberately out of scope
+ * (client's own SENT_TO_CLIENT decision).
  */
 class QuotationController extends Controller
 {
@@ -35,11 +40,15 @@ class QuotationController extends Controller
 
     public function show(Request $request, Quotation $quotation): Response
     {
-        $quotation->load(['lead:id,client_name', 'items']);
+        $quotation->load(['lead:id,client_name', 'items', 'approvals.approver:id,name']);
+
+        $user = $request->user();
 
         return Inertia::render('Quotation/Show', [
             'quotation' => $quotation,
-            'canManage' => $request->user()->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']),
+            'canManage' => $user->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']),
+            'canCeoDecide' => $user->hasAnyRole(['CEO', 'SUPERADMIN']),
+            'canPmDecide' => $user->hasAnyRole(['PM', 'SUPERADMIN']),
         ]);
     }
 
@@ -55,5 +64,31 @@ class QuotationController extends Controller
         $service->submit($quotation);
 
         return back()->with('success', 'Quotation berhasil disubmit untuk review.');
+    }
+
+    public function ceoDecision(QuotationDecisionRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->ceoDecision($quotation, $request->validated('decision'), $request->user(), $request->validated('note'));
+
+        return back()->with('success', 'Keputusan CEO atas quotation tersimpan.');
+    }
+
+    public function pmDecision(QuotationDecisionRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->pmDecision($quotation, $request->validated('decision'), $request->user(), $request->validated('note'));
+
+        return back()->with('success', 'Keputusan PM atas quotation tersimpan.');
+    }
+
+    public function exportPdf(Quotation $quotation): HttpResponse
+    {
+        $quotation->load(['lead:id,client_name', 'items']);
+
+        $pdf = Pdf::loadView('pdf.quotation', [
+            'quotation' => $quotation,
+            'siteSettings' => SiteSetting::current(),
+        ]);
+
+        return $pdf->stream("penawaran-{$quotation->lead->client_name}-v{$quotation->version}.pdf");
     }
 }

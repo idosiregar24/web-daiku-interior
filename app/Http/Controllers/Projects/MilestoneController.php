@@ -32,4 +32,16 @@ class MilestoneController extends Controller
 
         return back()->with('success', 'Milestone berhasil dihapus.');
     }
+
+    /**
+     * PRD §4.6/§6.3 — PM "menandai milestone selesai", membuka QA review
+     * (bukan langsung COMPLETED). See MilestoneService::markDone()'s
+     * docblock.
+     */
+    public function markDone(Milestone $milestone, MilestoneService $service): RedirectResponse
+    {
+        $service->markDone($milestone);
+
+        return back()->with('success', 'Milestone diajukan untuk review QA.');
+    }
 }

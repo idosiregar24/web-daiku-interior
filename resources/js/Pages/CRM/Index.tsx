@@ -186,10 +186,17 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 title="Data Lead"
                 description="Kelola calon klien dan pipeline penjualan."
                 actions={
-                    <Button onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Tambah Lead
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {(role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN') && (
+                            <Button variant="outline" asChild>
+                                <Link href={route('crm.dashboard')}>Statistik Pipeline</Link>
+                            </Button>
+                        )}
+                        <Button onClick={openCreate}>
+                            <Plus className="size-4" />
+                            Tambah Lead
+                        </Button>
+                    </div>
                 }
             />
 

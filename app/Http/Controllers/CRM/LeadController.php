@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\CRM;
 
+use App\Enums\LeadStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CRM\ConfirmLeadDealRequest;
 use App\Http\Requests\CRM\StoreLeadRequest;
@@ -13,6 +14,7 @@ use App\Models\User;
 use App\Services\LeadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -44,6 +46,51 @@ class LeadController extends Controller
             // a free string column (see lead_sources migration docblock),
             // so the form picks a source's `name`, not its `id`.
             'leadSources' => LeadSource::orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * "Pipeline dashboard Marketing: funnel chart + statistik lead"
+     * (.claude/plan/sprint-03.md Week 5). Deliberately scoped smaller than
+     * PRD §4.10's CEO Executive Dashboard (Analytics module, Sprint 5/6) —
+     * this is the "Analytics – Per Divisi" partial view PRD §7.1 describes
+     * for non-CEO roles, not the full executive one.
+     */
+    public function dashboard(Request $request): Response
+    {
+        $counts = Lead::query()
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $funnel = collect([LeadStatus::FollowUp, LeadStatus::DealDesain, LeadStatus::Closing])
+            ->map(fn (LeadStatus $status) => [
+                'status' => $status->value,
+                'total' => (int) ($counts[$status->value] ?? 0),
+            ])
+            ->values();
+
+        $total = (int) $counts->sum();
+        $closing = (int) ($counts[LeadStatus::Closing->value] ?? 0);
+        $lost = (int) ($counts[LeadStatus::Lost->value] ?? 0);
+
+        $bySource = Lead::query()
+            ->select('source', DB::raw('count(*) as total'))
+            ->groupBy('source')
+            ->orderByDesc('total')
+            ->limit(6)
+            ->get();
+
+        return Inertia::render('CRM/Dashboard', [
+            'funnel' => $funnel,
+            'stats' => [
+                'total' => $total,
+                'closing' => $closing,
+                'lost' => $lost,
+                'conversionRate' => $total > 0 ? round($closing / $total * 100, 1) : 0,
+                'overdueFollowUp' => Lead::overdueFollowUp()->count(),
+            ],
+            'bySource' => $bySource,
         ]);
     }
 

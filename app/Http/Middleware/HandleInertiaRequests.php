@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Notification;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +43,14 @@ class HandleInertiaRequests extends Middleware
                     'role' => $user->getRoleNames()->first(),
                 ] : null,
             ],
+            // Not real-time (see notifications migration's docblock) —
+            // refreshes on every Inertia navigation, which is enough for
+            // the two Sprint 4 triggers that write here (QA rejection,
+            // Termin H-3 reminder) without building the full Echo/Soketi
+            // broadcast layer ahead of its own Sprint 5 module.
+            'notifications' => $user
+                ? Notification::where('user_id', $user->id)->where('is_read', false)->latest('created_at')->limit(10)->get()
+                : [],
         ];
     }
 }

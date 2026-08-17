@@ -25,11 +25,13 @@ import {
     SheetTrigger,
 } from '@/Components/ui/sheet';
 import type { PageProps, Role } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
+    AlertOctagon,
     BarChart3,
     Bell,
     Clock,
+    ClipboardCheck,
     FileText,
     FolderKanban,
     LayoutDashboard,
@@ -39,6 +41,7 @@ import {
     Menu,
     Package,
     Palette,
+    PiggyBank,
     ShieldCheck,
     User as UserIcon,
     Users,
@@ -126,13 +129,21 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'PM', 'FIELD_STAFF'],
             },
             {
+                label: 'Form Harian',
+                icon: ClipboardCheck,
+                routeName: 'daily-forms.index',
+                roles: ['CEO', 'PM', 'FIELD_STAFF'],
+            },
+            {
                 label: 'Lembur',
                 icon: Clock,
+                routeName: 'overtime.index',
                 roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'],
             },
             {
                 label: 'QA',
                 icon: ShieldCheck,
+                routeName: 'qa-forms.index',
                 roles: ['CEO', 'PM', 'QA'],
             },
         ],
@@ -141,9 +152,40 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Operasional',
         items: [
             {
-                label: 'Finance',
+                label: 'Cash Flow',
                 icon: Wallet,
+                routeName: 'finance.dashboard',
                 roles: ['CEO', 'PM', 'FINANCE'],
+            },
+            {
+                label: 'Transaksi',
+                icon: Wallet,
+                routeName: 'finance.transactions.index',
+                roles: ['CEO', 'PM', 'FINANCE'],
+            },
+            {
+                label: 'Termin',
+                icon: Wallet,
+                routeName: 'finance.termins.index',
+                roles: ['CEO', 'FINANCE'],
+            },
+            {
+                label: 'Upah Tukang',
+                icon: Wallet,
+                routeName: 'finance.staffPayments.index',
+                roles: ['CEO', 'PM', 'FINANCE'],
+            },
+            {
+                label: 'Dana Family Gathering',
+                icon: PiggyBank,
+                routeName: 'family-fund.index',
+                roles: ['CEO', 'FINANCE'],
+            },
+            {
+                label: 'Penalti',
+                icon: AlertOctagon,
+                routeName: 'penalties.index',
+                roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'],
             },
             {
                 label: 'Logistik',
@@ -275,7 +317,7 @@ function SidebarNav() {
 
 function SidebarBrand() {
     return (
-        <Link href={route('dashboard')} className="flex items-center gap-2.5 px-4 py-5">
+        <Link href={route('dashboard')} className="flex shrink-0 items-center gap-2.5 px-4 py-5">
             <span className="flex size-8 items-center justify-center rounded-md bg-daiku-yellow">
                 <ApplicationLogo className="size-5 fill-daiku-dark" />
             </span>
@@ -320,8 +362,12 @@ function Topbar({
     breadcrumbs?: BreadcrumbEntry[];
     header?: ReactNode;
 }) {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, notifications } = usePage<PageProps>().props;
     const user = auth.user;
+
+    function markAsRead(notificationId: number) {
+        router.patch(route('notifications.markAsRead', { notification: notificationId }), {}, { preserveScroll: true });
+    }
 
     return (
         <header className="flex h-16 shrink-0 items-center justify-between border-b border-daiku-border bg-white px-4 sm:px-6">
@@ -350,16 +396,35 @@ function Topbar({
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="relative">
                             <Bell className="size-5" />
-                            {/* Live badge count wires up once notifications (PRD 4.9)
-                                are broadcast over Echo/Soketi — see resources/js/lib/echo.ts */}
+                            {/* Refreshes on Inertia navigation, not real-time — see
+                                HandleInertiaRequests + notifications migration's docblock. */}
+                            {notifications.length > 0 && (
+                                <span className="absolute top-1 right-1 flex size-2 rounded-full bg-error" />
+                            )}
                         </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuContent align="end" className="w-80">
                         <DropdownMenuLabel>Notifikasi</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <p className="px-2 py-4 text-center text-sm text-daiku-muted">
-                            Belum ada notifikasi.
-                        </p>
+                        {notifications.length === 0 ? (
+                            <p className="px-2 py-4 text-center text-sm text-daiku-muted">
+                                Belum ada notifikasi.
+                            </p>
+                        ) : (
+                            <div className="flex max-h-80 flex-col gap-1 overflow-y-auto">
+                                {notifications.map((notification) => (
+                                    <button
+                                        key={notification.id}
+                                        type="button"
+                                        onClick={() => markAsRead(notification.id)}
+                                        className="rounded-md p-2 text-left text-sm hover:bg-daiku-yellow-light"
+                                    >
+                                        <p className="font-medium text-daiku-dark">{notification.title}</p>
+                                        <p className="text-xs text-daiku-muted">{notification.message}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -414,15 +479,15 @@ export default function AppLayout({
     children,
 }: PropsWithChildren<{ breadcrumbs?: BreadcrumbEntry[]; header?: ReactNode }>) {
     return (
-        <div className="flex min-h-screen bg-daiku-gray">
-            <aside className="hidden w-64 shrink-0 flex-col border-r border-daiku-border bg-white lg:flex">
+        <div className="flex h-screen overflow-hidden bg-daiku-gray">
+            <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-daiku-border bg-white lg:flex">
                 <SidebarBrand />
                 <SidebarNav />
             </aside>
 
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
                 <Topbar breadcrumbs={breadcrumbs} header={header} />
-                <main className="flex-1 p-4 sm:p-6">{children}</main>
+                <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
             </div>
         </div>
     );

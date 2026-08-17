@@ -54,6 +54,16 @@ class Project extends Model
         return $this->hasMany(Task::class);
     }
 
+    public function progressLogs(): HasMany
+    {
+        return $this->hasMany(ProgressLog::class)->latest('log_date');
+    }
+
+    public function termins(): HasMany
+    {
+        return $this->hasMany(Termin::class)->orderBy('termin_number');
+    }
+
     public function scopeByStatus(Builder $query, ?string $status): Builder
     {
         return $query->when($status, fn (Builder $q) => $q->where('status', $status));
