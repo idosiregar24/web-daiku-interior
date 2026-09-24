@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreProjectRequest;
 use App\Models\BankAccount;
 use App\Models\Lead;
+use App\Models\Material;
 use App\Models\Project;
 use App\Models\User;
+use App\Policies\ProjectPolicy;
 use App\Services\ProjectService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -44,9 +46,12 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function show(Request $request, Project $project): Response
+    public function show(Request $request, Project $project, ProjectPolicy $policy): Response
     {
+        $this->authorize('view', $project);
+
         $user = $request->user();
+        $taskVisibility = $policy->taskVisibility($user);
         $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'QA', 'SUPERADMIN']);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
         $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
@@ -59,6 +64,12 @@ class ProjectController extends Controller
         $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']);
         $canCreateTermins = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         $canMarkTerminPaid = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
+        // PRD §7.1 "Project Material": CEO/PM/LOG read, EST/PM/LOG create
+        // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
+        // reads — create-only access without seeing what's already
+        // planned would just produce duplicate requests.
+        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'LOGISTICS', 'SUPERADMIN']);
+        $canPlanMaterials = $user->hasAnyRole(['ESTIMATOR', 'PM', 'LOGISTICS', 'SUPERADMIN']);
 
         $project->load(['pm:id,name', 'lead:id,client_name']);
 
@@ -70,7 +81,16 @@ class ProjectController extends Controller
             'canViewMilestones' => $canViewMilestones,
             'canManageMilestones' => $canManageMilestones,
             'canManageTasks' => $canManageTasks,
-            'tasks' => $project->tasks()->with(['assignee:id,name', 'milestone:id,name'])->latest()->get(),
+            // Scoped per ProjectPolicy::taskVisibility() — QA and roles with
+            // no task row in PRD §7.1 get none; Field Staff only their own.
+            'tasks' => $taskVisibility === 'none'
+                ? []
+                : $project->tasks()
+                    ->when($taskVisibility === 'own', fn ($query) => $query->where('assignee_id', $user->id))
+                    ->with(['assignee:id,name', 'milestone:id,name'])
+                    ->latest()
+                    ->get(),
+            'canViewTasks' => $taskVisibility !== 'none',
             'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name']) : [],
             'progressLogs' => $canViewProgressLogs
                 ? $project->progressLogs()->with('logger:id,name')->get()
@@ -84,6 +104,16 @@ class ProjectController extends Controller
             'canCreateTermins' => $canCreateTermins,
             'canMarkTerminPaid' => $canMarkTerminPaid,
             'bankAccounts' => $canCreateTermins ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']) : [],
+            'projectMaterials' => $canViewMaterials
+                ? $project->projectMaterials()->with('material:id,name,unit,stock,cost_price,sell_price,min_stock')->get()
+                : [],
+            'canViewMaterials' => $canViewMaterials,
+            'materialPermissions' => [
+                'create' => $canPlanMaterials,
+                'update' => $user->hasAnyRole(['PM', 'LOGISTICS', 'SUPERADMIN']),
+                'delete' => $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']),
+            ],
+            'materialOptions' => $canPlanMaterials ? Material::orderBy('name')->get(['id', 'name', 'unit', 'stock']) : [],
         ]);
     }
 

@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -20,14 +22,6 @@ interface ProjectIndexProps {
 }
 
 const STATUS_OPTIONS = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 const columns: ColumnDef<Project>[] = [
     {
@@ -132,6 +126,7 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
                 data={projects.data}
                 emptyMessage="Belum ada proyek. Proyek baru muncul saat lead dikonfirmasi Deal dari CRM."
             />
+            <Pagination paginator={projects} />
         </AppLayout>
     );
 }

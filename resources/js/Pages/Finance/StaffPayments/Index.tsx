@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
@@ -6,14 +8,6 @@ import { Head, router, usePage } from '@inertiajs/react';
 
 interface StaffPaymentsIndexProps {
     tasks: PaginatedData<Task>;
-}
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
 }
 
 /**
@@ -84,6 +78,7 @@ export default function StaffPaymentsIndex({ tasks }: StaffPaymentsIndexProps) {
                     </tbody>
                 </table>
             </div>
+            <Pagination paginator={tasks} />
         </AppLayout>
     );
 }

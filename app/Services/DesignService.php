@@ -13,7 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class DesignService
 {
-    public function __construct(private QuotationService $quotationService) {}
+    public function __construct(
+        private QuotationService $quotationService,
+        private NotificationService $notificationService,
+    ) {}
 
     /**
      * PRD §4.1 "Konversi ke Desain: Ketika status DEAL_DESAIN, sistem
@@ -95,7 +98,18 @@ class DesignService
                 'status' => DesignStatus::GambarRab->value,
             ]);
 
-            $this->quotationService->createFromDesign($design->fresh(), $actor);
+            $quotation = $this->quotationService->createFromDesign($design->fresh(), $actor);
+
+            // PRD §4.9 "Desain ACC oleh klien → Estimator, PM". No Project
+            // (and so no assigned PM) exists yet at this stage, so every
+            // PM is told — same division-level addressing as Finance/QA.
+            $this->notificationService->notifyRoles(
+                ['ESTIMATOR', 'PM'],
+                'design_acc',
+                'Desain di-ACC Klien',
+                "Desain untuk \"{$design->lead->client_name}\" sudah di-ACC klien — draft quotation (RAB) siap disusun.",
+                ['design_id' => $design->id, 'quotation_id' => $quotation->id, 'lead_id' => $design->lead_id],
+            );
 
             return $design->fresh();
         });

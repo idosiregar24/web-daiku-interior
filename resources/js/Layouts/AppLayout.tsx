@@ -24,16 +24,22 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/Components/ui/sheet';
-import type { PageProps, Role } from '@/types';
+import { Toaster } from '@/Components/ui/sonner';
+import { useFlashToasts } from '@/hooks/useFlashToasts';
+import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
+import { notificationHref } from '@/lib/notificationHref';
+import type { AppNotification, PageProps, Role } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     AlertOctagon,
     BarChart3,
     Bell,
+    CheckCheck,
     Clock,
     ClipboardCheck,
     FileText,
     FolderKanban,
+    History,
     LayoutDashboard,
     ListChecks,
     LogOut,
@@ -42,6 +48,7 @@ import {
     Package,
     Palette,
     PiggyBank,
+    ScrollText,
     ShieldCheck,
     User as UserIcon,
     Users,
@@ -49,6 +56,7 @@ import {
     Database,
     Settings,
     Wallet,
+    Warehouse,
 } from 'lucide-react';
 import { Fragment, PropsWithChildren, ReactNode } from 'react';
 
@@ -187,10 +195,28 @@ const NAV_GROUPS: NavGroup[] = [
                 routeName: 'penalties.index',
                 roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'],
             },
+        ],
+    },
+    {
+        label: 'Logistik',
+        items: [
             {
-                label: 'Logistik',
+                label: 'Material',
                 icon: Package,
+                routeName: 'logistics.materials.index',
                 roles: ['CEO', 'ESTIMATOR', 'PM', 'LOGISTICS'],
+            },
+            {
+                label: 'Riwayat Stok',
+                icon: History,
+                routeName: 'logistics.stock-movements.index',
+                roles: ['CEO', 'PM', 'LOGISTICS'],
+            },
+            {
+                label: 'Aset Inventaris',
+                icon: Warehouse,
+                routeName: 'logistics.assets.index',
+                roles: ['CEO', 'PM', 'FINANCE', 'LOGISTICS'],
             },
         ],
     },
@@ -200,6 +226,13 @@ const NAV_GROUPS: NavGroup[] = [
             {
                 label: 'Analytics',
                 icon: BarChart3,
+                routeName: 'analytics.index',
+                roles: ['CEO'],
+            },
+            {
+                label: 'Audit Trail',
+                icon: ScrollText,
+                routeName: 'audit-logs.index',
                 roles: ['CEO'],
             },
             {
@@ -362,11 +395,23 @@ function Topbar({
     breadcrumbs?: BreadcrumbEntry[];
     header?: ReactNode;
 }) {
-    const { auth, notifications } = usePage<PageProps>().props;
+    const { auth, notifications, unreadNotificationsCount } = usePage<PageProps>().props;
     const user = auth.user;
 
-    function markAsRead(notificationId: number) {
-        router.patch(route('notifications.markAsRead', { notification: notificationId }), {}, { preserveScroll: true });
+    useRealtimeNotifications(user?.id);
+
+    function openNotification(notification: AppNotification) {
+        const href = notificationHref(notification);
+
+        router.patch(
+            route('notifications.markAsRead', { notification: notification.id }),
+            {},
+            { preserveScroll: true, onSuccess: () => href && router.visit(href) },
+        );
+    }
+
+    function markAllAsRead() {
+        router.patch(route('notifications.markAllAsRead'), {}, { preserveScroll: true });
     }
 
     return (
@@ -394,17 +439,31 @@ function Topbar({
             <div className="flex items-center gap-2">
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative">
+                        <Button variant="ghost" size="icon" className="relative" aria-label="Notifikasi">
                             <Bell className="size-5" />
-                            {/* Refreshes on Inertia navigation, not real-time — see
-                                HandleInertiaRequests + notifications migration's docblock. */}
-                            {notifications.length > 0 && (
-                                <span className="absolute top-1 right-1 flex size-2 rounded-full bg-error" />
+                            {/* Live via useRealtimeNotifications when Soketi is on,
+                                otherwise refreshed on every Inertia visit. */}
+                            {unreadNotificationsCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold text-white">
+                                    {unreadNotificationsCount > 99 ? '99+' : unreadNotificationsCount}
+                                </span>
                             )}
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-80">
-                        <DropdownMenuLabel>Notifikasi</DropdownMenuLabel>
+                        <DropdownMenuLabel className="flex items-center justify-between">
+                            Notifikasi
+                            {unreadNotificationsCount > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={markAllAsRead}
+                                    className="flex items-center gap-1 text-xs font-normal text-daiku-muted hover:text-daiku-dark"
+                                >
+                                    <CheckCheck className="size-3.5" />
+                                    Tandai semua dibaca
+                                </button>
+                            )}
+                        </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {notifications.length === 0 ? (
                             <p className="px-2 py-4 text-center text-sm text-daiku-muted">
@@ -416,7 +475,7 @@ function Topbar({
                                     <button
                                         key={notification.id}
                                         type="button"
-                                        onClick={() => markAsRead(notification.id)}
+                                        onClick={() => openNotification(notification)}
                                         className="rounded-md p-2 text-left text-sm hover:bg-daiku-yellow-light"
                                     >
                                         <p className="font-medium text-daiku-dark">{notification.title}</p>
@@ -425,6 +484,12 @@ function Topbar({
                                 ))}
                             </div>
                         )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                            <Link href={route('notifications.index')} className="justify-center text-sm">
+                                Lihat semua notifikasi
+                            </Link>
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -478,8 +543,11 @@ export default function AppLayout({
     header,
     children,
 }: PropsWithChildren<{ breadcrumbs?: BreadcrumbEntry[]; header?: ReactNode }>) {
+    useFlashToasts();
+
     return (
         <div className="flex h-screen overflow-hidden bg-daiku-gray">
+            <Toaster position="top-right" richColors closeButton />
             <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-daiku-border bg-white lg:flex">
                 <SidebarBrand />
                 <SidebarNav />

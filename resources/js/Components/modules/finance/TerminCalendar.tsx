@@ -1,3 +1,4 @@
+import { formatRupiah } from '@/lib/format';
 import { Calendar } from '@/Components/ui/calendar';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Button } from '@/Components/ui/button';
@@ -49,14 +50,6 @@ const LEGEND: { status: TerminStatus; label: string }[] = [
 ];
 
 const WEEKDAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 interface TerminCalendarProps {
     termins: Termin[];

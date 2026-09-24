@@ -1,9 +1,12 @@
 <?php
 
 use App\Enums\LeadStatus;
+use App\Enums\QuotationStatus;
 use App\Models\Lead;
 use App\Models\LeadSource;
+use App\Models\Notification;
 use App\Models\Project;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Services\LeadService;
 use Database\Seeders\LeadSourceSeeder;
@@ -160,6 +163,7 @@ test('confirming a deal closes the lead and creates a project in one transaction
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value, 'client_name' => 'Budi Santoso']);
+    $quotation = Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id]);
 
     $response = $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
         'name' => 'Proyek Budi Santoso',
@@ -173,7 +177,79 @@ test('confirming a deal closes the lead and creates a project in one transaction
     $lead->refresh();
     expect($lead->status)->toBe(LeadStatus::Closing)
         ->and($lead->pipelineLogs()->count())->toBe(1)
-        ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue();
+        ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue()
+        // Marketing's confirmation records the client's acceptance.
+        ->and($quotation->fresh()->status)->toBe(QuotationStatus::Approved);
+});
+
+test('confirming a deal is rejected until the quotation clears CEO and PM approval', function (?string $quotationStatus) {
+    $marketing = User::factory()->create();
+    $marketing->assignRole('MARKETING');
+    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
+
+    if ($quotationStatus) {
+        Quotation::factory()->create(['lead_id' => $lead->id, 'status' => $quotationStatus]);
+    }
+
+    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
+        'name' => 'Proyek Test',
+        'pm_id' => User::factory()->create()->id,
+        'start_date' => now()->toDateString(),
+        'contract_value' => 200_000_000,
+    ])->assertSessionHasErrors('status');
+
+    expect(Project::where('lead_id', $lead->id)->exists())->toBeFalse()
+        ->and($lead->fresh()->status)->toBe(LeadStatus::DealDesain);
+})->with([
+    'no quotation' => [null],
+    'draft' => ['DRAFT'],
+    'submitted' => ['SUBMITTED'],
+    'CEO approved only' => ['CEO_REVIEW'],
+]);
+
+test('confirming a deal notifies the project PM, CEO, Finance and Logistics', function () {
+    $marketing = User::factory()->create();
+    $marketing->assignRole('MARKETING');
+    $pm = User::factory()->create();
+    $pm->assignRole('PM');
+    $recipients = collect(['CEO', 'FINANCE', 'LOGISTICS'])->map(function (string $role) {
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        return $user;
+    })->push($pm);
+    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
+    Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id]);
+
+    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
+        'name' => 'Proyek Notif',
+        'pm_id' => $pm->id,
+        'start_date' => now()->toDateString(),
+        'contract_value' => 200_000_000,
+    ]);
+
+    foreach ($recipients as $user) {
+        expect(Notification::where('user_id', $user->id)->where('type', 'deal_confirmed')->count())->toBe(1);
+    }
+
+    expect(Notification::where('user_id', $marketing->id)->exists())->toBeFalse();
+});
+
+test('follow-up reminders go to the assigned marketing once per day', function () {
+    $marketing = User::factory()->create();
+    $marketing->assignRole('MARKETING');
+    $due = Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value, 'follow_up_date' => now()->toDateString()]);
+    Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value, 'follow_up_date' => now()->addDays(2)->toDateString()]);
+    Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::Lost->value, 'lost_reason' => 'x', 'follow_up_date' => now()->subDay()->toDateString()]);
+
+    $service = app(LeadService::class);
+
+    expect($service->sendFollowUpReminders())->toBe(1)
+        ->and($service->sendFollowUpReminders())->toBe(0);
+
+    $notification = Notification::where('user_id', $marketing->id)->sole();
+    expect($notification->type)->toBe('lead_follow_up_due')
+        ->and($notification->metadata['lead_id'])->toBe($due->id);
 });
 
 test('confirming a deal is rejected unless the lead is DEAL_DESAIN', function () {

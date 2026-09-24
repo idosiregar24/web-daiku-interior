@@ -24,4 +24,16 @@ class QuotationFactory extends Factory
             'created_by' => User::factory(),
         ];
     }
+
+    /** Cleared both internal gates (CEO→PM) — ready for Marketing's deal confirmation. */
+    public function sentToClient(): static
+    {
+        return $this->state(['status' => QuotationStatus::SentToClient->value, 'total_amount' => 150_000_000]);
+    }
+
+    /** Client accepted (LeadService::confirmDeal()) — a Project may be created from its lead. */
+    public function approved(): static
+    {
+        return $this->state(['status' => QuotationStatus::Approved->value, 'total_amount' => 150_000_000]);
+    }
 }

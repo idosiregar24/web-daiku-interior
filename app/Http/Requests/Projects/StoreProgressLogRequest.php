@@ -18,7 +18,7 @@ class StoreProgressLogRequest extends FormRequest
             'percentage' => ['required', 'integer', 'min:0', 'max:100'],
             'description' => ['required', 'string'],
             'ref_urls' => ['nullable', 'array'],
-            'ref_urls.*' => ['url'],
+            'ref_urls.*' => ['url:http,https', 'max:2048'],
             'log_date' => ['nullable', 'date'],
         ];
     }

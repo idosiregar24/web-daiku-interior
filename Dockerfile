@@ -10,7 +10,7 @@ COPY . .
 RUN npm run build
 
 # --- Stage 2: PHP-FPM runtime ---
-FROM php:8.3-fpm
+FROM php:8.4-fpm
 
 RUN apt-get update && apt-get install -y \
     git curl unzip libpng-dev libonig-dev libxml2-dev libzip-dev libicu-dev \

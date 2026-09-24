@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Finance;
 
-use App\Enums\FinanceTransactionType;
 use App\Enums\TaskStatus;
 use App\Exports\CashFlowExport;
 use App\Http\Controllers\Controller;
@@ -14,7 +13,6 @@ use App\Models\Task;
 use App\Services\FinanceTransactionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -71,31 +69,10 @@ class FinanceTransactionController extends Controller
      * `phpunit.xml` runs tests against, per database-standards.md §1
      * "jangan pakai fitur khusus" one engine can't share).
      */
-    public function dashboard(): Response
+    public function dashboard(FinanceTransactionService $service): Response
     {
-        $from = now()->subMonths(5)->startOfMonth();
-
-        $rows = FinanceTransaction::query()
-            ->select('date', 'type', 'amount')
-            ->where('date', '>=', $from->toDateString())
-            ->get()
-            ->groupBy(fn (FinanceTransaction $row) => $row->date->format('Y-m'));
-
-        $months = collect(range(0, 5))->map(fn ($i) => now()->subMonths(5 - $i)->format('Y-m'));
-
-        $cashFlow = $months->map(function (string $month) use ($rows) {
-            $monthRows = $rows->get($month, collect());
-
-            return [
-                'month' => $month,
-                'label' => Carbon::createFromFormat('Y-m', $month)->translatedFormat('M Y'),
-                'income' => (float) $monthRows->where('type', FinanceTransactionType::Income)->sum('amount'),
-                'expense' => (float) $monthRows->where('type', FinanceTransactionType::Expense)->sum('amount'),
-            ];
-        });
-
         return Inertia::render('Finance/Dashboard', [
-            'cashFlow' => $cashFlow,
+            'cashFlow' => $service->monthlyCashFlow(6),
         ]);
     }
 

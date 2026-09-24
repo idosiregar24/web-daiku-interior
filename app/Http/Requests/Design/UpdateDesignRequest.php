@@ -29,7 +29,7 @@ class UpdateDesignRequest extends FormRequest
             'brief_note' => ['nullable', 'string'],
             'problem' => ['nullable', 'string'],
             'design_urls' => ['nullable', 'array'],
-            'design_urls.*' => ['url', 'max:2048'],
+            'design_urls.*' => ['url:http,https', 'max:2048'],
         ];
     }
 

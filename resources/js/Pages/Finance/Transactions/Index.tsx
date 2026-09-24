@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
@@ -25,14 +27,6 @@ interface TransactionIndexProps {
     balance: number;
     projects: Pick<Project, 'id' | 'name'>[];
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
-}
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
 }
 
 /**
@@ -203,6 +197,7 @@ export default function TransactionIndex({
                     bankAccounts={bankAccounts}
                 />
             )}
+            <Pagination paginator={transactions} />
         </AppLayout>
     );
 }

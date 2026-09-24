@@ -12,7 +12,7 @@ Finance, Logistik, Notifikasi, dan Analytics dalam satu platform.
 
 | Layer | Teknologi |
 |---|---|
-| Backend | Laravel 11 (PHP 8.3+), MySQL 8.0, Spatie Permission (RBAC) |
+| Backend | Laravel 11 (**PHP 8.4+**), MySQL 8.0/8.4, Spatie Permission (RBAC) |
 | Frontend | Inertia v2 + React 18 + TypeScript, Tailwind CSS v4, shadcn/ui |
 | Queue/Cache | Redis (Predis) — `database` driver dipakai selama Redis lokal belum aktif |
 | Real-time | Laravel Echo + Soketi (self-hosted, Pusher-protocol) |
@@ -26,7 +26,7 @@ draft awal): [`.claude/plan/README.md`](.claude/plan/README.md) bagian
 
 ## Prasyarat
 
-- PHP 8.3+ dengan ekstensi: `pdo_mysql`, `mbstring`, `openssl`, `bcmath`, `gd`, `zip`, `intl`
+- **PHP 8.4+** (`composer.lock` mengunci Symfony 8 → `php >=8.4.1`) dengan ekstensi: `pdo_mysql`, `mbstring`, `openssl`, `bcmath`, `gd`, `zip`, `intl`, `fileinfo`
 - Composer 2.x
 - Node.js 20+ & npm
 - MySQL 8.0 (lokal via Laragon/XAMPP, atau `docker compose up -d mysql`)
@@ -37,8 +37,9 @@ draft awal): [`.claude/plan/README.md`](.claude/plan/README.md) bagian
 git clone <url-repo-ini>
 cd daiku-interior
 
-composer install
-npm install
+# Windows: pcntl/posix (Horizon) tidak ada di Windows — Horizon hanya jalan di worker Docker/Linux
+composer install --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix
+npm ci
 
 cp .env.example .env
 php artisan key:generate
@@ -52,7 +53,7 @@ CREATE DATABASE daiku_interior CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
 ```bash
-php artisan migrate --seed   # migrasi + seed 9 role RBAC + 1 user demo per role
+php artisan migrate --seed   # migrasi + role RBAC + 1 user demo per role + data demo semua modul
 npm run build                 # atau: npm run dev untuk mode watch
 ```
 
@@ -85,13 +86,47 @@ Login awal (dari seeder, ganti password setelah login pertama — semua akun pak
 
 ## Menjalankan
 
-- **Laragon/XAMPP/Nginx manual**: arahkan document root ke `public/`, akses
-  lewat vhost (mis. `http://daiku-interior.test`).
-- **Cepat tanpa web server**: `php artisan serve`.
+- **Laragon**: vhost otomatis `http://web-daiku-interior.test` — pastikan
+  versi PHP Laragon = 8.4 (Menu → PHP → Version).
+- **Cepat tanpa web server**: `php artisan serve --port=8010`.
+- **Scheduler** (penalti 21:00, reminder form 20:30, overdue task/milestone
+  00:00, termin & follow-up 08:00, prune notifikasi 02:00 — lihat
+  `routes/console.php`): production butuh cron
+  `* * * * * php artisan schedule:run`; lokal: `php artisan schedule:work`.
+- **Notifikasi real-time**: set `BROADCAST_CONNECTION=pusher` (otomatis
+  diteruskan ke frontend lewat `VITE_BROADCAST_CONNECTION`) + Soketi jalan
+  (`docker compose up -d soketi`), lalu `npm run build`. Dengan `log`
+  (default lokal) notifikasi tetap tersimpan & tampil saat navigasi, hanya
+  tidak live.
 - **Docker Compose** (belum divalidasi jalan penuh di semua mesin — lihat
   catatan di `.claude/plan/README.md`): `docker compose up -d`.
 - Semua service dalam satu perintah (server + queue listener + log tail +
   vite dev): `composer run dev`.
+
+## Deploy production (ringkas)
+
+```bash
+composer install --no-dev --optimize-autoloader
+npm ci && npm run build
+php artisan migrate --force
+# Isi INITIAL_CEO_* dan INITIAL_SUPERADMIN_* di .env dulu (password ≥ 12 karakter)
+php artisan db:seed --class=ProductionSeeder --force
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+
+`ProductionSeeder` hanya membuat role, sumber/kategori lead, dan dua akun
+awal dari env — tanpa akun demo. `DatabaseSeeder` otomatis menolak data
+demo bila `APP_ENV=production`. Rekening bank & cabang asli diisi lewat
+**Data Master** (SUPERADMIN). Jalankan queue worker (Horizon) dan cron
+scheduler di server.
+
+## Keamanan & audit
+
+- Aksi sensitif (approval quotation, keputusan QA, transaksi/termin/dana,
+  penalti, perubahan user & role) tercatat di **Audit Trail**
+  (`/audit-logs`, CEO) — append-only, tidak bisa diubah/dihapus siapapun.
+- User tidak bisa menghapus akunnya sendiri; nonaktifkan lewat User
+  Management (menghapus akan ikut menghapus riwayat penalti/dana).
 
 ## Testing
 

@@ -67,6 +67,12 @@ const STATUS_TONE: Record<string, Tone> = {
     SCHEDULED: 'neutral',
     INVOICED: 'info',
     PAID: 'success',
+    // Logistik — AssetCondition / StockMovementType
+    GOOD: 'success',
+    FAIR: 'warning',
+    DAMAGED: 'error',
+    IN: 'success',
+    OUT: 'info',
 };
 
 function humanize(status: string) {

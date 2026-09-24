@@ -64,6 +64,11 @@ class Project extends Model
         return $this->hasMany(Termin::class)->orderBy('termin_number');
     }
 
+    public function projectMaterials(): HasMany
+    {
+        return $this->hasMany(ProjectMaterial::class);
+    }
+
     public function scopeByStatus(Builder $query, ?string $status): Builder
     {
         return $query->when($status, fn (Builder $q) => $q->where('status', $status));

@@ -1,3 +1,4 @@
+import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -193,6 +194,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
             />
 
             <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
+            <Pagination paginator={tasks} />
         </AppLayout>
     );
 }

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\LeadStatus;
+use App\Enums\QuotationStatus;
 use App\Models\Lead;
 use App\Models\Project;
 use Illuminate\Validation\ValidationException;
@@ -28,6 +29,15 @@ class ProjectService
         if ($lead->project()->exists()) {
             throw ValidationException::withMessages([
                 'lead_id' => 'Lead ini sudah punya proyek.',
+            ]);
+        }
+
+        // PRD §4.3 "Konversi ke Project hanya bisa dilakukan setelah status
+        // APPROVED" — enforced here, not only in LeadService::confirmDeal(),
+        // so PM's direct projects.store path can't skip the quotation.
+        if ($lead->quotation?->status !== QuotationStatus::Approved) {
+            throw ValidationException::withMessages([
+                'lead_id' => 'Proyek hanya bisa dibuat setelah quotation lead ini berstatus APPROVED.',
             ]);
         }
 

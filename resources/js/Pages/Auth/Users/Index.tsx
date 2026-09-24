@@ -1,3 +1,4 @@
+import { Pagination } from '@/Components/shared/Pagination';
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import { DataTable } from '@/Components/shared/DataTable';
@@ -75,6 +76,7 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 data={users.data}
                 emptyMessage="Belum ada user selain akun awal."
             />
+            <Pagination paginator={users} />
         </AppLayout>
     );
 }

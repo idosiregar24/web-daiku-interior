@@ -1,3 +1,4 @@
+import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -9,6 +10,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
+import { Pagination } from '@/Components/shared/Pagination';
 import { TerminCalendar } from '@/Components/modules/finance/TerminCalendar';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PageProps, PaginatedData, Termin } from '@/types';
@@ -20,14 +22,6 @@ interface TerminIndexProps {
     filters: { status?: string };
     calendarTermins: Termin[];
     calendarMonth: string;
-}
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
 }
 
 function formatDate(value: string) {
@@ -139,6 +133,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                             </tbody>
                         </table>
                     </div>
+                    <Pagination paginator={termins} />
                 </TabsContent>
 
                 <TabsContent value="calendar" className="mt-4">

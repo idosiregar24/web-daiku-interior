@@ -56,4 +56,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(Task::class, 'assignee_id');
     }
+
+    /** Daily forms this Field Staff submitted — PenaltyService's "sudah isi hari ini" check. */
+    public function dailyTaskForms(): HasMany
+    {
+        return $this->hasMany(DailyTaskForm::class, 'staff_id');
+    }
 }

@@ -327,7 +327,7 @@ function MilestonePhaseBar({
     onMarkDone: (milestone: Milestone) => void;
 }) {
     const [open, setOpen] = useState(false);
-    const canMarkDone = canManage && (milestone.status === 'PENDING' || milestone.status === 'IN_PROGRESS');
+    const canMarkDone = canManage && ['PENDING', 'IN_PROGRESS', 'OVERDUE'].includes(milestone.status);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>

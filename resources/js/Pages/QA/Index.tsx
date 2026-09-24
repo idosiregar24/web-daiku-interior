@@ -1,3 +1,4 @@
+import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import {
@@ -89,6 +90,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                     </tbody>
                 </table>
             </div>
+            <Pagination paginator={qaForms} />
         </AppLayout>
     );
 }

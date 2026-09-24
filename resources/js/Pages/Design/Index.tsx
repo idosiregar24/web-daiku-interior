@@ -1,3 +1,4 @@
+import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -120,6 +121,7 @@ export default function DesignIndex({ designs, filters }: DesignIndexProps) {
                 data={designs.data}
                 emptyMessage="Belum ada proyek desain. Buka dari lead CRM berstatus DEAL_DESAIN."
             />
+            <Pagination paginator={designs} />
         </AppLayout>
     );
 }

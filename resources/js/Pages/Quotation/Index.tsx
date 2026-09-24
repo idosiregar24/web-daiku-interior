@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -21,14 +23,6 @@ interface QuotationIndexProps {
 const STATUS_OPTIONS: QuotationStatus[] = [
     'DRAFT', 'SUBMITTED', 'CEO_REVIEW', 'PM_REVIEW', 'SENT_TO_CLIENT', 'APPROVED', 'REJECTED',
 ];
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string } }>[] = [
     {
@@ -110,6 +104,7 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                 data={quotations.data}
                 emptyMessage="Belum ada quotation. Dibuka otomatis saat desain di-ACC klien."
             />
+            <Pagination paginator={quotations} />
         </AppLayout>
     );
 }

@@ -41,16 +41,30 @@ test('family fund page computes the running balance correctly', function () {
 test('finance can record a fund expense', function () {
     $finance = User::factory()->create();
     $finance->assignRole('FINANCE');
+    FamilyGatheringFund::factory()->count(4)->create(['type' => 'INCOME', 'amount' => 50000]);
 
     $this->actingAs($finance)->post(route('family-fund.recordExpense'), [
         'amount' => 200000,
         'description' => 'Acara gathering Q3',
-    ])->assertRedirect();
+    ])->assertRedirect()->assertSessionHasNoErrors();
 
     $entry = FamilyGatheringFund::where('type', 'EXPENSE')->first();
     expect($entry)->not->toBeNull()
         ->and((float) $entry->amount)->toBe(200000.0)
         ->and($entry->recorded_by)->toBe($finance->id);
+});
+
+test('a fund expense cannot exceed the collected balance', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    FamilyGatheringFund::factory()->create(['type' => 'INCOME', 'amount' => 50000]);
+
+    $this->actingAs($finance)->post(route('family-fund.recordExpense'), [
+        'amount' => 50001,
+        'description' => 'Melebihi saldo',
+    ])->assertSessionHasErrors('amount');
+
+    expect(FamilyGatheringFund::where('type', 'EXPENSE')->exists())->toBeFalse();
 });
 
 test('roles other than FINANCE cannot record a fund expense', function () {

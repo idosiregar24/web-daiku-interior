@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Notification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -43,14 +44,27 @@ class HandleInertiaRequests extends Middleware
                     'role' => $user->getRoleNames()->first(),
                 ] : null,
             ],
-            // Not real-time (see notifications migration's docblock) —
-            // refreshes on every Inertia navigation, which is enough for
-            // the two Sprint 4 triggers that write here (QA rejection,
-            // Termin H-3 reminder) without building the full Echo/Soketi
-            // broadcast layer ahead of its own Sprint 5 module.
+            // Every controller redirects with `->with('success', ...)` —
+            // AppLayout turns these into toasts. `key` is unique per flash:
+            // Inertia keeps un-requested props across partial reloads, so
+            // the client toasts once per key, not once per render.
+            'flash' => function () use ($request) {
+                $success = $request->session()->get('success');
+                $error = $request->session()->get('error');
+
+                return $success || $error
+                    ? ['success' => $success, 'error' => $error, 'key' => (string) Str::uuid()]
+                    : null;
+            },
+            // Refreshed on every Inertia visit, and live between visits:
+            // AppLayout's bell partial-reloads just these two props when
+            // a NotificationCreated event lands on the user's Echo channel.
             'notifications' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->latest('created_at')->limit(10)->get()
                 : [],
+            'unreadNotificationsCount' => $user
+                ? Notification::where('user_id', $user->id)->where('is_read', false)->count()
+                : 0,
         ];
     }
 }

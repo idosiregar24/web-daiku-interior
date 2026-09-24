@@ -7,8 +7,11 @@ use App\Enums\FinanceCategory;
 use App\Enums\FinanceTransactionType;
 use App\Enums\MilestoneStatus;
 use App\Enums\TaskStatus;
+use App\Models\Asset;
 use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
+use App\Models\Material;
+use App\Models\RevenueTarget;
 use App\Models\Lead;
 use App\Models\Project;
 use App\Models\QaForm;
@@ -18,12 +21,14 @@ use App\Services\DesignService;
 use App\Services\FamilyGatheringFundService;
 use App\Services\FinanceTransactionService;
 use App\Services\LeadService;
+use App\Services\LogisticsService;
 use App\Services\MilestoneService;
 use App\Services\OvertimeService;
 use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
+use App\Services\StockService;
 use App\Services\TaskService;
 use App\Services\TerminService;
 use Illuminate\Database\Seeder;
@@ -102,6 +107,92 @@ class DemoDataSeeder extends Seeder
         // penalty job below has something real to catch), penalties,
         // family fund, overtime.
         $this->seedFieldOperations($projects);
+
+        // 6. Logistics — material master, stock received, material planned
+        // and issued to the first project (one material left below its
+        // minimum so the low-stock badge/alert has something real), assets.
+        $this->seedLogistics($projects[0]['project']);
+
+        // 7. CEO revenue targets for the Analytics "Revenue vs Target" chart.
+        foreach (range(5, 0) as $monthsAgo) {
+            RevenueTarget::create([
+                'month' => now()->startOfMonth()->subMonths($monthsAgo)->format('Y-m'),
+                'target_amount' => 60_000_000 + (5 - $monthsAgo) * 5_000_000,
+                'set_by' => $this->ceo->id,
+            ]);
+        }
+    }
+
+    /**
+     * PRD §4.8 through the real services: StockService for every stock
+     * change (so the ledger and `materials.stock` reconcile) and
+     * LogisticsService for project planning.
+     */
+    private function seedLogistics(Project $project): void
+    {
+        $logistics = User::role('LOGISTICS')->firstOrFail();
+        $stockService = app(StockService::class);
+        $logisticsService = app(LogisticsService::class);
+
+        $catalog = [
+            ['Plywood Meranti 18mm', 'lembar', 'Kayu', 185_000, 240_000, 10, 40],
+            ['HPL Taco Walnut', 'lembar', 'Finishing', 145_000, 195_000, 8, 25],
+            ['MDF 12mm', 'lembar', 'Kayu', 120_000, 155_000, 10, 30],
+            ['Engsel Sendok Soft Close', 'pcs', 'Hardware', 18_000, 28_000, 50, 200],
+            ['Rel Laci Tandem 45cm', 'set', 'Hardware', 95_000, 135_000, 15, 18],
+            ['Lem Kayu Crossbond 1kg', 'kg', 'Consumable', 42_000, 55_000, 5, 12],
+        ];
+
+        $materials = collect($catalog)->map(function (array $row) use ($stockService, $logistics) {
+            [$name, $unit, $category, $cost, $sell, $min, $received] = $row;
+
+            $material = Material::create([
+                'name' => $name,
+                'unit' => $unit,
+                'category' => $category,
+                'cost_price' => $cost,
+                'sell_price' => $sell,
+                'min_stock' => $min,
+            ]);
+
+            $stockService->stockIn($material, [
+                'qty' => $received,
+                'movement_date' => now()->subDays(14)->toDateString(),
+                'note' => 'Stok awal gudang',
+            ], $logistics);
+
+            return $material;
+        });
+
+        // Planned by the Estimator/PM, then partly issued by Logistics.
+        foreach ([[0, 24, 14], [1, 12, 6], [3, 60, 40], [4, 10, 6]] as [$index, $planned, $issued]) {
+            $logisticsService->planMaterial($project, ['material_id' => $materials[$index]->id, 'qty_planned' => $planned]);
+            $stockService->stockOut($materials[$index], $project, [
+                'qty' => $issued,
+                'movement_date' => now()->subDays(3)->toDateString(),
+                'note' => 'Produksi kabinet',
+            ], $logistics);
+        }
+
+        // Rel Laci: 18 received − 6 issued = 12 < min 15 → low stock.
+
+        $assets = [
+            ['Mobil Pickup L300', 'Kendaraan', '2023-02-10', 185_000_000, 'GOOD', 'Workshop Utama'],
+            ['Mesin Panel Saw', 'Mesin', '2022-07-01', 68_000_000, 'GOOD', 'Workshop Utama'],
+            ['Kompresor Angin 2HP', 'Alat', '2021-11-15', 7_500_000, 'FAIR', 'Workshop Utama'],
+            ['Bor Listrik Makita', 'Alat', '2024-01-20', 1_850_000, 'DAMAGED', 'Gudang Alat'],
+        ];
+
+        foreach ($assets as [$name, $category, $purchased, $value, $condition, $location]) {
+            Asset::create([
+                'name' => $name,
+                'category' => $category,
+                'purchase_date' => $purchased,
+                'value' => $value,
+                'condition' => $condition,
+                'location' => $location,
+            ]);
+        }
     }
 
     private function seedFollowUpLeads(LeadService $leadService): void
@@ -400,9 +491,11 @@ class DemoDataSeeder extends Seeder
 
         app(PenaltyService::class)->runDailyCheck();
 
+        // Within the balance the penalty above just collected — the fund
+        // can't pay out more than it holds (FamilyGatheringFundService).
         app(FamilyGatheringFundService::class)->recordExpense([
-            'amount' => 150_000,
-            'description' => 'Konsumsi acara gathering internal Q3 2026',
+            'amount' => 30_000,
+            'description' => 'Konsumsi rapat persiapan gathering internal Q3 2026',
         ], $this->finance);
 
         $this->seedOvertimeRequests($projects);

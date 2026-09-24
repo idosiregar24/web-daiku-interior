@@ -72,6 +72,27 @@
   --color-daiku-gray: #f5f5f5;
   --color-daiku-border: #e8e8e8;
   --color-daiku-muted: #6b7280;
+
+  /*
+   * Data-viz palette (Analytics). Daiku Yellow is the UI accent, not a
+   * data color: on the white card surface it fails the dataviz
+   * validator (lightness band; 1.6:1 contrast), and the legacy
+   * --chart-1..5 set fails CVD separation (amber↔green ΔE 5.7 protan).
+   * These categorical slots pass all checks (validate_palette.js,
+   * light mode) — assign them in this fixed order, never cycled.
+   */
+  --color-viz-1: #2a78d6;
+  --color-viz-2: #eb6834;
+  --color-viz-3: #1baf7a;
+  /* Sequential (one hue, light → dark) — heatmap magnitude. */
+  --color-viz-seq-1: #cde2fb;
+  --color-viz-seq-2: #9ec5f4;
+  --color-viz-seq-3: #6da7ec;
+  --color-viz-seq-4: #3987e5;
+  --color-viz-seq-5: #256abf;
+  --color-viz-seq-6: #184f95;
+  --color-viz-grid: #e1e0d9;
+  --color-viz-axis: #898781;
 }
 
 @layer base {

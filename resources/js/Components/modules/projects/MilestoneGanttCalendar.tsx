@@ -148,7 +148,7 @@ export function MilestoneGanttCalendar({
                                 const width = Math.max(pct(phaseEnd) - left, 2);
                                 const canMarkDone =
                                     canManage &&
-                                    (milestone.status === 'PENDING' || milestone.status === 'IN_PROGRESS');
+                                    ['PENDING', 'IN_PROGRESS', 'OVERDUE'].includes(milestone.status);
 
                                 return (
                                     <div key={milestone.id} className="group flex items-center gap-3">

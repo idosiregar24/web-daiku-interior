@@ -73,19 +73,35 @@ status): [`plan/README.md`](plan/README.md). Source task list:
    `status`/`kendala`/`note` — never `title`/`description`/`due_date`.
    Enforce via Policy, not just frontend hiding of the fields.
 7. **Audit trail is append-only** (PRD §9.4) — no `destroy` route/policy
-   ever, for anyone, on audit/finance/penalty logs.
+   ever, for anyone, on audit/finance/penalty logs. Sensitive actions go
+   through `AuditLogService::record()` inside the acting service's
+   transaction; `App\Models\AuditLog` itself throws on update/delete.
+   Users are deactivated (`is_active`), never deleted — deletion cascades
+   would erase their penalty/fund history.
 8. **Sidebar nav (`Layouts/AppLayout.tsx`) tracks reality.** A module's
    `NAV_GROUPS` entry gets a real `routeName` only once its `index` route
    actually exists — until then it renders disabled ("Segera").
 
 ## Local environment
 
-- App: `http://daiku-interior.test` (Laragon vhost, root = `public/`) or
-  `php artisan serve`.
-- DB: MySQL via Laragon, `root` / no password, database `daiku_interior`.
-  If `mysqld`/`nginx` aren't responding, Laragon's tray app may need a
-  restart — see the persisted session memory for manual recovery steps if
-  needed.
+- **PHP 8.4 is required** — `composer.lock` pins Symfony 8 (`php >=8.4.1`).
+  Installed at `D:\laragon\bin\php\php-8.4.26-Win32-vs17-x64` (the PATH
+  `php` may be an older 8.2/8.3). Install deps with
+  `composer install --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix`
+  — Horizon's pcntl/posix don't exist on Windows; Horizon runs in the
+  Linux Docker worker only.
+- App: `http://web-daiku-interior.test` (Laragon Apache vhost, root =
+  `public/`) — only once Laragon's PHP is switched to 8.4 (Menu → PHP →
+  Version). Otherwise `php artisan serve --port=8010` (port 8000 is used
+  by another local project on this machine).
+- DB: MySQL 8.4 via Laragon, `root` / no password, database `daiku_interior`.
+  `php artisan migrate:fresh --seed` = full demo data (every role:
+  `{role}@daikuinterior.com` / `password`). Production uses
+  `ProductionSeeder` instead — `DatabaseSeeder` refuses demo data when
+  `APP_ENV=production`.
+- Real-time: `BROADCAST_CONNECTION=log` locally (no Soketi without
+  Docker). The frontend mirrors it via `VITE_BROADCAST_CONNECTION`, so
+  flipping both to `pusher` turns the live notification bell on.
 - No local Redis — `CACHE_STORE`/`QUEUE_CONNECTION` are `database` for
   now (documented inline in `.env`); flip to `redis` once
   `docker compose up -d redis` (or a native install) is available.

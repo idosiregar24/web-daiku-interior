@@ -9,7 +9,48 @@ use Illuminate\Validation\ValidationException;
 
 class MilestoneService
 {
-    public function __construct(private QaFormService $qaFormService) {}
+    public function __construct(
+        private QaFormService $qaFormService,
+        private NotificationService $notificationService,
+    ) {}
+
+    /**
+     * CSV Sprint 6 "Milestone status auto-update: OVERDUE jika lewat
+     * targetDate (scheduler)" — PRD §4.4 status list. Only milestones
+     * still being worked on (PENDING/IN_PROGRESS) can go overdue: one
+     * already handed to QA (QA_WAITING) is waiting on QA, not the team.
+     * The status change is its own idempotency guard, and the PM gets
+     * one notification per project per run.
+     */
+    public function markOverdueMilestones(): int
+    {
+        $overdue = Milestone::query()
+            ->whereIn('status', [MilestoneStatus::Pending->value, MilestoneStatus::InProgress->value])
+            ->whereDate('target_date', '<', now('Asia/Jakarta')->toDateString())
+            ->with('project.pm')
+            ->get();
+
+        if ($overdue->isEmpty()) {
+            return 0;
+        }
+
+        Milestone::whereKey($overdue->modelKeys())->update(['status' => MilestoneStatus::Overdue->value]);
+
+        $overdue->groupBy('project_id')->each(function ($milestones) {
+            $project = $milestones->first()->project;
+
+            $this->notificationService->notifyMany(
+                [$project->pm],
+                'milestone_overdue',
+                'Milestone Melewati Target',
+                'Milestone '.$milestones->pluck('name')->map(fn ($name) => "\"{$name}\"")->implode(', ')
+                    ." di proyek \"{$project->name}\" melewati target tanggal.",
+                ['project_id' => $project->id],
+            );
+        });
+
+        return $overdue->count();
+    }
 
     /**
      * New milestones append to the end of the project's order — PM
@@ -55,7 +96,9 @@ class MilestoneService
      */
     public function markDone(Milestone $milestone): Milestone
     {
-        if (! in_array($milestone->status, [MilestoneStatus::Pending, MilestoneStatus::InProgress], true)) {
+        // OVERDUE is still finishable — it only marks a missed target date
+        // (markOverdueMilestones()), the work can still be handed to QA.
+        if (! in_array($milestone->status, [MilestoneStatus::Pending, MilestoneStatus::InProgress, MilestoneStatus::Overdue], true)) {
             throw ValidationException::withMessages([
                 'status' => 'Milestone ini sudah menunggu QA atau sudah selesai.',
             ]);
@@ -63,7 +106,9 @@ class MilestoneService
 
         $milestone->update(['status' => MilestoneStatus::QaWaiting->value]);
 
-        if (! $milestone->qaForm()->exists()) {
+        if ($qaForm = $milestone->qaForm) {
+            $this->qaFormService->resubmit($qaForm);
+        } else {
             $this->qaFormService->createForMilestone($milestone);
         }
 

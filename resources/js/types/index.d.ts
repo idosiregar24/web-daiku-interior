@@ -34,8 +34,11 @@ export type PageProps<
     auth: {
         user: User;
     };
-    /** Shared on every Inertia navigation (see HandleInertiaRequests) — not real-time, see AppNotification. */
+    /** Latest 10 unread — shared on every visit and partial-reloaded live by AppLayout's bell (see HandleInertiaRequests). */
     notifications: AppNotification[];
+    unreadNotificationsCount: number;
+    /** Session flash from `back()->with('success', ...)` — AppLayout toasts it once per `key`. */
+    flash: { success: string | null; error: string | null; key: string } | null;
 };
 
 /** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
@@ -45,6 +48,9 @@ export interface PaginatedData<T> {
     last_page: number;
     per_page: number;
     total: number;
+    /** 1-based index of the first/last row on this page — null when the page is empty. */
+    from: number | null;
+    to: number | null;
     links: { url: string | null; label: string; active: boolean }[];
 }
 
@@ -415,6 +421,82 @@ export interface FinanceTransaction {
     attachments: string[] | null;
     created_at: string;
     updated_at: string;
+}
+
+/** PRD 4.8 — Logistik */
+export interface Material {
+    id: number;
+    name: string;
+    unit: string;
+    category: string | null;
+    cost_price: string;
+    sell_price: string;
+    stock: number;
+    min_stock: number;
+    /** Appended accessors (App\Models\Material) — sell_price − cost_price. */
+    margin: number;
+    margin_percent: number | null;
+    is_low_stock: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export type StockMovementType = 'IN' | 'OUT';
+
+export interface StockMovement {
+    id: number;
+    material_id: number;
+    material?: Pick<Material, 'id' | 'name' | 'unit'>;
+    project_id: number | null;
+    project?: Pick<Project, 'id' | 'name'> | null;
+    type: StockMovementType;
+    qty: number;
+    stock_after: number;
+    movement_date: string;
+    note: string | null;
+    recorded_by: number;
+    recorder?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+}
+
+export interface ProjectMaterial {
+    id: number;
+    project_id: number;
+    material_id: number;
+    material?: Pick<Material, 'id' | 'name' | 'unit' | 'stock' | 'cost_price' | 'sell_price' | 'min_stock'>;
+    qty_planned: number;
+    qty_used: number;
+    created_at: string;
+    updated_at: string;
+}
+
+export type AssetCondition = 'GOOD' | 'FAIR' | 'DAMAGED';
+
+export interface Asset {
+    id: number;
+    name: string;
+    category: string | null;
+    purchase_date: string | null;
+    value: string | null;
+    condition: AssetCondition;
+    location: string | null;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+/** PRD 9.4 — Audit Trail (append-only) */
+export interface AuditLog {
+    id: number;
+    user_id: number | null;
+    user?: Pick<User, 'id' | 'name'> | null;
+    action: string;
+    model_type: string;
+    model_id: number;
+    old_values: Record<string, unknown> | null;
+    new_values: Record<string, unknown> | null;
+    ip_address: string | null;
+    created_at: string;
 }
 
 /** PRD 5.1 — Notifications */

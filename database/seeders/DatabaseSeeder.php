@@ -32,6 +32,15 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Demo users all share the password `password` — never let a
+        // stray `db:seed` in production create them.
+        if (app()->isProduction()) {
+            $this->command?->warn('APP_ENV=production: menjalankan ProductionSeeder, bukan data demo.');
+            $this->call(ProductionSeeder::class);
+
+            return;
+        }
+
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
         $this->call(MasterDataSeeder::class);

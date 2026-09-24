@@ -30,6 +30,11 @@ use Illuminate\Validation\ValidationException;
  */
 class QuotationService
 {
+    public function __construct(
+        private NotificationService $notificationService,
+        private AuditLogService $auditLogService,
+    ) {}
+
     /**
      * PRD §4.3 "Quotation hanya bisa dibuat jika Design sudah clientAcc =
      * true" — called from DesignService::clientAcc(), never directly from
@@ -118,6 +123,16 @@ class QuotationService
 
         $quotation->update(['status' => QuotationStatus::Submitted->value]);
 
+        // PRD §4.9 "Quotation disubmit → CEO, PM" — CEO acts first (see
+        // ceoDecision()), PM is told now so the second gate isn't a surprise.
+        $this->notificationService->notifyRoles(
+            ['CEO', 'PM'],
+            'quotation_submitted',
+            'Quotation Menunggu Approval',
+            "Quotation \"{$quotation->lead->client_name}\" (".$this->rupiah($quotation->total_amount).') disubmit dan menunggu approval CEO.',
+            ['quotation_id' => $quotation->id],
+        );
+
         return $quotation->fresh();
     }
 
@@ -179,11 +194,67 @@ class QuotationService
                 'note' => $note,
             ]);
 
+            $oldStatus = $quotation->status;
+
             $quotation->update([
                 'status' => $decision === 'approve' ? $approveStatus->value : QuotationStatus::Draft->value,
             ]);
 
+            // PRD §9.4 "approval quotation" — audit trail.
+            $this->auditLogService->record(
+                'quotation.'.strtolower($approverRole).'_'.($decision === 'approve' ? 'approved' : 'rejected'),
+                $quotation,
+                ['status' => $oldStatus],
+                ['status' => $quotation->status, 'total_amount' => $quotation->total_amount, 'note' => $note],
+                $actor,
+            );
+
+            $this->notifyDecision($quotation, $decision, $approverRole, $note);
+
             return $quotation->fresh();
         });
+    }
+
+    /**
+     * PRD §4.9 "Quotation approve/reject → Estimator, Marketing": the
+     * Estimator who built the RAB and the Marketing owner of the lead.
+     * A CEO approval additionally hands the next gate to PM.
+     */
+    private function notifyDecision(Quotation $quotation, string $decision, string $approverRole, ?string $note): void
+    {
+        $quotation->loadMissing(['creator', 'lead.assignee']);
+        $client = $quotation->lead->client_name;
+        $metadata = ['quotation_id' => $quotation->id];
+
+        if ($decision === 'reject') {
+            $message = "Quotation \"{$client}\" ditolak {$approverRole} dan kembali ke DRAFT: {$note}";
+        } elseif ($approverRole === 'CEO') {
+            $message = "Quotation \"{$client}\" disetujui CEO, menunggu approval PM.";
+        } else {
+            $message = "Quotation \"{$client}\" disetujui CEO & PM dan siap dikirim ke klien.";
+        }
+
+        $this->notificationService->notifyMany(
+            [$quotation->creator, $quotation->lead->assignee],
+            $decision === 'reject' ? 'quotation_rejected' : 'quotation_approved',
+            $decision === 'reject' ? 'Quotation Ditolak' : 'Quotation Disetujui',
+            $message,
+            $metadata,
+        );
+
+        if ($decision === 'approve' && $approverRole === 'CEO') {
+            $this->notificationService->notifyRoles(
+                ['PM'],
+                'quotation_awaiting_pm',
+                'Quotation Menunggu Approval PM',
+                "Quotation \"{$client}\" sudah disetujui CEO dan menunggu approval Anda.",
+                $metadata,
+            );
+        }
+    }
+
+    private function rupiah(string|float|null $amount): string
+    {
+        return 'Rp '.number_format((float) $amount, 0, ',', '.');
     }
 }

@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Enums\MilestoneStatus;
+use App\Enums\ProjectStatus;
 use App\Enums\QaStatus;
 use App\Models\Milestone;
+use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -31,16 +33,53 @@ class QaFormService
         ['label' => 'Dokumentasi foto sudah lengkap', 'passed' => false, 'note' => null],
     ];
 
-    public function __construct(private NotificationService $notificationService) {}
+    public function __construct(
+        private NotificationService $notificationService,
+        private AuditLogService $auditLogService,
+    ) {}
 
     public function createForMilestone(Milestone $milestone): QaForm
     {
-        return QaForm::create([
+        $qaForm = QaForm::create([
             'project_id' => $milestone->project_id,
             'milestone_id' => $milestone->id,
             'status' => QaStatus::Pending->value,
             'checklist_data' => self::DEFAULT_CHECKLIST,
         ]);
+
+        $this->notifyQaTeam($qaForm, $milestone, 'siap direview');
+
+        return $qaForm;
+    }
+
+    /**
+     * PM fixed a rejected milestone and marked it done again — the same
+     * form (unique per milestone) goes back to PENDING for another pass.
+     * `rejection_count` is kept: it's what "reject 2x berturut-turut"
+     * counts.
+     */
+    public function resubmit(QaForm $qaForm): QaForm
+    {
+        if ($qaForm->status === QaStatus::Approved) {
+            return $qaForm;
+        }
+
+        $qaForm->update(['status' => QaStatus::Pending->value]);
+        $this->notifyQaTeam($qaForm, $qaForm->milestone, 'sudah diperbaiki PM dan siap direview ulang');
+
+        return $qaForm->fresh();
+    }
+
+    /** PRD §4.9 "Milestone selesai → QA Form dibuat → Tim QA". */
+    private function notifyQaTeam(QaForm $qaForm, Milestone $milestone, string $state): void
+    {
+        $this->notificationService->notifyRoles(
+            ['QA'],
+            'qa_form_created',
+            'QA Form Baru',
+            "Milestone \"{$milestone->name}\" ({$milestone->project->name}) {$state}.",
+            ['qa_form_id' => $qaForm->id, 'project_id' => $milestone->project_id],
+        );
     }
 
     /**
@@ -66,6 +105,7 @@ class QaFormService
 
         return DB::transaction(function () use ($qaForm, $decision, $checklistData, $notes, $actor) {
             $milestone = $qaForm->milestone()->with('project.pm')->firstOrFail();
+            $before = ['status' => $qaForm->status, 'rejection_count' => $qaForm->rejection_count];
 
             if ($decision === 'approve') {
                 $qaForm->update([
@@ -78,7 +118,8 @@ class QaFormService
 
                 $milestone->update(['status' => MilestoneStatus::Completed->value]);
                 $this->advanceNextMilestone($milestone);
-                $this->notifyPm($milestone, 'QA menyetujui milestone "'.$milestone->name.'".', 'qa_approved');
+                $this->completeProjectIfDone($milestone->project);
+                $this->notifyPm($milestone, $qaForm, 'QA menyetujui milestone "'.$milestone->name.'".', 'qa_approved');
             } else {
                 $qaForm->update([
                     'status' => QaStatus::Rejected->value,
@@ -91,18 +132,33 @@ class QaFormService
 
                 // Unblock the PM to keep fixing — see MilestoneService::markDone()'s docblock.
                 $milestone->update(['status' => MilestoneStatus::InProgress->value]);
-                $this->notifyPm($milestone, 'QA menolak milestone "'.$milestone->name.'": '.$notes, 'qa_rejected');
+                $this->notifyPm($milestone, $qaForm, 'QA menolak milestone "'.$milestone->name.'": '.$notes, 'qa_rejected');
 
                 if ($qaForm->rejection_count >= 2) {
-                    $this->notificationService->notifyMany(
-                        User::role('CEO')->get(),
+                    $this->notificationService->notifyRoles(
+                        ['CEO'],
                         'qa_rejected_twice',
                         'QA Reject Berulang',
                         'Milestone "'.$milestone->name.'" ('.$milestone->project->name.') ditolak QA '.$qaForm->rejection_count.'x berturut-turut.',
-                        ['milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
+                        ['qa_form_id' => $qaForm->id, 'milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
                     );
                 }
             }
+
+            // PRD §9.4 "QA decision" — audit trail.
+            $this->auditLogService->record(
+                $decision === 'approve' ? 'qa.approved' : 'qa.rejected',
+                $qaForm,
+                $before,
+                [
+                    'status' => $qaForm->status,
+                    'rejection_count' => $qaForm->rejection_count,
+                    'notes' => $notes,
+                    'milestone' => $milestone->name,
+                    'checklist_passed' => collect($checklistData)->where('passed', true)->count().'/'.count($checklistData),
+                ],
+                $actor,
+            );
 
             return $qaForm->fresh();
         });
@@ -121,8 +177,36 @@ class QaFormService
         }
     }
 
+    /**
+     * CSV Sprint 6 "Project selesai flow: semua milestone COMPLETED →
+     * project COMPLETED". Runs inside the approving review's transaction,
+     * so a project can only finish through QA — never by a PM editing a
+     * status field. A project with no milestones never auto-completes.
+     */
+    private function completeProjectIfDone(Project $project): void
+    {
+        $milestones = $project->milestones()->get(['id', 'status']);
+
+        if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
+            return;
+        }
+
+        $project->update([
+            'status' => ProjectStatus::Completed->value,
+            'end_date' => now('Asia/Jakarta')->toDateString(),
+        ]);
+
+        $this->notificationService->notifyMany(
+            User::role('CEO')->where('is_active', true)->get()->push($project->pm),
+            'project_completed',
+            'Proyek Selesai',
+            "Semua milestone proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
+            ['project_id' => $project->id],
+        );
+    }
+
     /** PRD §4.6 "PM mendapat notifikasi langsung ketika QA approve/reject". */
-    private function notifyPm(Milestone $milestone, string $message, string $type): void
+    private function notifyPm(Milestone $milestone, QaForm $qaForm, string $message, string $type): void
     {
         if (! $milestone->project->pm) {
             return;
@@ -133,7 +217,7 @@ class QaFormService
             $type,
             'Keputusan QA',
             $message,
-            ['milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
+            ['qa_form_id' => $qaForm->id, 'milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
         );
     }
 }

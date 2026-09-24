@@ -5,6 +5,7 @@ use App\Enums\MilestoneStatus;
 use App\Models\Lead;
 use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Services\MilestoneService;
 use App\Services\ProjectService;
@@ -48,6 +49,7 @@ test('field staff project index is scoped to projects with their own assigned ta
 
 test('only PM and CEO can create a project', function () {
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
+    Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
     $pm = User::factory()->create();
     $pm->assignRole('PM');
 
@@ -82,6 +84,18 @@ test('project service refuses to create a project from a lead that is not DEAL_D
 
     expect(fn () => app(ProjectService::class)->createFromLead($lead, [
         'name' => 'Proyek Test',
+        'pm_id' => User::factory()->create()->id,
+        'start_date' => now()->toDateString(),
+        'contract_value' => 1_000_000,
+    ]))->toThrow(ValidationException::class);
+});
+
+test('project service refuses a lead whose quotation is not APPROVED yet', function () {
+    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
+    Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id]);
+
+    expect(fn () => app(ProjectService::class)->createFromLead($lead, [
+        'name' => 'Proyek Tanpa Approval',
         'pm_id' => User::factory()->create()->id,
         'start_date' => now()->toDateString(),
         'contract_value' => 1_000_000,

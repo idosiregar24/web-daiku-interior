@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Analytics\AnalyticsController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\CRM\LeadController;
 use App\Http\Controllers\DashboardController;
@@ -8,6 +10,10 @@ use App\Http\Controllers\Finance\FamilyGatheringFundController;
 use App\Http\Controllers\Finance\FinanceTransactionController;
 use App\Http\Controllers\Finance\PenaltyController;
 use App\Http\Controllers\Finance\TerminController;
+use App\Http\Controllers\Logistics\AssetController;
+use App\Http\Controllers\Logistics\MaterialController;
+use App\Http\Controllers\Logistics\ProjectMaterialController;
+use App\Http\Controllers\Logistics\StockMovementController;
 use App\Http\Controllers\MasterData\BankAccountController;
 use App\Http\Controllers\MasterData\BranchController;
 use App\Http\Controllers\MasterData\LeadCategoryController;
@@ -45,14 +51,17 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    // Not itemized in PRD §7.1 (added alongside the minimal notifications
-    // module — see the notifications migration's docblock). Ownership
-    // enforced in the controller, not a role check — every user reads
-    // only their own.
-    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
-        ->name('notifications.markAsRead');
+    // PRD §7.1 "Notification (own)" row — every role, own rows only
+    // (ownership enforced in NotificationController, not a role check).
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+            ->name('notifications.markAllAsRead');
+        Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+            ->name('notifications.markAsRead');
+    });
 });
 
 // CRM — PRD §4.1 / §7.1. Read access matches the RBAC matrix's CRM–Lead
@@ -213,7 +222,7 @@ Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
     ->name('tasks.store');
 
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
-    ->middleware(['auth', 'role:PM|FIELD_STAFF'])
+    ->middleware(['auth', 'role:PM|FIELD_STAFF', 'throttle:60,1'])
     ->name('tasks.updateStatus');
 
 // Daily Task Form — PRD §4.5 / §7.1 "Daily Task Form" row (CEO/PM read,
@@ -223,7 +232,7 @@ Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('daily-forms')->n
 });
 
 Route::post('tasks/{task}/daily-form', [DailyTaskFormController::class, 'store'])
-    ->middleware(['auth', 'role:FIELD_STAFF'])
+    ->middleware(['auth', 'role:FIELD_STAFF', 'throttle:60,1'])
     ->name('daily-forms.store');
 
 // Family Gathering Fund — PRD §4.7/§6.5 / §7.1 "Finance – Family Fund"
@@ -297,7 +306,7 @@ Route::middleware(['auth', 'role:CEO|PM|FINANCE|FIELD_STAFF'])->prefix('overtime
     Route::get('/', [OvertimeController::class, 'index'])->name('index');
 });
 
-Route::middleware(['auth', 'role:FIELD_STAFF'])->group(function () {
+Route::middleware(['auth', 'role:FIELD_STAFF', 'throttle:60,1'])->group(function () {
     Route::post('overtime', [OvertimeController::class, 'store'])->name('overtime.store');
 });
 
@@ -310,6 +319,73 @@ Route::middleware(['auth', 'role:FINANCE'])->group(function () {
     Route::post('overtime/{overtime_request}/finance-approve', [OvertimeController::class, 'financeApprove'])->name('overtime.financeApprove');
     Route::post('overtime/{overtime_request}/finance-reject', [OvertimeController::class, 'financeReject'])->name('overtime.financeReject');
 });
+
+// Logistics — PRD §4.8 / §7.1. "Material – Master": CEO/EST/PM read (EST
+// needs prices for quotations), LOG CRUD. "Material – Stok": CEO/PM read
+// the ledger, LOG records receipts/usage. "Asset Inventory": CEO/PM/FIN
+// read, LOG CRUD.
+Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(function () {
+    Route::get('materials', [MaterialController::class, 'index'])
+        ->middleware('role:CEO|ESTIMATOR|PM|LOGISTICS')
+        ->name('materials.index');
+    Route::get('materials/export', [MaterialController::class, 'exportExcel'])
+        ->middleware('role:CEO|ESTIMATOR|PM|LOGISTICS')
+        ->name('materials.export');
+
+    Route::get('stock-movements', [StockMovementController::class, 'index'])
+        ->middleware('role:CEO|PM|LOGISTICS')
+        ->name('stock-movements.index');
+
+    Route::get('assets', [AssetController::class, 'index'])
+        ->middleware('role:CEO|PM|FINANCE|LOGISTICS')
+        ->name('assets.index');
+    Route::get('assets/export', [AssetController::class, 'exportExcel'])
+        ->middleware('role:CEO|PM|FINANCE|LOGISTICS')
+        ->name('assets.export');
+
+    Route::middleware(['role:LOGISTICS', 'throttle:60,1'])->group(function () {
+        Route::post('materials', [MaterialController::class, 'store'])->name('materials.store');
+        Route::put('materials/{material}', [MaterialController::class, 'update'])->name('materials.update');
+        Route::delete('materials/{material}', [MaterialController::class, 'destroy'])->name('materials.destroy');
+        Route::post('materials/{material}/stock-in', [StockMovementController::class, 'stockIn'])->name('materials.stockIn');
+        Route::post('materials/{material}/stock-out', [StockMovementController::class, 'stockOut'])->name('materials.stockOut');
+
+        Route::post('assets', [AssetController::class, 'store'])->name('assets.store');
+        Route::put('assets/{asset}', [AssetController::class, 'update'])->name('assets.update');
+        Route::delete('assets/{asset}', [AssetController::class, 'destroy'])->name('assets.destroy');
+    });
+});
+
+// Project Material — PRD §7.1 row: EST C, PM RU, LOG CRUD. PM may also
+// create: §4.8's prose "PM/Estimator mencatat kebutuhan material per
+// proyek" is the more specific rule (same precedent as CRM – Lead write
+// access, see .claude/plan/README.md). Read happens on the project's own
+// Material tab (ProjectController::show()).
+Route::post('projects/{project}/materials', [ProjectMaterialController::class, 'store'])
+    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS'])
+    ->name('projects.materials.store');
+Route::put('project-materials/{project_material}', [ProjectMaterialController::class, 'update'])
+    ->middleware(['auth', 'role:PM|LOGISTICS'])
+    ->name('project-materials.update');
+Route::delete('project-materials/{project_material}', [ProjectMaterialController::class, 'destroy'])
+    ->middleware(['auth', 'role:LOGISTICS'])
+    ->name('project-materials.destroy');
+
+// Analytics – Executive — PRD §4.10 / §7.1: CEO only, FULL. Division
+// roles get partial dashboards elsewhere (crm.dashboard, finance.dashboard,
+// logistics.materials.index summary), never this company-wide view.
+Route::middleware(['auth', 'role:CEO'])->prefix('analytics')->name('analytics.')->group(function () {
+    Route::get('/', [AnalyticsController::class, 'index'])->name('index');
+    Route::post('targets', [AnalyticsController::class, 'storeTarget'])
+        ->middleware('throttle:60,1')
+        ->name('targets.store');
+});
+
+// Audit Trail — PRD §9.4, CEO read-only. No update/destroy route exists
+// for audit rows, for anyone (CLAUDE.md golden rule #7).
+Route::get('audit-logs', [AuditLogController::class, 'index'])
+    ->middleware(['auth', 'role:CEO'])
+    ->name('audit-logs.index');
 
 // User Management — CEO-only (assigning roles is an admin-level action;
 // not itemized in the PRD §7.1 matrix, so scoped to the role that already

@@ -1,3 +1,4 @@
+import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -45,14 +46,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 /**
  * RAB builder — add/remove item + auto-calculated totals

@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
@@ -44,14 +46,6 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 function RecordExpenseDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
     const form = useForm<FormValues>({
@@ -217,6 +211,7 @@ export default function FamilyFundIndex({ entries, balance, totalIncome, totalEx
             </div>
 
             {canRecordExpense && <RecordExpenseDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
+            <Pagination paginator={entries} />
         </AppLayout>
     );
 }

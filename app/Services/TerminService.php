@@ -22,6 +22,11 @@ use Illuminate\Validation\ValidationException;
  */
 class TerminService
 {
+    public function __construct(
+        private NotificationService $notificationService,
+        private AuditLogService $auditLogService,
+    ) {}
+
     /**
      * PRD §6.4: "PM membuat termin: bebas tentukan persentase. Validasi:
      * total semua persentase termin = 100%. scheduledDate otomatis =
@@ -55,6 +60,38 @@ class TerminService
         ]);
     }
 
+    /**
+     * PRD §4.9 "Termin overdue → Finance, CEO" — daily (TerminOverdueJob).
+     * An unpaid termin past its Saturday moves to OVERDUE; that status
+     * change is also the idempotency guard (already-OVERDUE termins are
+     * never re-picked, so never re-notified). OVERDUE stays payable —
+     * markPaid() only refuses PAID.
+     */
+    public function markOverdue(): int
+    {
+        $overdue = Termin::query()
+            ->with('project:id,name')
+            ->whereIn('status', [TerminStatus::Scheduled->value, TerminStatus::Invoiced->value])
+            ->whereDate('scheduled_date', '<', now('Asia/Jakarta')->toDateString())
+            ->get();
+
+        foreach ($overdue as $termin) {
+            $termin->update(['status' => TerminStatus::Overdue->value]);
+
+            $this->notificationService->notifyRoles(
+                ['FINANCE', 'CEO'],
+                'termin_overdue',
+                'Termin Overdue',
+                "Termin #{$termin->termin_number} proyek \"{$termin->project->name}\" (Rp "
+                    .number_format((float) $termin->amount, 0, ',', '.')
+                    .") melewati jadwal {$termin->scheduled_date->translatedFormat('d F Y')} dan belum dibayar.",
+                ['termin_id' => $termin->id, 'project_id' => $termin->project_id],
+            );
+        }
+
+        return $overdue->count();
+    }
+
     /** PRD §6.4 pseudocode, ported 1:1 (0=Minggu…6=Sabtu, same as JS `Date.getDay()`). */
     public function getNextSaturday(Carbon $fromDate): Carbon
     {
@@ -84,7 +121,17 @@ class TerminService
         }
 
         return DB::transaction(function () use ($termin, $actor) {
+            $oldStatus = $termin->status;
             $termin->update(['status' => TerminStatus::Paid->value, 'paid_at' => now()]);
+
+            // PRD §9.4 "perubahan finance".
+            $this->auditLogService->record(
+                'finance.termin_paid',
+                $termin,
+                ['status' => $oldStatus],
+                ['status' => $termin->status, 'amount' => $termin->amount, 'paid_at' => $termin->paid_at, 'bank_account_id' => $termin->bank_account_id],
+                $actor,
+            );
 
             FinanceTransaction::create([
                 'project_id' => $termin->project_id,

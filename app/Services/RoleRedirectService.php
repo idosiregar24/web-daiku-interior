@@ -13,23 +13,23 @@ class RoleRedirectService
      * simplified task-list-first view, Finance gets cash flow + termin
      * calendar, PM gets the milestone/task board).
      *
-     * Every entry below currently resolves to `dashboard` because none of
-     * those role-specific landing pages exist yet — update the mapping as
-     * each module lands (see .claude/plan) instead of hardcoding redirects
-     * elsewhere. `routeNameFor()` falls back to `dashboard` automatically
-     * if a mapped route name isn't registered yet, so this file is safe to
-     * update ahead of the route/controller that backs it.
+     * Roles whose PRD §8.4 home page exists land there; the rest keep the
+     * shared `dashboard` (PM's "task board per proyek" lives inside each
+     * project, not at one URL). Update the mapping as modules land
+     * instead of hardcoding redirects elsewhere. `routeNameFor()` falls
+     * back to `dashboard` automatically if a mapped route name isn't
+     * registered, so this file is safe to update ahead of its route.
      */
     private const ROLE_ROUTES = [
-        'CEO' => 'dashboard',
-        'MARKETING' => 'dashboard',
+        'CEO' => 'analytics.index',            // "Dashboard utama"
+        'MARKETING' => 'crm.dashboard',
         'DESIGNER' => 'dashboard',
         'ESTIMATOR' => 'dashboard',
         'PM' => 'dashboard',
         'QA' => 'dashboard',
-        'FINANCE' => 'dashboard',
-        'LOGISTICS' => 'dashboard',
-        'FIELD_STAFF' => 'dashboard',
+        'FINANCE' => 'finance.dashboard',      // "Dashboard cash flow + termin"
+        'LOGISTICS' => 'logistics.materials.index',
+        'FIELD_STAFF' => 'tasks.index',        // "hanya task list & form daily"
         // SUPERADMIN is a technical role (RoleSeeder), not a PRD §7.1
         // business role — lands straight on its own tool instead of the
         // business dashboard.

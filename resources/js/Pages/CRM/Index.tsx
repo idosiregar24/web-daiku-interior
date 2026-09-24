@@ -1,3 +1,4 @@
+import { Pagination } from '@/Components/shared/Pagination';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -279,6 +280,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                     designers={designers}
                 />
             )}
+            <Pagination paginator={leads} />
         </AppLayout>
     );
 }

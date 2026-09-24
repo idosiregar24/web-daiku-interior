@@ -1,3 +1,5 @@
+import { formatRupiah } from '@/lib/format';
+import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -47,14 +49,6 @@ interface OvertimeIndexProps {
 }
 
 const STATUS_OPTIONS = ['PENDING', 'APPROVED_PM', 'APPROVED_FINANCE', 'REJECTED'];
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
-}
 
 const requestSchema = z.object({
     project_id: z.string().min(1, 'Proyek wajib dipilih'),
@@ -405,6 +399,7 @@ export default function OvertimeIndex({ overtimeRequests, filters, projects, can
                     onOpenChange={(open) => !open && setDecision(null)}
                 />
             )}
+            <Pagination paginator={overtimeRequests} />
         </AppLayout>
     );
 }

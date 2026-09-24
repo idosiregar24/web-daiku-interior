@@ -29,9 +29,9 @@ email) to browse it.
 | Sprint 2 | Week 3–Week 4 | Bulan 1 | CRM, Design, Projects, Quotation, Tasks | 19 selesai / 1 sebagian / 0 belum (20) | [sprint-02.md](sprint-02.md) |
 | Sprint 3 | Week 5–Week 6 | Bulan 2 | Quotation, CRM, Review, Tasks, DailyForm, Penalty, Overtime | 19 selesai / 1 sebagian / 0 belum (20) | [sprint-03.md](sprint-03.md) |
 | Sprint 4 | Week 7–Week 8 | Bulan 2 | QA, Projects, Tasks, Finance | 20 selesai / 0 sebagian / 0 belum (20) | [sprint-04.md](sprint-04.md) |
-| Sprint 5 | Week 9–Week 10 | Bulan 3 | Logistics, Notifications, Analytics | 0 selesai / 1 sebagian / 26 belum (27) | [sprint-05.md](sprint-05.md) |
-| Sprint 6 | Week 11–Week 12 | Bulan 3 | Analytics, Logistics, Projects, Tasks, Testing | 0 selesai / 0 sebagian / 21 belum (21) | [sprint-06.md](sprint-06.md) |
-| Sprint 7 | Week 13 | Bulan 4 | UAT, Setup, Bugfix, Security, Docs | 0 selesai / 1 sebagian / 9 belum (10) | [sprint-07.md](sprint-07.md) |
+| Sprint 5 | Week 9–Week 10 | Bulan 3 | Logistics, Notifications, Analytics | 26 selesai / 1 sebagian / 0 belum (27) | [sprint-05.md](sprint-05.md) |
+| Sprint 6 | Week 11–Week 12 | Bulan 3 | Analytics, Logistics, Projects, Tasks, Testing | 21 selesai / 0 sebagian / 0 belum (21) | [sprint-06.md](sprint-06.md) |
+| Sprint 7 | Week 13 | Bulan 4 | UAT, Setup, Bugfix, Security, Docs | 2 selesai / 1 sebagian / 7 belum (10) | [sprint-07.md](sprint-07.md) |
 
 ## Legenda checklist
 - `[x]` — Selesai
@@ -364,6 +364,70 @@ checklist. Notable decisions/deviations:
   Termin, and two more `FinanceTransaction` rows (a manual expense, one
   staff wage payment) — see `sprint-04.md`'s own notes section for the
   full narrative.
+
+## Sprint 5–7 — Logistics, Notifications, Analytics, Security (done 2026-09-24)
+
+See `sprint-05.md`/`sprint-06.md`/`sprint-07.md` for the per-task
+checklist. Suite: **482 tests** (was 313), `npm run build` and `pint`
+clean. Decisions and deviations:
+
+- **Local runtime:** `composer.lock` requires PHP ≥ 8.4.1 (Symfony 8);
+  Laragon only had 8.3, so PHP 8.4.26 was installed into
+  `D:\laragon\bin\php`. See CLAUDE.md "Local environment".
+- **Notifications (PRD §4.9)** — all 16 triggers from the table live in
+  the service that owns the event (not a listener layer), through
+  `NotificationService`. Broadcasting is `ShouldBroadcastNow`, dispatched
+  only after the surrounding transaction commits, and `rescue()`d — a
+  down Soketi never 500s an already-committed action. Reminder jobs are
+  idempotent per day via `alreadySentToday()`. `Notification.created_at`
+  is now stamped by Eloquent (app clock), not the column default: SQLite
+  and the Docker MySQL run UTC, which skewed the day guard / 90-day
+  cutoff by 7 hours (caught by tests).
+- **Flash messages were never shown anywhere** (controllers flashed
+  `success`, nothing rendered it) and service-rule errors on button-only
+  actions (mark paid, approve…) failed silently. Now shared as `flash`
+  (with a per-flash `key` so partial reloads don't re-toast) and rendered
+  by `useFlashToasts` + `<Toaster>` in AppLayout.
+- **Pagination controls were missing on all 13 paginated pages** — rows
+  past #20 were unreachable. Shared `Components/shared/Pagination.tsx`.
+- **Deal confirmation now requires the quotation** (PRD §4.3, flagged as
+  deferred since Sprint 2): `SENT_TO_CLIENT` (CEO+PM approved) →
+  Marketing's confirmation records the client's acceptance
+  (`APPROVED`). `ProjectService::createFromLead()` requires `APPROVED`
+  too, so PM's direct `projects.store` can't bypass it.
+- **Logistics (PRD §4.8):** a `stock_movements` ledger was added (not in
+  daiku_schema.sql, which only has the running `materials.stock`) so
+  every unit has who/when/which-project behind it. Stock changes only
+  via `StockService` under a row lock (no negative stock, no floating
+  usage). `project_materials.qty_used` accumulates from stock-outs only.
+  **Project Material create is also allowed for PM** — §4.8's prose
+  ("PM/Estimator mencatat kebutuhan") over the matrix's PM `RU`, same
+  precedent as CRM–Lead; Estimator also *reads* the tab (create-only
+  without read would just duplicate requests). `assets.has_installment`/
+  `total_install`/`paid_install` from the SQL file are still not added.
+- **Analytics (PRD §4.10):** all 8 widgets, CEO only. Revenue = contract
+  value closed per month; targets in new `revenue_targets` table. PM
+  on-time rate = milestones approved by QA on/before `target_date`.
+  Charts use new validated `--color-viz-*` tokens in app.css — the
+  legacy `--chart-*` set fails the dataviz CVD check (amber↔green ΔE
+  5.7) and Daiku Yellow fails contrast on white, so it stays UI accent.
+  Cash-flow aggregation moved into `FinanceTransactionService`.
+- **Security:** `ProjectPolicy::view` (tukang could open any project by
+  URL); project `tasks` prop scoped (QA and non-task roles get none,
+  tukang own only — PRD §4.6); Breeze self-delete removed (cascade would
+  erase penalties/fund rows); append-only `audit_logs` + CEO page;
+  `throttle:60,1` on high-frequency writes; URL fields `url:http,https`.
+- **Other real bugs fixed:** Family Gathering Fund could be overdrawn
+  (demo data showed −Rp 100.000) — `recordExpense()` now enforces the
+  balance under a lock; termins never actually became `OVERDUE`;
+  resubmitted QA forms stayed `REJECTED`; OVERDUE milestones couldn't be
+  marked done; the PHP test suite depended on a fresh Vite build
+  (`withoutVite()` in TestCase).
+- **Role landing pages** follow PRD §8.4 (CEO → Analytics, Finance →
+  cash flow, Marketing → CRM dashboard, Logistics → Material, Field Staff
+  → Task list).
+- **Not done (needs humans/infra):** UAT sessions, staging deploy, CI
+  deploy jobs, end-to-end Soketi test.
 
 ## ⚠️ Schema discovery: `daiku_schema.sql` (found 2026-08-15, not yet reconciled)
 

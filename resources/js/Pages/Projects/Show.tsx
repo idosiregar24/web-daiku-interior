@@ -1,3 +1,4 @@
+import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -9,10 +10,12 @@ import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneG
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
+import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import { TerminFormDialog } from '@/Components/modules/projects/TerminFormDialog';
+import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import AppLayout from '@/Layouts/AppLayout';
-import type { BankAccount, Milestone, ProgressLog, Project, Task, Termin, User } from '@/types';
+import type { BankAccount, Material, Milestone, ProgressLog, Project, ProjectMaterial, Task, Termin, User } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { FileDown, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -23,6 +26,7 @@ interface ProjectShowProps {
     canViewMilestones: boolean;
     canManageMilestones: boolean;
     canManageTasks: boolean;
+    canViewTasks: boolean;
     tasks: Task[];
     fieldStaff: Pick<User, 'id' | 'name'>[];
     progressLogs: ProgressLog[];
@@ -33,14 +37,10 @@ interface ProjectShowProps {
     canCreateTermins: boolean;
     canMarkTerminPaid: boolean;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
-}
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-    }).format(Number(value));
+    projectMaterials: ProjectMaterial[];
+    canViewMaterials: boolean;
+    materialPermissions: MaterialPermissions;
+    materialOptions: Pick<Material, 'id' | 'name' | 'unit' | 'stock'>[];
 }
 
 function formatDate(value: string | null) {
@@ -310,17 +310,30 @@ function TaskTab({
                     Belum ada task.
                 </p>
             ) : (
-                <div className="space-y-4">
-                    {groups.map((group) => (
-                        <TaskAssigneeTable
-                            key={group.name}
-                            assigneeName={group.name}
-                            tasks={group.tasks}
-                            canManage={canManage}
-                            onStatusClick={openStatus}
+                <Tabs defaultValue="assignee">
+                    <TabsList>
+                        <TabsTrigger value="assignee">Per Tukang</TabsTrigger>
+                        <TabsTrigger value="board">Board</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="assignee" className="mt-4 space-y-4">
+                        {groups.map((group) => (
+                            <TaskAssigneeTable
+                                key={group.name}
+                                assigneeName={group.name}
+                                tasks={group.tasks}
+                                canManage={canManage}
+                                onStatusClick={openStatus}
+                            />
+                        ))}
+                    </TabsContent>
+                    <TabsContent value="board" className="mt-4">
+                        <TaskKanbanBoard
+                            tasks={tasks}
+                            milestones={milestones}
+                            onCardClick={canManage ? openStatus : undefined}
                         />
-                    ))}
-                </div>
+                    </TabsContent>
+                </Tabs>
             )}
 
             {canManage && (
@@ -490,6 +503,7 @@ export default function ProjectShow({
     canViewMilestones,
     canManageMilestones,
     canManageTasks,
+    canViewTasks,
     tasks,
     fieldStaff,
     progressLogs,
@@ -500,6 +514,10 @@ export default function ProjectShow({
     canCreateTermins,
     canMarkTerminPaid,
     bankAccounts,
+    projectMaterials,
+    canViewMaterials,
+    materialPermissions,
+    materialOptions,
 }: ProjectShowProps) {
     return (
         <AppLayout
@@ -520,9 +538,10 @@ export default function ProjectShow({
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="milestone">Milestone</TabsTrigger>
-                    <TabsTrigger value="task">Task</TabsTrigger>
+                    {canViewTasks && <TabsTrigger value="task">Task</TabsTrigger>}
                     <TabsTrigger value="progress">Progress</TabsTrigger>
                     <TabsTrigger value="finance">Finance</TabsTrigger>
+                    {canViewMaterials && <TabsTrigger value="material">Material</TabsTrigger>}
                 </TabsList>
                 <TabsContent value="overview" className="mt-4">
                     <OverviewTab project={project} progressLogs={progressLogs} />
@@ -563,6 +582,17 @@ export default function ProjectShow({
                         bankAccounts={bankAccounts}
                     />
                 </TabsContent>
+                {canViewMaterials && (
+                    <TabsContent value="material" className="mt-4">
+                        <ProjectMaterialsPanel
+                            project={project}
+                            items={projectMaterials}
+                            canView={canViewMaterials}
+                            permissions={materialPermissions}
+                            materialOptions={materialOptions}
+                        />
+                    </TabsContent>
+                )}
             </Tabs>
         </AppLayout>
     );
