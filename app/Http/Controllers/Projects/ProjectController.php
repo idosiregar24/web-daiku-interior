@@ -10,7 +10,9 @@ use App\Models\Material;
 use App\Models\Project;
 use App\Models\User;
 use App\Policies\ProjectPolicy;
+use App\Services\FinanceAllocationService;
 use App\Services\ProjectService;
+use App\Services\SupplierDebtService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -46,8 +48,13 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function show(Request $request, Project $project, ProjectPolicy $policy): Response
-    {
+    public function show(
+        Request $request,
+        Project $project,
+        ProjectPolicy $policy,
+        FinanceAllocationService $allocationService,
+        SupplierDebtService $supplierDebtService,
+    ): Response {
         $this->authorize('view', $project);
 
         $user = $request->user();
@@ -64,6 +71,9 @@ class ProjectController extends Controller
         $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']);
         $canCreateTermins = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         $canMarkTerminPaid = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
+        // Budget allocation + outstanding supplier debts (PRD §4.7) follow the
+        // "Finance – Transaction" row: CEO/PM/FIN read — same set as termins.
+        $canViewFinanceSummary = $canViewTermins;
         // PRD §7.1 "Project Material": CEO/PM/LOG read, EST/PM/LOG create
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
@@ -104,6 +114,8 @@ class ProjectController extends Controller
             'canCreateTermins' => $canCreateTermins,
             'canMarkTerminPaid' => $canMarkTerminPaid,
             'bankAccounts' => $canCreateTermins ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']) : [],
+            'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
+            'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => $canViewMaterials
                 ? $project->projectMaterials()->with('material:id,name,unit,stock,cost_price,sell_price,min_stock')->get()
                 : [],

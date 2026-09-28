@@ -32,6 +32,7 @@ email) to browse it.
 | Sprint 5 | Week 9–Week 10 | Bulan 3 | Logistics, Notifications, Analytics | 26 selesai / 1 sebagian / 0 belum (27) | [sprint-05.md](sprint-05.md) |
 | Sprint 6 | Week 11–Week 12 | Bulan 3 | Analytics, Logistics, Projects, Tasks, Testing | 21 selesai / 0 sebagian / 0 belum (21) | [sprint-06.md](sprint-06.md) |
 | Sprint 7 | Week 13 | Bulan 4 | UAT, Setup, Bugfix, Security, Docs | 2 selesai / 1 sebagian / 7 belum (10) | [sprint-07.md](sprint-07.md) |
+| Sprint 8 | — (di luar CSV) | — | Gap PRD: Pinjaman Tukang, Hutang Supplier, Alokasi %, Termin DP, Lead FK, Overtime, Delay Desain | 28 selesai / 0 sebagian / 0 belum (28) | [sprint-08.md](sprint-08.md) |
 
 ## Legenda checklist
 - `[x]` — Selesai
@@ -457,7 +458,19 @@ in places genuinely different from what's been built so far:
   (`App\Enums\FinanceCategory`, `App\Enums\FinanceTransactionType`). `qty`/
   `unit_price` (line-item detail on a transaction) are **still not added**
   — nothing built so far needs a per-transaction line-item breakdown.
-- Tables that still exist in the SQL file but not anywhere in this
+- **Sprint 8 (2026-09-28) built the last missing tables:** `staff_loans`,
+  `staff_loan_payments`, `supplier_debts`, `supplier_debt_payments`,
+  `finance_allocation_configs` (`audit_logs`/`project_materials` landed in
+  Sprint 5–7) — every table in the SQL file now exists. User-approved
+  deviations: **bigint PKs** (not ULID) for all new tables; FK names
+  follow database-standards (`staff_loan_id`/`supplier_debt_id`, not
+  `loan_id`/`debt_id`); `staff_loans.installment_amount` added (the
+  schema had no way to know how much to deduct per wage); a supplier
+  debt hits cash flow only when **paid**, not when recorded (PRD's
+  literal wording would double-count). `termins.dp_amount`/`pelunasan`/
+  `sisa_piutang` added too, and `overtime_requests` now uses
+  `PENDING_FINANCE` (renamed from `APPROVED_PM`). See `sprint-08.md`.
+- *(Historical, pre-Sprint 8:)* tables that still existed in the SQL file but not anywhere in this
   codebase yet: `staff_loans`, `staff_loan_payments`, `supplier_debts`,
   `supplier_debt_payments`, `finance_allocation_configs`, `audit_logs`,
   `project_materials`. (`design_staff`, `quotations`, `quotation_items`,

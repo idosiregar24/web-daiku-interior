@@ -173,7 +173,7 @@ export default function TransactionIndex({
                                         {transaction.kategori?.replace(/_/g, ' ') ?? '—'}
                                     </td>
                                     <td className="p-2 font-medium">{transaction.description}</td>
-                                    <td className="p-2 text-daiku-muted">{transaction.bankAccount?.label ?? '—'}</td>
+                                    <td className="p-2 text-daiku-muted">{transaction.bank_account?.label ?? '—'}</td>
                                     <td
                                         className={`p-2 text-right font-medium ${
                                             transaction.type === 'PEMASUKAN' ? 'text-success' : 'text-error'

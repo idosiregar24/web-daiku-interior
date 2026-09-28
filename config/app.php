@@ -65,7 +65,10 @@ return [
     |
     */
 
-    'timezone' => env('APP_TIMEZONE', 'UTC'),
+    // WIB — every business date (penalty day, overdue checks, design delay)
+    // and every scheduled job (routes/console.php) is defined in Jakarta
+    // time, so a missing APP_TIMEZONE must not silently fall back to UTC.
+    'timezone' => env('APP_TIMEZONE', 'Asia/Jakarta'),
 
     /*
     |--------------------------------------------------------------------------

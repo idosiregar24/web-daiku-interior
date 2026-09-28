@@ -15,8 +15,20 @@ import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog
 import { TerminFormDialog } from '@/Components/modules/projects/TerminFormDialog';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import AppLayout from '@/Layouts/AppLayout';
-import type { BankAccount, Material, Milestone, ProgressLog, Project, ProjectMaterial, Task, Termin, User } from '@/types';
-import { Head, router } from '@inertiajs/react';
+import type {
+    BankAccount,
+    FinanceAllocationLine,
+    Material,
+    Milestone,
+    ProgressLog,
+    Project,
+    ProjectMaterial,
+    SupplierDebt,
+    Task,
+    Termin,
+    User,
+} from '@/types';
+import { Head, Link, router } from '@inertiajs/react';
 import { FileDown, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -37,6 +49,8 @@ interface ProjectShowProps {
     canCreateTermins: boolean;
     canMarkTerminPaid: boolean;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
+    allocationBreakdown: FinanceAllocationLine[];
+    supplierDebts: SupplierDebt[];
     projectMaterials: ProjectMaterial[];
     canViewMaterials: boolean;
     materialPermissions: MaterialPermissions;
@@ -399,6 +413,8 @@ function FinanceTab({
     canCreate,
     canMarkPaid,
     bankAccounts,
+    allocationBreakdown,
+    supplierDebts,
 }: {
     project: Project;
     milestones: Milestone[];
@@ -407,6 +423,8 @@ function FinanceTab({
     canCreate: boolean;
     canMarkPaid: boolean;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
+    allocationBreakdown: FinanceAllocationLine[];
+    supplierDebts: SupplierDebt[];
 }) {
     const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -424,7 +442,14 @@ function FinanceTab({
     }
 
     return (
-        <div>
+        <div className="space-y-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+                <AllocationCard project={project} lines={allocationBreakdown} />
+                <SupplierDebtCard debts={supplierDebts} />
+            </div>
+
+            <div>
+            <h2 className="mb-3 text-sm font-semibold text-daiku-dark">Termin</h2>
             {canCreate && (
                 <div className="mb-4 flex justify-end">
                     <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -439,7 +464,7 @@ function FinanceTab({
                     Belum ada termin dijadwalkan.
                 </p>
             ) : (
-                <div className="overflow-hidden rounded-lg border border-daiku-border">
+                <div className="overflow-x-auto rounded-lg border border-daiku-border">
                     <table className="w-full text-sm">
                         <thead className="bg-daiku-yellow-light">
                             <tr>
@@ -448,6 +473,9 @@ function FinanceTab({
                                 <th className="p-2 text-left font-medium">Jadwal (Sabtu)</th>
                                 <th className="p-2 text-right font-medium">Persentase</th>
                                 <th className="p-2 text-right font-medium">Nominal</th>
+                                <th className="p-2 text-right font-medium">DP</th>
+                                <th className="p-2 text-right font-medium">Pelunasan</th>
+                                <th className="p-2 text-right font-medium">Sisa Piutang</th>
                                 <th className="p-2 text-left font-medium">Status</th>
                                 <th className="w-40 p-2" />
                             </tr>
@@ -460,8 +488,17 @@ function FinanceTab({
                                     <td className="p-2 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
                                     <td className="p-2 text-right text-daiku-muted">{termin.percentage}%</td>
                                     <td className="p-2 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
+                                    <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
+                                    <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
+                                    <td className="p-2 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
                                     <td className="p-2">
-                                        <StatusChip status={termin.status} />
+                                        <div className="flex flex-wrap gap-1">
+                                            <StatusChip status={termin.status} />
+                                            {Number(termin.dp_amount) + Number(termin.pelunasan) > 0 &&
+                                                Number(termin.sisa_piutang) > 0 && (
+                                                    <StatusChip status="PARTIAL" label="Dibayar Sebagian" />
+                                                )}
+                                        </div>
                                     </td>
                                     <td className="p-2">
                                         <div className="flex items-center gap-2">
@@ -470,7 +507,7 @@ function FinanceTab({
                                                     <FileDown className="size-4" />
                                                 </a>
                                             </Button>
-                                            {canMarkPaid && termin.status !== 'PAID' && (
+                                            {canMarkPaid && termin.status !== 'PAID' && termin.bank_account_id !== null && (
                                                 <Button variant="outline" size="sm" onClick={() => onMarkPaid(termin)}>
                                                     Tandai Dibayar
                                                 </Button>
@@ -484,6 +521,8 @@ function FinanceTab({
                 </div>
             )}
 
+            </div>
+
             {canCreate && (
                 <TerminFormDialog
                     open={dialogOpen}
@@ -496,6 +535,86 @@ function FinanceTab({
         </div>
     );
 }
+
+/** PRD §4.7 "Alokasi Persentase Otomatis" — budget per pos from the contract value; informational, writes nothing. */
+function AllocationCard({ project, lines }: { project: Project; lines: FinanceAllocationLine[] }) {
+    const total = lines.reduce((sum, line) => sum + line.amount, 0);
+    const totalPercentage = lines.reduce((sum, line) => sum + line.percentage, 0);
+
+    return (
+        <Card>
+            <CardContent>
+                <h2 className="text-sm font-semibold text-daiku-dark">Alokasi Anggaran</h2>
+                <p className="mb-3 text-xs text-daiku-muted">
+                    Dari nilai kontrak {formatRupiah(project.contract_value)}.
+                </p>
+                {lines.length === 0 ? (
+                    <p className="text-sm text-daiku-muted">Belum ada konfigurasi alokasi aktif.</p>
+                ) : (
+                    <dl className="space-y-1 text-sm">
+                        {lines.map((line) => (
+                            <div key={line.label} className="flex justify-between gap-4">
+                                <dt className="text-daiku-muted">
+                                    {line.label} ({line.percentage.toLocaleString('id-ID')}%)
+                                </dt>
+                                <dd>{formatRupiah(line.amount)}</dd>
+                            </div>
+                        ))}
+                        <div className="flex justify-between gap-4 border-t border-daiku-border pt-1 font-medium">
+                            <dt>Total ({totalPercentage.toLocaleString('id-ID')}%)</dt>
+                            <dd>{formatRupiah(total)}</dd>
+                        </div>
+                    </dl>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+/** PRD §4.7 "Hutang Supplier" — outstanding debts tied to this project. */
+function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
+    const total = debts.reduce((sum, debt) => sum + Number(debt.remaining), 0);
+
+    return (
+        <Card>
+            <CardContent>
+                <h2 className="text-sm font-semibold text-daiku-dark">Hutang Supplier Belum Lunas</h2>
+                <p className="mb-3 text-xs text-daiku-muted">Total sisa {formatRupiah(total)}.</p>
+                {debts.length === 0 ? (
+                    <p className="text-sm text-daiku-muted">Tidak ada hutang supplier untuk proyek ini.</p>
+                ) : (
+                    <ul className="space-y-2 text-sm">
+                        {debts.map((debt) => (
+                            <li key={debt.id} className="flex items-center justify-between gap-4">
+                                <div>
+                                    <Link
+                                        href={route('finance.supplierDebts.show', { supplierDebt: debt.id })}
+                                        className="font-medium text-daiku-dark hover:underline"
+                                    >
+                                        {debt.supplier_name}
+                                    </Link>
+                                    <p className="text-xs text-daiku-muted">
+                                        Jatuh tempo {formatDate(debt.due_date)}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <span className="font-medium">{formatRupiah(debt.remaining)}</span>
+                                    {debt.status && <StatusChip status={debt.status} label={SUPPLIER_DEBT_LABEL[debt.status]} />}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+const SUPPLIER_DEBT_LABEL: Record<NonNullable<SupplierDebt['status']>, string> = {
+    BERJALAN: 'Berjalan',
+    JATUH_TEMPO: 'Jatuh Tempo',
+    LUNAS: 'Lunas',
+};
 
 export default function ProjectShow({
     project,
@@ -514,6 +633,8 @@ export default function ProjectShow({
     canCreateTermins,
     canMarkTerminPaid,
     bankAccounts,
+    allocationBreakdown,
+    supplierDebts,
     projectMaterials,
     canViewMaterials,
     materialPermissions,
@@ -580,6 +701,8 @@ export default function ProjectShow({
                         canCreate={canCreateTermins}
                         canMarkPaid={canMarkTerminPaid}
                         bankAccounts={bankAccounts}
+                        allocationBreakdown={allocationBreakdown}
+                        supplierDebts={supplierDebts}
                     />
                 </TabsContent>
                 {canViewMaterials && (

@@ -9,6 +9,7 @@ use App\Http\Requests\CRM\StoreLeadRequest;
 use App\Http\Requests\CRM\UpdateLeadRequest;
 use App\Http\Requests\CRM\UpdateLeadStatusRequest;
 use App\Models\Lead;
+use App\Models\LeadCategory;
 use App\Models\LeadSource;
 use App\Models\User;
 use App\Services\LeadService;
@@ -23,9 +24,17 @@ class LeadController extends Controller
     public function index(Request $request): Response
     {
         $leads = Lead::query()
-            ->with(['assignee:id,name', 'creator:id,name', 'design:id,lead_id'])
+            ->with([
+                'assignee:id,name',
+                'creator:id,name',
+                'design:id,lead_id',
+                'leadSource:id,name',
+                'leadCategory:id,name',
+            ])
             ->byStatus($request->string('status')->value() ?: null)
             ->byPriority($request->string('priority')->value() ?: null)
+            ->byLeadSource($request->integer('lead_source_id') ?: null)
+            ->byLeadCategory($request->integer('lead_category_id') ?: null)
             ->when($request->filled('search'), fn ($query) => $query->where(
                 'client_name',
                 'like',
@@ -37,15 +46,17 @@ class LeadController extends Controller
 
         return Inertia::render('CRM/Index', [
             'leads' => $leads,
-            'filters' => $request->only(['status', 'priority', 'search']),
+            'filters' => $request->only(['status', 'priority', 'search', 'lead_source_id', 'lead_category_id']),
             'marketers' => User::role('MARKETING')->orderBy('name')->get(['id', 'name']),
             'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
             'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name']),
-            // Sumber Lead — Master Data list (SuperAdmin-editable, see
-            // MasterData\LeadSourceController). `leads.source` itself stays
-            // a free string column (see lead_sources migration docblock),
-            // so the form picks a source's `name`, not its `id`.
+            // Sumber Lead / Kategori Customer — Data Master lists
+            // (SuperAdmin-editable, see MasterData\LeadSourceController /
+            // LeadCategoryController). The form submits the row `id`
+            // (`lead_source_id` / `lead_category_id`); LeadService keeps the
+            // legacy `source`/`category` strings in sync.
             'leadSources' => LeadSource::orderBy('name')->get(['id', 'name']),
+            'leadCategories' => LeadCategory::orderBy('name')->get(['id', 'name']),
         ]);
     }
 

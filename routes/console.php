@@ -2,6 +2,7 @@
 
 use App\Jobs\DailyFormReminderJob;
 use App\Jobs\DailyPenaltyJob;
+use App\Jobs\DesignDelayJob;
 use App\Jobs\LeadFollowUpReminderJob;
 use App\Jobs\MilestoneOverdueJob;
 use App\Jobs\PruneNotificationsJob;
@@ -32,6 +33,11 @@ Schedule::job(new TaskOverdueJob)
 
 // PRD §4.4 milestone OVERDUE (CSV Sprint 6) — same midnight run as tasks.
 Schedule::job(new MilestoneOverdueJob)
+    ->dailyAt('00:00')
+    ->timezone('Asia/Jakarta');
+
+// PRD §4.2 "Sistem hitung delay_hari otomatis setiap hari".
+Schedule::job(new DesignDelayJob)
     ->dailyAt('00:00')
     ->timezone('Asia/Jakarta');
 

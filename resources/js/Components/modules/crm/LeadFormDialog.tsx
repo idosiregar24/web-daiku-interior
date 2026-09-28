@@ -25,23 +25,24 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Lead, LeadSourceOption, User } from '@/types';
+import type { Lead, LeadCategoryOption, LeadSourceOption, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'] as const;
-const CATEGORY_OPTIONS = ['RESIDENTIAL', 'KOMERSIAL', 'DEVELOPER', 'KONTRAKTOR', 'LAINNYA'] as const;
 
 const schema = z.object({
     client_name: z.string().min(1, 'Nama klien wajib diisi'),
     contact: z.string().min(1, 'Kontak wajib diisi'),
-    source: z.string().min(1, 'Sumber lead wajib diisi'),
+    // Mirrors StoreLeadRequest/UpdateLeadRequest: lead_source_id required,
+    // lead_category_id nullable — both ids of Data Master rows (Select value = String(id)).
+    lead_source_id: z.string().min(1, 'Sumber lead wajib dipilih'),
     priority: z.enum(PRIORITY_OPTIONS),
-    category: z.string().optional(),
+    lead_category_id: z.string().optional(),
     service: z.string().optional(),
     city: z.string().optional(),
     gender: z.string().optional(),
@@ -56,9 +57,9 @@ type FormValues = z.infer<typeof schema>;
 const EMPTY_VALUES: FormValues = {
     client_name: '',
     contact: '',
-    source: '',
+    lead_source_id: '',
     priority: 'WARM',
-    category: '',
+    lead_category_id: '',
     service: '',
     city: '',
     gender: '',
@@ -74,7 +75,8 @@ interface LeadFormDialogProps {
     /** Lead being edited, or null for create. */
     editing: Lead | null;
     marketers: Pick<User, 'id' | 'name'>[];
-    leadSources: LeadSourceOption[];
+    leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
+    leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
 }
 
 /**
@@ -83,24 +85,11 @@ interface LeadFormDialogProps {
  * changes through LeadStatusDialog/ConfirmDealDialog so a PipelineLog
  * entry is never skipped (see LeadService::update()).
  */
-export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSources }: LeadFormDialogProps) {
+export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSources, leadCategories }: LeadFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
     });
-
-    // Master Data list, plus the lead's current source if it's a legacy
-    // value that predates (or was since removed from) that list — so
-    // editing an old lead never silently blanks out a valid value.
-    const sourceOptions = useMemo(() => {
-        const names = leadSources.map((source) => source.name);
-
-        if (editing?.source && !names.includes(editing.source)) {
-            return [editing.source, ...names];
-        }
-
-        return names;
-    }, [leadSources, editing]);
 
     useEffect(() => {
         if (!open) return;
@@ -109,9 +98,9 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
             form.reset({
                 client_name: editing.client_name,
                 contact: editing.contact,
-                source: editing.source,
+                lead_source_id: editing.lead_source_id ? String(editing.lead_source_id) : '',
                 priority: editing.priority,
-                category: editing.category ?? '',
+                lead_category_id: editing.lead_category_id ? String(editing.lead_category_id) : '',
                 service: editing.service ?? '',
                 city: editing.city ?? '',
                 gender: editing.gender ?? '',
@@ -135,7 +124,8 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
 
         const payload = {
             ...values,
-            category: values.category || null,
+            lead_source_id: Number(values.lead_source_id),
+            lead_category_id: values.lead_category_id ? Number(values.lead_category_id) : null,
             assigned_to: Number(values.assigned_to),
             follow_up_date: values.follow_up_date ? format(values.follow_up_date, 'yyyy-MM-dd') : null,
         };
@@ -184,7 +174,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
-                                name="source"
+                                name="lead_source_id"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Sumber</FormLabel>
@@ -195,9 +185,9 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {sourceOptions.map((option) => (
-                                                    <SelectItem key={option} value={option}>
-                                                        {option}
+                                                {leadSources.map((source) => (
+                                                    <SelectItem key={source.id} value={String(source.id)}>
+                                                        {source.name}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -234,7 +224,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
-                                name="category"
+                                name="lead_category_id"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Kategori</FormLabel>
@@ -249,9 +239,9 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="none">—</SelectItem>
-                                                {CATEGORY_OPTIONS.map((option) => (
-                                                    <SelectItem key={option} value={option}>
-                                                        {option}
+                                                {leadCategories.map((category) => (
+                                                    <SelectItem key={category.id} value={String(category.id)}>
+                                                        {category.name}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

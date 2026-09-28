@@ -30,7 +30,7 @@ import {
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import AppLayout from '@/Layouts/AppLayout';
-import type { OvertimeRequest, PageProps, PaginatedData, Project } from '@/types';
+import type { BankAccount, OvertimeRequest, OvertimeStatus, PageProps, PaginatedData, Project } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
@@ -46,9 +46,10 @@ interface OvertimeIndexProps {
     canSubmit: boolean;
     canPmDecide: boolean;
     canFinanceDecide: boolean;
+    bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
 
-const STATUS_OPTIONS = ['PENDING', 'APPROVED_PM', 'APPROVED_FINANCE', 'REJECTED'];
+const STATUS_OPTIONS: OvertimeStatus[] = ['PENDING', 'PENDING_FINANCE', 'APPROVED_FINANCE', 'REJECTED'];
 
 const requestSchema = z.object({
     project_id: z.string().min(1, 'Proyek wajib dipilih'),
@@ -189,24 +190,33 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
     );
 }
 
-const decisionSchema = z.object({ note: z.string().optional() });
+const decisionSchema = z.object({ note: z.string().optional(), bank_account_id: z.string().optional() });
 type DecisionFormValues = z.infer<typeof decisionSchema>;
 
 function DecisionDialog({
     overtime,
     stage,
     decision,
+    bankAccounts,
     onOpenChange,
 }: {
     overtime: OvertimeRequest;
     stage: 'pm' | 'finance';
     decision: 'approve' | 'reject';
+    bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
     onOpenChange: (open: boolean) => void;
 }) {
     const isReject = decision === 'reject';
+    // Finance approval writes the expense, so it needs a source account (mirrors OvertimeDecisionRequest).
+    const needsBankAccount = stage === 'finance' && !isReject;
+    const schema = isReject
+        ? decisionSchema.extend({ note: z.string().min(1, 'Catatan wajib diisi') })
+        : needsBankAccount
+          ? decisionSchema.extend({ bank_account_id: z.string().min(1, 'Rekening sumber wajib dipilih') })
+          : decisionSchema;
     const form = useForm<DecisionFormValues>({
-        resolver: zodResolver(isReject ? decisionSchema.extend({ note: z.string().min(1, 'Catatan wajib diisi') }) : decisionSchema),
-        defaultValues: { note: '' },
+        resolver: zodResolver(schema),
+        defaultValues: { note: '', bank_account_id: '' },
     });
 
     function onSubmit(values: DecisionFormValues) {
@@ -220,7 +230,11 @@ function DecisionDialog({
 
         router.post(
             route(routeName, { overtime_request: overtime.id }),
-            { decision, note: values.note || null },
+            {
+                decision,
+                note: values.note || null,
+                ...(needsBankAccount ? { bank_account_id: Number(values.bank_account_id) } : {}),
+            },
             { onError, onSuccess: () => onOpenChange(false) },
         );
     }
@@ -239,6 +253,32 @@ function DecisionDialog({
                             {overtime.hours} jam × {formatRupiah(overtime.rate_per_hour)} = {formatRupiah(overtime.total_amount)}
                             {stage === 'finance' && !isReject && ' — akan dicatat sebagai pengeluaran (EXPENSE).'}
                         </p>
+                        {needsBankAccount && (
+                            <FormField
+                                control={form.control}
+                                name="bank_account_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Rekening Sumber</FormLabel>
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <FormControl>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Pilih rekening" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {bankAccounts.map((account) => (
+                                                    <SelectItem key={account.id} value={String(account.id)}>
+                                                        {account.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
                         <FormField
                             control={form.control}
                             name="note"
@@ -275,7 +315,15 @@ function DecisionDialog({
  * approval queue, Finance's approval queue), same pattern as
  * Design/Quotation Show pages' role-adaptive rendering.
  */
-export default function OvertimeIndex({ overtimeRequests, filters, projects, canSubmit, canPmDecide, canFinanceDecide }: OvertimeIndexProps) {
+export default function OvertimeIndex({
+    overtimeRequests,
+    filters,
+    projects,
+    canSubmit,
+    canPmDecide,
+    canFinanceDecide,
+    bankAccounts,
+}: OvertimeIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const isFieldStaff = auth.user?.role === 'FIELD_STAFF';
 
@@ -371,7 +419,7 @@ export default function OvertimeIndex({ overtimeRequests, filters, projects, can
                                                     </Button>
                                                 </>
                                             )}
-                                            {canFinanceDecide && overtime.status === 'APPROVED_PM' && (
+                                            {canFinanceDecide && overtime.status === 'PENDING_FINANCE' && (
                                                 <>
                                                     <Button variant="outline" size="sm" onClick={() => setDecision({ overtime, stage: 'finance', decision: 'reject' })}>
                                                         Tolak
@@ -396,6 +444,7 @@ export default function OvertimeIndex({ overtimeRequests, filters, projects, can
                     overtime={decision.overtime}
                     stage={decision.stage}
                     decision={decision.decision}
+                    bankAccounts={bankAccounts}
                     onOpenChange={(open) => !open && setDecision(null)}
                 />
             )}

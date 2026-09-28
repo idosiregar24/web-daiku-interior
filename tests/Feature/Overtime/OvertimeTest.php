@@ -2,12 +2,14 @@
 
 use App\Enums\FinanceTransactionType;
 use App\Enums\OvertimeStatus;
+use App\Models\BankAccount;
 use App\Models\FinanceTransaction;
 use App\Models\OvertimeRequest;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\OvertimeService;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(fn () => $this->seed(RoleSeeder::class));
@@ -71,7 +73,7 @@ test('roles other than FIELD_STAFF cannot submit an overtime request', function 
     ])->assertForbidden();
 });
 
-test('PM can approve a pending overtime request, advancing it to APPROVED_PM', function () {
+test('PM can approve a pending overtime request, advancing it to PENDING_FINANCE', function () {
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::Pending->value]);
@@ -81,7 +83,7 @@ test('PM can approve a pending overtime request, advancing it to APPROVED_PM', f
     ])->assertRedirect();
 
     $overtime->refresh();
-    expect($overtime->status)->toBe(OvertimeStatus::ApprovedPm)
+    expect($overtime->status)->toBe(OvertimeStatus::PendingFinance)
         ->and($overtime->pm_approved_by)->toBe($pm->id)
         ->and($overtime->pm_approved_at)->not->toBeNull();
 });
@@ -111,6 +113,7 @@ test('Finance cannot decide before PM has approved', function () {
 
     $this->actingAs($finance)->post(route('overtime.financeApprove', ['overtime_request' => $overtime->id]), [
         'decision' => 'approve',
+        'bank_account_id' => BankAccount::factory()->create()->id,
     ])->assertSessionHasErrors('status');
 });
 
@@ -118,12 +121,13 @@ test('Finance approving after PM marks it APPROVED_FINANCE and records a Finance
     $finance = User::factory()->create();
     $finance->assignRole('FINANCE');
     $overtime = OvertimeRequest::factory()->create([
-        'status' => OvertimeStatus::ApprovedPm->value,
+        'status' => OvertimeStatus::PendingFinance->value,
         'total_amount' => 90000,
     ]);
 
     $this->actingAs($finance)->post(route('overtime.financeApprove', ['overtime_request' => $overtime->id]), [
         'decision' => 'approve',
+        'bank_account_id' => BankAccount::factory()->create()->id,
     ])->assertRedirect();
 
     $overtime->refresh();
@@ -134,13 +138,32 @@ test('Finance approving after PM marks it APPROVED_FINANCE and records a Finance
     expect($transaction)->not->toBeNull()
         ->and($transaction->type)->toBe(FinanceTransactionType::Expense)
         ->and((float) $transaction->amount)->toBe(90000.0)
-        ->and($transaction->created_by)->toBe($finance->id);
+        ->and($transaction->created_by)->toBe($finance->id)
+        ->and($transaction->bank_account_id)->not->toBeNull();
+});
+
+test('Finance approval without a bank account is rejected and writes nothing', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::PendingFinance->value]);
+
+    $this->actingAs($finance)->post(route('overtime.financeApprove', ['overtime_request' => $overtime->id]), [
+        'decision' => 'approve',
+    ])->assertSessionHasErrors('bank_account_id');
+
+    // Rejecting releases no money, so it needs no account.
+    $this->actingAs($finance)->post(route('overtime.financeReject', ['overtime_request' => $overtime->id]), [
+        'decision' => 'reject',
+        'note' => 'Tidak sesuai jadwal.',
+    ])->assertSessionHasNoErrors();
+
+    expect(FinanceTransaction::where('reference_id', $overtime->id)->exists())->toBeFalse();
 });
 
 test('Finance rejecting after PM approval does not create a FinanceTransaction', function () {
     $finance = User::factory()->create();
     $finance->assignRole('FINANCE');
-    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::ApprovedPm->value]);
+    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::PendingFinance->value]);
 
     $this->actingAs($finance)->post(route('overtime.financeReject', ['overtime_request' => $overtime->id]), [
         'decision' => 'reject',
@@ -164,9 +187,22 @@ test('roles other than PM cannot make PM overtime decisions', function () {
 test('roles other than FINANCE cannot make finance overtime decisions', function () {
     $pm = User::factory()->create();
     $pm->assignRole('PM');
-    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::ApprovedPm->value]);
+    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::PendingFinance->value]);
 
     $this->actingAs($pm)->post(route('overtime.financeApprove', ['overtime_request' => $overtime->id]), [
         'decision' => 'approve',
+        'bank_account_id' => BankAccount::factory()->create()->id,
     ])->assertForbidden();
+});
+
+test('the Sprint 8 migration renames legacy APPROVED_PM rows to PENDING_FINANCE and back', function () {
+    $migration = require database_path('migrations/2026_09_28_083658_rename_approved_pm_to_pending_finance_in_overtime_requests.php');
+    $overtime = OvertimeRequest::factory()->create(['status' => OvertimeStatus::Pending->value]);
+    DB::table('overtime_requests')->where('id', $overtime->id)->update(['status' => 'APPROVED_PM']);
+
+    $migration->up();
+    expect(DB::table('overtime_requests')->where('id', $overtime->id)->value('status'))->toBe('PENDING_FINANCE');
+
+    $migration->down();
+    expect(DB::table('overtime_requests')->where('id', $overtime->id)->value('status'))->toBe('APPROVED_PM');
 });

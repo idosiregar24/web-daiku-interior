@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Overtime;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Overtime\OvertimeDecisionRequest;
 use App\Http\Requests\Overtime\StoreOvertimeRequestRequest;
+use App\Models\BankAccount;
 use App\Models\OvertimeRequest;
 use App\Models\Project;
 use App\Services\OvertimeService;
@@ -40,6 +41,9 @@ class OvertimeController extends Controller
             'canSubmit' => $isFieldStaff,
             'canPmDecide' => $user->hasAnyRole(['PM', 'SUPERADMIN']),
             'canFinanceDecide' => $user->hasAnyRole(['FINANCE', 'SUPERADMIN']),
+            'bankAccounts' => $user->hasAnyRole(['FINANCE', 'SUPERADMIN'])
+                ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label'])
+                : [],
         ]);
     }
 
@@ -66,7 +70,7 @@ class OvertimeController extends Controller
 
     public function financeApprove(OvertimeDecisionRequest $request, OvertimeRequest $overtimeRequest, OvertimeService $service): RedirectResponse
     {
-        $service->financeDecision($overtimeRequest, 'approve', $request->user(), $request->validated('note'));
+        $service->financeDecision($overtimeRequest, 'approve', $request->user(), $request->validated('note'), $request->integer('bank_account_id'));
 
         return back()->with('success', 'Lembur disetujui Finance dan dicatat sebagai pengeluaran.');
     }

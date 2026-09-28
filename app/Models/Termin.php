@@ -19,6 +19,8 @@ class Termin extends Model
         'termin_number',
         'percentage',
         'amount',
+        'dp_amount',
+        'pelunasan',
         'scheduled_date',
         'status',
         'bank_account_id',
@@ -31,6 +33,10 @@ class Termin extends Model
         return [
             'status' => TerminStatus::class,
             'amount' => 'decimal:2',
+            'dp_amount' => 'decimal:2',
+            'pelunasan' => 'decimal:2',
+            // DB-generated (amount - dp_amount - pelunasan) — never written by the app.
+            'sisa_piutang' => 'decimal:2',
             'scheduled_date' => 'date',
             'paid_at' => 'datetime',
         ];
@@ -49,6 +55,12 @@ class Termin extends Model
     public function bankAccount(): BelongsTo
     {
         return $this->belongsTo(BankAccount::class);
+    }
+
+    /** Derived display state "Dibayar Sebagian" — not a DB status (see TerminService::recordPayment()). */
+    public function isPartiallyPaid(): bool
+    {
+        return ((float) $this->dp_amount + (float) $this->pelunasan) > 0 && (float) $this->sisa_piutang > 0;
     }
 
     public function scopeByStatus(Builder $query, ?string $status): Builder

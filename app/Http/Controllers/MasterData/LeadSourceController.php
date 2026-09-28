@@ -26,6 +26,12 @@ class LeadSourceController extends Controller
 
     public function destroy(LeadSource $leadSource): RedirectResponse
     {
+        // Deleting would null the lead's FK and force re-picking a sumber
+        // on its next edit — rename it instead.
+        if ($leadSource->leads()->exists()) {
+            return back()->withErrors(['name' => 'Sumber lead ini masih dipakai lead — ubah namanya saja, jangan dihapus.']);
+        }
+
         $leadSource->delete();
 
         return back()->with('success', 'Sumber lead berhasil dihapus.');

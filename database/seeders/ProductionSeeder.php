@@ -28,6 +28,8 @@ class ProductionSeeder extends Seeder
     {
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
+        // PRD §4.7 default allocation percentages — real configuration, not demo data.
+        $this->call(FinanceAllocationConfigSeeder::class);
 
         foreach (self::LEAD_CATEGORIES as $name) {
             LeadCategory::firstOrCreate(['name' => $name]);

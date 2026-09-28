@@ -39,7 +39,7 @@ const TYPE_OPTIONS: { value: FinanceTransactionType; label: string }[] = [
 
 // PRD §4.7 "Kategori Transaksi Lengkap" — split by type so the dropdown
 // doesn't mix income-only and expense-only categories together.
-const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCategory; label: string }[]> = {
+export const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCategory; label: string }[]> = {
     PEMASUKAN: [
         { value: 'DOWN_PAYMENT', label: 'Down Payment' },
         { value: 'TERMIN', label: 'Termin' },
@@ -67,6 +67,17 @@ const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCategory;
         { value: 'LAINNYA', label: 'Lainnya' },
     ],
 };
+
+// Mirrors FinanceCategory::systemManaged() — written only by their own menus
+// (Termin, Pinjaman Tukang, Hutang Supplier) so those balances stay in sync.
+const SYSTEM_MANAGED_CATEGORIES: FinanceCategory[] = ['PINJAMAN', 'HUTANG_IDEAL', 'DOWN_PAYMENT', 'TERMIN'];
+
+const MANUAL_CATEGORY_OPTIONS = Object.fromEntries(
+    Object.entries(CATEGORY_OPTIONS).map(([type, options]) => [
+        type,
+        options.filter((option) => !SYSTEM_MANAGED_CATEGORIES.includes(option.value)),
+    ]),
+) as typeof CATEGORY_OPTIONS;
 
 const schema = z.object({
     project_id: z.string().optional(),
@@ -189,7 +200,7 @@ export function TransactionFormDialog({ open, onOpenChange, projects, bankAccoun
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {CATEGORY_OPTIONS[type].map((option) => (
+                                                {MANUAL_CATEGORY_OPTIONS[type].map((option) => (
                                                     <SelectItem key={option.value} value={option.value}>
                                                         {option.label}
                                                     </SelectItem>

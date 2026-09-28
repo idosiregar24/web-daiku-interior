@@ -22,7 +22,7 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Lead, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
+import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { MoreHorizontal, Plus } from 'lucide-react';
@@ -30,17 +30,24 @@ import { useState } from 'react';
 
 interface LeadIndexProps {
     leads: PaginatedData<Lead>;
-    filters: { status?: string; priority?: string; search?: string };
+    filters: {
+        status?: string;
+        priority?: string;
+        search?: string;
+        lead_source_id?: string;
+        lead_category_id?: string;
+    };
     marketers: Pick<User, 'id' | 'name'>[];
     projectManagers: Pick<User, 'id' | 'name'>[];
     designers: Pick<User, 'id' | 'name'>[];
-    leadSources: LeadSourceOption[];
+    leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
+    leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
 }
 
 const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'CLOSING', 'LOST'];
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 
-export default function LeadIndex({ leads, filters, marketers, projectManagers, designers, leadSources }: LeadIndexProps) {
+export default function LeadIndex({ leads, filters, marketers, projectManagers, designers, leadSources, leadCategories }: LeadIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     const canOpenDesign = role === 'DESIGNER' || role === 'SUPERADMIN';
@@ -96,8 +103,15 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
             header: 'Kontak',
         },
         {
-            accessorKey: 'source',
+            id: 'source',
             header: 'Sumber',
+            // FK row first; the legacy string covers leads whose master row was removed.
+            cell: ({ row }) => row.original.lead_source?.name ?? row.original.source,
+        },
+        {
+            id: 'category',
+            header: 'Kategori',
+            cell: ({ row }) => row.original.lead_category?.name ?? row.original.category ?? '—',
         },
         {
             accessorKey: 'priority',
@@ -250,6 +264,44 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                         ))}
                     </SelectContent>
                 </Select>
+
+                <Select
+                    value={filters.lead_source_id ?? 'all'}
+                    onValueChange={(value) =>
+                        applyFilter({ lead_source_id: value === 'all' ? undefined : value })
+                    }
+                >
+                    <SelectTrigger className="sm:w-48">
+                        <SelectValue placeholder="Semua sumber" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Semua sumber</SelectItem>
+                        {leadSources.map((source) => (
+                            <SelectItem key={source.id} value={String(source.id)}>
+                                {source.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+
+                <Select
+                    value={filters.lead_category_id ?? 'all'}
+                    onValueChange={(value) =>
+                        applyFilter({ lead_category_id: value === 'all' ? undefined : value })
+                    }
+                >
+                    <SelectTrigger className="sm:w-48">
+                        <SelectValue placeholder="Semua kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Semua kategori</SelectItem>
+                        {leadCategories.map((category) => (
+                            <SelectItem key={category.id} value={String(category.id)}>
+                                {category.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
             <DataTable
@@ -264,6 +316,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 editing={activeLead}
                 marketers={marketers}
                 leadSources={leadSources}
+                leadCategories={leadCategories}
             />
             <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={activeLead} />
             <ConfirmDealDialog

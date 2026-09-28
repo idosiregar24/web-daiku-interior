@@ -20,7 +20,9 @@ class MasterDataSeeder extends Seeder
         ['name' => 'Daiku Interior Bandung', 'code' => 'BDG', 'address' => 'Jl. Dago No. 45, Bandung'],
     ];
 
-    // Matches StoreLeadRequest/UpdateLeadRequest's Rule::in() list exactly.
+    // The legacy fixed set from PRD §4.1 (formerly a Rule::in() list) —
+    // `leads.lead_category_id` now points at these rows. Demo lead
+    // sources live in LeadSourceSeeder.
     private const LEAD_CATEGORIES = ['RESIDENTIAL', 'KOMERSIAL', 'DEVELOPER', 'KONTRAKTOR', 'LAINNYA'];
 
     private const BANK_ACCOUNTS = [

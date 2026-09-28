@@ -5,6 +5,7 @@ use App\Enums\LeadStatus;
 use App\Enums\QuotationStatus;
 use App\Models\Design;
 use App\Models\Lead;
+use App\Models\LeadSource;
 use App\Models\Project;
 use App\Models\Quotation;
 use App\Models\User;
@@ -35,7 +36,7 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     $this->actingAs($marketing)->post(route('crm.leads.store'), [
         'client_name' => 'Budi Santoso',
         'contact' => '0812-0000-0000',
-        'source' => 'Instagram',
+        'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'HOT',
         'assigned_to' => $marketing->id,
     ])->assertRedirect();

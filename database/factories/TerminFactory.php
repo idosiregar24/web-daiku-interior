@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\TerminStatus;
+use App\Models\BankAccount;
 use App\Models\Project;
 use App\Models\Termin;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -22,7 +23,7 @@ class TerminFactory extends Factory
             'amount' => fake()->randomFloat(2, 5_000_000, 50_000_000),
             'scheduled_date' => fake()->dateTimeBetween('now', '+2 months'),
             'status' => TerminStatus::Scheduled->value,
-            'bank_account_id' => null,
+            'bank_account_id' => BankAccount::factory(),
             'invoice_url' => null,
             'paid_at' => null,
         ];

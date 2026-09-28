@@ -220,6 +220,9 @@ export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarPr
 function TerminEventChip({ termin, canMarkPaid }: { termin: Termin; canMarkPaid: boolean }) {
     const [open, setOpen] = useState(false);
 
+    // Legacy full payment into the termin's own account — needs one (TerminService::recordPayment()).
+    const canQuickPay = canMarkPaid && termin.bank_account_id !== null;
+
     function onMarkPaid() {
         if (!confirm(`Tandai termin #${termin.termin_number} (${termin.project?.name}) sudah dibayar?`)) return;
 
@@ -260,7 +263,7 @@ function TerminEventChip({ termin, canMarkPaid }: { termin: Termin; canMarkPaid:
                             PDF
                         </a>
                     </Button>
-                    {canMarkPaid && termin.status !== 'PAID' && (
+                    {canQuickPay && termin.status !== 'PAID' && (
                         <Button size="sm" onClick={onMarkPaid}>
                             Tandai Dibayar
                         </Button>

@@ -70,7 +70,13 @@ export interface Lead {
     contact: string;
     source: string;
     priority: LeadPriority;
-    category: LeadCategory | null;
+    /** Legacy string mirror of `lead_category.name` (kept in sync by LeadService) — any Data Master name. */
+    category: string | null;
+    /** FK into Data Master (Sprint 8). The legacy `source`/`category` strings are kept during the transition. */
+    lead_source_id: number | null;
+    lead_category_id: number | null;
+    lead_source?: Pick<LeadSourceOption, 'id' | 'name'> | null;
+    lead_category?: Pick<LeadCategoryOption, 'id' | 'name'> | null;
     service: string | null;
     city: string | null;
     gender: string | null;
@@ -304,7 +310,7 @@ export interface QaForm {
 /** PRD 4.5 / Overtime schema — Pengajuan Lembur */
 export type OvertimeStatus =
     | 'PENDING'
-    | 'APPROVED_PM'
+    | 'PENDING_FINANCE'
     | 'APPROVED_FINANCE'
     | 'REJECTED';
 
@@ -350,7 +356,7 @@ export interface FamilyGatheringFund {
     amount: string;
     description: string | null;
     source_penalty_id: number | null;
-    sourcePenalty?: Pick<Penalty, 'id'> & { staff?: Pick<User, 'id' | 'name'> };
+    source_penalty?: Pick<Penalty, 'id'> & { staff?: Pick<User, 'id' | 'name'> };
     recorded_by: number;
     recorder?: Pick<User, 'id' | 'name'>;
     created_at: string;
@@ -368,10 +374,14 @@ export interface Termin {
     termin_number: number;
     percentage: number;
     amount: string;
+    /** daiku_schema.sql — partial payments; sisa_piutang = amount - dp_amount - pelunasan (DB-generated). */
+    dp_amount: string;
+    pelunasan: string;
+    sisa_piutang: string;
     scheduled_date: string;
     status: TerminStatus;
     bank_account_id: number | null;
-    bankAccount?: Pick<BankAccount, 'id' | 'label'>;
+    bank_account?: Pick<BankAccount, 'id' | 'label'>;
     invoice_url: string | null;
     paid_at: string | null;
     created_at: string;
@@ -409,7 +419,7 @@ export interface FinanceTransaction {
     project_id: number | null;
     project?: Pick<Project, 'id' | 'name'> | null;
     bank_account_id: number | null;
-    bankAccount?: Pick<BankAccount, 'id' | 'label'> | null;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
     type: FinanceTransactionType;
     kategori: FinanceCategory | null;
     amount: string;
@@ -550,6 +560,91 @@ export interface BankAccount {
     is_active: boolean;
     created_at: string;
     updated_at: string;
+}
+
+/** PRD 4.7 — Pinjaman Tukang (staff_loans). `remaining` is DB-generated (amount - paid_amount). */
+export interface StaffLoan {
+    id: number;
+    staff_id: number;
+    staff?: Pick<User, 'id' | 'name'>;
+    amount: string;
+    paid_amount: string;
+    remaining: string;
+    /** Deducted from each wage payment, capped at `remaining` and the wage itself (Sprint 8 decision #2). */
+    installment_amount: string;
+    description: string | null;
+    bank_account_id: number | null;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    payments?: StaffLoanPayment[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface StaffLoanPayment {
+    id: number;
+    staff_loan_id: number;
+    amount: string;
+    paid_date: string;
+    note: string | null;
+    /** Set when the installment was deducted from a wage payment (FinanceTransactionService::payStaffForTask). */
+    task_id: number | null;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+}
+
+/** PRD 4.7 — Hutang Supplier (supplier_debts). `remaining` is DB-generated. */
+export interface SupplierDebt {
+    id: number;
+    supplier_name: string;
+    total_amount: string;
+    paid_amount: string;
+    remaining: string;
+    project_id: number | null;
+    project?: Pick<Project, 'id' | 'name'> | null;
+    description: string | null;
+    due_date: string | null;
+    /** Appended by SupplierDebt::status() — derived from remaining/due_date, not a DB column. */
+    status?: 'BERJALAN' | 'JATUH_TEMPO' | 'LUNAS';
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    payments?: SupplierDebtPayment[];
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SupplierDebtPayment {
+    id: number;
+    supplier_debt_id: number;
+    amount: string;
+    paid_date: string;
+    bank_account_id: number;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
+    note: string | null;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+}
+
+/** PRD 4.7 — Alokasi Persentase (finance_allocation_configs), editable by CEO/Finance. */
+export interface FinanceAllocationConfig {
+    id: number;
+    label: string;
+    percentage: string;
+    kategori: FinanceCategory;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+/** One row of FinanceAllocationService::breakdownFor(Project). */
+export interface FinanceAllocationLine {
+    label: string;
+    kategori: FinanceCategory;
+    percentage: number;
+    amount: number;
 }
 
 /**

@@ -76,6 +76,22 @@
                 <td colspan="2" class="text-right">TOTAL</td>
                 <td class="text-right">Rp {{ number_format($termin->amount, 0, ',', '.') }}</td>
             </tr>
+            @if((float) $termin->dp_amount > 0)
+            <tr>
+                <td colspan="2" class="text-right">Dikurangi DP diterima</td>
+                <td class="text-right">- Rp {{ number_format($termin->dp_amount, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            @if((float) $termin->pelunasan > 0)
+            <tr>
+                <td colspan="2" class="text-right">Dikurangi pelunasan diterima</td>
+                <td class="text-right">- Rp {{ number_format($termin->pelunasan, 0, ',', '.') }}</td>
+            </tr>
+            @endif
+            <tr class="total-row">
+                <td colspan="2" class="text-right">SISA TAGIHAN</td>
+                <td class="text-right">Rp {{ number_format($termin->sisa_piutang, 0, ',', '.') }}</td>
+            </tr>
         </tbody>
     </table>
 

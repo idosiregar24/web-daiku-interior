@@ -63,38 +63,36 @@ class OvertimeService
 
     public function pmDecision(OvertimeRequest $overtime, string $decision, User $actor, ?string $note = null): OvertimeRequest
     {
-        if ($overtime->status !== OvertimeStatus::Pending) {
-            throw ValidationException::withMessages([
-                'status' => 'Pengajuan ini sudah diproses.',
-            ]);
-        }
-
         $this->guardDecision($decision, $note);
 
-        $overtime->update([
-            'status' => $decision === 'approve' ? OvertimeStatus::ApprovedPm->value : OvertimeStatus::Rejected->value,
-            'pm_approved_by' => $actor->id,
-            'pm_approved_at' => now(),
-            'reject_note' => $decision === 'reject' ? $note : null,
-        ]);
+        return DB::transaction(function () use ($overtime, $decision, $actor, $note) {
+            $overtime = $this->lockInStatus($overtime, OvertimeStatus::Pending, 'Pengajuan ini sudah diproses.');
 
-        $this->audit($overtime, 'pm', $decision, OvertimeStatus::Pending, $note, $actor);
+            $overtime->update([
+                'status' => $decision === 'approve' ? OvertimeStatus::PendingFinance->value : OvertimeStatus::Rejected->value,
+                'pm_approved_by' => $actor->id,
+                'pm_approved_at' => now(),
+                'reject_note' => $decision === 'reject' ? $note : null,
+            ]);
 
-        if ($decision === 'approve') {
-            // PRD §4.9 "Lembur approve oleh PM → Tukang + Finance".
-            $this->notifyStaff($overtime, 'overtime_approved_pm', 'Lembur Disetujui PM', 'disetujui PM dan menunggu approval Finance.');
-            $this->notificationService->notifyRoles(
-                ['FINANCE'],
-                'overtime_approved_pm',
-                'Lembur Menunggu Approval Finance',
-                "Lembur {$overtime->staff->name} {$overtime->hours} jam ({$this->workDate($overtime)}) disetujui PM — menunggu approval Anda.",
-                ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
-            );
-        } else {
-            $this->notifyStaff($overtime, 'overtime_rejected', 'Lembur Ditolak', "ditolak PM: {$note}");
-        }
+            $this->audit($overtime, 'pm', $decision, OvertimeStatus::Pending, $note, $actor);
 
-        return $overtime->fresh();
+            if ($decision === 'approve') {
+                // PRD §4.9 "Lembur approve oleh PM → Tukang + Finance".
+                $this->notifyStaff($overtime, 'overtime_approved_pm', 'Lembur Disetujui PM', 'disetujui PM dan menunggu approval Finance.');
+                $this->notificationService->notifyRoles(
+                    ['FINANCE'],
+                    'overtime_approved_pm',
+                    'Lembur Menunggu Approval Finance',
+                    "Lembur {$overtime->staff->name} {$overtime->hours} jam ({$this->workDate($overtime)}) disetujui PM — menunggu approval Anda.",
+                    ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
+                );
+            } else {
+                $this->notifyStaff($overtime, 'overtime_rejected', 'Lembur Ditolak', "ditolak PM: {$note}");
+            }
+
+            return $overtime->fresh();
+        });
     }
 
     /**
@@ -103,17 +101,19 @@ class OvertimeService
      * (OVERTIME_PAY)") in the same transaction — never one without the
      * other.
      */
-    public function financeDecision(OvertimeRequest $overtime, string $decision, User $actor, ?string $note = null): OvertimeRequest
+    public function financeDecision(OvertimeRequest $overtime, string $decision, User $actor, ?string $note = null, ?int $bankAccountId = null): OvertimeRequest
     {
-        if ($overtime->status !== OvertimeStatus::ApprovedPm) {
+        $this->guardDecision($decision, $note);
+
+        if ($decision === 'approve' && ! $bankAccountId) {
             throw ValidationException::withMessages([
-                'status' => 'Pengajuan ini menunggu approval PM terlebih dahulu.',
+                'bank_account_id' => 'Rekening sumber wajib dipilih.',
             ]);
         }
 
-        $this->guardDecision($decision, $note);
+        return DB::transaction(function () use ($overtime, $decision, $actor, $note, $bankAccountId) {
+            $overtime = $this->lockInStatus($overtime, OvertimeStatus::PendingFinance, 'Pengajuan ini menunggu approval PM terlebih dahulu.');
 
-        return DB::transaction(function () use ($overtime, $decision, $actor, $note) {
             $overtime->update([
                 'status' => $decision === 'approve' ? OvertimeStatus::ApprovedFinance->value : OvertimeStatus::Rejected->value,
                 'finance_approved_by' => $actor->id,
@@ -121,11 +121,12 @@ class OvertimeService
                 'reject_note' => $decision === 'reject' ? $note : $overtime->reject_note,
             ]);
 
-            $this->audit($overtime, 'finance', $decision, OvertimeStatus::ApprovedPm, $note, $actor);
+            $this->audit($overtime, 'finance', $decision, OvertimeStatus::PendingFinance, $note, $actor);
 
             if ($decision === 'approve') {
                 FinanceTransaction::create([
                     'project_id' => $overtime->project_id,
+                    'bank_account_id' => $bankAccountId,
                     'type' => FinanceTransactionType::Expense->value,
                     'kategori' => FinanceCategory::LemburBonus->value,
                     'amount' => $overtime->total_amount,
@@ -144,6 +145,22 @@ class OvertimeService
 
             return $overtime->fresh();
         });
+    }
+
+    /**
+     * Re-reads the request under a row lock and checks its status there,
+     * so two concurrent decisions (double click, two approvers) can't both
+     * pass — for Finance that would book the LEMBUR_BONUS expense twice.
+     */
+    private function lockInStatus(OvertimeRequest $overtime, OvertimeStatus $expected, string $message): OvertimeRequest
+    {
+        $locked = OvertimeRequest::query()->lockForUpdate()->findOrFail($overtime->id);
+
+        if ($locked->status !== $expected) {
+            throw ValidationException::withMessages(['status' => $message]);
+        }
+
+        return $locked;
     }
 
     /** PRD §9.4 — overtime approval releases money (Finance's step writes an EXPENSE), so both gates are audited. */

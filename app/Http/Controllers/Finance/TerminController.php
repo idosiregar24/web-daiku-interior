@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Finance\RecordTerminPaymentRequest;
 use App\Http\Requests\Finance\StoreTerminRequest;
+use App\Models\BankAccount;
 use App\Models\Project;
 use App\Models\Termin;
 use App\Services\TerminService;
@@ -60,6 +62,10 @@ class TerminController extends Controller
             'filters' => $request->only(['status']),
             'calendarTermins' => $calendarTermins,
             'calendarMonth' => $month->format('Y-m'),
+            // "Catat Pembayaran" dialog (FINANCE only — the route enforces it).
+            'bankAccounts' => $request->user()->hasAnyRole(['FINANCE', 'SUPERADMIN'])
+                ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label'])
+                : [],
         ]);
     }
 
@@ -75,6 +81,14 @@ class TerminController extends Controller
         $service->markPaid($termin, request()->user());
 
         return back()->with('success', 'Termin ditandai sudah dibayar.');
+    }
+
+    /** PRD §4.7 "DP + pelunasan" — one partial payment; see TerminService::recordPayment(). */
+    public function recordPayment(RecordTerminPaymentRequest $request, Termin $termin, TerminService $service): RedirectResponse
+    {
+        $service->recordPayment($termin, $request->validated(), $request->user());
+
+        return back()->with('success', 'Pembayaran termin berhasil dicatat.');
     }
 
     public function exportPdf(Termin $termin): HttpResponse

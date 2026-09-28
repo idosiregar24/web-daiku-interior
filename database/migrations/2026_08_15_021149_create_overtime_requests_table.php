@@ -23,7 +23,7 @@ return new class extends Migration
             $table->decimal('total_amount', 12, 2);
             $table->date('work_date');
             $table->text('reason');
-            $table->string('status')->default('PENDING'); // PENDING/APPROVED_PM/APPROVED_FINANCE/REJECTED
+            $table->string('status')->default('PENDING'); // PENDING/PENDING_FINANCE/APPROVED_FINANCE/REJECTED — renamed from APPROVED_PM in 2026_09_28 migration
             $table->foreignId('pm_approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamp('pm_approved_at')->nullable();
             $table->foreignId('finance_approved_by')->nullable()->constrained('users')->nullOnDelete();

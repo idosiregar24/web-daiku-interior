@@ -6,6 +6,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
 use App\Events\NotificationCreated;
 use App\Jobs\DailyFormReminderJob;
+use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
 use App\Models\Milestone;
 use App\Models\Notification;
@@ -284,7 +285,7 @@ test('trigger: the overtime chain notifies PM, then staff and Finance, then staf
     expect(notificationsFor($staff, 'overtime_approved_pm'))->toHaveCount(1)
         ->and(notificationsFor($finance, 'overtime_approved_pm'))->toHaveCount(1);
 
-    $service->financeDecision($overtime->fresh(), 'approve', $finance);
+    $service->financeDecision($overtime->fresh(), 'approve', $finance, null, BankAccount::factory()->create()->id);
     expect(notificationsFor($staff, 'overtime_approved_finance'))->toHaveCount(1);
 });
 

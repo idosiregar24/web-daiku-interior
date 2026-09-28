@@ -61,11 +61,16 @@ const STATUS_TONE: Record<string, Tone> = {
     DONE: 'success',
     OVER: 'error',
     // Overtime — OvertimeStatus
-    APPROVED_PM: 'info',
+    PENDING_FINANCE: 'warning',
     APPROVED_FINANCE: 'success',
+    // Pinjaman Tukang / Hutang Supplier — derived from `remaining`/`due_date`, not a DB column
+    BERJALAN: 'info',
+    LUNAS: 'success',
+    JATUH_TEMPO: 'error',
     // Termin — TerminStatus (PENDING/APPROVED/REJECTED/OVERDUE reused from above)
     SCHEDULED: 'neutral',
     INVOICED: 'info',
+    PARTIAL: 'warning',
     PAID: 'success',
     // Logistik — AssetCondition / StockMovementType
     GOOD: 'success',

@@ -19,8 +19,10 @@ class Lead extends Model
         'client_name',
         'contact',
         'source',
+        'lead_source_id',
         'priority',
         'category',
+        'lead_category_id',
         'service',
         'city',
         'gender',
@@ -51,6 +53,22 @@ class Lead extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /**
+     * Data Master rows (SuperAdmin-editable). The legacy `source` /
+     * `category` string columns are kept in sync with these rows' `name`
+     * by LeadService, so older readers that group/display by the string
+     * keep working during the transition.
+     */
+    public function leadSource(): BelongsTo
+    {
+        return $this->belongsTo(LeadSource::class);
+    }
+
+    public function leadCategory(): BelongsTo
+    {
+        return $this->belongsTo(LeadCategory::class);
     }
 
     public function creator(): BelongsTo
@@ -86,6 +104,16 @@ class Lead extends Model
     public function scopeByPriority(Builder $query, ?string $priority): Builder
     {
         return $query->when($priority, fn (Builder $q) => $q->where('priority', $priority));
+    }
+
+    public function scopeByLeadSource(Builder $query, ?int $leadSourceId): Builder
+    {
+        return $query->when($leadSourceId, fn (Builder $q) => $q->where('lead_source_id', $leadSourceId));
+    }
+
+    public function scopeByLeadCategory(Builder $query, ?int $leadCategoryId): Builder
+    {
+        return $query->when($leadCategoryId, fn (Builder $q) => $q->where('lead_category_id', $leadCategoryId));
     }
 
     /** Follow-up date sudah lewat dan lead belum LOST/closed — PRD §4.1 "highlight sebagai reminder". */

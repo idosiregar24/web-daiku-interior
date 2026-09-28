@@ -29,6 +29,7 @@ const ACTION_LABELS: Record<string, string> = {
     'finance.transaction_created': 'Transaksi dicatat',
     'finance.staff_paid': 'Upah tukang dibayar',
     'finance.termin_paid': 'Termin dibayar',
+    'finance.termin_payment': 'Pembayaran termin (DP/pelunasan)',
     'finance.family_fund_expense': 'Penggunaan dana family gathering',
     'overtime.pm_approved': 'Lembur disetujui PM',
     'overtime.pm_rejected': 'Lembur ditolak PM',

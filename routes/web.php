@@ -7,8 +7,11 @@ use App\Http\Controllers\CRM\LeadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\DesignController;
 use App\Http\Controllers\Finance\FamilyGatheringFundController;
+use App\Http\Controllers\Finance\FinanceAllocationConfigController;
 use App\Http\Controllers\Finance\FinanceTransactionController;
 use App\Http\Controllers\Finance\PenaltyController;
+use App\Http\Controllers\Finance\StaffLoanController;
+use App\Http\Controllers\Finance\SupplierDebtController;
 use App\Http\Controllers\Finance\TerminController;
 use App\Http\Controllers\Logistics\AssetController;
 use App\Http\Controllers\Logistics\MaterialController;
@@ -272,6 +275,68 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
     Route::post('termins/{termin}/mark-paid', [TerminController::class, 'markPaid'])
         ->middleware('role:FINANCE')
         ->name('termins.markPaid');
+
+    // Partial payment (DP / pelunasan) — daiku_schema.sql `termins.dp_amount`/
+    // `pelunasan`/`sisa_piutang`. Same "Finance RU" cell as markPaid.
+    Route::post('termins/{termin}/payments', [TerminController::class, 'recordPayment'])
+        ->middleware('role:FINANCE')
+        ->name('termins.recordPayment');
+
+    // Staff Loans & Supplier Debts — PRD §4.7. No own row in §7.1, so they
+    // follow "Finance – Transaction": CEO/PM read, Finance create/update.
+    // Deliberately no edit/destroy routes — finance records are append-only
+    // (PRD §9.4); corrections go through a new payment record.
+    Route::get('staff-loans', [StaffLoanController::class, 'index'])
+        ->middleware('role:CEO|PM|FINANCE')
+        ->name('staffLoans.index');
+
+    Route::get('staff-loans/create', [StaffLoanController::class, 'create'])
+        ->middleware('role:FINANCE')
+        ->name('staffLoans.create');
+
+    Route::post('staff-loans', [StaffLoanController::class, 'store'])
+        ->middleware('role:FINANCE')
+        ->name('staffLoans.store');
+
+    Route::get('staff-loans/{staffLoan}', [StaffLoanController::class, 'show'])
+        ->middleware('role:CEO|PM|FINANCE')
+        ->name('staffLoans.show');
+
+    Route::post('staff-loans/{staffLoan}/payments', [StaffLoanController::class, 'storePayment'])
+        ->middleware('role:FINANCE')
+        ->name('staffLoans.storePayment');
+
+    Route::get('supplier-debts', [SupplierDebtController::class, 'index'])
+        ->middleware('role:CEO|PM|FINANCE')
+        ->name('supplierDebts.index');
+
+    Route::get('supplier-debts/create', [SupplierDebtController::class, 'create'])
+        ->middleware('role:FINANCE')
+        ->name('supplierDebts.create');
+
+    Route::post('supplier-debts', [SupplierDebtController::class, 'store'])
+        ->middleware('role:FINANCE')
+        ->name('supplierDebts.store');
+
+    Route::get('supplier-debts/{supplierDebt}', [SupplierDebtController::class, 'show'])
+        ->middleware('role:CEO|PM|FINANCE')
+        ->name('supplierDebts.show');
+
+    Route::post('supplier-debts/{supplierDebt}/payments', [SupplierDebtController::class, 'storePayment'])
+        ->middleware('role:FINANCE')
+        ->name('supplierDebts.storePayment');
+
+    // Allocation percentages — PRD §4.7 "dikonfigurasi di
+    // finance_allocation_configs dan bisa diubah CEO/Finance". Rows are
+    // deactivated (is_active), never deleted.
+    Route::middleware('role:CEO|FINANCE')->group(function () {
+        Route::get('allocations', [FinanceAllocationConfigController::class, 'index'])
+            ->name('allocations.index');
+        Route::post('allocations', [FinanceAllocationConfigController::class, 'store'])
+            ->name('allocations.store');
+        Route::put('allocations/{allocation}', [FinanceAllocationConfigController::class, 'update'])
+            ->name('allocations.update');
+    });
 
     // Finance Transaction — PRD §7.1 "Finance – Transaction" row:
     // CEO/PM read, Finance CRUD.

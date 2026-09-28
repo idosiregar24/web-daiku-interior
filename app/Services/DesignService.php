@@ -115,6 +115,61 @@ class DesignService
         });
     }
 
+    /**
+     * PRD §4.2 "Sistem hitung delay_hari otomatis setiap hari" — run daily
+     * by DesignDelayJob. Delay accumulates one counted day at a time from
+     * `max(deadline, delay_counted_on)` to today, so:
+     * - re-running on the same day adds nothing (idempotent);
+     * - days spent in HOLD_CLIENT/REVISI_CLIENT are marked counted without
+     *   adding delay ("tidak menghitung delay — waktu ditangguhkan");
+     * - DONE_PRODUKSI freezes the final delay;
+     * - a deadline moved into the future (target_hari extended) resets it.
+     *
+     * Returns the number of designs whose delay changed.
+     */
+    public function recalculateDelays(?Carbon $today = null): int
+    {
+        $today = ($today ?? Carbon::today())->copy()->startOfDay();
+        $suspended = [DesignStatus::HoldClient, DesignStatus::RevisiClient];
+        $changed = 0;
+
+        Design::query()
+            ->whereNotNull('deadline')
+            ->where('status', '!=', DesignStatus::DoneProduksi->value)
+            ->eachById(function (Design $design) use ($today, $suspended, &$changed) {
+                if ($design->deadline->gte($today)) {
+                    if ($design->delay_hari !== 0 || $design->delay_counted_on !== null) {
+                        $design->update(['delay_hari' => 0, 'delay_counted_on' => null]);
+                        $changed++;
+                    }
+
+                    return;
+                }
+
+                $from = $design->delay_counted_on?->gt($design->deadline)
+                    ? $design->delay_counted_on
+                    : $design->deadline;
+                $newDays = (int) $from->diffInDays($today);
+
+                if ($newDays <= 0) {
+                    return;
+                }
+
+                $addDelay = in_array($design->status, $suspended, true) ? 0 : $newDays;
+
+                $design->update([
+                    'delay_hari' => $design->delay_hari + $addDelay,
+                    'delay_counted_on' => $today->toDateString(),
+                ]);
+
+                if ($addDelay > 0) {
+                    $changed++;
+                }
+            });
+
+        return $changed;
+    }
+
     private function calculateDeadline(?string $startDate, ?int $targetHari): ?string
     {
         if (! $startDate || ! $targetHari) {

@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Finance;
 use App\Enums\TaskStatus;
 use App\Exports\CashFlowExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Finance\PayStaffRequest;
 use App\Http\Requests\Finance\StoreFinanceTransactionRequest;
 use App\Models\BankAccount;
 use App\Models\FinanceTransaction;
 use App\Models\Project;
 use App\Models\Task;
 use App\Services\FinanceTransactionService;
+use App\Services\StaffPaymentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -82,7 +84,7 @@ class FinanceTransactionController extends Controller
     }
 
     /** "Pencatatan upah tukang per task selesai + staff payment list". */
-    public function staffPayments(): Response
+    public function staffPayments(StaffPaymentService $service): Response
     {
         $tasks = Task::query()
             ->with(['assignee:id,name', 'project:id,name'])
@@ -96,14 +98,22 @@ class FinanceTransactionController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        // PRD §4.7 — show the loan installment that will be deducted, so
+        // Finance sees the net transfer before confirming.
+        $reserved = [];
+        foreach ($tasks->getCollection() as $task) {
+            $task->setAttribute('payment_preview', $service->preview($task, $reserved));
+        }
+
         return Inertia::render('Finance/StaffPayments/Index', [
             'tasks' => $tasks,
+            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']),
         ]);
     }
 
-    public function payStaff(Task $task, FinanceTransactionService $service): RedirectResponse
+    public function payStaff(PayStaffRequest $request, Task $task, StaffPaymentService $service): RedirectResponse
     {
-        $service->payStaffForTask($task, request()->user());
+        $service->pay($task, $request->integer('bank_account_id'), $request->user());
 
         return back()->with('success', 'Upah tukang berhasil dicatat.');
     }

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Enums\LeadStatus;
 use App\Enums\QuotationStatus;
 use App\Models\Lead;
+use App\Models\LeadCategory;
+use App\Models\LeadSource;
 use App\Models\PipelineLog;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -65,7 +67,7 @@ class LeadService
     {
         return DB::transaction(function () use ($data, $actor) {
             $lead = Lead::create([
-                ...$data,
+                ...$this->syncMasterReferences($data),
                 'status' => $data['status'] ?? LeadStatus::FollowUp->value,
                 'created_by' => $actor->id,
             ]);
@@ -90,9 +92,49 @@ class LeadService
     public function update(Lead $lead, array $data): Lead
     {
         unset($data['status']);
-        $lead->update($data);
+        $lead->update($this->syncMasterReferences($data));
 
         return $lead;
+    }
+
+    /**
+     * Resolve `lead_source_id` / `lead_category_id` (Data Master FKs) and
+     * keep the legacy `source` / `category` string columns in sync with the
+     * master row's `name` — every existing reader (CRM dashboard bySource,
+     * analytics, exports) still reads the strings.
+     *
+     * The FK wins when given (the CRM form always sends it). Legacy callers
+     * that still pass only a `source`/`category` string (e.g.
+     * DemoDataSeeder) are tolerated: the string is matched to a master row
+     * case-insensitively, creating one if missing — same rule as the
+     * backfill migration.
+     */
+    private function syncMasterReferences(array $data): array
+    {
+        if (! empty($data['lead_source_id'])) {
+            $data['source'] = LeadSource::findOrFail($data['lead_source_id'])->name;
+        } elseif (filled($data['source'] ?? null)) {
+            $source = LeadSource::findOrCreateByName($data['source']);
+            $data['lead_source_id'] = $source->id;
+            $data['source'] = $source->name;
+        }
+
+        if (array_key_exists('lead_category_id', $data)) {
+            $data['category'] = $data['lead_category_id']
+                ? LeadCategory::findOrFail($data['lead_category_id'])->name
+                : null;
+        } elseif (array_key_exists('category', $data)) {
+            if (filled($data['category'])) {
+                $category = LeadCategory::findOrCreateByName($data['category']);
+                $data['lead_category_id'] = $category->id;
+                $data['category'] = $category->name;
+            } else {
+                $data['category'] = null;
+                $data['lead_category_id'] = null;
+            }
+        }
+
+        return $data;
     }
 
     /**

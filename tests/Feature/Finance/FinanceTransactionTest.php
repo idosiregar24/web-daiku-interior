@@ -2,11 +2,12 @@
 
 use App\Enums\FinanceCategory;
 use App\Enums\TaskStatus;
+use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\FinanceTransaction;
 use App\Models\Task;
 use App\Models\User;
-use App\Services\FinanceTransactionService;
+use App\Services\StaffPaymentService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -44,6 +45,27 @@ test('Finance can record a manual transaction with a bank account', function () 
 
     expect(FinanceTransaction::where('description', 'Beli alat kebersihan')->exists())->toBeTrue();
 });
+
+test('categories owned by a dedicated flow cannot be recorded manually', function (string $kategori, string $type) {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+
+    $this->actingAs($finance)->post(route('finance.transactions.store'), [
+        'bank_account_id' => BankAccount::factory()->create()->id,
+        'type' => $type,
+        'kategori' => $kategori,
+        'amount' => 250000,
+        'description' => 'Coba kategori sistem',
+        'date' => now()->toDateString(),
+    ])->assertSessionHasErrors('kategori');
+
+    expect(FinanceTransaction::count())->toBe(0);
+})->with([
+    ['PINJAMAN', 'PENGELUARAN'],
+    ['HUTANG_IDEAL', 'PENGELUARAN'],
+    ['DOWN_PAYMENT', 'PEMASUKAN'],
+    ['TERMIN', 'PEMASUKAN'],
+]);
 
 test('bank_account_id is required to record a transaction', function () {
     $finance = User::factory()->create();
@@ -98,11 +120,17 @@ test('Finance can pay a DONE task once, and not twice', function () {
     $finance->assignRole('FINANCE');
     $task = Task::factory()->create(['status' => TaskStatus::Done->value, 'rate_per_task' => 150000]);
 
-    $this->actingAs($finance)->post(route('finance.staffPayments.pay', ['task' => $task->id]))->assertRedirect();
+    $bank = BankAccount::factory()->create();
 
-    expect(FinanceTransaction::where('reference_id', $task->id)->where('kategori', 'GAJI_KARYAWAN')->exists())->toBeTrue();
+    $this->actingAs($finance)->post(route('finance.staffPayments.pay', ['task' => $task->id]), [
+        'bank_account_id' => $bank->id,
+    ])->assertRedirect()->assertSessionHasNoErrors();
 
-    expect(fn () => app(FinanceTransactionService::class)->payStaffForTask($task, $finance))
+    $wage = FinanceTransaction::where('reference_id', $task->id)->where('kategori', 'GAJI_KARYAWAN')->sole();
+    expect($wage->bank_account_id)->toBe($bank->id)
+        ->and(AuditLog::where('action', 'finance.staff_paid')->where('model_id', $wage->id)->exists())->toBeTrue();
+
+    expect(fn () => app(StaffPaymentService::class)->pay($task, $bank->id, $finance))
         ->toThrow(ValidationException::class);
 });
 

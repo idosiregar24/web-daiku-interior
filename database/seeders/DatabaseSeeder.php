@@ -44,6 +44,7 @@ class DatabaseSeeder extends Seeder
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
         $this->call(MasterDataSeeder::class);
+        $this->call(FinanceAllocationConfigSeeder::class);
 
         foreach (self::DEMO_USERS as $role => $attributes) {
             $user = User::factory()->create($attributes);

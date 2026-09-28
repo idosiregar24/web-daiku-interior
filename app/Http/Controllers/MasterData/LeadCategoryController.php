@@ -26,6 +26,12 @@ class LeadCategoryController extends Controller
 
     public function destroy(LeadCategory $leadCategory): RedirectResponse
     {
+        // Deleting would null the lead's FK and force re-picking a kategori
+        // on its next edit — rename it instead.
+        if ($leadCategory->leads()->exists()) {
+            return back()->withErrors(['name' => 'Kategori ini masih dipakai lead — ubah namanya saja, jangan dihapus.']);
+        }
+
         $leadCategory->delete();
 
         return back()->with('success', 'Kategori berhasil dihapus.');

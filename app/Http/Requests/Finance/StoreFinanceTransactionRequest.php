@@ -22,7 +22,7 @@ class StoreFinanceTransactionRequest extends FormRequest
             // PRD §4.7 "Setiap transaksi wajib mencantumkan rekening bank".
             'bank_account_id' => ['required', 'exists:bank_accounts,id'],
             'type' => ['required', Rule::enum(FinanceTransactionType::class)],
-            'kategori' => ['required', Rule::enum(FinanceCategory::class)],
+            'kategori' => ['required', Rule::enum(FinanceCategory::class)->except(FinanceCategory::systemManaged())],
             'amount' => ['required', 'numeric', 'min:1'],
             'description' => ['required', 'string', 'max:255'],
             'date' => ['required', 'date'],
@@ -35,6 +35,7 @@ class StoreFinanceTransactionRequest extends FormRequest
             'bank_account_id.required' => 'Rekening bank wajib dipilih.',
             'type.required' => 'Jenis transaksi wajib dipilih.',
             'kategori.required' => 'Kategori transaksi wajib dipilih.',
+            'kategori.enum' => 'Kategori ini dicatat lewat menunya sendiri (Termin, Pinjaman Tukang, atau Hutang Supplier), bukan transaksi manual.',
             'amount.required' => 'Nominal wajib diisi.',
             'description.required' => 'Deskripsi wajib diisi.',
         ];

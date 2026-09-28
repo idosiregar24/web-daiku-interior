@@ -10,12 +10,12 @@ use App\Enums\TaskStatus;
 use App\Models\Asset;
 use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
-use App\Models\Material;
-use App\Models\RevenueTarget;
 use App\Models\Lead;
+use App\Models\Material;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
+use App\Models\RevenueTarget;
 use App\Models\User;
 use App\Services\DesignService;
 use App\Services\FamilyGatheringFundService;
@@ -28,7 +28,10 @@ use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
+use App\Services\StaffLoanService;
+use App\Services\StaffPaymentService;
 use App\Services\StockService;
+use App\Services\SupplierDebtService;
 use App\Services\TaskService;
 use App\Services\TerminService;
 use Illuminate\Database\Seeder;
@@ -102,6 +105,11 @@ class DemoDataSeeder extends Seeder
         // 4. Fully closed — Quotation SENT_TO_CLIENT, deal confirmed,
         // Project created with Milestones/Tasks.
         $projects = $this->seedClosedDeals($leadService, $designService, $quotationService);
+
+        // 4b. Staff loans + supplier debts (PRD §4.7). Loans go in before
+        // field operations so the demo wage payment there already shows
+        // an automatic installment deduction.
+        $this->seedStaffLoansAndSupplierDebts($projects[0]['project']);
 
         // 5. Field ops — daily forms (some deliberately skipped so the
         // penalty job below has something real to catch), penalties,
@@ -580,6 +588,84 @@ class DemoDataSeeder extends Seeder
             'percentage' => 40,
             'bank_account_id' => $bankAccount?->id,
         ]);
+
+        // Unlinked termin with only a DP received — the "Dibayar Sebagian" state.
+        if ($bankAccount) {
+            $partialTermin = $terminService->create($project, [
+                'percentage' => 10,
+                'bank_account_id' => $bankAccount->id,
+            ]);
+            $terminService->recordPayment($partialTermin, [
+                'type' => TerminService::PAYMENT_DP,
+                'amount' => round((float) $partialTermin->amount / 2, 2),
+                'bank_account_id' => $bankAccount->id,
+                'paid_date' => now()->toDateString(),
+            ], $this->finance);
+        }
+    }
+
+    /**
+     * PRD §4.7 "Pinjaman Tukang" + "Hutang Supplier" through their
+     * services: one loan partly repaid in cash, one untouched (the demo
+     * wage payment deducts from it), one overdue unpaid debt, one
+     * partially paid debt and one with no due date.
+     */
+    private function seedStaffLoansAndSupplierDebts(Project $project): void
+    {
+        $bank = BankAccount::first();
+
+        if (! $bank) {
+            return;
+        }
+
+        $loans = app(StaffLoanService::class);
+
+        foreach ($this->fieldStaff->take(2) as $index => $staff) {
+            $loan = $loans->create([
+                'staff_id' => $staff->id,
+                'amount' => $index === 0 ? 2_000_000 : 750_000,
+                'installment_amount' => $index === 0 ? 250_000 : 150_000,
+                'bank_account_id' => $bank->id,
+                'description' => $index === 0 ? 'Kasbon biaya sekolah anak' : 'Kasbon berobat',
+            ], $this->finance);
+
+            if ($index === 0) {
+                $loans->recordPayment($loan, [
+                    'amount' => 500_000,
+                    'paid_date' => now()->subDays(3)->toDateString(),
+                    'bank_account_id' => $bank->id,
+                    'note' => 'Bayar tunai',
+                ], $this->finance);
+            }
+        }
+
+        $debts = app(SupplierDebtService::class);
+
+        $debts->create([
+            'supplier_name' => 'Kaca Jaya',
+            'total_amount' => 4_500_000,
+            'project_id' => $project->id,
+            'due_date' => now()->subDays(10)->toDateString(),
+            'description' => 'Kaca tempered 8mm partisi',
+        ], $this->finance);
+
+        $ideal = $debts->create([
+            'supplier_name' => 'Ideal',
+            'total_amount' => 12_000_000,
+            'project_id' => $project->id,
+            'due_date' => now()->addWeeks(3)->toDateString(),
+        ], $this->finance);
+        $debts->recordPayment($ideal, [
+            'amount' => 5_000_000,
+            'paid_date' => now()->subDays(3)->toDateString(),
+            'bank_account_id' => $bank->id,
+            'note' => 'Cicilan pertama',
+        ], $this->finance);
+
+        $debts->create([
+            'supplier_name' => 'HPL Makmur',
+            'total_amount' => 2_750_000,
+        ], $this->finance);
     }
 
     /** A manual expense + one staff wage payment — "Finance – Transaction" row (PRD §7.1). */
@@ -599,8 +685,8 @@ class DemoDataSeeder extends Seeder
 
         $doneTask = $project->tasks()->where('status', TaskStatus::Done->value)->first();
 
-        if ($doneTask) {
-            app(FinanceTransactionService::class)->payStaffForTask($doneTask, $this->finance);
+        if ($doneTask && $bankAccount) {
+            app(StaffPaymentService::class)->pay($doneTask, $bankAccount->id, $this->finance);
         }
     }
 
@@ -638,7 +724,7 @@ class DemoDataSeeder extends Seeder
             'reason' => 'Lembur finishing cat dinding sebelum QA.',
         ], $this->fieldStaff[0]);
         $overtimeService->pmDecision($completed, 'approve', $this->pm);
-        $overtimeService->financeDecision($completed, 'approve', $this->finance);
+        $overtimeService->financeDecision($completed, 'approve', $this->finance, null, BankAccount::value('id'));
 
         $rejected = $overtimeService->create([
             'project_id' => $project->id,
