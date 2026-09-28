@@ -106,7 +106,7 @@ export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }:
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <p className="text-sm text-daiku-muted">
                             Lead <span className="font-medium text-daiku-dark">{lead?.client_name}</span> akan
-                            ditutup sebagai <span className="font-medium text-success">CLOSING</span> dan proyek
+                            ditutup sebagai <span className="font-medium text-success-ink">CLOSING</span> dan proyek
                             eksekusi baru akan dibuat.
                         </p>
                         <FormField

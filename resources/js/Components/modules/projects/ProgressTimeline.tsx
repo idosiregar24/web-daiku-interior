@@ -1,4 +1,5 @@
 import type { ProgressLog } from '@/types';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Link2 } from 'lucide-react';
 
 function formatDateTime(value: string) {
@@ -13,9 +14,7 @@ function formatDateTime(value: string) {
 export function ProgressTimeline({ logs }: { logs: ProgressLog[] }) {
     if (logs.length === 0) {
         return (
-            <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                Belum ada progress log.
-            </p>
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada progress log." />
         );
     }
 
@@ -33,10 +32,10 @@ export function ProgressTimeline({ logs }: { logs: ProgressLog[] }) {
                                 aria-hidden
                             />
                         )}
-                        <span className="z-10 mt-1 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-info bg-white text-[10px] font-semibold text-info">
+                        <span className="z-10 mt-1 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-info bg-card text-[10px] font-semibold text-info-ink">
                             {log.percentage}
                         </span>
-                        <div className="min-w-0 flex-1 rounded-lg border border-daiku-border p-3">
+                        <div className="min-w-0 flex-1 rounded-xl border border-border bg-card p-3.5 shadow-xs">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-sm font-medium text-daiku-dark">{log.percentage}% progress</p>
                                 <p className="text-xs text-daiku-muted">{formatDateTime(log.created_at)}</p>
@@ -51,7 +50,7 @@ export function ProgressTimeline({ logs }: { logs: ProgressLog[] }) {
                                             href={url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center gap-1 text-xs text-info hover:underline"
+                                            className="flex items-center gap-1 text-xs text-info-ink hover:underline"
                                         >
                                             <Link2 className="size-3" />
                                             Referensi

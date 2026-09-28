@@ -4,9 +4,11 @@ import type { PaginatedData } from '@/types';
 import { Link } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+export type Paginator = Pick<PaginatedData<unknown>, 'links' | 'current_page' | 'last_page' | 'total' | 'from' | 'to'>;
+
 interface PaginationProps {
     /** Any Laravel `->paginate()` payload — only its meta/links are read. */
-    paginator: Pick<PaginatedData<unknown>, 'links' | 'current_page' | 'last_page' | 'total' | 'from' | 'to'>;
+    paginator: Paginator;
     className?: string;
 }
 
@@ -17,6 +19,9 @@ interface PaginationProps {
  * over — controllers call `->withQueryString()`. Laravel's first/last
  * `links` entries are prev/next; their English, HTML-entity labels are
  * replaced with icons here. Renders nothing for a single page.
+ *
+ * Inside a table card, prefer `<DataTable pagination={paginator} />`,
+ * which places this in the card footer.
  */
 export function Pagination({ paginator, className }: PaginationProps) {
     if (paginator.last_page <= 1) {
@@ -32,8 +37,12 @@ export function Pagination({ paginator, className }: PaginationProps) {
             aria-label="Navigasi halaman"
             className={cn('mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row', className)}
         >
-            <p className="text-xs text-daiku-muted">
-                Menampilkan {paginator.from ?? 0}–{paginator.to ?? 0} dari {paginator.total} data
+            <p className="text-xs text-muted-foreground">
+                Menampilkan{' '}
+                <span className="font-medium text-foreground tabular-nums">
+                    {paginator.from ?? 0}–{paginator.to ?? 0}
+                </span>{' '}
+                dari <span className="font-medium text-foreground tabular-nums">{paginator.total}</span> data
             </p>
             <div className="flex flex-wrap items-center gap-1">
                 <PageLink url={previous?.url ?? null} label="Sebelumnya">
@@ -41,7 +50,7 @@ export function Pagination({ paginator, className }: PaginationProps) {
                 </PageLink>
                 {pages.map((link, index) =>
                     link.url === null ? (
-                        <span key={`gap-${index}`} className="px-2 text-sm text-daiku-muted">
+                        <span key={`gap-${index}`} className="px-2 text-sm text-muted-foreground">
                             …
                         </span>
                     ) : (
@@ -71,14 +80,19 @@ function PageLink({
 }) {
     if (url === null) {
         return (
-            <Button variant="outline" size="sm" disabled aria-label={label} className="min-w-8">
+            <Button variant="outline" size="sm" disabled aria-label={label} className="min-w-8 tabular-nums">
                 {children}
             </Button>
         );
     }
 
     return (
-        <Button variant={active ? 'default' : 'outline'} size="sm" asChild className="min-w-8">
+        <Button
+            variant={active ? 'default' : 'outline'}
+            size="sm"
+            asChild
+            className={cn('min-w-8 tabular-nums', active && 'shadow-xs')}
+        >
             <Link href={url} preserveScroll preserveState aria-label={label} aria-current={active ? 'page' : undefined}>
                 {children}
             </Link>

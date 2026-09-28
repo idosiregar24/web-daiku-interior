@@ -1,5 +1,4 @@
 import { formatRupiah } from '@/lib/format';
-import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -14,6 +13,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Quotation, QuotationStatus } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { FileText } from 'lucide-react';
 
 interface QuotationIndexProps {
     quotations: PaginatedData<Quotation & { lead: { id: number; client_name: string } }>;
@@ -77,34 +77,36 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
 
             <PageHeader
                 title="Quotation"
+                icon={FileText}
                 description="Daftar RAB/penawaran — dibuka otomatis saat desain di-ACC klien."
             />
-
-            <div className="mb-4">
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="sm:w-56">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
 
             <DataTable
                 columns={columns}
                 data={quotations.data}
                 emptyMessage="Belum ada quotation. Dibuka otomatis saat desain di-ACC klien."
+                pagination={quotations}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="sm:w-56">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
             />
-            <Pagination paginator={quotations} />
         </AppLayout>
     );
 }

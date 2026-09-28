@@ -28,7 +28,8 @@ Pakai utility Tailwind, bukan hex:
 | Border card/table | `border-border` atau `border-daiku-border` | `border-gray-200` |
 | Background section abu | `bg-daiku-gray` | `bg-gray-100` |
 | Teks sekunder/muted | `text-muted-foreground` atau `text-daiku-muted` | `text-gray-500` |
-| Warna status sukses/warn/error/info | `text-success`/`bg-warning`/dst (lihat §3) | class Tailwind default (`text-green-500`) |
+| Warna status sukses/warn/error/info | `bg-success/10`/`bg-warning`/dst (lihat §3) | class Tailwind default (`text-green-500`) |
+| Teks berwarna status (angka, label kecil) | `text-success-ink`/`text-error-ink`/`text-warning-ink`/`text-info-ink` | `text-success` untuk teks — terlalu pucat di atas putih (±2.3:1) |
 
 ## 2. Komponen — shadcn dulu, custom belakangan
 
@@ -53,6 +54,31 @@ Komponen gabungan modul-spesifik (`StatusChip`, `DataTable` + TanStack,
 - `resources/js/Components/modules/` — spesifik satu modul (mis. Kanban
   board Task, funnel chart CRM).
 
+### Building block `shared/` — pakai ini dulu sebelum menulis markup sendiri
+
+| Kebutuhan | Komponen |
+|---|---|
+| Judul halaman + deskripsi + tombol aksi | `PageHeader` (prop `icon` = ikon modul yang sama dengan sidebar) |
+| Panel berjudul (widget, detail, form section) | `SectionCard` (`title`, `description`, `icon`, `action`, `footer`, `flush`) — jangan rakit `Card`+`CardHeader`+`CardTitle` manual |
+| Angka KPI | `StatCard` (`tone`, `hint`, `delta` vs periode, `trend` → sparkline, `children` mis. `ProgressBar`) |
+| Tabel data | `DataTable` — filter masuk prop `toolbar`, paginator Laravel masuk prop `pagination` (bukan `<Pagination>` terpisah di bawah) |
+| Tabel `<table>` manual (baris custom/editable) | bungkus `TableCard` (prop `toolbar`/`pagination` sama) + `<thead className={TABLE_HEAD_CLASS}>` |
+| Kolom pencarian | `SearchInput` (Input + ikon cari) |
+| Kolom password | `PasswordInput` (Input + tombol tampilkan/sembunyikan) |
+| Logo perusahaan | `BrandMark` — logo yang diunggah di Pengaturan Situs (`site.logoUrl`), fallback ke mark bawaan. Nama/tagline dari prop bersama `site`, jangan hardcode "Daiku Interior" di layout |
+| Data kosong | `EmptyState` (di tabel, list, widget) |
+| Banner peringatan/info | `Notice` (`tone` info/success/warning/error) |
+| Pasangan label–nilai di halaman detail | `DetailList` + `DetailItem` |
+| Rasio / progres | `ProgressBar` |
+| Tab level halaman (Detail Proyek, Data Master) | `UnderlineTabsList` di dalam `<Tabs>`; tab kecil di dalam section tetap `TabsList` biasa |
+| Status | `StatusChip` (pill ber-tint polos, tanpa titik/outline; prop `tone` untuk status di luar union domain, mis. Aktif/Nonaktif user) |
+
+Jangan pakai ornamen dekoratif: pill "badge" dengan titik + border kuning,
+halo/ring kuning di sekitar titik atau ikon, glow. Aksen kuning cukup
+lewat fill (`bg-daiku-yellow`, `bg-daiku-yellow-light`) atau garis bawah
+link (`decoration-daiku-yellow`). Teks kuning di atas putih dilarang —
+kontrasnya ±2:1.
+
 ## 3. Status badge / chip
 
 PRD §8.3: "Status Badge: Chip berwarna sesuai status". Mapping warna →
@@ -61,13 +87,13 @@ warna Tailwind default:
 
 ```tsx
 const STATUS_COLOR: Record<string, string> = {
-  DONE: 'bg-success/10 text-success',
-  APPROVED: 'bg-success/10 text-success',
+  DONE: 'bg-success/10 text-success-ink',
+  APPROVED: 'bg-success/10 text-success-ink',
   PENDING: 'bg-daiku-gray text-daiku-muted',
-  OVER: 'bg-error/10 text-error',
-  REJECTED: 'bg-error/10 text-error',
-  ONPROGRESS: 'bg-info/10 text-info',
-  WARNING: 'bg-warning/10 text-warning', // delay, follow-up jatuh tempo
+  OVER: 'bg-error/10 text-error-ink',
+  REJECTED: 'bg-error/10 text-error-ink',
+  ONPROGRESS: 'bg-info/10 text-info-ink',
+  WARNING: 'bg-warning/10 text-warning-ink', // delay, follow-up jatuh tempo
 };
 ```
 
@@ -76,23 +102,29 @@ jangan duplikasi mapping ini di tiap halaman.
 
 ## 4. Layout
 
-- Halaman berautentikasi selalu dibungkus `Layouts/AppLayout.tsx` (sidebar
-  fixed kiri dikelompokkan per divisi + topbar). Tambah entri modul baru ke
-  `NAV_GROUPS` di file itu begitu route-nya siap — lihat komentar di file
-  tsb.
+- Halaman berautentikasi selalu dibungkus `Layouts/AppLayout.tsx`: sidebar
+  di atas kanvas `bg-daiku-gray` (item aktif = pill putih + garis kuning di
+  kiri, kartu user di bawah) dan konten di panel putih `rounded-2xl`
+  ("inset shell"). Topbar: breadcrumb, `CommandMenu` (Ctrl/⌘ K — cari &
+  lompat ke menu yang boleh diakses role), lonceng notifikasi. Tambah entri
+  modul baru ke `NAV_GROUPS` di file itu begitu route-nya siap — sidebar,
+  command menu, dan daftar "Modul Anda" di Dashboard membaca data yang sama
+  lewat `useNavGroups()`.
 - Topbar pakai **breadcrumb** (PRD §8.3), bukan judul teks polos — kirim
   prop `breadcrumbs={[{ label: '...', routeName: '...' }, { label: '...' }]}`
   ke `<AppLayout>` (entry terakhir tanpa `routeName` = halaman saat ini,
   tidak bisa diklik). Prop `header` lama masih didukung sebagai fallback
   kalau `breadcrumbs` tidak dikirim, tapi jangan pakai untuk halaman baru.
 - Halaman auth (login/register/dst) pakai `Layouts/AuthLayout.tsx`
-  (background `bg-daiku-cream`, card terpusat).
-- Card: `<Card>` shadcn (sudah `shadow-sm rounded-lg border`) — jangan
-  bungkus manual dengan div + class Tailwind mentah.
+  (kartu putih mengambang di atas `bg-daiku-cream`: panel gradien emas di
+  kiri — desktop saja — dan form di kanan; judul/deskripsi lewat prop
+  `title`/`description` layout, bukan `<h1>` di halaman).
+- Card: `<Card>` shadcn (sudah `rounded-xl ring-1 ring-border shadow-xs`) —
+  jangan bungkus manual dengan div + class Tailwind mentah.
 - Modal/Dialog: `<Dialog>` shadcn, `max-w-lg` default sesuai PRD §8.3.
-- Tabel: header pakai `bg-daiku-yellow-light` sesuai PRD §8.3 — override
-  `<TableHeader>` per instance kalau shadcn default tidak sesuai, jangan
-  ubah primitive `table.tsx` global.
+- Tabel: header pakai `bg-daiku-yellow-light` sesuai PRD §8.3 (label kecil
+  uppercase `text-daiku-muted`) — sudah diterapkan oleh `DataTable` dan
+  `TABLE_HEAD_CLASS`; jangan ubah primitive `table.tsx` global.
 
 ## 5. Tipografi & ikon
 

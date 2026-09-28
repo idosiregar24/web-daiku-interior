@@ -1,8 +1,10 @@
 import { formatRupiah } from '@/lib/format';
-import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { StatCard } from '@/Components/shared/StatCard';
+import { StatusChip } from '@/Components/shared/StatusChip';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
 import {
     Dialog,
     DialogClose,
@@ -25,7 +27,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { FamilyGatheringFund, PaginatedData, PageProps } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, PiggyBank, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -136,6 +138,7 @@ export default function FamilyFundIndex({ entries, balance, totalIncome, totalEx
 
             <PageHeader
                 title="Dana Family Gathering"
+                icon={PiggyBank}
                 description="Akumulasi penalti form harian (PRD §4.7) — Rp 50.000 per pelanggaran."
                 actions={
                     canRecordExpense && (
@@ -147,59 +150,48 @@ export default function FamilyFundIndex({ entries, balance, totalIncome, totalEx
                 }
             />
 
-            <div className="mb-4 grid grid-cols-3 gap-4">
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Saldo Saat Ini</p>
-                        <p className="mt-1 text-2xl font-semibold text-daiku-dark">{formatRupiah(balance)}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Pemasukan</p>
-                        <p className="mt-1 text-2xl font-semibold text-success">{formatRupiah(totalIncome)}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Penggunaan</p>
-                        <p className="mt-1 text-2xl font-semibold text-error">{formatRupiah(totalExpense)}</p>
-                    </CardContent>
-                </Card>
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                <StatCard label="Saldo Saat Ini" value={formatRupiah(balance)} icon={PiggyBank} />
+                <StatCard label="Total Pemasukan" value={formatRupiah(totalIncome)} icon={ArrowDownLeft} tone="success" />
+                <StatCard label="Total Penggunaan" value={formatRupiah(totalExpense)} icon={ArrowUpRight} tone="error" />
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-daiku-border">
+            <TableCard
+                pagination={entries}
+            >
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="p-2 text-left font-medium">Tanggal</th>
-                            <th className="p-2 text-left font-medium">Jenis</th>
-                            <th className="p-2 text-left font-medium">Keterangan</th>
-                            <th className="p-2 text-left font-medium">Dicatat Oleh</th>
-                            <th className="p-2 text-right font-medium">Nominal</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Tanggal</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Jenis</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Keterangan</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Dicatat Oleh</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Nominal</th>
                         </tr>
                     </thead>
                     <tbody>
                         {entries.data.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="p-6 text-center text-daiku-muted">
-                                    Belum ada riwayat.
+                                <td colSpan={5} className="p-0">
+                                    <EmptyState title="Belum ada riwayat." />
                                 </td>
                             </tr>
                         ) : (
                             entries.data.map((entry) => (
-                                <tr key={entry.id} className="border-t border-daiku-border">
-                                    <td className="p-2 text-daiku-muted">
+                                <tr key={entry.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 text-daiku-muted">
                                         {new Date(entry.created_at).toLocaleDateString('id-ID')}
                                     </td>
-                                    <td className="p-2">
-                                        <span className={entry.type === 'INCOME' ? 'text-success' : 'text-error'}>
-                                            {entry.type === 'INCOME' ? 'Pemasukan' : 'Penggunaan'}
-                                        </span>
+                                    <td className="px-4 py-3">
+                                        <StatusChip
+                                            status={entry.type}
+                                            tone={entry.type === 'INCOME' ? 'success' : 'error'}
+                                            label={entry.type === 'INCOME' ? 'Pemasukan' : 'Penggunaan'}
+                                        />
                                     </td>
-                                    <td className="p-2">{entry.description ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">{entry.recorder?.name ?? '—'}</td>
-                                    <td className={`p-2 text-right font-medium ${entry.type === 'INCOME' ? 'text-success' : 'text-error'}`}>
+                                    <td className="px-4 py-3">{entry.description ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{entry.recorder?.name ?? '—'}</td>
+                                    <td className={`px-4 py-3 text-right font-medium tabular-nums ${entry.type === 'INCOME' ? 'text-success-ink' : 'text-error-ink'}`}>
                                         {entry.type === 'INCOME' ? '+' : '-'}
                                         {formatRupiah(entry.amount)}
                                     </td>
@@ -208,10 +200,9 @@ export default function FamilyFundIndex({ entries, balance, totalIncome, totalEx
                         )}
                     </tbody>
                 </table>
-            </div>
+            </TableCard>
 
             {canRecordExpense && <RecordExpenseDialog open={dialogOpen} onOpenChange={setDialogOpen} />}
-            <Pagination paginator={entries} />
         </AppLayout>
     );
 }

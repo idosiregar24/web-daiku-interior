@@ -1,6 +1,5 @@
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
@@ -8,6 +7,7 @@ import { formatDate } from '@/lib/format';
 import type { Material, PaginatedData, Project, StockMovement } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { History } from 'lucide-react';
 
 interface StockMovementIndexProps {
     movements: PaginatedData<StockMovement>;
@@ -38,7 +38,7 @@ const columns: ColumnDef<StockMovement>[] = [
         accessorKey: 'qty',
         header: 'Jumlah',
         cell: ({ row }) => (
-            <span className={`tabular-nums font-medium ${row.original.type === 'IN' ? 'text-success' : 'text-daiku-dark'}`}>
+            <span className={`tabular-nums font-medium ${row.original.type === 'IN' ? 'text-success-ink' : 'text-daiku-dark'}`}>
                 {row.original.type === 'IN' ? '+' : '−'}
                 {row.original.qty} {row.original.material?.unit}
             </span>
@@ -86,58 +86,67 @@ export default function StockMovementIndex({ movements, filters, materials, proj
         >
             <Head title="Riwayat Stok" />
 
-            <PageHeader title="Riwayat Stok" description="Catatan penerimaan barang dan pemakaian material per proyek." />
+            <PageHeader
+                title="Riwayat Stok"
+                icon={History}
+                description="Catatan penerimaan barang dan pemakaian material per proyek."
+            />
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Select
-                    value={filters.type ?? 'all'}
-                    onValueChange={(value) => applyFilter({ type: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Filter jenis">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua jenis</SelectItem>
-                        <SelectItem value="IN">Masuk</SelectItem>
-                        <SelectItem value="OUT">Keluar</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select
-                    value={filters.material_id ? String(filters.material_id) : 'all'}
-                    onValueChange={(value) => applyFilter({ material_id: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-56" aria-label="Filter material">
-                        <SelectValue placeholder="Semua material" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua material</SelectItem>
-                        {materials.map((material) => (
-                            <SelectItem key={material.id} value={String(material.id)}>
-                                {material.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Select
-                    value={filters.project_id ? String(filters.project_id) : 'all'}
-                    onValueChange={(value) => applyFilter({ project_id: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-56" aria-label="Filter proyek">
-                        <SelectValue placeholder="Semua proyek" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua proyek</SelectItem>
-                        {projects.map((project) => (
-                            <SelectItem key={project.id} value={String(project.id)}>
-                                {project.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <DataTable columns={columns} data={movements.data} emptyMessage="Belum ada pergerakan stok." />
-            <Pagination paginator={movements} />
+            <DataTable
+                columns={columns}
+                data={movements.data}
+                emptyMessage="Belum ada pergerakan stok."
+                pagination={movements}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                            value={filters.type ?? 'all'}
+                            onValueChange={(value) => applyFilter({ type: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-40" aria-label="Filter jenis">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua jenis</SelectItem>
+                                <SelectItem value="IN">Masuk</SelectItem>
+                                <SelectItem value="OUT">Keluar</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={filters.material_id ? String(filters.material_id) : 'all'}
+                            onValueChange={(value) => applyFilter({ material_id: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-56" aria-label="Filter material">
+                                <SelectValue placeholder="Semua material" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua material</SelectItem>
+                                {materials.map((material) => (
+                                    <SelectItem key={material.id} value={String(material.id)}>
+                                        {material.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={filters.project_id ? String(filters.project_id) : 'all'}
+                            onValueChange={(value) => applyFilter({ project_id: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-56" aria-label="Filter proyek">
+                                <SelectValue placeholder="Semua proyek" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua proyek</SelectItem>
+                                {projects.map((project) => (
+                                    <SelectItem key={project.id} value={String(project.id)}>
+                                        {project.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
+            />
         </AppLayout>
     );
 }

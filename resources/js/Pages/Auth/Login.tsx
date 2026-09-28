@@ -1,9 +1,11 @@
+import { PasswordInput } from '@/Components/shared/PasswordInput';
 import { Button } from '@/Components/ui/button';
 import { Checkbox } from '@/Components/ui/checkbox';
 import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import AuthLayout from '@/Layouts/AuthLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import type { PageProps } from '@/types';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 
 export default function Login({
@@ -13,6 +15,7 @@ export default function Login({
     status?: string;
     canResetPassword: boolean;
 }) {
+    const { site } = usePage<PageProps>().props;
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -28,22 +31,17 @@ export default function Login({
     };
 
     return (
-        <AuthLayout>
+        <AuthLayout title="Masuk" description={`Masuk ke akun ${site.name} ${site.tagline} Anda.`}>
             <Head title="Masuk" />
 
-            <h1 className="mb-1 text-lg font-semibold text-daiku-dark">Masuk</h1>
-            <p className="mb-6 text-sm text-daiku-muted">
-                Masuk ke akun Daiku Interior Enterprise System Anda.
-            </p>
-
             {status && (
-                <div className="mb-4 rounded-md bg-success/10 px-3 py-2 text-sm font-medium text-success">
+                <div className="mb-4 rounded-lg bg-success/10 px-3 py-2 text-sm font-medium text-success-ink">
                     {status}
                 </div>
             )}
 
-            <form onSubmit={submit} className="space-y-4">
-                <div className="space-y-1.5">
+            <form onSubmit={submit} className="space-y-5">
+                <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
                         id="email"
@@ -52,25 +50,27 @@ export default function Login({
                         value={data.email}
                         autoComplete="username"
                         autoFocus
+                        placeholder="nama@daikuinterior.com"
+                        className="h-11"
                         onChange={(e) => setData('email', e.target.value)}
                     />
                     {errors.email && (
-                        <p className="text-sm text-error">{errors.email}</p>
+                        <p className="text-sm text-error-ink">{errors.email}</p>
                     )}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input
+                    <PasswordInput
                         id="password"
-                        type="password"
                         name="password"
                         value={data.password}
                         autoComplete="current-password"
+                        className="h-11"
                         onChange={(e) => setData('password', e.target.value)}
                     />
                     {errors.password && (
-                        <p className="text-sm text-error">{errors.password}</p>
+                        <p className="text-sm text-error-ink">{errors.password}</p>
                     )}
                 </div>
 
@@ -87,14 +87,14 @@ export default function Login({
                     {canResetPassword && (
                         <Link
                             href={route('password.request')}
-                            className="text-sm text-daiku-muted underline-offset-2 hover:text-daiku-dark hover:underline"
+                            className="text-sm font-medium text-foreground underline decoration-daiku-yellow decoration-2 underline-offset-4 hover:decoration-daiku-yellow-dark"
                         >
                             Lupa password?
                         </Link>
                     )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={processing}>
+                <Button type="submit" className="h-11 w-full shadow-md shadow-daiku-yellow-dark/20" disabled={processing}>
                     Masuk
                 </Button>
             </form>

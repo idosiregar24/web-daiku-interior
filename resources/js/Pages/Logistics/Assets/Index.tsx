@@ -1,18 +1,17 @@
 import { AssetFormDialog, CONDITION_LABELS } from '@/Components/modules/logistics/AssetFormDialog';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
+import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import type { Asset, AssetCondition, PaginatedData } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { AlertTriangle, Download, Package, Pencil, Plus, Trash2, Wallet } from 'lucide-react';
+import { AlertTriangle, Download, Package, Pencil, Plus, Trash2, Wallet, Warehouse } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface AssetIndexProps {
@@ -120,6 +119,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
 
             <PageHeader
                 title="Aset Inventaris"
+                icon={Warehouse}
                 description="Alat, mesin, dan kendaraan perusahaan beserta kondisi dan lokasinya."
                 actions={
                     <>
@@ -145,7 +145,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-3">
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <StatCard label="Jumlah Aset" value={summary.totalItems} icon={Package} />
                 <StatCard label="Total Nilai Aset" value={formatRupiahCompact(summary.totalValue)} icon={Wallet} />
                 <StatCard
@@ -156,50 +156,55 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                 />
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Cari nama atau lokasi…"
-                    className="w-full sm:w-64"
-                    aria-label="Cari aset"
-                />
-                <Select
-                    value={filters.condition ?? 'all'}
-                    onValueChange={(value) => applyFilter({ condition: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Filter kondisi">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua kondisi</SelectItem>
-                        {(Object.keys(CONDITION_LABELS) as AssetCondition[]).map((condition) => (
-                            <SelectItem key={condition} value={condition}>
-                                {CONDITION_LABELS[condition]}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Select
-                    value={filters.category ?? 'all'}
-                    onValueChange={(value) => applyFilter({ category: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Filter kategori">
-                        <SelectValue placeholder="Semua kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua kategori</SelectItem>
-                        {categories.map((category) => (
-                            <SelectItem key={category} value={category}>
-                                {category}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <DataTable columns={columns} data={assets.data} emptyMessage="Belum ada aset." />
-            <Pagination paginator={assets} />
+            <DataTable
+                columns={columns}
+                data={assets.data}
+                emptyMessage="Belum ada aset."
+                pagination={assets}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <SearchInput
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Cari nama atau lokasi…"
+                            className="w-full sm:w-64"
+                            aria-label="Cari aset"
+                        />
+                        <Select
+                            value={filters.condition ?? 'all'}
+                            onValueChange={(value) => applyFilter({ condition: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-40" aria-label="Filter kondisi">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua kondisi</SelectItem>
+                                {(Object.keys(CONDITION_LABELS) as AssetCondition[]).map((condition) => (
+                                    <SelectItem key={condition} value={condition}>
+                                        {CONDITION_LABELS[condition]}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={filters.category ?? 'all'}
+                            onValueChange={(value) => applyFilter({ category: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-44" aria-label="Filter kategori">
+                                <SelectValue placeholder="Semua kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua kategori</SelectItem>
+                                {categories.map((category) => (
+                                    <SelectItem key={category} value={category}>
+                                        {category}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
+            />
 
             {canManage && (
                 <AssetFormDialog open={formOpen} onOpenChange={setFormOpen} asset={editing} categories={categories} />

@@ -3,11 +3,13 @@ import { cn } from '@/lib/utils';
 
 type Tone = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
+// Tinted background in the status hue, text in its darker "ink" step
+// (app.css) so small chip labels stay legible.
 const TONE_CLASS: Record<Tone, string> = {
-    success: 'bg-success/10 text-success',
-    warning: 'bg-warning/10 text-warning',
-    error: 'bg-error/10 text-error',
-    info: 'bg-info/10 text-info',
+    success: 'bg-success/10 text-success-ink',
+    warning: 'bg-warning/15 text-warning-ink',
+    error: 'bg-error/10 text-error-ink',
+    info: 'bg-info/10 text-info-ink',
     neutral: 'bg-daiku-gray text-daiku-muted',
 };
 
@@ -93,16 +95,24 @@ interface StatusChipProps {
     status: string;
     /** Override the auto-generated label (e.g. a nicer Indonesian phrase). */
     label?: string;
+    /** Force a tone for states outside the domain unions (e.g. user Aktif/Nonaktif). */
+    tone?: StatusTone;
     className?: string;
 }
 
-export function StatusChip({ status, label, className }: StatusChipProps) {
-    const tone = STATUS_TONE[status] ?? 'neutral';
+export type StatusTone = Tone;
+
+export function StatusChip({ status, label, tone: toneOverride, className }: StatusChipProps) {
+    const tone = toneOverride ?? STATUS_TONE[status] ?? 'neutral';
 
     return (
         <Badge
             variant="secondary"
-            className={cn(TONE_CLASS[tone], 'border-transparent font-medium', className)}
+            className={cn(
+                TONE_CLASS[tone],
+                'h-5.5 rounded-md border-transparent px-2 font-medium',
+                className,
+            )}
         >
             {label ?? humanize(status)}
         </Badge>

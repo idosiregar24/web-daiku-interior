@@ -1,8 +1,13 @@
 import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { DetailItem, DetailList } from '@/Components/shared/DetailList';
+import { ProgressBar } from '@/Components/shared/ProgressBar';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { MilestoneCalendar } from '@/Components/modules/projects/MilestoneCalendar';
 import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
@@ -29,7 +34,20 @@ import type {
     User,
 } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { FileDown, Plus } from 'lucide-react';
+import {
+    Activity,
+    FileDown,
+    Flag,
+    FolderKanban,
+    Info,
+    LayoutDashboard,
+    ListChecks,
+    Package,
+    PieChart,
+    Plus,
+    Receipt,
+    Wallet,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface ProjectShowProps {
@@ -75,37 +93,26 @@ function OverviewTab({ project, progressLogs }: { project: Project; progressLogs
     const latestPercentage = progressLogs[0]?.percentage ?? 0;
 
     return (
-        <div className="space-y-4">
-            <Card>
-                <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-3">
+            <SectionCard title="Informasi Proyek" icon={Info} className="lg:col-span-2">
+                <DetailList>
                     {fields.map((field) => (
-                        <div key={field.label}>
-                            <p className="text-xs text-daiku-muted">{field.label}</p>
-                            <p className="text-sm font-medium text-daiku-dark">{field.value}</p>
-                        </div>
+                        <DetailItem key={field.label} label={field.label} valueClassName="font-medium">
+                            {field.value}
+                        </DetailItem>
                     ))}
-                </CardContent>
-            </Card>
+                </DetailList>
+            </SectionCard>
 
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="mb-2 flex items-center justify-between">
-                        <p className="text-sm font-medium text-daiku-dark">Progress Keseluruhan</p>
-                        <p className="text-sm font-semibold text-daiku-dark">{latestPercentage}%</p>
-                    </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-daiku-gray">
-                        <div
-                            className="h-full rounded-full bg-info transition-[width]"
-                            style={{ width: `${Math.min(latestPercentage, 100)}%` }}
-                        />
-                    </div>
-                    {progressLogs[0] && (
-                        <p className="mt-2 text-xs text-daiku-muted">
-                            Update terakhir: {progressLogs[0].description} ({formatDate(progressLogs[0].log_date)})
-                        </p>
-                    )}
-                </CardContent>
-            </Card>
+            <SectionCard title="Progress Keseluruhan" icon={Activity}>
+                <p className="text-4xl leading-none font-semibold tracking-tight text-foreground">{latestPercentage}%</p>
+                <ProgressBar value={latestPercentage} label="Progress keseluruhan proyek" className="mt-4" />
+                {progressLogs[0] && (
+                    <p className="mt-3 text-xs text-daiku-muted">
+                        Update terakhir: {progressLogs[0].description} ({formatDate(progressLogs[0].log_date)})
+                    </p>
+                )}
+            </SectionCard>
         </div>
     );
 }
@@ -126,9 +133,7 @@ function MilestoneTab({
 
     if (!canView) {
         return (
-            <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                Anda tidak punya akses untuk melihat milestone proyek ini.
-            </p>
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat milestone proyek ini." />
         );
     }
 
@@ -164,9 +169,7 @@ function MilestoneTab({
             )}
 
             {milestones.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada milestone.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada milestone." />
             ) : (
                 <Tabs defaultValue="gantt">
                     <TabsList>
@@ -221,35 +224,48 @@ function TaskAssigneeTable({
     const doneCount = tasks.filter((t) => t.status === 'DONE').length;
 
     return (
-        <div className="overflow-hidden rounded-lg border border-daiku-border">
-            <div className="flex items-center justify-between bg-daiku-yellow-light px-3 py-2">
-                <p className="text-sm font-semibold text-daiku-dark">{assigneeName}</p>
-                <p className="text-xs text-daiku-muted">
-                    {doneCount}/{tasks.length} selesai
+        <TableCard>
+            <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
+                <p className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
+                    <span className="flex size-7 items-center justify-center rounded-full bg-daiku-yellow-light text-xs font-semibold text-daiku-yellow-dark">
+                        {assigneeName.slice(0, 1).toUpperCase()}
+                    </span>
+                    {assigneeName}
                 </p>
+                <div className="flex w-40 items-center gap-2">
+                    <ProgressBar
+                        value={tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0}
+                        label={`Task selesai ${assigneeName}`}
+                        tone="success"
+                        className="flex-1"
+                    />
+                    <p className="shrink-0 text-xs text-daiku-muted tabular-nums">
+                        {doneCount}/{tasks.length} selesai
+                    </p>
+                </div>
             </div>
             <table className="w-full text-sm">
-                <thead>
-                    <tr className="border-b border-daiku-border text-daiku-muted">
-                        <th className="p-2 text-left font-medium">Judul</th>
-                        <th className="p-2 text-left font-medium">Milestone</th>
-                        <th className="p-2 text-left font-medium">Status</th>
-                        <th className="p-2 text-left font-medium">Prioritas</th>
-                        <th className="p-2 text-left font-medium">Jatuh Tempo</th>
-                        <th className="w-32 p-2" />
+                <thead className={TABLE_HEAD_CLASS}>
+                    <tr>
+                        <th className="px-4 py-2.5 text-left font-semibold">Judul</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Milestone</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Prioritas</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Jatuh Tempo</th>
+                        <th className="w-32 px-4 py-2.5" />
                     </tr>
                 </thead>
                 <tbody>
                     {tasks.map((task) => (
-                        <tr key={task.id} className="border-t border-daiku-border">
-                            <td className="p-2 font-medium">{task.title}</td>
-                            <td className="p-2 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
-                            <td className="p-2">
+                        <tr key={task.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                            <td className="px-4 py-3 font-medium">{task.title}</td>
+                            <td className="px-4 py-3 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
+                            <td className="px-4 py-3">
                                 <StatusChip status={task.status} />
                             </td>
-                            <td className="p-2 text-daiku-muted">{task.priority}</td>
-                            <td className="p-2 text-daiku-muted">{formatDate(task.due_date)}</td>
-                            <td className="p-2">
+                            <td className="px-4 py-3 text-daiku-muted">{task.priority}</td>
+                            <td className="px-4 py-3 text-daiku-muted">{formatDate(task.due_date)}</td>
+                            <td className="px-4 py-3">
                                 {canManage && (
                                     <Button variant="outline" size="sm" onClick={() => onStatusClick(task)}>
                                         Update Status
@@ -260,7 +276,7 @@ function TaskAssigneeTable({
                     ))}
                 </tbody>
             </table>
-        </div>
+        </TableCard>
     );
 }
 
@@ -320,9 +336,7 @@ function TaskTab({
             )}
 
             {groups.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada task.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada task." />
             ) : (
                 <Tabs defaultValue="assignee">
                     <TabsList>
@@ -379,9 +393,7 @@ function ProgressTab({
 
     if (!canView) {
         return (
-            <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                Anda tidak punya akses untuk melihat progress log proyek ini.
-            </p>
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat progress log proyek ini." />
         );
     }
 
@@ -430,9 +442,7 @@ function FinanceTab({
 
     if (!canView) {
         return (
-            <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                Anda tidak punya akses untuk melihat termin proyek ini.
-            </p>
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat termin proyek ini." />
         );
     }
 
@@ -443,55 +453,56 @@ function FinanceTab({
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2">
                 <AllocationCard project={project} lines={allocationBreakdown} />
                 <SupplierDebtCard debts={supplierDebts} />
             </div>
 
             <div>
-            <h2 className="mb-3 text-sm font-semibold text-daiku-dark">Termin</h2>
-            {canCreate && (
-                <div className="mb-4 flex justify-end">
+            <div className="mb-3 flex items-center justify-between gap-4">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Wallet className="size-4 text-muted-foreground" />
+                    Termin
+                </h2>
+                {canCreate && (
                     <Button size="sm" onClick={() => setDialogOpen(true)}>
                         <Plus className="size-4" />
                         Jadwalkan Termin
                     </Button>
-                </div>
-            )}
+                )}
+            </div>
 
             {termins.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada termin dijadwalkan.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada termin dijadwalkan." />
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-daiku-border">
+                <TableCard>
                     <table className="w-full text-sm">
-                        <thead className="bg-daiku-yellow-light">
+                        <thead className={TABLE_HEAD_CLASS}>
                             <tr>
-                                <th className="p-2 text-left font-medium">Termin</th>
-                                <th className="p-2 text-left font-medium">Milestone</th>
-                                <th className="p-2 text-left font-medium">Jadwal (Sabtu)</th>
-                                <th className="p-2 text-right font-medium">Persentase</th>
-                                <th className="p-2 text-right font-medium">Nominal</th>
-                                <th className="p-2 text-right font-medium">DP</th>
-                                <th className="p-2 text-right font-medium">Pelunasan</th>
-                                <th className="p-2 text-right font-medium">Sisa Piutang</th>
-                                <th className="p-2 text-left font-medium">Status</th>
-                                <th className="w-40 p-2" />
+                                <th className="px-4 py-2.5 text-left font-semibold">Termin</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Milestone</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Jadwal (Sabtu)</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Persentase</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Nominal</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">DP</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Pelunasan</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Sisa Piutang</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                <th className="w-40 px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody>
                             {termins.map((termin) => (
-                                <tr key={termin.id} className="border-t border-daiku-border">
-                                    <td className="p-2 font-medium">#{termin.termin_number}</td>
-                                    <td className="p-2 text-daiku-muted">{termin.milestone?.name ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
-                                    <td className="p-2 text-right text-daiku-muted">{termin.percentage}%</td>
-                                    <td className="p-2 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
-                                    <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
-                                    <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
-                                    <td className="p-2 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
-                                    <td className="p-2">
+                                <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 font-medium">#{termin.termin_number}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{termin.milestone?.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
+                                    <td className="px-4 py-3 text-right text-daiku-muted">{termin.percentage}%</td>
+                                    <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
+                                    <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
+                                    <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
+                                    <td className="px-4 py-3 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
+                                    <td className="px-4 py-3">
                                         <div className="flex flex-wrap gap-1">
                                             <StatusChip status={termin.status} />
                                             {Number(termin.dp_amount) + Number(termin.pelunasan) > 0 &&
@@ -500,7 +511,7 @@ function FinanceTab({
                                                 )}
                                         </div>
                                     </td>
-                                    <td className="p-2">
+                                    <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <Button variant="outline" size="icon-sm" asChild>
                                                 <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
@@ -518,7 +529,7 @@ function FinanceTab({
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableCard>
             )}
 
             </div>
@@ -542,32 +553,30 @@ function AllocationCard({ project, lines }: { project: Project; lines: FinanceAl
     const totalPercentage = lines.reduce((sum, line) => sum + line.percentage, 0);
 
     return (
-        <Card>
-            <CardContent>
-                <h2 className="text-sm font-semibold text-daiku-dark">Alokasi Anggaran</h2>
-                <p className="mb-3 text-xs text-daiku-muted">
-                    Dari nilai kontrak {formatRupiah(project.contract_value)}.
-                </p>
-                {lines.length === 0 ? (
-                    <p className="text-sm text-daiku-muted">Belum ada konfigurasi alokasi aktif.</p>
-                ) : (
-                    <dl className="space-y-1 text-sm">
-                        {lines.map((line) => (
-                            <div key={line.label} className="flex justify-between gap-4">
-                                <dt className="text-daiku-muted">
-                                    {line.label} ({line.percentage.toLocaleString('id-ID')}%)
-                                </dt>
-                                <dd>{formatRupiah(line.amount)}</dd>
-                            </div>
-                        ))}
-                        <div className="flex justify-between gap-4 border-t border-daiku-border pt-1 font-medium">
-                            <dt>Total ({totalPercentage.toLocaleString('id-ID')}%)</dt>
-                            <dd>{formatRupiah(total)}</dd>
+        <SectionCard
+            title="Alokasi Anggaran"
+            icon={PieChart}
+            description={`Dari nilai kontrak ${formatRupiah(project.contract_value)}.`}
+        >
+            {lines.length === 0 ? (
+                <p className="text-sm text-daiku-muted">Belum ada konfigurasi alokasi aktif.</p>
+            ) : (
+                <dl className="divide-y divide-border text-sm">
+                    {lines.map((line) => (
+                        <div key={line.label} className="flex justify-between gap-4 py-2 first:pt-0">
+                            <dt className="text-daiku-muted">
+                                {line.label} ({line.percentage.toLocaleString('id-ID')}%)
+                            </dt>
+                            <dd className="tabular-nums">{formatRupiah(line.amount)}</dd>
                         </div>
-                    </dl>
-                )}
-            </CardContent>
-        </Card>
+                    ))}
+                    <div className="flex justify-between gap-4 pt-2 font-semibold">
+                        <dt>Total ({totalPercentage.toLocaleString('id-ID')}%)</dt>
+                        <dd className="tabular-nums">{formatRupiah(total)}</dd>
+                    </div>
+                </dl>
+            )}
+    </SectionCard>
     );
 }
 
@@ -576,37 +585,33 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
     const total = debts.reduce((sum, debt) => sum + Number(debt.remaining), 0);
 
     return (
-        <Card>
-            <CardContent>
-                <h2 className="text-sm font-semibold text-daiku-dark">Hutang Supplier Belum Lunas</h2>
-                <p className="mb-3 text-xs text-daiku-muted">Total sisa {formatRupiah(total)}.</p>
-                {debts.length === 0 ? (
-                    <p className="text-sm text-daiku-muted">Tidak ada hutang supplier untuk proyek ini.</p>
-                ) : (
-                    <ul className="space-y-2 text-sm">
-                        {debts.map((debt) => (
-                            <li key={debt.id} className="flex items-center justify-between gap-4">
-                                <div>
-                                    <Link
-                                        href={route('finance.supplierDebts.show', { supplierDebt: debt.id })}
-                                        className="font-medium text-daiku-dark hover:underline"
-                                    >
-                                        {debt.supplier_name}
-                                    </Link>
-                                    <p className="text-xs text-daiku-muted">
-                                        Jatuh tempo {formatDate(debt.due_date)}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="font-medium">{formatRupiah(debt.remaining)}</span>
-                                    {debt.status && <StatusChip status={debt.status} label={SUPPLIER_DEBT_LABEL[debt.status]} />}
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </CardContent>
-        </Card>
+        <SectionCard title="Hutang Supplier Belum Lunas" icon={Receipt} description={`Total sisa ${formatRupiah(total)}.`}>
+            {debts.length === 0 ? (
+                <p className="text-sm text-daiku-muted">Tidak ada hutang supplier untuk proyek ini.</p>
+            ) : (
+                <ul className="divide-y divide-border text-sm">
+                    {debts.map((debt) => (
+                        <li key={debt.id} className="flex items-center justify-between gap-4 py-2.5 first:pt-0 last:pb-0">
+                            <div>
+                                <Link
+                                    href={route('finance.supplierDebts.show', { supplierDebt: debt.id })}
+                                    className="font-medium text-daiku-dark hover:underline"
+                                >
+                                    {debt.supplier_name}
+                                </Link>
+                                <p className="text-xs text-daiku-muted">
+                                    Jatuh tempo {formatDate(debt.due_date)}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-medium">{formatRupiah(debt.remaining)}</span>
+                                {debt.status && <StatusChip status={debt.status} label={SUPPLIER_DEBT_LABEL[debt.status]} />}
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            )}
+    </SectionCard>
     );
 }
 
@@ -651,23 +656,46 @@ export default function ProjectShow({
 
             <PageHeader
                 title={project.name}
+                icon={FolderKanban}
                 description={project.lead?.client_name ? `Klien: ${project.lead.client_name}` : undefined}
                 actions={<StatusChip status={project.status} />}
             />
 
             <Tabs defaultValue="overview">
-                <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="milestone">Milestone</TabsTrigger>
-                    {canViewTasks && <TabsTrigger value="task">Task</TabsTrigger>}
-                    <TabsTrigger value="progress">Progress</TabsTrigger>
-                    <TabsTrigger value="finance">Finance</TabsTrigger>
-                    {canViewMaterials && <TabsTrigger value="material">Material</TabsTrigger>}
-                </TabsList>
-                <TabsContent value="overview" className="mt-4">
+                <UnderlineTabsList>
+                    <TabsTrigger value="overview">
+                        <LayoutDashboard />
+                        Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="milestone">
+                        <Flag />
+                        Milestone
+                    </TabsTrigger>
+                    {canViewTasks && (
+                        <TabsTrigger value="task">
+                            <ListChecks />
+                            Task
+                        </TabsTrigger>
+                    )}
+                    <TabsTrigger value="progress">
+                        <Activity />
+                        Progress
+                    </TabsTrigger>
+                    <TabsTrigger value="finance">
+                        <Wallet />
+                        Finance
+                    </TabsTrigger>
+                    {canViewMaterials && (
+                        <TabsTrigger value="material">
+                            <Package />
+                            Material
+                        </TabsTrigger>
+                    )}
+                </UnderlineTabsList>
+                <TabsContent value="overview" className="mt-6">
                     <OverviewTab project={project} progressLogs={progressLogs} />
                 </TabsContent>
-                <TabsContent value="milestone" className="mt-4">
+                <TabsContent value="milestone" className="mt-6">
                     <MilestoneTab
                         project={project}
                         milestones={milestones}
@@ -675,7 +703,7 @@ export default function ProjectShow({
                         canManage={canManageMilestones}
                     />
                 </TabsContent>
-                <TabsContent value="task" className="mt-4">
+                <TabsContent value="task" className="mt-6">
                     <TaskTab
                         project={project}
                         milestones={milestones}
@@ -684,7 +712,7 @@ export default function ProjectShow({
                         fieldStaff={fieldStaff}
                     />
                 </TabsContent>
-                <TabsContent value="progress" className="mt-4">
+                <TabsContent value="progress" className="mt-6">
                     <ProgressTab
                         project={project}
                         progressLogs={progressLogs}
@@ -692,7 +720,7 @@ export default function ProjectShow({
                         canManage={canManageProgressLogs}
                     />
                 </TabsContent>
-                <TabsContent value="finance" className="mt-4">
+                <TabsContent value="finance" className="mt-6">
                     <FinanceTab
                         project={project}
                         milestones={milestones}
@@ -706,7 +734,7 @@ export default function ProjectShow({
                     />
                 </TabsContent>
                 {canViewMaterials && (
-                    <TabsContent value="material" className="mt-4">
+                    <TabsContent value="material" className="mt-6">
                         <ProjectMaterialsPanel
                             project={project}
                             items={projectMaterials}

@@ -29,7 +29,7 @@ export default function ResetPassword({
     };
 
     return (
-        <AuthLayout>
+        <AuthLayout title="Atur Ulang Password">
             <Head title="Reset Password" />
 
             <form onSubmit={submit}>

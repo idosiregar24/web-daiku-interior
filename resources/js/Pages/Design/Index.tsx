@@ -1,4 +1,3 @@
-import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -13,6 +12,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Design, DesignStatus, PaginatedData } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { Palette } from 'lucide-react';
 
 interface DesignIndexProps {
     designs: PaginatedData<Design & { lead: { id: number; client_name: string } }>;
@@ -61,7 +61,7 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
                 <span>
                     {new Date(design.deadline).toLocaleDateString('id-ID')}
                     {design.delay_hari > 0 && (
-                        <span className="ml-2 text-xs font-medium text-error">+{design.delay_hari}h</span>
+                        <span className="ml-2 text-xs font-medium text-error-ink">+{design.delay_hari}h</span>
                     )}
                 </span>
             );
@@ -94,34 +94,36 @@ export default function DesignIndex({ designs, filters }: DesignIndexProps) {
 
             <PageHeader
                 title="Desain"
+                icon={Palette}
                 description="Daftar proyek desain — dibuka dari lead CRM berstatus DEAL_DESAIN."
             />
-
-            <div className="mb-4">
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="sm:w-56">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
 
             <DataTable
                 columns={columns}
                 data={designs.data}
                 emptyMessage="Belum ada proyek desain. Buka dari lead CRM berstatus DEAL_DESAIN."
+                pagination={designs}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="sm:w-56">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
             />
-            <Pagination paginator={designs} />
         </AppLayout>
     );
 }

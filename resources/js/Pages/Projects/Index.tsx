@@ -1,5 +1,4 @@
 import { formatRupiah } from '@/lib/format';
-import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -14,6 +13,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Project, User } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { FolderKanban } from 'lucide-react';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
@@ -78,55 +78,57 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
 
             <PageHeader
                 title="Proyek"
+                icon={FolderKanban}
                 description="Daftar proyek eksekusi — dibuat otomatis saat lead dikonfirmasi Deal dari CRM."
             />
-
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ status: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-48">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status.replace('_', ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={filters.pm_id ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ pm_id: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-56">
-                        <SelectValue placeholder="Semua PM" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua Project Manager</SelectItem>
-                        {projectManagers.map((pm) => (
-                            <SelectItem key={pm.id} value={String(pm.id)}>
-                                {pm.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
 
             <DataTable
                 columns={columns}
                 data={projects.data}
                 emptyMessage="Belum ada proyek. Proyek baru muncul saat lead dikonfirmasi Deal dari CRM."
+                pagination={projects}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ status: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-48">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status.replace('_', ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.pm_id ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ pm_id: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-56">
+                                <SelectValue placeholder="Semua PM" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua Project Manager</SelectItem>
+                                {projectManagers.map((pm) => (
+                                    <SelectItem key={pm.id} value={String(pm.id)}>
+                                        {pm.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
             />
-            <Pagination paginator={projects} />
         </AppLayout>
     );
 }

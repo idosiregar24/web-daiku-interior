@@ -25,6 +25,7 @@ class AuditLogController extends Controller
         'penalty' => 'Penalti',
         'user' => 'User',
         'analytics' => 'Target',
+        'settings' => 'Pengaturan Situs',
     ];
 
     public function index(Request $request): Response

@@ -1,4 +1,3 @@
-import { Pagination } from '@/Components/shared/Pagination';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -15,6 +14,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Milestone, PageProps, PaginatedData, Task, TaskStatus, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { ListChecks } from 'lucide-react';
 import { useState } from 'react';
 
 interface TasksIndexProps {
@@ -100,7 +100,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                 const isOverdue = row.original.status === 'OVER';
 
                 return (
-                    <span className={isOverdue ? 'font-medium text-error' : ''}>
+                    <span className={isOverdue ? 'font-medium text-error-ink' : ''}>
                         {formatDate(row.original.due_date)}
                     </span>
                 );
@@ -123,6 +123,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
 
             <PageHeader
                 title="Task"
+                icon={ListChecks}
                 description={
                     isFieldStaff
                         ? 'Daftar task yang di-assign ke Anda.'
@@ -130,71 +131,72 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                 }
             />
 
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="sm:w-44">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                {canAssign && (
-                    <>
-                        <Select
-                            value={filters.assignee_id ?? 'all'}
-                            onValueChange={(value) => applyFilter({ assignee_id: value === 'all' ? undefined : value })}
-                        >
-                            <SelectTrigger className="sm:w-52">
-                                <SelectValue placeholder="Semua tukang" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua tukang</SelectItem>
-                                {fieldStaff.map((staff) => (
-                                    <SelectItem key={staff.id} value={String(staff.id)}>
-                                        {staff.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <Select
-                            value={filters.milestone_id ?? 'all'}
-                            onValueChange={(value) => applyFilter({ milestone_id: value === 'all' ? undefined : value })}
-                        >
-                            <SelectTrigger className="sm:w-64">
-                                <SelectValue placeholder="Semua milestone" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua milestone</SelectItem>
-                                {milestones.map((milestone) => (
-                                    <SelectItem key={milestone.id} value={String(milestone.id)}>
-                                        {milestone.project?.name} — {milestone.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </>
-                )}
-            </div>
-
             <DataTable
                 columns={columns}
                 data={tasks.data}
                 emptyMessage="Belum ada task."
+                pagination={tasks}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="sm:w-44">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        {canAssign && (
+                            <>
+                                <Select
+                                    value={filters.assignee_id ?? 'all'}
+                                    onValueChange={(value) => applyFilter({ assignee_id: value === 'all' ? undefined : value })}
+                                >
+                                    <SelectTrigger className="sm:w-52">
+                                        <SelectValue placeholder="Semua tukang" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua tukang</SelectItem>
+                                        {fieldStaff.map((staff) => (
+                                            <SelectItem key={staff.id} value={String(staff.id)}>
+                                                {staff.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <Select
+                                    value={filters.milestone_id ?? 'all'}
+                                    onValueChange={(value) => applyFilter({ milestone_id: value === 'all' ? undefined : value })}
+                                >
+                                    <SelectTrigger className="sm:w-64">
+                                        <SelectValue placeholder="Semua milestone" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua milestone</SelectItem>
+                                        {milestones.map((milestone) => (
+                                            <SelectItem key={milestone.id} value={String(milestone.id)}>
+                                                {milestone.project?.name} — {milestone.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </>
+                        )}
+                    </div>
+                }
             />
 
             <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
-            <Pagination paginator={tasks} />
         </AppLayout>
     );
 }

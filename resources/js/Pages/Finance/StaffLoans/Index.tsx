@@ -1,7 +1,6 @@
 import { STAFF_LOAN_STATUS_LABEL, staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -96,6 +95,7 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
 
             <PageHeader
                 title="Pinjaman Tukang"
+                icon={HandCoins}
                 description="Kasbon tukang dan sisa cicilan yang dipotong dari upah per task."
                 actions={
                     canManage && (
@@ -109,7 +109,7 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-3">
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <StatCard label="Total Pinjaman" value={formatRupiah(summary.totalAmount)} icon={HandCoins} />
                 <StatCard
                     label="Total Sisa Pinjaman"
@@ -120,41 +120,46 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
                 <StatCard label="Pinjaman Berjalan" value={summary.ongoingCount} icon={Users} />
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Select
-                    value={filters.staff_id ?? 'all'}
-                    onValueChange={(value) => applyFilter({ staff_id: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-56">
-                        <SelectValue placeholder="Semua tukang" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua tukang</SelectItem>
-                        {staff.map((member) => (
-                            <SelectItem key={member.id} value={String(member.id)}>
-                                {member.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            <DataTable
+                columns={columns}
+                data={loans.data}
+                emptyMessage="Belum ada pinjaman tukang."
+                pagination={loans}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                            value={filters.staff_id ?? 'all'}
+                            onValueChange={(value) => applyFilter({ staff_id: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-56">
+                                <SelectValue placeholder="Semua tukang" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua tukang</SelectItem>
+                                {staff.map((member) => (
+                                    <SelectItem key={member.id} value={String(member.id)}>
+                                        {member.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
 
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-44">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        <SelectItem value="BERJALAN">Berjalan</SelectItem>
-                        <SelectItem value="LUNAS">Lunas</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <DataTable columns={columns} data={loans.data} emptyMessage="Belum ada pinjaman tukang." />
-            <Pagination paginator={loans} />
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-44">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                <SelectItem value="BERJALAN">Berjalan</SelectItem>
+                                <SelectItem value="LUNAS">Lunas</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
+            />
         </AppLayout>
     );
 }

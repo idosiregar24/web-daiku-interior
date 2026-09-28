@@ -17,6 +17,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, Link, router } from '@inertiajs/react';
+import { HandCoins } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -86,11 +87,12 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
 
             <PageHeader
                 title="Catat Pinjaman Tukang"
+                icon={HandCoins}
                 description="Dana pinjaman dicatat sebagai pengeluaran (PINJAMAN) dari rekening yang dipilih."
             />
 
             <Card className="max-w-lg">
-                <CardContent className="pt-6">
+                <CardContent className="px-5 py-2 sm:px-6">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField

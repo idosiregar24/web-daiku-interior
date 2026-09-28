@@ -1,7 +1,9 @@
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
 import {
     Dialog,
     DialogClose,
@@ -30,6 +32,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { DailyTaskForm, Task, TaskStatus } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
+import { CheckCircle2, ClipboardCheck, ClipboardList } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -172,6 +175,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
 
             <PageHeader
                 title="Form Harian"
+                icon={ClipboardCheck}
                 description={
                     isFieldStaff
                         ? 'Isi form harian untuk setiap task aktif sebelum jam 21:00 WIB.'
@@ -183,70 +187,79 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                             type="date"
                             value={date}
                             onChange={(e) => applyDate(e.target.value)}
-                            className="h-8 rounded-lg border border-daiku-border px-2.5 text-sm"
+                            className="h-8 rounded-lg border-input bg-background px-2.5 text-sm shadow-xs focus:border-ring focus:ring-3 focus:ring-ring/50"
                         />
                     )
                 }
             />
 
             {isFieldStaff && (
-                <Card className="mb-4">
-                    <CardContent className="pt-6">
-                        <h3 className="mb-3 text-sm font-medium text-daiku-dark">Task Aktif Belum Diisi Hari Ini</h3>
-                        {pendingTasks.length === 0 ? (
-                            <p className="text-sm text-daiku-muted">
-                                Semua task aktif sudah diisi form hari ini. 🎉
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {pendingTasks.map((task) => (
-                                    <div
-                                        key={task.id}
-                                        className="flex items-center justify-between gap-4 rounded-lg border border-daiku-border p-3"
-                                    >
-                                        <div>
-                                            <p className="text-sm font-medium text-daiku-dark">{task.title}</p>
-                                            <p className="text-xs text-daiku-muted">{task.project?.name}</p>
-                                        </div>
-                                        <Button size="sm" onClick={() => setActiveTask(task)}>
-                                            Isi Form
-                                        </Button>
+                <SectionCard
+                    title="Task Aktif Belum Diisi Hari Ini"
+                    icon={ClipboardList}
+                    className="mb-6"
+                    action={
+                        pendingTasks.length > 0 && (
+                            <span className="rounded-md bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning-ink tabular-nums">
+                                {pendingTasks.length} belum diisi
+                            </span>
+                        )
+                    }
+                >
+                    {pendingTasks.length === 0 ? (
+                        <p className="flex items-center gap-2 text-sm text-success-ink">
+                            <CheckCircle2 className="size-4" />
+                            Semua task aktif sudah diisi form hari ini. 🎉
+                        </p>
+                    ) : (
+                        <div className="space-y-2">
+                            {pendingTasks.map((task) => (
+                                <div
+                                    key={task.id}
+                                    className="flex items-center justify-between gap-4 rounded-lg border border-border p-3 transition-colors hover:border-daiku-muted/40 hover:bg-daiku-yellow-light/40"
+                                >
+                                    <div>
+                                        <p className="text-sm font-medium text-daiku-dark">{task.title}</p>
+                                        <p className="text-xs text-daiku-muted">{task.project?.name}</p>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                    <Button size="sm" onClick={() => setActiveTask(task)}>
+                                        Isi Form
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </SectionCard>
             )}
 
-            <div className="overflow-hidden rounded-lg border border-daiku-border">
+            <TableCard>
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="p-2 text-left font-medium">Task</th>
-                            {!isFieldStaff && <th className="p-2 text-left font-medium">Tukang</th>}
-                            <th className="p-2 text-left font-medium">Status</th>
-                            <th className="p-2 text-left font-medium">Kendala</th>
-                            <th className="p-2 text-left font-medium">Disubmit</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Task</th>
+                            {!isFieldStaff && <th className="px-4 py-2.5 text-left font-semibold">Tukang</th>}
+                            <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Kendala</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Disubmit</th>
                         </tr>
                     </thead>
                     <tbody>
                         {forms.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="p-6 text-center text-daiku-muted">
-                                    Belum ada form harian untuk tanggal ini.
+                                <td colSpan={5} className="p-0">
+                                    <EmptyState title="Belum ada form harian untuk tanggal ini." />
                                 </td>
                             </tr>
                         ) : (
                             forms.map((form) => (
-                                <tr key={form.id} className="border-t border-daiku-border">
-                                    <td className="p-2 font-medium">{form.task?.title ?? '—'}</td>
-                                    {!isFieldStaff && <td className="p-2 text-daiku-muted">{form.staff?.name ?? '—'}</td>}
-                                    <td className="p-2">
+                                <tr key={form.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 font-medium">{form.task?.title ?? '—'}</td>
+                                    {!isFieldStaff && <td className="px-4 py-3 text-daiku-muted">{form.staff?.name ?? '—'}</td>}
+                                    <td className="px-4 py-3">
                                         <StatusChip status={form.status_update} />
                                     </td>
-                                    <td className="p-2 text-daiku-muted">{form.kendala ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">
+                                    <td className="px-4 py-3 text-daiku-muted">{form.kendala ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">
                                         {new Date(form.submitted_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                                     </td>
                                 </tr>
@@ -254,7 +267,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                         )}
                     </tbody>
                 </table>
-            </div>
+            </TableCard>
 
             <SubmitFormDialog task={activeTask} open={!!activeTask} onOpenChange={(open) => !open && setActiveTask(null)} />
         </AppLayout>

@@ -1,10 +1,9 @@
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
+import { SearchInput } from '@/Components/shared/SearchInput';
+import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
@@ -17,7 +16,7 @@ import {
 } from '@/Components/modules/finance/supplierDebtStatus';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Eye, Plus } from 'lucide-react';
+import { AlarmClock, Eye, Plus, Receipt } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SupplierDebtIndexProps {
@@ -75,7 +74,7 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
             cell: ({ row }) => (
                 <span
                     className={cn(
-                        row.original.status === 'JATUH_TEMPO' ? 'font-medium text-error' : 'text-daiku-muted',
+                        row.original.status === 'JATUH_TEMPO' ? 'font-medium text-error-ink' : 'text-daiku-muted',
                     )}
                 >
                     {formatDate(row.original.due_date)}
@@ -102,9 +101,9 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
                     className={cn(
                         'text-right font-semibold',
                         row.original.status === 'JATUH_TEMPO'
-                            ? 'text-error'
+                            ? 'text-error-ink'
                             : row.original.status === 'LUNAS'
-                              ? 'text-success'
+                              ? 'text-success-ink'
                               : 'text-daiku-dark',
                     )}
                 >
@@ -135,6 +134,7 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
 
             <PageHeader
                 title="Hutang Supplier"
+                icon={Receipt}
                 description="Tracking hutang ke supplier beserta riwayat pembayarannya."
                 actions={
                     canManage && (
@@ -148,50 +148,53 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-2">
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Sisa Hutang ({summary.outstandingCount} hutang)</p>
-                        <p className="text-lg font-semibold text-daiku-dark">{formatRupiah(summary.totalOutstanding)}</p>
-                    </CardContent>
-                </Card>
-                <Card className={cn(summary.overdueCount > 0 && 'border-error/40 bg-error/5')}>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Lewat Jatuh Tempo ({summary.overdueCount} hutang)</p>
-                        <p className={cn('text-lg font-semibold', summary.overdueCount > 0 ? 'text-error' : 'text-daiku-dark')}>
-                            {formatRupiah(summary.overdueTotal)}
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Cari nama supplier..."
-                    className="w-full sm:w-64"
+            <div className="mb-6 grid gap-4 sm:grid-cols-2">
+                <StatCard
+                    label={`Total Sisa Hutang (${summary.outstandingCount} hutang)`}
+                    value={formatRupiah(summary.totalOutstanding)}
+                    icon={Receipt}
                 />
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-48">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {(Object.keys(SUPPLIER_DEBT_STATUS_LABELS) as SupplierDebtDisplayStatus[]).map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {SUPPLIER_DEBT_STATUS_LABELS[status]}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <StatCard
+                    label={`Lewat Jatuh Tempo (${summary.overdueCount} hutang)`}
+                    value={formatRupiah(summary.overdueTotal)}
+                    icon={AlarmClock}
+                    tone={summary.overdueCount > 0 ? 'error' : 'default'}
+                    className={cn(summary.overdueCount > 0 && 'bg-error/5 ring-error/40')}
+                />
             </div>
 
-            <DataTable columns={columns} data={debts.data} emptyMessage="Belum ada hutang supplier." />
-            <Pagination paginator={debts} />
+            <DataTable
+                columns={columns}
+                data={debts.data}
+                emptyMessage="Belum ada hutang supplier."
+                pagination={debts}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <SearchInput
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Cari nama supplier..."
+                            className="w-full sm:w-64"
+                        />
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-48">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {(Object.keys(SUPPLIER_DEBT_STATUS_LABELS) as SupplierDebtDisplayStatus[]).map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {SUPPLIER_DEBT_STATUS_LABELS[status]}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
+            />
         </AppLayout>
     );
 }

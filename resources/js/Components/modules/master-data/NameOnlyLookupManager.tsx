@@ -1,4 +1,6 @@
 import { Button } from '@/Components/ui/button';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import {
     Dialog,
     DialogClose,
@@ -154,35 +156,33 @@ export function NameOnlyLookupManager({
             </div>
 
             {items.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    {emptyMessage}
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title={emptyMessage} />
             ) : (
-                <div className="overflow-hidden rounded-lg border border-daiku-border">
+                <TableCard>
                     <table className="w-full text-sm">
-                        <thead className="bg-daiku-yellow-light">
+                        <thead className={TABLE_HEAD_CLASS}>
                             <tr>
-                                <th className="p-2 text-left font-medium">Nama</th>
-                                <th className="w-20 p-2" />
+                                <th className="px-4 py-2.5 text-left font-semibold">Nama</th>
+                                <th className="w-20 px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody>
                             {items.map((item) => (
-                                <tr key={item.id} className="border-t border-daiku-border">
-                                    <td className="p-2">{item.name}</td>
-                                    <td className="flex justify-end gap-1 p-2">
+                                <tr key={item.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3">{item.name}</td>
+                                    <td className="flex justify-end gap-1 px-4 py-3">
                                         <Button variant="ghost" size="icon-sm" onClick={() => openEdit(item)}>
                                             <Pencil className="size-4" />
                                         </Button>
                                         <Button variant="ghost" size="icon-sm" onClick={() => onDelete(item)}>
-                                            <Trash2 className="size-4 text-error" />
+                                            <Trash2 className="size-4 text-error-ink" />
                                         </Button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableCard>
             )}
         </div>
     );

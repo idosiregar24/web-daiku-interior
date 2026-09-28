@@ -1,9 +1,10 @@
 import { formatRupiah } from '@/lib/format';
-import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import {
     Dialog,
     DialogClose,
@@ -34,7 +35,7 @@ import type { BankAccount, OvertimeRequest, OvertimeStatus, PageProps, Paginated
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Clock, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -340,6 +341,7 @@ export default function OvertimeIndex({
 
             <PageHeader
                 title="Lembur"
+                icon={Clock}
                 description={
                     isFieldStaff
                         ? 'Pengajuan lembur Anda.'
@@ -355,59 +357,62 @@ export default function OvertimeIndex({
                 }
             />
 
-            <div className="mb-4">
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="sm:w-56">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <div className="overflow-hidden rounded-lg border border-daiku-border">
+            <TableCard
+                pagination={overtimeRequests}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="sm:w-56">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
+            >
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            {!isFieldStaff && <th className="p-2 text-left font-medium">Tukang</th>}
-                            <th className="p-2 text-left font-medium">Proyek</th>
-                            <th className="p-2 text-left font-medium">Tanggal</th>
-                            <th className="p-2 text-left font-medium">Jam</th>
-                            <th className="p-2 text-right font-medium">Total</th>
-                            <th className="p-2 text-left font-medium">Status</th>
-                            <th className="w-48 p-2" />
+                            {!isFieldStaff && <th className="px-4 py-2.5 text-left font-semibold">Tukang</th>}
+                            <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Tanggal</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Jam</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Total</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                            <th className="w-48 px-4 py-2.5" />
                         </tr>
                     </thead>
                     <tbody>
                         {overtimeRequests.data.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="p-6 text-center text-daiku-muted">
-                                    Belum ada pengajuan lembur.
+                                <td colSpan={7} className="p-0">
+                                    <EmptyState title="Belum ada pengajuan lembur." />
                                 </td>
                             </tr>
                         ) : (
                             overtimeRequests.data.map((overtime) => (
-                                <tr key={overtime.id} className="border-t border-daiku-border">
-                                    {!isFieldStaff && <td className="p-2 font-medium">{overtime.staff?.name ?? '—'}</td>}
-                                    <td className="p-2 text-daiku-muted">{overtime.project?.name ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">
+                                <tr key={overtime.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    {!isFieldStaff && <td className="px-4 py-3 font-medium">{overtime.staff?.name ?? '—'}</td>}
+                                    <td className="px-4 py-3 text-daiku-muted">{overtime.project?.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">
                                         {new Date(overtime.work_date).toLocaleDateString('id-ID')}
                                     </td>
-                                    <td className="p-2 text-daiku-muted">{overtime.hours} jam</td>
-                                    <td className="p-2 text-right font-medium text-daiku-dark">{formatRupiah(overtime.total_amount)}</td>
-                                    <td className="p-2">
+                                    <td className="px-4 py-3 text-daiku-muted">{overtime.hours} jam</td>
+                                    <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(overtime.total_amount)}</td>
+                                    <td className="px-4 py-3">
                                         <StatusChip status={overtime.status} />
                                     </td>
-                                    <td className="p-2">
+                                    <td className="px-4 py-3">
                                         <div className="flex justify-end gap-1">
                                             {canPmDecide && overtime.status === 'PENDING' && (
                                                 <>
@@ -436,7 +441,7 @@ export default function OvertimeIndex({
                         )}
                     </tbody>
                 </table>
-            </div>
+            </TableCard>
 
             {canSubmit && <RequestOvertimeDialog open={requestOpen} onOpenChange={setRequestOpen} projects={projects} />}
             {decision && (
@@ -448,7 +453,6 @@ export default function OvertimeIndex({
                     onOpenChange={(open) => !open && setDecision(null)}
                 />
             )}
-            <Pagination paginator={overtimeRequests} />
         </AppLayout>
     );
 }

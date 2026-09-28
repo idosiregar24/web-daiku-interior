@@ -2,7 +2,7 @@ import { MaterialFormDialog } from '@/Components/modules/logistics/MaterialFormD
 import { StockMovementDialog } from '@/Components/modules/logistics/StockMovementDialog';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
+import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatCard } from '@/Components/shared/StatCard';
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
@@ -13,7 +13,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/Components/ui/dropdown-menu';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import AppLayout from '@/Layouts/AppLayout';
@@ -119,7 +118,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
             header: 'Margin',
             cell: ({ row }) => (
                 <div className="tabular-nums">
-                    <p className={cn('font-medium', row.original.margin < 0 ? 'text-error' : 'text-success')}>
+                    <p className={cn('font-medium', row.original.margin < 0 ? 'text-error-ink' : 'text-success-ink')}>
                         {formatRupiah(row.original.margin)}
                     </p>
                     {row.original.margin_percent !== null && (
@@ -136,13 +135,13 @@ export default function MaterialIndex({ materials, filters, categories, summary,
 
                 return (
                     <div className="flex items-center gap-2 tabular-nums">
-                        <span className={cn('font-medium', material.is_low_stock && 'text-error')}>
+                        <span className={cn('font-medium', material.is_low_stock && 'text-error-ink')}>
                             {material.stock} {material.unit}
                         </span>
                         {material.is_low_stock && (
                             <Badge
                                 variant="secondary"
-                                className="border-transparent bg-error/10 text-error"
+                                className="border-transparent bg-error/10 text-error-ink"
                                 title={`Di bawah stok minimum (${material.min_stock} ${material.unit})`}
                             >
                                 <AlertTriangle className="size-3" />
@@ -215,6 +214,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
 
             <PageHeader
                 title="Material"
+                icon={Boxes}
                 description="Daftar material, harga modal & jual, margin, dan stok."
                 actions={
                     <>
@@ -234,7 +234,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Jumlah Material" value={summary.totalItems} icon={Boxes} />
                 <StatCard
                     label="Stok di Bawah Minimum"
@@ -252,45 +252,6 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                 />
             </div>
 
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-                <Input
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Cari nama material…"
-                    className="w-full sm:w-64"
-                    aria-label="Cari material"
-                />
-                <Select
-                    value={filters.category || 'all'}
-                    onValueChange={(value) => applyFilter({ category: value === 'all' ? '' : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Filter kategori">
-                        <SelectValue placeholder="Semua kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua kategori</SelectItem>
-                        {categories.map((category) => (
-                            <SelectItem key={category} value={category}>
-                                {category}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <label className="flex items-center gap-2 text-sm text-daiku-dark">
-                    <Switch
-                        checked={filters.low_stock}
-                        onCheckedChange={(checked) => applyFilter({ low_stock: checked })}
-                    />
-                    Hanya stok menipis
-                </label>
-                <Button variant="ghost" size="sm" asChild className="ml-auto">
-                    <Link href={route('logistics.stock-movements.index')}>
-                        <History className="size-4" />
-                        Riwayat Stok
-                    </Link>
-                </Button>
-            </div>
-
             <DataTable
                 columns={columns}
                 data={materials.data}
@@ -299,8 +260,48 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                         ? 'Tidak ada material yang cocok dengan filter.'
                         : 'Belum ada material.'
                 }
+                pagination={materials}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <SearchInput
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Cari nama material…"
+                            className="w-full sm:w-64"
+                            aria-label="Cari material"
+                        />
+                        <Select
+                            value={filters.category || 'all'}
+                            onValueChange={(value) => applyFilter({ category: value === 'all' ? '' : value })}
+                        >
+                            <SelectTrigger className="w-44" aria-label="Filter kategori">
+                                <SelectValue placeholder="Semua kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua kategori</SelectItem>
+                                {categories.map((category) => (
+                                    <SelectItem key={category} value={category}>
+                                        {category}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <label className="flex h-8 items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-foreground">
+                            <Switch
+                                checked={filters.low_stock}
+                                onCheckedChange={(checked) => applyFilter({ low_stock: checked })}
+                            />
+                            Hanya stok menipis
+                        </label>
+                        <Button variant="ghost" size="sm" asChild className="ml-auto">
+                            <Link href={route('logistics.stock-movements.index')}>
+                                <History className="size-4" />
+                                Riwayat Stok
+                            </Link>
+                        </Button>
+                    </div>
+                }
             />
-            <Pagination paginator={materials} />
 
             {canManage && (
                 <>

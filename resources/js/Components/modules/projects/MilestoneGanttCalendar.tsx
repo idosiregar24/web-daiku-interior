@@ -98,7 +98,7 @@ export function MilestoneGanttCalendar({
     const todayPct = today >= rangeStart && today <= rangeEnd ? pct(today) : null;
 
     return (
-        <div className="rounded-lg border border-daiku-border bg-white p-4">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
             <div className="mb-4 flex flex-wrap items-center gap-4 text-xs text-daiku-muted">
                 {LEGEND.map((entry) => (
                     <span key={entry.status} className="flex items-center gap-1.5">
@@ -187,7 +187,7 @@ export function MilestoneGanttCalendar({
                                                         <Pencil className="size-4" />
                                                     </Button>
                                                     <Button variant="ghost" size="icon-sm" onClick={() => onDelete(milestone)}>
-                                                        <Trash2 className="size-4 text-error" />
+                                                        <Trash2 className="size-4 text-error-ink" />
                                                     </Button>
                                                 </>
                                             )}

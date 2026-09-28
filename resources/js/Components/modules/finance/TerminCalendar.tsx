@@ -37,9 +37,9 @@ const DOT_CLASS: Record<TerminStatus, string> = {
 
 const CHIP_CLASS: Record<TerminStatus, string> = {
     SCHEDULED: 'bg-daiku-gray text-daiku-muted hover:bg-daiku-border',
-    INVOICED: 'bg-info/15 text-info hover:bg-info/25',
-    PAID: 'bg-success/15 text-success hover:bg-success/25',
-    OVERDUE: 'bg-error/15 text-error hover:bg-error/25',
+    INVOICED: 'bg-info/15 text-info-ink hover:bg-info/25',
+    PAID: 'bg-success/15 text-success-ink hover:bg-success/25',
+    OVERDUE: 'bg-error/15 text-error-ink hover:bg-error/25',
 };
 
 const LEGEND: { status: TerminStatus; label: string }[] = [

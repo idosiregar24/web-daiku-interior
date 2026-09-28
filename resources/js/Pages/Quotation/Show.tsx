@@ -1,8 +1,10 @@
 import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import {
     Form,
     FormControl,
@@ -16,7 +18,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Quotation } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
-import { FileDown, Plus, Trash2 } from 'lucide-react';
+import { BadgeCheck, Calculator, FileDown, FileText, History, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -120,6 +122,7 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
 
             <PageHeader
                 title={`Quotation: ${quotation.lead.client_name}`}
+                icon={FileText}
                 description={`Versi ${quotation.version} · dibuat dari desain yang sudah di-ACC klien.`}
                 actions={
                     <div className="flex items-center gap-2">
@@ -134,235 +137,223 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
                 }
             />
 
-            <Card>
-                <CardContent className="pt-6">
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
-                            <div className="overflow-x-auto rounded-lg border border-daiku-border">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-daiku-yellow-light">
+            <SectionCard title="Rincian RAB" icon={Calculator} description="Item pekerjaan, volume, dan harga satuan penawaran.">
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
+                        <TableCard>
+                            <table className="w-full text-sm">
+                                <thead className={TABLE_HEAD_CLASS}>
+                                    <tr>
+                                        <th className="px-3 py-2.5 text-left font-semibold">Deskripsi</th>
+                                        <th className="w-24 px-4 py-2.5 text-left font-semibold">Qty</th>
+                                        <th className="w-28 px-4 py-2.5 text-left font-semibold">Satuan</th>
+                                        <th className="w-40 px-4 py-2.5 text-left font-semibold">Harga Satuan</th>
+                                        <th className="w-40 px-4 py-2.5 text-right font-semibold">Total</th>
+                                        {editable && <th className="w-12 px-4 py-2.5" />}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {fields.length === 0 ? (
                                         <tr>
-                                            <th className="p-2 text-left font-medium">Deskripsi</th>
-                                            <th className="w-24 p-2 text-left font-medium">Qty</th>
-                                            <th className="w-28 p-2 text-left font-medium">Satuan</th>
-                                            <th className="w-40 p-2 text-left font-medium">Harga Satuan</th>
-                                            <th className="w-40 p-2 text-right font-medium">Total</th>
-                                            {editable && <th className="w-12 p-2" />}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {fields.length === 0 ? (
-                                            <tr>
-                                                <td colSpan={6} className="p-6 text-center text-daiku-muted">
-                                                    Belum ada item RAB.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            fields.map((item, index) => {
-                                                const qty = Number(watchedItems[index]?.qty) || 0;
-                                                const price = Number(watchedItems[index]?.unit_price) || 0;
-
-                                                return (
-                                                    <tr key={item.id} className="border-t border-daiku-border align-top">
-                                                        <td className="p-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.description`}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormControl>
-                                                                            <Input {...field} disabled={!editable} placeholder="mis. Kitchen Set Custom" />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.qty`}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormControl>
-                                                                            <Input type="number" min="1" {...field} disabled={!editable} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.unit`}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormControl>
-                                                                            <Input {...field} disabled={!editable} placeholder="unit" />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </td>
-                                                        <td className="p-2">
-                                                            <FormField
-                                                                control={form.control}
-                                                                name={`items.${index}.unit_price`}
-                                                                render={({ field }) => (
-                                                                    <FormItem>
-                                                                        <FormControl>
-                                                                            <Input type="number" min="0" step="0.01" {...field} disabled={!editable} />
-                                                                        </FormControl>
-                                                                        <FormMessage />
-                                                                    </FormItem>
-                                                                )}
-                                                            />
-                                                        </td>
-                                                        <td className="p-2 text-right font-medium text-daiku-dark">
-                                                            {formatRupiah(qty * price)}
-                                                        </td>
-                                                        {editable && (
-                                                            <td className="p-2">
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon-sm"
-                                                                    onClick={() => remove(index)}
-                                                                >
-                                                                    <Trash2 className="size-4 text-error" />
-                                                                </Button>
-                                                            </td>
-                                                        )}
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr className="border-t border-daiku-border bg-daiku-gray">
-                                            <td colSpan={4} className="p-2 text-right font-semibold">
-                                                Total
+                                            <td colSpan={6} className="p-0">
+                                                <EmptyState title="Belum ada item RAB." />
                                             </td>
-                                            <td className="p-2 text-right font-semibold text-daiku-dark">
-                                                {formatRupiah(total)}
-                                            </td>
-                                            {editable && <td />}
                                         </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
+                                    ) : (
+                                        fields.map((item, index) => {
+                                            const qty = Number(watchedItems[index]?.qty) || 0;
+                                            const price = Number(watchedItems[index]?.unit_price) || 0;
 
-                            {form.formState.errors.items?.message && (
-                                <p className="text-sm text-destructive">{form.formState.errors.items.message}</p>
-                            )}
+                                            return (
+                                                <tr key={item.id} className="border-t border-daiku-border align-top">
+                                                    <td className="px-3 py-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.description`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input {...field} disabled={!editable} placeholder="mis. Kitchen Set Custom" />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.qty`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input type="number" min="1" {...field} disabled={!editable} />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.unit`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input {...field} disabled={!editable} placeholder="unit" />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <FormField
+                                                            control={form.control}
+                                                            name={`items.${index}.unit_price`}
+                                                            render={({ field }) => (
+                                                                <FormItem>
+                                                                    <FormControl>
+                                                                        <Input type="number" min="0" step="0.01" {...field} disabled={!editable} />
+                                                                    </FormControl>
+                                                                    <FormMessage />
+                                                                </FormItem>
+                                                            )}
+                                                        />
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right font-medium text-daiku-dark">
+                                                        {formatRupiah(qty * price)}
+                                                    </td>
+                                                    {editable && (
+                                                        <td className="px-3 py-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon-sm"
+                                                                onClick={() => remove(index)}
+                                                            >
+                                                                <Trash2 className="size-4 text-error-ink" />
+                                                            </Button>
+                                                        </td>
+                                                    )}
+                                                </tr>
+                                            );
+                                        })
+                                    )}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="border-t border-border bg-daiku-gray/70">
+                                        <td colSpan={4} className="px-4 py-3 text-right font-semibold">
+                                            Total
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-semibold text-daiku-dark">
+                                            {formatRupiah(total)}
+                                        </td>
+                                        {editable && <td />}
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </TableCard>
 
-                            {editable && (
-                                <div className="flex flex-wrap items-center justify-between gap-2">
+                        {form.formState.errors.items?.message && (
+                            <p className="text-sm text-destructive">{form.formState.errors.items.message}</p>
+                        )}
+
+                        {editable && (
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => append({ description: '', qty: '1', unit: '', unit_price: '0' })}
+                                >
+                                    <Plus className="size-4" />
+                                    Tambah Item
+                                </Button>
+
+                                <div className="flex gap-2">
+                                    <Button type="submit" variant="outline" disabled={form.formState.isSubmitting}>
+                                        Simpan RAB
+                                    </Button>
                                     <Button
                                         type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => append({ description: '', qty: '1', unit: '', unit_price: '0' })}
+                                        onClick={onSubmitForReview}
+                                        disabled={fields.length === 0}
                                     >
-                                        <Plus className="size-4" />
-                                        Tambah Item
+                                        Submit ke CEO
                                     </Button>
-
-                                    <div className="flex gap-2">
-                                        <Button type="submit" variant="outline" disabled={form.formState.isSubmitting}>
-                                            Simpan RAB
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            onClick={onSubmitForReview}
-                                            disabled={fields.length === 0}
-                                        >
-                                            Submit ke CEO
-                                        </Button>
-                                    </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {!isDraft && (
-                                <p className="text-sm text-daiku-muted">
-                                    Quotation sudah disubmit — item RAB tidak bisa diubah lagi.
-                                </p>
-                            )}
-                        </form>
-                    </Form>
-                </CardContent>
-            </Card>
+                        {!isDraft && (
+                            <p className="text-sm text-daiku-muted">
+                                Quotation sudah disubmit — item RAB tidak bisa diubah lagi.
+                            </p>
+                        )}
+                    </form>
+                </Form>
+            </SectionCard>
 
             {(canCeoDecide || canPmDecide) && (quotation.status === 'SUBMITTED' || quotation.status === 'CEO_REVIEW') && (
-                <Card className="mt-4">
-                    <CardHeader>
-                        <CardTitle className="text-base">Approval</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {canCeoDecide && quotation.status === 'SUBMITTED' && (
-                            <div className="flex items-center gap-2">
-                                <p className="flex-1 text-sm text-daiku-muted">Menunggu review CEO.</p>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setDecisionDialog({ role: 'CEO', decision: 'reject' })}
-                                >
-                                    Tolak
-                                </Button>
-                                <Button size="sm" onClick={() => setDecisionDialog({ role: 'CEO', decision: 'approve' })}>
-                                    Setujui (CEO)
-                                </Button>
-                            </div>
-                        )}
-                        {canPmDecide && quotation.status === 'CEO_REVIEW' && (
-                            <div className="flex items-center gap-2">
-                                <p className="flex-1 text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setDecisionDialog({ role: 'PM', decision: 'reject' })}
-                                >
-                                    Tolak
-                                </Button>
-                                <Button size="sm" onClick={() => setDecisionDialog({ role: 'PM', decision: 'approve' })}>
-                                    Setujui (PM)
-                                </Button>
-                            </div>
-                        )}
-                        {!canCeoDecide && quotation.status === 'SUBMITTED' && (
-                            <p className="text-sm text-daiku-muted">Menunggu review CEO.</p>
-                        )}
-                        {!canPmDecide && quotation.status === 'CEO_REVIEW' && (
-                            <p className="text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
-                        )}
-                    </CardContent>
-                </Card>
+                <SectionCard title="Approval" icon={BadgeCheck} className="mt-6">
+                    {canCeoDecide && quotation.status === 'SUBMITTED' && (
+                        <div className="flex items-center gap-2">
+                            <p className="flex-1 text-sm text-daiku-muted">Menunggu review CEO.</p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDecisionDialog({ role: 'CEO', decision: 'reject' })}
+                            >
+                                Tolak
+                            </Button>
+                            <Button size="sm" onClick={() => setDecisionDialog({ role: 'CEO', decision: 'approve' })}>
+                                Setujui (CEO)
+                            </Button>
+                        </div>
+                    )}
+                    {canPmDecide && quotation.status === 'CEO_REVIEW' && (
+                        <div className="flex items-center gap-2">
+                            <p className="flex-1 text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setDecisionDialog({ role: 'PM', decision: 'reject' })}
+                            >
+                                Tolak
+                            </Button>
+                            <Button size="sm" onClick={() => setDecisionDialog({ role: 'PM', decision: 'approve' })}>
+                                Setujui (PM)
+                            </Button>
+                        </div>
+                    )}
+                    {!canCeoDecide && quotation.status === 'SUBMITTED' && (
+                        <p className="text-sm text-daiku-muted">Menunggu review CEO.</p>
+                    )}
+                    {!canPmDecide && quotation.status === 'CEO_REVIEW' && (
+                        <p className="text-sm text-daiku-muted">CEO sudah menyetujui — menunggu review PM.</p>
+                    )}
+                </SectionCard>
             )}
 
             {quotation.approvals && quotation.approvals.length > 0 && (
-                <Card className="mt-4">
-                    <CardHeader>
-                        <CardTitle className="text-base">Riwayat Approval</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        {quotation.approvals.map((approval) => (
-                            <div key={approval.id} className="flex items-start justify-between gap-4 border-b border-daiku-border pb-3 last:border-0 last:pb-0">
-                                <div>
-                                    <p className="text-sm font-medium text-daiku-dark">
-                                        {approval.approver?.name ?? '—'} ({approval.approver_role})
-                                    </p>
-                                    {approval.note && <p className="text-sm text-daiku-muted">{approval.note}</p>}
-                                    <p className="text-xs text-daiku-muted">
-                                        {new Date(approval.created_at).toLocaleString('id-ID')}
-                                    </p>
-                                </div>
-                                <StatusChip status={approval.status} />
+                <SectionCard title="Riwayat Approval" icon={History} className="mt-6" contentClassName="space-y-3">
+                    {quotation.approvals.map((approval) => (
+                        <div key={approval.id} className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
+                            <div>
+                                <p className="text-sm font-medium text-daiku-dark">
+                                    {approval.approver?.name ?? '—'} ({approval.approver_role})
+                                </p>
+                                {approval.note && <p className="text-sm text-daiku-muted">{approval.note}</p>}
+                                <p className="text-xs text-daiku-muted">
+                                    {new Date(approval.created_at).toLocaleString('id-ID')}
+                                </p>
                             </div>
-                        ))}
-                    </CardContent>
-                </Card>
+                            <StatusChip status={approval.status} />
+                        </div>
+                    ))}
+                </SectionCard>
             )}
 
             {decisionDialog && (

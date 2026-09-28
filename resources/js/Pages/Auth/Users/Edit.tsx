@@ -22,6 +22,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Role, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
+import { UserCog } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -75,10 +76,10 @@ export default function EditUser({ user, roles }: EditUserProps) {
         >
             <Head title={`Edit ${user.name}`} />
 
-            <PageHeader title="Edit User" description={`Perbarui data dan role untuk ${user.name}.`} />
+            <PageHeader title="Edit User" icon={UserCog} description={`Perbarui data dan role untuk ${user.name}.`} />
 
             <Card className="max-w-lg">
-                <CardContent className="pt-6">
+                <CardContent className="px-5 py-2 sm:px-6">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField

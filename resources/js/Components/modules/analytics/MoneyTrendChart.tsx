@@ -31,7 +31,12 @@ export function MoneyTrendChart<T extends { label: string }>({ data, series, ari
                     <XAxis dataKey="label" tick={AXIS_TICK} axisLine={{ stroke: VIZ.axis }} tickLine={false} />
                     <YAxis tickFormatter={rupiahAxisFormatter} tick={AXIS_TICK} axisLine={false} tickLine={false} width={72} />
                     <Tooltip content={<RupiahTooltip />} cursor={{ fill: 'var(--color-daiku-gray)' }} />
-                    <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12, color: 'var(--color-daiku-muted)' }} />
+                    <Legend
+                        iconType="square"
+                        iconSize={10}
+                        wrapperStyle={{ fontSize: 12 }}
+                        formatter={(value) => <span className="text-daiku-muted">{value}</span>}
+                    />
                     {series.map((item, index) =>
                         item.kind === 'bar' ? (
                             <Bar
@@ -52,7 +57,7 @@ export function MoneyTrendChart<T extends { label: string }>({ data, series, ari
                                 stroke={colors[index]}
                                 strokeWidth={2}
                                 strokeDasharray="6 4"
-                                dot={{ r: 4, fill: colors[index], stroke: 'white', strokeWidth: 2 }}
+                                dot={{ r: 4, fill: colors[index], stroke: 'var(--color-card)', strokeWidth: 2 }}
                                 connectNulls={false}
                                 isAnimationActive={false}
                             />

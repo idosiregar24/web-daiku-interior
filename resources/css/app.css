@@ -55,6 +55,16 @@
   --color-warning: var(--warning);
   --color-error: var(--error);
   --color-info: var(--info);
+  /*
+   * "Ink" steps of the same four status hues, for TEXT on a tinted status
+   * background (StatusChip, StatCard deltas). The base status colors are
+   * too light to read as small text on white (#22c55e is ~2.3:1); these
+   * clear 4.5:1 while staying the same hue family.
+   */
+  --color-success-ink: var(--success-ink);
+  --color-warning-ink: var(--warning-ink);
+  --color-error-ink: var(--error-ink);
+  --color-info-ink: var(--info-ink);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -136,6 +146,10 @@
     --warning: #f59e0b;
     --error: #ef4444;
     --info: #3b82f6;
+    --success-ink: #15803d;
+    --warning-ink: #b45309;
+    --error-ink: #b91c1c;
+    --info-ink: #1d4ed8;
   }
   .dark {
     --background: oklch(0.145 0 0);
@@ -175,14 +189,46 @@
     --warning: #f59e0b;
     --error: #ef4444;
     --info: #3b82f6;
+    --success-ink: #4ade80;
+    --warning-ink: #fbbf24;
+    --error-ink: #f87171;
+    --info-ink: #60a5fa;
   }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
   }
+}
+
+/* Slim, low-contrast scrollbars for the sidebar / dropdown lists. */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-daiku-border) transparent;
+}
+
+/*
+ * Hairline grid backdrop for brand panels (AuthLayout, dashboard hero).
+ * Drawn from the border token, so it stays inside the Daiku palette.
+ */
+@utility bg-grid-pattern {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-daiku-border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-daiku-border) 55%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Same grid, inked for dark surfaces (AuthLayout's brand panel). */
+@utility bg-grid-pattern-dark {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-daiku-cream) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-daiku-cream) 7%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
 }

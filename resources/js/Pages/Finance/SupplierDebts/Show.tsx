@@ -4,17 +4,20 @@ import {
     type SupplierDebtWithStatus,
 } from '@/Components/modules/finance/supplierDebtStatus';
 import { DataTable } from '@/Components/shared/DataTable';
+import { DetailItem, DetailList } from '@/Components/shared/DetailList';
+import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { BankAccount, PageProps, SupplierDebtPayment } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { AlertTriangle, Wallet } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, FileText, History, Receipt, Wallet } from 'lucide-react';
 import { useState } from 'react';
 
 interface SupplierDebtShowProps {
@@ -31,7 +34,7 @@ const paymentColumns: ColumnDef<SupplierDebtPayment>[] = [
     {
         accessorKey: 'amount',
         header: () => <div className="text-right">Nominal</div>,
-        cell: ({ row }) => <div className="text-right font-medium text-error">-{formatRupiah(row.original.amount)}</div>,
+        cell: ({ row }) => <div className="text-right font-medium text-error-ink">-{formatRupiah(row.original.amount)}</div>,
     },
     {
         id: 'bank_account',
@@ -75,6 +78,7 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
 
             <PageHeader
                 title={debt.supplier_name}
+                icon={Receipt}
                 description={debt.project ? `Proyek: ${debt.project.name}` : 'Tidak terkait proyek'}
                 actions={
                     canManage &&
@@ -88,70 +92,46 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
             />
 
             {isOverdue && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-error/30 bg-error/10 p-3 text-sm text-error">
-                    <AlertTriangle className="size-4 shrink-0" />
+                <Notice tone="error" icon={AlertTriangle} className="mb-6">
                     Hutang ini sudah lewat jatuh tempo ({formatDate(debt.due_date)}) dan masih tersisa{' '}
                     {formatRupiah(debt.remaining)}.
-                </div>
+                </Notice>
             )}
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-3">
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Hutang</p>
-                        <p className="text-lg font-semibold text-daiku-dark">{formatRupiah(debt.total_amount)}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Terbayar</p>
-                        <p className="text-lg font-semibold text-success">{formatRupiah(debt.paid_amount)}</p>
-                    </CardContent>
-                </Card>
-                <Card className={cn(isOverdue && 'border-error/40 bg-error/5')}>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Sisa Hutang</p>
-                        <p className={cn('text-lg font-semibold', isOverdue ? 'text-error' : 'text-daiku-dark')}>
-                            {formatRupiah(debt.remaining)}
-                        </p>
-                    </CardContent>
-                </Card>
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                <StatCard label="Total Hutang" value={formatRupiah(debt.total_amount)} icon={Receipt} />
+                <StatCard label="Terbayar" value={formatRupiah(debt.paid_amount)} icon={CheckCircle2} tone="success" />
+                <StatCard
+                    label="Sisa Hutang"
+                    value={formatRupiah(debt.remaining)}
+                    icon={Wallet}
+                    tone={isOverdue ? 'error' : 'default'}
+                    className={cn(isOverdue && 'bg-error/5 ring-error/40')}
+                />
             </div>
 
-            <Card className="mb-4">
-                <CardHeader>
-                    <CardTitle className="text-base">Detail Hutang</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <dl className="grid gap-4 text-sm sm:grid-cols-2">
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Status</dt>
-                            <dd className="mt-1">
-                                <StatusChip status={debt.status} label={SUPPLIER_DEBT_STATUS_LABELS[debt.status]} />
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Jatuh Tempo</dt>
-                            <dd className={cn('mt-1', isOverdue && 'font-medium text-error')}>
-                                {formatDate(debt.due_date)}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Dicatat oleh</dt>
-                            <dd className="mt-1">
-                                {debt.creator?.name ?? '—'}{' '}
-                                <span className="text-daiku-muted">· {formatDateTime(debt.created_at)}</span>
-                            </dd>
-                        </div>
-                        <div className="sm:col-span-2">
-                            <dt className="text-xs text-daiku-muted">Keterangan</dt>
-                            <dd className="mt-1 whitespace-pre-line">{debt.description || '—'}</dd>
-                        </div>
-                    </dl>
-                </CardContent>
-            </Card>
+            <SectionCard title="Detail Hutang" icon={FileText} className="mb-6">
+                <DetailList>
+                    <DetailItem label="Status">
+                        <StatusChip status={debt.status} label={SUPPLIER_DEBT_STATUS_LABELS[debt.status]} />
+                    </DetailItem>
+                    <DetailItem label="Jatuh Tempo" valueClassName={cn(isOverdue && 'font-medium text-error-ink')}>
+                        {formatDate(debt.due_date)}
+                    </DetailItem>
+                    <DetailItem label="Dicatat oleh">
+                        {debt.creator?.name ?? '—'}{' '}
+                        <span className="text-daiku-muted">· {formatDateTime(debt.created_at)}</span>
+                    </DetailItem>
+                    <DetailItem label="Keterangan" className="sm:col-span-2" valueClassName="whitespace-pre-line">
+                        {debt.description || '—'}
+                    </DetailItem>
+                </DetailList>
+            </SectionCard>
 
-            <h2 className="mb-2 text-sm font-semibold text-daiku-dark">Riwayat Pembayaran</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <History className="size-4 text-muted-foreground" />
+                Riwayat Pembayaran
+            </h2>
             <DataTable
                 columns={paymentColumns}
                 data={debt.payments ?? []}

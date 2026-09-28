@@ -1,4 +1,6 @@
 import { Button } from '@/Components/ui/button';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import {
     Dialog,
     DialogClose,
@@ -153,39 +155,37 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
             </div>
 
             {branches.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada cabang.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada cabang." />
             ) : (
-                <div className="overflow-hidden rounded-lg border border-daiku-border">
+                <TableCard>
                     <table className="w-full text-sm">
-                        <thead className="bg-daiku-yellow-light">
+                        <thead className={TABLE_HEAD_CLASS}>
                             <tr>
-                                <th className="p-2 text-left font-medium">Kode</th>
-                                <th className="p-2 text-left font-medium">Nama</th>
-                                <th className="p-2 text-left font-medium">Alamat</th>
-                                <th className="w-20 p-2" />
+                                <th className="px-4 py-2.5 text-left font-semibold">Kode</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Nama</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Alamat</th>
+                                <th className="w-20 px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody>
                             {branches.map((branch) => (
-                                <tr key={branch.id} className="border-t border-daiku-border">
-                                    <td className="p-2 font-medium">{branch.code}</td>
-                                    <td className="p-2">{branch.name}</td>
-                                    <td className="p-2 text-daiku-muted">{branch.address ?? '—'}</td>
-                                    <td className="flex justify-end gap-1 p-2">
+                                <tr key={branch.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 font-medium">{branch.code}</td>
+                                    <td className="px-4 py-3">{branch.name}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{branch.address ?? '—'}</td>
+                                    <td className="flex justify-end gap-1 px-4 py-3">
                                         <Button variant="ghost" size="icon-sm" onClick={() => openEdit(branch)}>
                                             <Pencil className="size-4" />
                                         </Button>
                                         <Button variant="ghost" size="icon-sm" onClick={() => onDelete(branch)}>
-                                            <Trash2 className="size-4 text-error" />
+                                            <Trash2 className="size-4 text-error-ink" />
                                         </Button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableCard>
             )}
         </div>
     );

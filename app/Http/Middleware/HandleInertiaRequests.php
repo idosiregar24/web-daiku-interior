@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Notification;
+use App\Models\SiteSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -56,6 +57,10 @@ class HandleInertiaRequests extends Middleware
                     ? ['success' => $success, 'error' => $error, 'key' => (string) Str::uuid()]
                     : null;
             },
+            // Web customization (Pengaturan Situs) — name, tagline, logo,
+            // favicon, login-page image/headline. Shared with guests too:
+            // the login page is branded.
+            'site' => fn () => SiteSetting::current()->branding(),
             // Refreshed on every Inertia visit, and live between visits:
             // AppLayout's bell partial-reloads just these two props when
             // a NotificationCreated event lands on the user's Echo channel.

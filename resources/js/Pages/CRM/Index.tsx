@@ -1,7 +1,7 @@
-import { Pagination } from '@/Components/shared/Pagination';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { SearchInput } from '@/Components/shared/SearchInput';
 import { Button } from '@/Components/ui/button';
 import {
     DropdownMenu,
@@ -9,7 +9,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/Components/ui/dropdown-menu';
-import { Input } from '@/Components/ui/input';
 import {
     Select,
     SelectContent,
@@ -25,7 +24,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { BarChart3, MoreHorizontal, Plus, Users } from 'lucide-react';
 import { useState } from 'react';
 
 interface LeadIndexProps {
@@ -140,7 +139,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                     !['LOST', 'CLOSING'].includes(row.original.status);
 
                 return (
-                    <span className={isOverdue ? 'font-medium text-error' : ''}>
+                    <span className={isOverdue ? 'font-medium text-error-ink' : ''}>
                         {new Date(date).toLocaleDateString('id-ID')}
                     </span>
                 );
@@ -199,12 +198,16 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
 
             <PageHeader
                 title="Data Lead"
+                icon={Users}
                 description="Kelola calon klien dan pipeline penjualan."
                 actions={
                     <div className="flex items-center gap-2">
                         {(role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN') && (
                             <Button variant="outline" asChild>
-                                <Link href={route('crm.dashboard')}>Statistik Pipeline</Link>
+                                <Link href={route('crm.dashboard')}>
+                                    <BarChart3 className="size-4" />
+                                    Statistik Pipeline
+                                </Link>
                             </Button>
                         )}
                         <Button onClick={openCreate}>
@@ -215,99 +218,101 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 }
             />
 
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Input
-                    placeholder="Cari nama klien..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') applyFilter({ search });
-                    }}
-                    onBlur={() => applyFilter({ search })}
-                    className="sm:max-w-xs"
-                />
-
-                <Select
-                    value={filters.status ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ status: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-48">
-                        <SelectValue placeholder="Semua status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua status</SelectItem>
-                        {STATUS_OPTIONS.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status.replace('_', ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={filters.priority ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ priority: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-48">
-                        <SelectValue placeholder="Semua prioritas" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua prioritas</SelectItem>
-                        {PRIORITY_OPTIONS.map((priority) => (
-                            <SelectItem key={priority} value={priority}>
-                                {priority}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={filters.lead_source_id ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ lead_source_id: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-48">
-                        <SelectValue placeholder="Semua sumber" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua sumber</SelectItem>
-                        {leadSources.map((source) => (
-                            <SelectItem key={source.id} value={String(source.id)}>
-                                {source.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={filters.lead_category_id ?? 'all'}
-                    onValueChange={(value) =>
-                        applyFilter({ lead_category_id: value === 'all' ? undefined : value })
-                    }
-                >
-                    <SelectTrigger className="sm:w-48">
-                        <SelectValue placeholder="Semua kategori" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua kategori</SelectItem>
-                        {leadCategories.map((category) => (
-                            <SelectItem key={category.id} value={String(category.id)}>
-                                {category.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
             <DataTable
                 columns={columns}
                 data={leads.data}
                 emptyMessage="Belum ada lead. Tambah lead baru untuk mulai mengisi pipeline."
+                pagination={leads}
+                toolbar={
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <SearchInput
+                            placeholder="Cari nama klien..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') applyFilter({ search });
+                            }}
+                            onBlur={() => applyFilter({ search })}
+                            className="sm:max-w-xs"
+                        />
+
+                        <Select
+                            value={filters.status ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ status: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-48">
+                                <SelectValue placeholder="Semua status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua status</SelectItem>
+                                {STATUS_OPTIONS.map((status) => (
+                                    <SelectItem key={status} value={status}>
+                                        {status.replace('_', ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.priority ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ priority: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-48">
+                                <SelectValue placeholder="Semua prioritas" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua prioritas</SelectItem>
+                                {PRIORITY_OPTIONS.map((priority) => (
+                                    <SelectItem key={priority} value={priority}>
+                                        {priority}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.lead_source_id ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ lead_source_id: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-48">
+                                <SelectValue placeholder="Semua sumber" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua sumber</SelectItem>
+                                {leadSources.map((source) => (
+                                    <SelectItem key={source.id} value={String(source.id)}>
+                                        {source.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
+                        <Select
+                            value={filters.lead_category_id ?? 'all'}
+                            onValueChange={(value) =>
+                                applyFilter({ lead_category_id: value === 'all' ? undefined : value })
+                            }
+                        >
+                            <SelectTrigger className="sm:w-48">
+                                <SelectValue placeholder="Semua kategori" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua kategori</SelectItem>
+                                {leadCategories.map((category) => (
+                                    <SelectItem key={category.id} value={String(category.id)}>
+                                        {category.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                }
             />
 
             <LeadFormDialog
@@ -333,7 +338,6 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                     designers={designers}
                 />
             )}
-            <Pagination paginator={leads} />
         </AppLayout>
     );
 }

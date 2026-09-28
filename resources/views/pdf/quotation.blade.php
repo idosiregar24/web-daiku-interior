@@ -21,6 +21,9 @@
 </head>
 <body>
     <div class="header">
+        @if($logo = $siteSettings->logoDataUri())
+            <img src="{{ $logo }}" alt="" style="height: 40px; margin-bottom: 8px;">
+        @endif
         <h1>{{ $siteSettings->site_name ?? 'Daiku Interior' }}</h1>
         <p class="muted">
             @if($siteSettings->company_address) {{ $siteSettings->company_address }}<br>@endif

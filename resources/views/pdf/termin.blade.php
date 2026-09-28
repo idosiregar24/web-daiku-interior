@@ -21,7 +21,10 @@
 </head>
 <body>
     <div class="header">
-        <h1>Daiku Interior</h1>
+        @if($logo = $siteSettings->logoDataUri())
+            <img src="{{ $logo }}" alt="" style="height: 40px; margin-bottom: 8px;">
+        @endif
+        <h1>{{ $siteSettings->site_name ?? 'Daiku Interior' }}</h1>
         <p class="muted">Invoice Pembayaran Termin</p>
     </div>
 
@@ -96,7 +99,7 @@
     </table>
 
     <p class="footer">
-        Dokumen ini dihasilkan otomatis oleh sistem Daiku Interior pada {{ now()->translatedFormat('d F Y, H:i') }} WIB.
+        Dokumen ini dihasilkan otomatis oleh sistem {{ $siteSettings->site_name ?? 'Daiku Interior' }} pada {{ now()->translatedFormat('d F Y, H:i') }} WIB.
     </p>
 </body>
 </html>

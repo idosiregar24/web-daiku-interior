@@ -1,13 +1,13 @@
-import { Pagination } from '@/Components/shared/Pagination';
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { StatusChip } from '@/Components/shared/StatusChip';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Role, User } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus, UserCog } from 'lucide-react';
 
 interface UserWithRoles extends User {
     roles: { id: number; name: Role }[];
@@ -18,29 +18,42 @@ interface UsersIndexProps {
 }
 
 const columns: ColumnDef<UserWithRoles>[] = [
-    { accessorKey: 'name', header: 'Nama' },
+    {
+        accessorKey: 'name',
+        header: 'Nama',
+        cell: ({ row }) => (
+            <span className="flex items-center gap-2.5">
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-daiku-yellow-light text-[11px] font-semibold text-daiku-yellow-dark">
+                    {row.original.name
+                        .split(' ')
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join('')
+                        .toUpperCase()}
+                </span>
+                <span className="font-medium text-foreground">{row.original.name}</span>
+            </span>
+        ),
+    },
     { accessorKey: 'email', header: 'Email' },
     {
         id: 'role',
         header: 'Role',
         cell: ({ row }) => (
-            <Badge variant="secondary">{row.original.roles[0]?.name ?? '—'}</Badge>
+            <Badge variant="outline" className="rounded-md font-mono text-[11px]">
+                {row.original.roles[0]?.name ?? '—'}
+            </Badge>
         ),
     },
     {
         id: 'is_active',
         header: 'Status',
         cell: ({ row }) => (
-            <Badge
-                variant="secondary"
-                className={
-                    row.original.is_active
-                        ? 'bg-success/10 text-success'
-                        : 'bg-error/10 text-error'
-                }
-            >
-                {row.original.is_active ? 'Aktif' : 'Nonaktif'}
-            </Badge>
+            <StatusChip
+                status={row.original.is_active ? 'ACTIVE_USER' : 'INACTIVE_USER'}
+                tone={row.original.is_active ? 'success' : 'error'}
+                label={row.original.is_active ? 'Aktif' : 'Nonaktif'}
+            />
         ),
     },
     {
@@ -63,10 +76,14 @@ export default function UsersIndex({ users }: UsersIndexProps) {
 
             <PageHeader
                 title="User Management"
+                icon={UserCog}
                 description="Kelola akun pengguna dan role RBAC (khusus CEO)."
                 actions={
                     <Button asChild>
-                        <Link href={route('users.create')}>Tambah User</Link>
+                        <Link href={route('users.create')}>
+                            <Plus className="size-4" />
+                            Tambah User
+                        </Link>
                     </Button>
                 }
             />
@@ -75,8 +92,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                 columns={columns}
                 data={users.data}
                 emptyMessage="Belum ada user selain akun awal."
+                pagination={users}
             />
-            <Pagination paginator={users} />
         </AppLayout>
     );
 }

@@ -1,6 +1,7 @@
 import { formatRupiah } from '@/lib/format';
-import { Pagination } from '@/Components/shared/Pagination';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -17,6 +18,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, PageProps, PaginatedData, Task } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
+import { Banknote } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -53,49 +55,52 @@ export default function StaffPaymentsIndex({ tasks, bankAccounts }: StaffPayment
 
             <PageHeader
                 title="Upah Tukang"
+                icon={Banknote}
                 description="Task DONE dengan rate per task yang belum dibayarkan. Cicilan pinjaman tukang dipotong otomatis."
             />
 
-            <div className="overflow-x-auto rounded-lg border border-daiku-border">
+            <TableCard
+                pagination={tasks}
+            >
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="p-2 text-left font-medium">Task</th>
-                            <th className="p-2 text-left font-medium">Tukang</th>
-                            <th className="p-2 text-left font-medium">Proyek</th>
-                            <th className="p-2 text-left font-medium">Selesai</th>
-                            <th className="p-2 text-right font-medium">Upah</th>
-                            <th className="p-2 text-right font-medium">Potongan Pinjaman</th>
-                            <th className="p-2 text-right font-medium">Dibayar Bersih</th>
-                            <th className="w-24 p-2" />
+                            <th className="px-4 py-2.5 text-left font-semibold">Task</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Tukang</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Selesai</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Upah</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Potongan Pinjaman</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Dibayar Bersih</th>
+                            <th className="w-24 px-4 py-2.5" />
                         </tr>
                     </thead>
                     <tbody>
                         {tasks.data.length === 0 ? (
                             <tr>
-                                <td colSpan={8} className="p-6 text-center text-daiku-muted">
-                                    Tidak ada upah tukang yang perlu dibayar.
+                                <td colSpan={8} className="p-0">
+                                    <EmptyState title="Tidak ada upah tukang yang perlu dibayar." />
                                 </td>
                             </tr>
                         ) : (
                             tasks.data.map((task) => (
-                                <tr key={task.id} className="border-t border-daiku-border">
-                                    <td className="p-2 font-medium">{task.title}</td>
-                                    <td className="p-2 text-daiku-muted">{task.assignee?.name ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">{task.project?.name ?? '—'}</td>
-                                    <td className="p-2 text-daiku-muted">
+                                <tr key={task.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 font-medium">{task.title}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{task.assignee?.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{task.project?.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">
                                         {task.completed_at ? new Date(task.completed_at).toLocaleDateString('id-ID') : '—'}
                                     </td>
-                                    <td className="p-2 text-right">{formatRupiah(task.payment_preview.wage)}</td>
-                                    <td className="p-2 text-right text-daiku-muted">
+                                    <td className="px-4 py-3 text-right">{formatRupiah(task.payment_preview.wage)}</td>
+                                    <td className="px-4 py-3 text-right text-daiku-muted">
                                         {task.payment_preview.deduction > 0
                                             ? `− ${formatRupiah(task.payment_preview.deduction)}`
                                             : '—'}
                                     </td>
-                                    <td className="p-2 text-right font-medium text-daiku-dark">
+                                    <td className="px-4 py-3 text-right font-medium text-daiku-dark">
                                         {formatRupiah(task.payment_preview.net)}
                                     </td>
-                                    <td className="p-2 text-right">
+                                    <td className="px-4 py-3 text-right">
                                         {canPay && (
                                             <Button variant="outline" size="sm" onClick={() => setPaying(task)}>
                                                 Bayar
@@ -107,8 +112,7 @@ export default function StaffPaymentsIndex({ tasks, bankAccounts }: StaffPayment
                         )}
                     </tbody>
                 </table>
-            </div>
-            <Pagination paginator={tasks} />
+            </TableCard>
 
             {canPay && (
                 <PayDialog task={paying} bankAccounts={bankAccounts} onOpenChange={(open) => !open && setPaying(null)} />
@@ -172,7 +176,7 @@ function PayDialog({ task, bankAccounts, onOpenChange }: PayDialogProps) {
                 </DialogHeader>
 
                 {preview && (
-                    <dl className="space-y-1 rounded-lg border border-daiku-border p-3 text-sm">
+                    <dl className="space-y-1.5 rounded-lg bg-daiku-gray/70 p-3 text-sm ring-1 ring-border ring-inset">
                         <div className="flex justify-between">
                             <dt className="text-daiku-muted">Upah</dt>
                             <dd>{formatRupiah(preview.wage)}</dd>
@@ -181,7 +185,7 @@ function PayDialog({ task, bankAccounts, onOpenChange }: PayDialogProps) {
                             <dt className="text-daiku-muted">Potongan cicilan pinjaman</dt>
                             <dd>{preview.deduction > 0 ? `− ${formatRupiah(preview.deduction)}` : '—'}</dd>
                         </div>
-                        <div className="flex justify-between border-t border-daiku-border pt-1 font-medium">
+                        <div className="flex justify-between border-t border-border pt-1.5 font-semibold">
                             <dt>Ditransfer ke tukang</dt>
                             <dd>{formatRupiah(preview.net)}</dd>
                         </div>

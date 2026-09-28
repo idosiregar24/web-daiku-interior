@@ -2,11 +2,13 @@ import { BankAccountManager } from '@/Components/modules/master-data/BankAccount
 import { BranchManager } from '@/Components/modules/master-data/BranchManager';
 import { NameOnlyLookupManager } from '@/Components/modules/master-data/NameOnlyLookupManager';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Card, CardContent } from '@/Components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
+import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption } from '@/types';
 import { Head } from '@inertiajs/react';
+import { Database } from 'lucide-react';
 
 interface MasterDataIndexProps {
     branches: Branch[];
@@ -27,18 +29,19 @@ export default function MasterDataIndex({
 
             <PageHeader
                 title="Data Master"
+                icon={Database}
                 description="Kelola data referensi yang dipakai modul lain — khusus SuperAdmin."
             />
 
             <Card>
-                <CardContent className="pt-6">
+                <CardContent className="px-5 py-2 sm:px-6">
                     <Tabs defaultValue="branches">
-                        <TabsList>
+                        <UnderlineTabsList>
                             <TabsTrigger value="branches">Cabang</TabsTrigger>
                             <TabsTrigger value="lead-sources">Sumber Lead</TabsTrigger>
                             <TabsTrigger value="lead-categories">Kategori Customer</TabsTrigger>
                             <TabsTrigger value="bank-accounts">Rekening Bank</TabsTrigger>
-                        </TabsList>
+                        </UnderlineTabsList>
 
                         <TabsContent value="branches" className="pt-4">
                             <BranchManager branches={branches} />

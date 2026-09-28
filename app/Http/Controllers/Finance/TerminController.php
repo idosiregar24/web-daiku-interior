@@ -7,6 +7,7 @@ use App\Http\Requests\Finance\RecordTerminPaymentRequest;
 use App\Http\Requests\Finance\StoreTerminRequest;
 use App\Models\BankAccount;
 use App\Models\Project;
+use App\Models\SiteSetting;
 use App\Models\Termin;
 use App\Services\TerminService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -95,7 +96,10 @@ class TerminController extends Controller
     {
         $termin->load(['project:id,name', 'project.lead:id,client_name', 'milestone:id,name']);
 
-        $pdf = Pdf::loadView('pdf.termin', ['termin' => $termin]);
+        $pdf = Pdf::loadView('pdf.termin', [
+            'termin' => $termin,
+            'siteSettings' => SiteSetting::current(),
+        ]);
 
         return $pdf->stream("invoice-termin-{$termin->termin_number}-{$termin->project->name}.pdf");
     }

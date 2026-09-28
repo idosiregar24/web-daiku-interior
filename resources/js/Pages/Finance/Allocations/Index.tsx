@@ -1,15 +1,18 @@
 import { AllocationFormDialog } from '@/Components/modules/finance/AllocationFormDialog';
 import { CATEGORY_OPTIONS } from '@/Components/modules/finance/TransactionFormDialog';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Badge } from '@/Components/ui/badge';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { ProgressBar } from '@/Components/shared/ProgressBar';
+import { StatCard } from '@/Components/shared/StatCard';
+import { StatusChip } from '@/Components/shared/StatusChip';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatRupiah } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { FinanceAllocationConfig } from '@/types';
 import { Head } from '@inertiajs/react';
-import { Pencil, Plus } from 'lucide-react';
+import { Calculator, Pencil, Percent, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 interface AllocationIndexProps {
@@ -48,6 +51,7 @@ export default function AllocationIndex({ allocations, activeTotal }: Allocation
 
             <PageHeader
                 title="Alokasi Persentase"
+                icon={Percent}
                 description="Persentase nilai proyek yang dialokasikan otomatis per pos anggaran."
                 actions={
                     <Button size="sm" onClick={openCreate}>
@@ -57,70 +61,65 @@ export default function AllocationIndex({ allocations, activeTotal }: Allocation
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-2">
-                <Card>
-                    <CardContent>
-                        <p className="text-sm text-daiku-muted">Total alokasi aktif</p>
-                        <p className={cn('text-2xl font-semibold', activeTotal > 100 ? 'text-error' : 'text-daiku-dark')}>
-                            {activeTotal.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent>
-                        <p className="text-sm text-daiku-muted">
-                            Contoh: proyek senilai {formatRupiah(EXAMPLE_CONTRACT_VALUE)}
-                        </p>
-                        <p className="text-2xl font-semibold text-daiku-dark">
-                            {formatRupiah((EXAMPLE_CONTRACT_VALUE * activeTotal) / 100)}
-                        </p>
-                        <p className="text-xs text-daiku-muted">dialokasikan ke pos-pos di bawah</p>
-                    </CardContent>
-                </Card>
+            <div className="mb-6 grid gap-4 sm:grid-cols-2">
+                <StatCard
+                    label="Total alokasi aktif"
+                    value={`${activeTotal.toLocaleString('id-ID', { maximumFractionDigits: 2 })}%`}
+                    icon={Percent}
+                    tone={activeTotal > 100 ? 'error' : 'default'}
+                >
+                    <ProgressBar
+                        value={activeTotal}
+                        label="Total alokasi aktif dari 100%"
+                        tone={activeTotal > 100 ? 'error' : 'default'}
+                    />
+                </StatCard>
+                <StatCard
+                    label={`Contoh: proyek senilai ${formatRupiah(EXAMPLE_CONTRACT_VALUE)}`}
+                    value={formatRupiah((EXAMPLE_CONTRACT_VALUE * activeTotal) / 100)}
+                    icon={Calculator}
+                    hint="dialokasikan ke pos-pos di bawah"
+                />
             </div>
 
             {allocations.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada konfigurasi alokasi.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada konfigurasi alokasi." />
             ) : (
-                <div className="overflow-x-auto rounded-lg border border-daiku-border">
+                <TableCard>
                     <table className="w-full text-sm">
-                        <thead className="bg-daiku-yellow-light">
+                        <thead className={TABLE_HEAD_CLASS}>
                             <tr>
-                                <th className="p-2 text-left font-medium">Label</th>
-                                <th className="p-2 text-left font-medium">Kategori</th>
-                                <th className="p-2 text-right font-medium">Persentase</th>
-                                <th className="p-2 text-right font-medium">Contoh Nominal</th>
-                                <th className="p-2 text-left font-medium">Status</th>
-                                <th className="w-12 p-2" />
+                                <th className="px-4 py-2.5 text-left font-semibold">Label</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Kategori</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Persentase</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Contoh Nominal</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                <th className="w-12 px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody>
                             {allocations.map((allocation) => (
                                 <tr
                                     key={allocation.id}
-                                    className={cn('border-t border-daiku-border', !allocation.is_active && 'text-daiku-muted')}
+                                    className={cn(
+                                        'border-t border-border transition-colors hover:bg-daiku-gray/60',
+                                        !allocation.is_active && 'text-daiku-muted',
+                                    )}
                                 >
-                                    <td className="p-2 font-medium">{allocation.label}</td>
-                                    <td className="p-2">{CATEGORY_LABEL[allocation.kategori] ?? allocation.kategori}</td>
-                                    <td className="p-2 text-right">{Number(allocation.percentage).toLocaleString('id-ID')}%</td>
-                                    <td className="p-2 text-right">
+                                    <td className="px-4 py-3 font-medium">{allocation.label}</td>
+                                    <td className="px-4 py-3">{CATEGORY_LABEL[allocation.kategori] ?? allocation.kategori}</td>
+                                    <td className="px-4 py-3 text-right">{Number(allocation.percentage).toLocaleString('id-ID')}%</td>
+                                    <td className="px-4 py-3 text-right">
                                         {formatRupiah((EXAMPLE_CONTRACT_VALUE * Number(allocation.percentage)) / 100)}
                                     </td>
-                                    <td className="p-2">
-                                        <Badge
-                                            variant="secondary"
-                                            className={
-                                                allocation.is_active
-                                                    ? 'bg-success/10 text-success'
-                                                    : 'bg-daiku-gray text-daiku-muted'
-                                            }
-                                        >
-                                            {allocation.is_active ? 'Aktif' : 'Nonaktif'}
-                                        </Badge>
+                                    <td className="px-4 py-3">
+                                        <StatusChip
+                                            status={allocation.is_active ? 'ACTIVE_CONFIG' : 'INACTIVE_CONFIG'}
+                                            tone={allocation.is_active ? 'success' : 'neutral'}
+                                            label={allocation.is_active ? 'Aktif' : 'Nonaktif'}
+                                        />
                                     </td>
-                                    <td className="p-2 text-right">
+                                    <td className="px-4 py-3 text-right">
                                         <Button
                                             variant="ghost"
                                             size="icon-sm"
@@ -134,7 +133,7 @@ export default function AllocationIndex({ allocations, activeTotal }: Allocation
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableCard>
             )}
 
             <AllocationFormDialog open={dialogOpen} onOpenChange={setDialogOpen} allocation={editing} />

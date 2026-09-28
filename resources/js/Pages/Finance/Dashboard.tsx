@@ -1,17 +1,11 @@
+import { MoneyTrendChart } from '@/Components/modules/analytics/MoneyTrendChart';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { StatCard, type StatDelta } from '@/Components/shared/StatCard';
 import AppLayout from '@/Layouts/AppLayout';
+import { formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { Head } from '@inertiajs/react';
-import {
-    Bar,
-    BarChart,
-    CartesianGrid,
-    Legend,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from 'recharts';
+import { ArrowDownLeft, ArrowUpRight, BarChart3, Scale, Wallet } from 'lucide-react';
 
 interface CashFlowRow {
     month: string;
@@ -24,13 +18,16 @@ interface FinanceDashboardProps {
     cashFlow: CashFlowRow[];
 }
 
-function formatRupiah(value: number) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        maximumFractionDigits: 0,
-        notation: 'compact',
-    }).format(value);
+/** Month-over-month change of the last two rows, or undefined when there's no base. */
+function monthDelta(values: number[], goodWhen: StatDelta['goodWhen']): StatDelta | undefined {
+    const current = values[values.length - 1];
+    const previous = values[values.length - 2];
+
+    if (current === undefined || !previous) {
+        return undefined;
+    }
+
+    return { value: ((current - previous) / Math.abs(previous)) * 100, label: 'vs bulan lalu', goodWhen };
 }
 
 /**
@@ -42,64 +39,56 @@ function formatRupiah(value: number) {
 export default function FinanceDashboard({ cashFlow }: FinanceDashboardProps) {
     const totalIncome = cashFlow.reduce((sum, row) => sum + row.income, 0);
     const totalExpense = cashFlow.reduce((sum, row) => sum + row.expense, 0);
+    const income = cashFlow.map((row) => row.income);
+    const expense = cashFlow.map((row) => row.expense);
+    const net = cashFlow.map((row) => row.income - row.expense);
 
     return (
         <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Cash Flow' }]}>
             <Head title="Cash Flow Dashboard" />
 
-            <PageHeader title="Cash Flow" description="Pemasukan vs pengeluaran 6 bulan terakhir." />
+            <PageHeader title="Cash Flow" icon={Wallet} description="Pemasukan vs pengeluaran 6 bulan terakhir." />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-3">
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Pemasukan (6 bulan)</p>
-                        <p className="text-lg font-semibold text-success">{formatRupiah(totalIncome)}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Total Pengeluaran (6 bulan)</p>
-                        <p className="text-lg font-semibold text-error">{formatRupiah(totalExpense)}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardContent className="pt-6">
-                        <p className="text-xs text-daiku-muted">Saldo Bersih</p>
-                        <p className="text-lg font-semibold text-daiku-dark">{formatRupiah(totalIncome - totalExpense)}</p>
-                    </CardContent>
-                </Card>
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+                <StatCard
+                    label="Total Pemasukan (6 bulan)"
+                    value={formatRupiahCompact(totalIncome)}
+                    icon={ArrowDownLeft}
+                    tone="success"
+                    trend={income}
+                    delta={monthDelta(income, 'up')}
+                />
+                <StatCard
+                    label="Total Pengeluaran (6 bulan)"
+                    value={formatRupiahCompact(totalExpense)}
+                    icon={ArrowUpRight}
+                    tone="error"
+                    trend={expense}
+                    delta={monthDelta(expense, 'down')}
+                />
+                <StatCard
+                    label="Saldo Bersih"
+                    value={formatRupiahCompact(totalIncome - totalExpense)}
+                    icon={Scale}
+                    trend={net}
+                    hint={formatRupiah(totalIncome - totalExpense)}
+                />
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-base">Pemasukan vs Pengeluaran</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ResponsiveContainer width="100%" height={340}>
-                        <BarChart data={cashFlow} margin={{ left: 8 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-daiku-border" />
-                            <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                            <YAxis tickFormatter={(value) => formatRupiah(value)} tick={{ fontSize: 11 }} width={70} />
-                            <Tooltip formatter={(value) => formatRupiah(Number(value))} />
-                            <Legend />
-                            <Bar
-                                dataKey="income"
-                                name="Pemasukan"
-                                fill="var(--color-success)"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={36}
-                            />
-                            <Bar
-                                dataKey="expense"
-                                name="Pengeluaran"
-                                fill="var(--color-error)"
-                                radius={[4, 4, 0, 0]}
-                                maxBarSize={36}
-                            />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </CardContent>
-            </Card>
+            <SectionCard
+                title="Pemasukan vs Pengeluaran"
+                icon={BarChart3}
+                description="Total transaksi per bulan — arahkan kursor ke batang untuk nilai lengkap."
+            >
+                <MoneyTrendChart
+                    data={cashFlow}
+                    series={[
+                        { key: 'income', name: 'Pemasukan', kind: 'bar' },
+                        { key: 'expense', name: 'Pengeluaran', kind: 'bar' },
+                    ]}
+                    ariaLabel="Grafik pemasukan dibanding pengeluaran per bulan"
+                />
+            </SectionCard>
         </AppLayout>
     );
 }

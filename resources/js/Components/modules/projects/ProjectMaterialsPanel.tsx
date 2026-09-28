@@ -1,5 +1,6 @@
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
@@ -9,7 +10,7 @@ import { cn } from '@/lib/utils';
 import type { Material, Project, ProjectMaterial } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Lock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -63,11 +64,11 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
 
     if (!canView) {
         return (
-            <Card>
-                <CardContent className="py-10 text-center text-sm text-daiku-muted">
-                    Anda tidak memiliki akses ke kebutuhan material proyek.
-                </CardContent>
-            </Card>
+            <EmptyState
+                icon={Lock}
+                className="rounded-xl border border-dashed border-border"
+                title="Anda tidak memiliki akses ke kebutuhan material proyek."
+            />
         );
     }
 
@@ -105,7 +106,7 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
     return (
         <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-daiku-muted">
+                <p className="inline-flex flex-wrap items-center gap-x-1 rounded-lg bg-daiku-gray/70 px-3 py-2 text-sm text-daiku-muted ring-1 ring-border ring-inset">
                     Estimasi biaya material: <span className="font-medium text-daiku-dark">{formatRupiah(plannedCost)}</span>
                     {' · '}Terpakai: <span className="font-medium text-daiku-dark">{formatRupiah(usedCost)}</span>
                 </p>
@@ -123,23 +124,23 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
                 )}
             </div>
 
-            <div className="overflow-x-auto rounded-lg border border-daiku-border bg-white">
+            <TableCard>
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="p-2 text-left font-medium">Material</th>
-                            <th className="p-2 text-right font-medium">Rencana</th>
-                            <th className="p-2 text-right font-medium">Terpakai</th>
-                            <th className="w-40 p-2 text-left font-medium">Realisasi</th>
-                            <th className="p-2 text-right font-medium">Stok Gudang</th>
-                            {(permissions.update || permissions.delete) && <th className="p-2" />}
+                            <th className="px-4 py-2.5 text-left font-semibold">Material</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Rencana</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Terpakai</th>
+                            <th className="w-40 px-4 py-2.5 text-left font-semibold">Realisasi</th>
+                            <th className="px-4 py-2.5 text-right font-semibold">Stok Gudang</th>
+                            {(permissions.update || permissions.delete) && <th className="px-4 py-2.5" />}
                         </tr>
                     </thead>
                     <tbody>
                         {items.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="p-6 text-center text-daiku-muted">
-                                    Belum ada kebutuhan material untuk proyek ini.
+                                <td colSpan={6} className="p-0">
+                                    <EmptyState title="Belum ada kebutuhan material untuk proyek ini." />
                                 </td>
                             </tr>
                         ) : (
@@ -150,15 +151,15 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
                                 const shortage = Math.max(item.qty_planned - item.qty_used - (item.material?.stock ?? 0), 0);
 
                                 return (
-                                    <tr key={item.id} className="border-t border-daiku-border">
-                                        <td className="p-2 font-medium">{item.material?.name}</td>
-                                        <td className="p-2 text-right tabular-nums">
+                                    <tr key={item.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                        <td className="px-4 py-3 font-medium">{item.material?.name}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums">
                                             {item.qty_planned} {unit}
                                         </td>
-                                        <td className={cn('p-2 text-right tabular-nums', over && 'font-medium text-error')}>
+                                        <td className={cn('px-4 py-3 text-right tabular-nums', over && 'font-medium text-error-ink')}>
                                             {item.qty_used} {unit}
                                         </td>
-                                        <td className="p-2">
+                                        <td className="px-4 py-3">
                                             {percent === null ? (
                                                 <span className="text-xs text-daiku-muted">Tidak direncanakan</span>
                                             ) : (
@@ -176,20 +177,20 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
                                                             style={{ width: `${Math.min(percent, 100)}%` }}
                                                         />
                                                     </div>
-                                                    <span className={cn('w-10 text-right text-xs tabular-nums', over ? 'text-error' : 'text-daiku-muted')}>
+                                                    <span className={cn('w-10 text-right text-xs tabular-nums', over ? 'text-error-ink' : 'text-daiku-muted')}>
                                                         {percent}%
                                                     </span>
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="p-2 text-right tabular-nums">
-                                            <span className={cn(shortage > 0 && 'font-medium text-warning')}>
+                                        <td className="px-4 py-3 text-right tabular-nums">
+                                            <span className={cn(shortage > 0 && 'font-medium text-warning-ink')}>
                                                 {item.material?.stock ?? 0} {unit}
                                             </span>
-                                            {shortage > 0 && <p className="text-xs text-warning">kurang {shortage}</p>}
+                                            {shortage > 0 && <p className="text-xs text-warning-ink">kurang {shortage}</p>}
                                         </td>
                                         {(permissions.update || permissions.delete) && (
-                                            <td className="p-2">
+                                            <td className="px-4 py-3">
                                                 <div className="flex justify-end gap-1">
                                                     {permissions.update && (
                                                         <Button
@@ -223,7 +224,7 @@ export function ProjectMaterialsPanel({ project, items, canView, permissions, ma
                         )}
                     </tbody>
                 </table>
-            </div>
+            </TableCard>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="max-w-md">

@@ -1,7 +1,7 @@
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { TableCard } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
-import { Card } from '@/Components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatRelative } from '@/lib/format';
@@ -47,6 +47,7 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
 
             <PageHeader
                 title="Notifikasi"
+                icon={Bell}
                 description="Riwayat notifikasi 90 hari terakhir."
                 actions={
                     <Button
@@ -61,45 +62,47 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
                 }
             />
 
-            <Tabs
-                value={filters.unread ? 'unread' : 'all'}
-                onValueChange={(value) =>
-                    router.get(route('notifications.index'), value === 'unread' ? { unread: 1 } : {}, {
-                        preserveState: true,
-                        replace: true,
-                    })
+            <TableCard
+                pagination={items}
+                toolbar={
+                    <Tabs
+                        value={filters.unread ? 'unread' : 'all'}
+                        onValueChange={(value) =>
+                            router.get(route('notifications.index'), value === 'unread' ? { unread: 1 } : {}, {
+                                preserveState: true,
+                                replace: true,
+                            })
+                        }
+                    >
+                        <TabsList>
+                            <TabsTrigger value="all">Semua</TabsTrigger>
+                            <TabsTrigger value="unread">Belum dibaca ({unreadNotificationsCount})</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
                 }
-                className="mb-4"
             >
-                <TabsList>
-                    <TabsTrigger value="all">Semua</TabsTrigger>
-                    <TabsTrigger value="unread">Belum dibaca ({unreadNotificationsCount})</TabsTrigger>
-                </TabsList>
-            </Tabs>
-
-            <Card className="gap-0 overflow-hidden py-0">
                 {items.data.length === 0 ? (
-                    <div className="flex flex-col items-center gap-2 p-10 text-center text-sm text-daiku-muted">
-                        <Bell className="size-6" />
-                        {filters.unread ? 'Tidak ada notifikasi yang belum dibaca.' : 'Belum ada notifikasi.'}
-                    </div>
+                    <EmptyState
+                        icon={Bell}
+                        title={filters.unread ? 'Tidak ada notifikasi yang belum dibaca.' : 'Belum ada notifikasi.'}
+                    />
                 ) : (
-                    <ul className="divide-y divide-daiku-border">
+                    <ul className="divide-y divide-border">
                         {items.data.map((notification) => (
                             <li key={notification.id}>
                                 <button
                                     type="button"
                                     onClick={() => open(notification)}
                                     className={cn(
-                                        'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-daiku-yellow-light',
-                                        !notification.is_read && 'bg-daiku-cream',
+                                        'flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-daiku-gray/60',
+                                        !notification.is_read && 'bg-daiku-yellow-light/40',
                                     )}
                                 >
                                     <span
                                         aria-hidden
                                         className={cn(
                                             'mt-1.5 size-2 shrink-0 rounded-full',
-                                            notification.is_read ? 'bg-transparent' : 'bg-daiku-yellow',
+                                            notification.is_read ? 'bg-daiku-border' : 'bg-daiku-yellow',
                                         )}
                                     />
                                     <span className="min-w-0 flex-1">
@@ -130,9 +133,7 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
                         ))}
                     </ul>
                 )}
-            </Card>
-
-            <Pagination paginator={items} />
+            </TableCard>
         </AppLayout>
     );
 }

@@ -2,17 +2,34 @@ import { MoneyTrendChart } from '@/Components/modules/analytics/MoneyTrendChart'
 import { type HeatmapData, OverdueHeatmap } from '@/Components/modules/analytics/OverdueHeatmap';
 import { type FunnelData, PipelineFunnel } from '@/Components/modules/analytics/PipelineFunnel';
 import { RevenueTargetDialog } from '@/Components/modules/analytics/RevenueTargetDialog';
+import { TaskStatusBreakdown } from '@/Components/modules/analytics/TaskStatusBreakdown';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { ProgressBar } from '@/Components/shared/ProgressBar';
+import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatCard } from '@/Components/shared/StatCard';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { TaskStatus } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, FolderKanban, PiggyBank, Target, TrendingUp } from 'lucide-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import {
+    AlertTriangle,
+    ArrowRight,
+    BarChart3,
+    CalendarX2,
+    Filter,
+    FolderKanban,
+    ListChecks,
+    Package,
+    PiggyBank,
+    Target,
+    TrendingUp,
+    UsersRound,
+    Wallet,
+} from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 interface ActiveProject {
     id: number;
@@ -73,30 +90,25 @@ interface AnalyticsProps {
     generatedAt: string;
 }
 
-function Widget({
-    title,
-    description,
-    action,
-    children,
-    className,
-}: {
-    title: string;
-    description?: string;
-    action?: ReactNode;
-    children: ReactNode;
-    className?: string;
-}) {
+/** Small inline "Detail →" link used in widget headers. */
+function DetailLink({ href, children = 'Detail' }: { href: string; children?: string }) {
     return (
-        <Card className={className}>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-                <div>
-                    <CardTitle className="text-base">{title}</CardTitle>
-                    {description && <CardDescription>{description}</CardDescription>}
-                </div>
-                {action}
-            </CardHeader>
-            <CardContent>{children}</CardContent>
-        </Card>
+        <Button variant="ghost" size="sm" asChild>
+            <Link href={href}>
+                {children}
+                <ArrowRight className="size-3.5" />
+            </Link>
+        </Button>
+    );
+}
+
+/** Label/value pair for the compact summary rows inside widgets. */
+function Metric({ label, value, tone }: { label: string; value: string; tone?: 'error' }) {
+    return (
+        <div className="rounded-lg bg-daiku-gray/70 px-3 py-2.5 ring-1 ring-border ring-inset">
+            <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+            <dd className={cn('mt-0.5 text-sm font-semibold text-foreground', tone === 'error' && 'text-error-ink')}>{value}</dd>
+        </div>
     );
 }
 
@@ -121,8 +133,13 @@ export default function AnalyticsIndex({
     const [targetOpen, setTargetOpen] = useState(false);
 
     const thisMonth = revenue[revenue.length - 1];
+    const lastMonth = revenue[revenue.length - 2];
     const targets = useMemo(() => Object.fromEntries(revenue.map((row) => [row.month, row.target])), [revenue]);
     const achievement = thisMonth?.target ? Math.round((thisMonth.revenue / thisMonth.target) * 100) : null;
+    const revenueChange =
+        thisMonth && lastMonth && lastMonth.revenue > 0
+            ? ((thisMonth.revenue - lastMonth.revenue) / lastMonth.revenue) * 100
+            : null;
     const overdueTotal = overdueHeatmap.rows.reduce((sum, row) => sum + row.total, 0);
     const activeTaskTotal = Object.values(taskStatus).reduce((sum, count) => sum + count, 0);
 
@@ -132,6 +149,7 @@ export default function AnalyticsIndex({
 
             <PageHeader
                 title="Executive Dashboard"
+                icon={BarChart3}
                 description={`Ringkasan seluruh divisi · diperbarui ${formatDateTime(generatedAt)}`}
             />
 
@@ -140,6 +158,8 @@ export default function AnalyticsIndex({
                     label={`Kontrak Closing ${thisMonth?.label ?? ''}`}
                     value={formatRupiahCompact(thisMonth?.revenue ?? 0)}
                     icon={Target}
+                    trend={revenue.map((row) => row.revenue)}
+                    delta={revenueChange === null ? undefined : { value: revenueChange, label: 'vs bulan lalu' }}
                     hint={
                         achievement === null
                             ? 'Target bulan ini belum diatur'
@@ -168,12 +188,9 @@ export default function AnalyticsIndex({
             </div>
 
             <div className="grid gap-6 xl:grid-cols-2">
-                <Widget title="Pipeline Funnel" description="Lead yang mencapai setiap tahap (kumulatif).">
-                    <PipelineFunnel data={funnel} />
-                </Widget>
-
-                <Widget
+                <SectionCard
                     title="Revenue vs Target"
+                    icon={TrendingUp}
                     description="Nilai kontrak closing per bulan dibanding target, 6 bulan terakhir."
                     action={
                         <Button variant="outline" size="sm" onClick={() => setTargetOpen(true)}>
@@ -189,9 +206,9 @@ export default function AnalyticsIndex({
                         ]}
                         ariaLabel="Grafik nilai kontrak closing dibanding target per bulan"
                     />
-                </Widget>
+                </SectionCard>
 
-                <Widget title="Cash Flow" description="Pemasukan vs pengeluaran, 6 bulan terakhir.">
+                <SectionCard title="Cash Flow" icon={Wallet} description="Pemasukan vs pengeluaran, 6 bulan terakhir.">
                     <MoneyTrendChart
                         data={cashFlow}
                         series={[
@@ -200,102 +217,110 @@ export default function AnalyticsIndex({
                         ]}
                         ariaLabel="Grafik pemasukan dibanding pengeluaran per bulan"
                     />
-                </Widget>
+                </SectionCard>
 
-                <Widget
+                <SectionCard title="Pipeline Funnel" icon={Filter} description="Lead yang mencapai setiap tahap (kumulatif).">
+                    <PipelineFunnel data={funnel} />
+                </SectionCard>
+
+                <SectionCard
+                    title="Status Task"
+                    icon={ListChecks}
+                    description="Sebaran status seluruh task di proyek aktif."
+                    action={<DetailLink href={route('tasks.index')}>Semua task</DetailLink>}
+                >
+                    <TaskStatusBreakdown data={taskStatus} />
+                </SectionCard>
+
+                <SectionCard
                     title="Proyek Aktif"
+                    icon={FolderKanban}
                     description="Progres terakhir yang dilaporkan PM dan milestone yang lolos QA."
-                    action={
-                        <Button variant="ghost" size="sm" asChild>
-                            <Link href={route('projects.index', { status: 'ACTIVE' })}>Semua proyek</Link>
-                        </Button>
-                    }
+                    flush
+                    className="xl:col-span-2"
+                    action={<DetailLink href={route('projects.index', { status: 'ACTIVE' })}>Semua proyek</DetailLink>}
                 >
                     {activeProjects.length === 0 ? (
-                        <p className="py-8 text-center text-sm text-daiku-muted">Belum ada proyek aktif.</p>
+                        <EmptyState icon={FolderKanban} title="Belum ada proyek aktif." />
                     ) : (
-                        <ul className="divide-y divide-daiku-border">
+                        <ul className="grid divide-y divide-border md:grid-cols-2 md:divide-y-0">
                             {activeProjects.map((project) => (
-                                <li key={project.id} className="py-3 first:pt-0 last:pb-0">
+                                <li
+                                    key={project.id}
+                                    className="border-border px-4 py-3.5 sm:px-5 md:border-b md:odd:border-r"
+                                >
                                     <div className="flex items-baseline justify-between gap-3">
                                         <Link
                                             href={route('projects.show', { project: project.id })}
-                                            className="truncate text-sm font-medium text-daiku-dark hover:underline"
+                                            className="truncate text-sm font-medium text-foreground hover:underline"
                                         >
                                             {project.name}
                                         </Link>
                                         <span className="shrink-0 text-sm font-semibold tabular-nums">{project.progress}%</span>
                                     </div>
-                                    <div
-                                        className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-daiku-gray"
-                                        role="progressbar"
-                                        aria-valuenow={project.progress}
-                                        aria-valuemin={0}
-                                        aria-valuemax={100}
-                                        aria-label={`Progres ${project.name}`}
-                                    >
-                                        <div className="h-full rounded-full bg-viz-1" style={{ width: `${project.progress}%` }} />
-                                    </div>
-                                    <p className="mt-1 flex flex-wrap gap-x-3 text-xs text-daiku-muted">
+                                    <ProgressBar value={project.progress} label={`Progres ${project.name}`} className="mt-2" />
+                                    <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                         <span>PM {project.pm ?? '—'}</span>
                                         <span>
                                             Milestone {project.milestonesCompleted}/{project.milestonesTotal}
                                         </span>
                                         <span>{formatRupiahCompact(project.contractValue)}</span>
                                         {project.overdueTasks > 0 && (
-                                            <span className="font-medium text-error">{project.overdueTasks} task terlambat</span>
+                                            <span className="font-medium text-error-ink">{project.overdueTasks} task terlambat</span>
                                         )}
                                     </p>
                                 </li>
                             ))}
                         </ul>
                     )}
-                </Widget>
+                </SectionCard>
 
-                <Widget
+                <SectionCard
                     title="Performa PM"
+                    icon={UsersRound}
                     description="On-time = milestone lolos QA pada/sebelum target tanggalnya."
                     className="xl:col-span-2"
+                    flush
                 >
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-daiku-yellow-light">
-                                <tr>
-                                    <th className="p-2 text-left font-medium">PM</th>
-                                    <th className="p-2 text-right font-medium">Proyek Aktif</th>
-                                    <th className="p-2 text-right font-medium">Proyek Selesai</th>
-                                    <th className="p-2 text-right font-medium">Milestone Selesai</th>
-                                    <th className="w-48 p-2 text-left font-medium">On-time Rate</th>
-                                    <th className="p-2 text-right font-medium">Task Terlambat</th>
+                            <thead className="bg-daiku-yellow-light/70">
+                                <tr className="text-[11px] tracking-wider text-daiku-muted uppercase">
+                                    <th className="px-4 py-2.5 text-left font-semibold sm:px-5">PM</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Proyek Aktif</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Proyek Selesai</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Milestone Selesai</th>
+                                    <th className="w-56 px-4 py-2.5 text-left font-semibold">On-time Rate</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold sm:px-5">Task Terlambat</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-border">
                                 {teamPerformance.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} className="p-6 text-center text-daiku-muted">
-                                            Belum ada PM aktif.
+                                        <td colSpan={6}>
+                                            <EmptyState icon={UsersRound} title="Belum ada PM aktif." />
                                         </td>
                                     </tr>
                                 ) : (
                                     teamPerformance.map((pm) => (
-                                        <tr key={pm.id} className="border-t border-daiku-border">
-                                            <td className="p-2 font-medium">{pm.name}</td>
-                                            <td className="p-2 text-right tabular-nums">{pm.activeProjects}</td>
-                                            <td className="p-2 text-right tabular-nums">{pm.completedProjects}</td>
-                                            <td className="p-2 text-right tabular-nums">{pm.milestonesCompleted}</td>
-                                            <td className="p-2">
+                                        <tr key={pm.id} className="transition-colors hover:bg-daiku-gray/60">
+                                            <td className="px-4 py-3 font-medium sm:px-5">{pm.name}</td>
+                                            <td className="px-4 py-3 text-right tabular-nums">{pm.activeProjects}</td>
+                                            <td className="px-4 py-3 text-right tabular-nums">{pm.completedProjects}</td>
+                                            <td className="px-4 py-3 text-right tabular-nums">{pm.milestonesCompleted}</td>
+                                            <td className="px-4 py-3">
                                                 {pm.onTimeRate === null ? (
-                                                    <span className="text-xs text-daiku-muted">Belum ada data</span>
+                                                    <span className="text-xs text-muted-foreground">Belum ada data</span>
                                                 ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-daiku-gray">
-                                                            <div className="h-full rounded-full bg-viz-1" style={{ width: `${pm.onTimeRate}%` }} />
-                                                        </div>
-                                                        <span className="w-10 text-right text-xs font-medium tabular-nums">{pm.onTimeRate}%</span>
-                                                    </div>
+                                                    <ProgressBar value={pm.onTimeRate} label={`On-time rate ${pm.name}`} showValue />
                                                 )}
                                             </td>
-                                            <td className={cn('p-2 text-right tabular-nums', pm.overdueTasks > 0 && 'font-medium text-error')}>
+                                            <td
+                                                className={cn(
+                                                    'px-4 py-3 text-right tabular-nums sm:px-5',
+                                                    pm.overdueTasks > 0 && 'font-medium text-error-ink',
+                                                )}
+                                            >
                                                 {pm.overdueTasks}
                                             </td>
                                         </tr>
@@ -304,99 +329,80 @@ export default function AnalyticsIndex({
                             </tbody>
                         </table>
                     </div>
-                </Widget>
+                </SectionCard>
 
-                <Widget
+                <SectionCard
                     title="Task Terlambat per Proyek"
+                    icon={CalendarX2}
                     description="Jumlah task lewat deadline, dikelompokkan per minggu jatuh tempo."
                     className="xl:col-span-2"
                 >
                     <OverdueHeatmap data={overdueHeatmap} />
-                </Widget>
+                </SectionCard>
 
-                <Widget
+                <SectionCard
                     title="Penalti & Dana Family Gathering"
-                    action={
-                        <Button variant="ghost" size="sm" asChild>
-                            <Link href={route('penalties.index')}>Detail</Link>
-                        </Button>
-                    }
+                    icon={PiggyBank}
+                    action={<DetailLink href={route('penalties.index')} />}
                 >
-                    <dl className="mb-4 grid grid-cols-3 gap-4">
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Bulan ini</dt>
-                            <dd className="font-semibold tabular-nums">{formatRupiah(penalties.monthTotal)}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Sepanjang waktu</dt>
-                            <dd className="font-semibold tabular-nums">{formatRupiah(penalties.allTimeTotal)}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Saldo dana</dt>
-                            <dd className="font-semibold tabular-nums">{formatRupiah(penalties.fundBalance)}</dd>
-                        </div>
+                    <dl className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <Metric label="Bulan ini" value={formatRupiah(penalties.monthTotal)} />
+                        <Metric label="Sepanjang waktu" value={formatRupiah(penalties.allTimeTotal)} />
+                        <Metric label="Saldo dana" value={formatRupiah(penalties.fundBalance)} />
                     </dl>
-                    <p className="mb-2 text-xs font-medium text-daiku-muted">Penalti terbanyak bulan ini</p>
+                    <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                        Penalti terbanyak bulan ini
+                    </p>
                     {penalties.topStaff.length === 0 ? (
-                        <p className="text-sm text-daiku-muted">Tidak ada penalti bulan ini.</p>
+                        <p className="text-sm text-muted-foreground">Tidak ada penalti bulan ini.</p>
                     ) : (
-                        <ul className="space-y-1.5 text-sm">
+                        <ul className="divide-y divide-border text-sm">
                             {penalties.topStaff.map((staff) => (
-                                <li key={staff.name} className="flex justify-between gap-3">
+                                <li key={staff.name} className="flex justify-between gap-3 py-2 first:pt-0 last:pb-0">
                                     <span>{staff.name}</span>
-                                    <span className="tabular-nums text-daiku-muted">
-                                        {staff.count}× · <span className="font-medium text-daiku-dark">{formatRupiah(staff.total)}</span>
+                                    <span className="text-muted-foreground tabular-nums">
+                                        {staff.count}× ·{' '}
+                                        <span className="font-medium text-foreground">{formatRupiah(staff.total)}</span>
                                     </span>
                                 </li>
                             ))}
                         </ul>
                     )}
-                </Widget>
+                </SectionCard>
 
-                <Widget
+                <SectionCard
                     title="Margin Material"
-                    action={
-                        <Button variant="ghost" size="sm" asChild>
-                            <Link href={route('logistics.materials.index')}>Detail</Link>
-                        </Button>
-                    }
+                    icon={Package}
+                    action={<DetailLink href={route('logistics.materials.index')} />}
                 >
-                    <dl className="mb-4 grid grid-cols-3 gap-4">
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Margin terealisasi</dt>
-                            <dd className="flex items-center gap-1 font-semibold tabular-nums">
-                                <TrendingUp className="size-3.5 text-daiku-muted" aria-hidden />
-                                {formatRupiahCompact(materialMargin.realized)}
-                            </dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Potensi (stok)</dt>
-                            <dd className="font-semibold tabular-nums">{formatRupiahCompact(materialMargin.potential)}</dd>
-                        </div>
-                        <div>
-                            <dt className="text-xs text-daiku-muted">Stok menipis</dt>
-                            <dd className={cn('font-semibold tabular-nums', materialMargin.lowStockCount > 0 && 'text-error')}>
-                                {materialMargin.lowStockCount} item
-                            </dd>
-                        </div>
+                    <dl className="mb-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <Metric label="Margin terealisasi" value={formatRupiahCompact(materialMargin.realized)} />
+                        <Metric label="Potensi (stok)" value={formatRupiahCompact(materialMargin.potential)} />
+                        <Metric
+                            label="Stok menipis"
+                            value={`${materialMargin.lowStockCount} item`}
+                            tone={materialMargin.lowStockCount > 0 ? 'error' : undefined}
+                        />
                     </dl>
-                    <p className="mb-2 text-xs font-medium text-daiku-muted">Margin terbesar dari pemakaian proyek</p>
+                    <p className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                        Margin terbesar dari pemakaian proyek
+                    </p>
                     {materialMargin.topMaterials.length === 0 ? (
-                        <p className="text-sm text-daiku-muted">Belum ada pemakaian material tercatat.</p>
+                        <p className="text-sm text-muted-foreground">Belum ada pemakaian material tercatat.</p>
                     ) : (
-                        <ul className="space-y-1.5 text-sm">
+                        <ul className="divide-y divide-border text-sm">
                             {materialMargin.topMaterials.map((material) => (
-                                <li key={material.name} className="flex justify-between gap-3">
+                                <li key={material.name} className="flex justify-between gap-3 py-2 first:pt-0 last:pb-0">
                                     <span className="truncate">{material.name}</span>
-                                    <span className="shrink-0 tabular-nums text-daiku-muted">
+                                    <span className="shrink-0 text-muted-foreground tabular-nums">
                                         {material.qtyUsed} terpakai ·{' '}
-                                        <span className="font-medium text-daiku-dark">{formatRupiah(material.margin)}</span>
+                                        <span className="font-medium text-foreground">{formatRupiah(material.margin)}</span>
                                     </span>
                                 </li>
                             ))}
                         </ul>
                     )}
-                </Widget>
+                </SectionCard>
             </div>
 
             <RevenueTargetDialog open={targetOpen} onOpenChange={setTargetOpen} existing={targets} />

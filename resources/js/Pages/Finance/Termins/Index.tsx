@@ -1,6 +1,8 @@
 import { formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -28,14 +30,13 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
-import { Pagination } from '@/Components/shared/Pagination';
 import { TerminCalendar } from '@/Components/modules/finance/TerminCalendar';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, PageProps, PaginatedData, Termin } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { FileDown } from 'lucide-react';
+import { CalendarClock, CalendarDays, FileDown, List } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -269,72 +270,81 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
         <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Termin' }]}>
             <Head title="Termin" />
 
-            <PageHeader title="Termin" description="Jadwal pembayaran termin seluruh proyek (selalu Sabtu)." />
+            <PageHeader title="Termin" icon={CalendarClock} description="Jadwal pembayaran termin seluruh proyek (selalu Sabtu)." />
 
             <Tabs defaultValue="list">
                 <TabsList>
-                    <TabsTrigger value="list">List</TabsTrigger>
-                    <TabsTrigger value="calendar">Kalender</TabsTrigger>
+                    <TabsTrigger value="list" className="px-3">
+                        <List />
+                        List
+                    </TabsTrigger>
+                    <TabsTrigger value="calendar" className="px-3">
+                        <CalendarDays />
+                        Kalender
+                    </TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="list" className="mt-4">
-                    <div className="mb-4">
-                        <Select
-                            value={filters.status ?? 'all'}
-                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                        >
-                            <SelectTrigger className="sm:w-56">
-                                <SelectValue placeholder="Semua status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua status</SelectItem>
-                                <SelectItem value="SCHEDULED">Terjadwal</SelectItem>
-                                <SelectItem value="INVOICED">Invoice Terbit</SelectItem>
-                                <SelectItem value="PAID">Sudah Dibayar</SelectItem>
-                                <SelectItem value="OVERDUE">Terlambat</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="overflow-x-auto rounded-lg border border-daiku-border">
+                    <TableCard
+                        pagination={termins}
+                        toolbar={
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                                <Select
+                                    value={filters.status ?? 'all'}
+                                    onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                                >
+                                    <SelectTrigger className="sm:w-56">
+                                        <SelectValue placeholder="Semua status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Semua status</SelectItem>
+                                        <SelectItem value="SCHEDULED">Terjadwal</SelectItem>
+                                        <SelectItem value="INVOICED">Invoice Terbit</SelectItem>
+                                        <SelectItem value="PAID">Sudah Dibayar</SelectItem>
+                                        <SelectItem value="OVERDUE">Terlambat</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        }
+                    >
                         <table className="w-full text-sm">
-                            <thead className="bg-daiku-yellow-light">
+                            <thead className={TABLE_HEAD_CLASS}>
                                 <tr>
-                                    <th className="p-2 text-left font-medium">Proyek</th>
-                                    <th className="p-2 text-left font-medium">Termin</th>
-                                    <th className="p-2 text-left font-medium">Rekening</th>
-                                    <th className="p-2 text-left font-medium">Jadwal</th>
-                                    <th className="p-2 text-right font-medium">Nominal</th>
-                                    <th className="p-2 text-right font-medium">DP</th>
-                                    <th className="p-2 text-right font-medium">Pelunasan</th>
-                                    <th className="p-2 text-right font-medium">Sisa Piutang</th>
-                                    <th className="p-2 text-left font-medium">Status</th>
-                                    <th className="w-48 p-2" />
+                                    <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Termin</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Rekening</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Jadwal</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Nominal</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">DP</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Pelunasan</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Sisa Piutang</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                    <th className="w-48 px-4 py-2.5" />
                                 </tr>
                             </thead>
                             <tbody>
                                 {termins.data.length === 0 ? (
                                     <tr>
-                                        <td colSpan={10} className="p-6 text-center text-daiku-muted">
-                                            Belum ada termin.
+                                        <td colSpan={10} className="p-0">
+                                            <EmptyState title="Belum ada termin." />
                                         </td>
                                     </tr>
                                 ) : (
                                     termins.data.map((termin) => (
-                                        <tr key={termin.id} className="border-t border-daiku-border">
-                                            <td className="p-2 font-medium">{termin.project?.name ?? '—'}</td>
-                                            <td className="p-2 text-daiku-muted">
+                                        <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                            <td className="px-4 py-3 font-medium whitespace-nowrap">{termin.project?.name ?? '—'}</td>
+                                            <td className="px-4 py-3 text-daiku-muted">
                                                 #{termin.termin_number} ({termin.percentage}%)
                                             </td>
-                                            <td className="p-2 text-daiku-muted">{termin.bank_account?.label ?? '—'}</td>
-                                            <td className="p-2 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
-                                            <td className="p-2 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
-                                            <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
-                                            <td className="p-2 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
-                                            <td className="p-2 text-right font-medium text-daiku-dark">
+                                            <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">{termin.bank_account?.label ?? '—'}</td>
+                                            <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
+                                            <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
+                                            <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
+                                            <td className="px-4 py-3 text-right font-medium text-daiku-dark">
                                                 {formatRupiah(termin.sisa_piutang)}
                                             </td>
-                                            <td className="p-2">
+                                            <td className="px-4 py-3">
                                                 <div className="flex flex-wrap items-center gap-1">
                                                     <StatusChip status={termin.status} />
                                                     {isPartiallyPaid(termin) && (
@@ -342,7 +352,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-2">
+                                            <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     <Button variant="outline" size="icon-sm" asChild>
                                                         <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
@@ -361,8 +371,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                 )}
                             </tbody>
                         </table>
-                    </div>
-                    <Pagination paginator={termins} />
+                    </TableCard>
                 </TabsContent>
 
                 <TabsContent value="calendar" className="mt-4">

@@ -31,8 +31,10 @@ use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\TaskController;
 use App\Http\Controllers\QA\QaFormController;
 use App\Http\Controllers\Quotation\QuotationController;
+use App\Http\Controllers\Settings\BrandingAssetController;
 use App\Http\Controllers\Settings\SiteSettingController;
 use App\Http\Controllers\Tasks\DailyTaskFormController;
+use App\Models\SiteSetting;
 use App\Services\RoleRedirectService;
 use Illuminate\Support\Facades\Route;
 
@@ -487,12 +489,25 @@ Route::middleware(['auth', 'role:SUPERADMIN'])->prefix('master-data')->name('mas
     Route::delete('bank-accounts/{bank_account}', [BankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
 });
 
-// Site Settings — CEO + SUPERADMIN only (not itemized in PRD §7.1 —
-// general company/application profile, added on request). Singleton
-// resource, no index/create/destroy — see App\Models\SiteSetting::current().
+// Site Settings / web customization — CEO + SUPERADMIN only (not itemized
+// in PRD §7.1 — added on request). The settings row is a singleton (see
+// App\Models\SiteSetting::current()); each brand asset (logo, favicon,
+// login image) can be uploaded/replaced and removed.
 Route::middleware(['auth', 'role:CEO|SUPERADMIN'])->prefix('settings')->name('settings.')->group(function () {
     Route::get('/', [SiteSettingController::class, 'edit'])->name('edit');
     Route::put('/', [SiteSettingController::class, 'update'])->name('update');
+    Route::post('assets/{asset}', [SiteSettingController::class, 'storeAsset'])
+        ->whereIn('asset', array_keys(SiteSetting::ASSETS))
+        ->name('assets.store');
+    Route::delete('assets/{asset}', [SiteSettingController::class, 'destroyAsset'])
+        ->whereIn('asset', array_keys(SiteSetting::ASSETS))
+        ->name('assets.destroy');
 });
+
+// Brand assets are public: the login page and browser tab need them
+// before sign-in. Read-only — uploads go through settings.assets.*.
+Route::get('branding/{asset}', [BrandingAssetController::class, 'show'])
+    ->whereIn('asset', array_keys(SiteSetting::ASSETS))
+    ->name('branding.show');
 
 require __DIR__.'/auth.php';

@@ -37,10 +37,10 @@ const DOT_CLASS: Record<MilestoneStatus, string> = {
 
 const BAR_CLASS: Record<MilestoneStatus, string> = {
     PENDING: 'bg-daiku-gray text-daiku-muted hover:bg-daiku-border',
-    IN_PROGRESS: 'bg-info/15 text-info hover:bg-info/25',
-    QA_WAITING: 'bg-warning/15 text-warning hover:bg-warning/25',
-    COMPLETED: 'bg-success/15 text-success hover:bg-success/25',
-    OVERDUE: 'bg-error/15 text-error hover:bg-error/25',
+    IN_PROGRESS: 'bg-info/15 text-info-ink hover:bg-info/25',
+    QA_WAITING: 'bg-warning/15 text-warning-ink hover:bg-warning/25',
+    COMPLETED: 'bg-success/15 text-success-ink hover:bg-success/25',
+    OVERDUE: 'bg-error/15 text-error-ink hover:bg-error/25',
 };
 
 const LEGEND: { status: MilestoneStatus; label: string }[] = [
@@ -367,7 +367,7 @@ function MilestonePhaseBar({
                             Edit
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => onDelete(milestone)}>
-                            <Trash2 className="size-4 text-error" />
+                            <Trash2 className="size-4 text-error-ink" />
                             Hapus
                         </Button>
                     </div>

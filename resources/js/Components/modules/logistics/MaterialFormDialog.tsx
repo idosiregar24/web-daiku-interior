@@ -184,7 +184,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories }:
                         </div>
                         <p className="rounded-md bg-daiku-gray px-3 py-2 text-sm text-daiku-muted">
                             Margin per satuan:{' '}
-                            <span className={cn('font-semibold', margin < 0 ? 'text-error' : 'text-daiku-dark')}>
+                            <span className={cn('font-semibold', margin < 0 ? 'text-error-ink' : 'text-daiku-dark')}>
                                 {formatRupiah(margin)}
                             </span>
                             {margin < 0 && ' — harga jual di bawah modal'}

@@ -21,6 +21,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Role } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
+import { UserPlus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -58,10 +59,10 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
         >
             <Head title="Tambah User" />
 
-            <PageHeader title="Tambah User" description="Buat akun baru dan tentukan role RBAC-nya." />
+            <PageHeader title="Tambah User" icon={UserPlus} description="Buat akun baru dan tentukan role RBAC-nya." />
 
             <Card className="max-w-lg">
-                <CardContent className="pt-6">
+                <CardContent className="px-5 py-2 sm:px-6">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField

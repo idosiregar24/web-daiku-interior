@@ -32,21 +32,27 @@ you're about to write or touch UI, not just component logic.
 1. Start from an existing sibling page in the same module folder if one
    exists (`Pages/{Modul}/Index.tsx` etc.) — copy its layout/header
    pattern rather than reinventing page chrome each time.
-2. Wrap content in `<Card>` for anything that reads as a discrete block
-   (a form, a summary panel, a table container) — don't build ad-hoc
-   `<div className="rounded-lg border ...">` when `<Card>` already does
-   this with the right tokens.
-3. Page header: title + optional description + primary action button,
-   passed as the `header` prop to `<AppLayout>`. Keep it short — the
-   sidebar already carries module context, don't repeat "CRM" in every
-   page title.
+2. A titled block (widget, detail panel, form section) →
+   `Components/shared/SectionCard.tsx`; a plain surface → `<Card>`. Don't
+   build ad-hoc `<div className="rounded-lg border ...">` or hand-assemble
+   `Card`+`CardHeader`+`CardTitle`.
+3. Topbar context comes from the `breadcrumbs` prop of `<AppLayout>`. Keep
+   it short — the sidebar already carries module context, don't repeat
+   "CRM" in every page title.
 4. Tables: use `Components/shared/DataTable.tsx` (TanStack Table v8
    wrapper — pinned off v9, see `plan/README.md` for why) — see
-   `frontend-standards.md` §4. Never re-implement `<table>` markup
-   per page.
+   `frontend-standards.md` §4. Filters go in its `toolbar` prop, the
+   Laravel paginator in `pagination`. When rows genuinely need custom
+   markup (inline inputs, colspans), wrap the `<table>` in
+   `Components/shared/TableCard.tsx` and give `<thead>` the exported
+   `TABLE_HEAD_CLASS` so it matches.
 5. Title/description/primary-action row inside the page content (below
-   the topbar) → `Components/shared/PageHeader.tsx`, not a hand-rolled
-   `<div>`.
+   the topbar) → `Components/shared/PageHeader.tsx` with `icon` = the
+   module's sidebar icon, not a hand-rolled `<div>`.
+   KPI rows → `StatCard` (supports `delta`, `trend` sparkline, `children`);
+   empty lists → `EmptyState`; banners → `Notice`; label/value details →
+   `DetailList`/`DetailItem`; ratios → `ProgressBar`; search boxes →
+   `SearchInput`. Full table in `rules/design-standards.md` §2.
 6. A date input → `Components/shared/DatePicker.tsx` (already formats in
    Bahasa Indonesia via date-fns), not a raw `<Calendar>`/`<input
    type="date">`.

@@ -1,4 +1,6 @@
 import { Badge } from '@/Components/ui/badge';
+import { EmptyState } from '@/Components/shared/EmptyState';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -197,54 +199,52 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
             </div>
 
             {bankAccounts.length === 0 ? (
-                <p className="rounded-lg border border-daiku-border py-10 text-center text-sm text-daiku-muted">
-                    Belum ada rekening bank.
-                </p>
+                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada rekening bank." />
             ) : (
-                <div className="overflow-hidden rounded-lg border border-daiku-border">
+                <TableCard>
                     <table className="w-full text-sm">
-                        <thead className="bg-daiku-yellow-light">
+                        <thead className={TABLE_HEAD_CLASS}>
                             <tr>
-                                <th className="p-2 text-left font-medium">Label</th>
-                                <th className="p-2 text-left font-medium">Bank</th>
-                                <th className="p-2 text-left font-medium">No. Rekening</th>
-                                <th className="p-2 text-right font-medium">Saldo</th>
-                                <th className="p-2 text-left font-medium">Status</th>
-                                <th className="w-20 p-2" />
+                                <th className="px-4 py-2.5 text-left font-semibold">Label</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Bank</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">No. Rekening</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Saldo</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                <th className="w-20 px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody>
                             {bankAccounts.map((account) => (
-                                <tr key={account.id} className="border-t border-daiku-border">
-                                    <td className="p-2 font-medium">{account.label}</td>
-                                    <td className="p-2">{account.bank_name}</td>
-                                    <td className="p-2 text-daiku-muted">{account.account_no}</td>
-                                    <td className="p-2 text-right">{formatRupiah(account.balance)}</td>
-                                    <td className="p-2">
+                                <tr key={account.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 font-medium">{account.label}</td>
+                                    <td className="px-4 py-3">{account.bank_name}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">{account.account_no}</td>
+                                    <td className="px-4 py-3 text-right">{formatRupiah(account.balance)}</td>
+                                    <td className="px-4 py-3">
                                         <Badge
                                             variant="secondary"
                                             className={
                                                 account.is_active
-                                                    ? 'bg-success/10 text-success'
+                                                    ? 'bg-success/10 text-success-ink'
                                                     : 'bg-daiku-gray text-daiku-muted'
                                             }
                                         >
                                             {account.is_active ? 'Aktif' : 'Nonaktif'}
                                         </Badge>
                                     </td>
-                                    <td className="flex justify-end gap-1 p-2">
+                                    <td className="flex justify-end gap-1 px-4 py-3">
                                         <Button variant="ghost" size="icon-sm" onClick={() => openEdit(account)}>
                                             <Pencil className="size-4" />
                                         </Button>
                                         <Button variant="ghost" size="icon-sm" onClick={() => onDelete(account)}>
-                                            <Trash2 className="size-4 text-error" />
+                                            <Trash2 className="size-4 text-error-ink" />
                                         </Button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                </div>
+                </TableCard>
             )}
         </div>
     );

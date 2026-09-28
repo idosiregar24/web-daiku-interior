@@ -10,6 +10,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Project } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, Link, router } from '@inertiajs/react';
+import { Receipt } from 'lucide-react';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -74,11 +75,12 @@ export default function SupplierDebtCreate({ projects }: SupplierDebtCreateProps
 
             <PageHeader
                 title="Catat Hutang Supplier"
+                icon={Receipt}
                 description="Hutang baru dicatat sebagai kewajiban — pengeluaran kas tercatat saat pembayaran."
             />
 
             <Card className="max-w-2xl">
-                <CardContent className="pt-6">
+                <CardContent className="px-5 py-2 sm:px-6">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField

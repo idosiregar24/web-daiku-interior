@@ -39,6 +39,8 @@ export type PageProps<
     unreadNotificationsCount: number;
     /** Session flash from `back()->with('success', ...)` — AppLayout toasts it once per `key`. */
     flash: { success: string | null; error: string | null; key: string } | null;
+    /** Web customization from Pengaturan Situs (name, logo, login page…). */
+    site: SiteBranding;
 };
 
 /** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
@@ -648,17 +650,34 @@ export interface FinanceAllocationLine {
 }
 
 /**
- * Site Settings — general company/application profile, CEO + SUPERADMIN
- * only (added on request, not in PRD). Singleton — see
- * App\Models\SiteSetting::current().
+ * Site Settings / web customization — CEO + SUPERADMIN only (added on
+ * request, not in PRD). Singleton — see App\Models\SiteSetting::current().
+ * Asset URLs are null until an image is uploaded.
  */
 export interface SiteSetting {
     id: number;
     site_name: string;
+    site_tagline: string | null;
+    login_headline: string | null;
     company_address: string | null;
     company_phone: string | null;
     company_email: string | null;
-    company_logo_url: string | null;
+    logo_url: string | null;
+    favicon_url: string | null;
+    login_image_url: string | null;
     created_at: string;
     updated_at: string;
+}
+
+/** Keys of SiteSetting::ASSETS — the `{asset}` route parameter. */
+export type BrandAsset = 'logo' | 'favicon' | 'login_image';
+
+/** SiteSetting::branding() — shared on every page as `site`, guests included. */
+export interface SiteBranding {
+    name: string;
+    tagline: string;
+    loginHeadline: string;
+    logoUrl: string | null;
+    faviconUrl: string | null;
+    loginImageUrl: string | null;
 }

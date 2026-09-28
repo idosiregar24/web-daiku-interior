@@ -34,7 +34,7 @@ export function RupiahTooltip({ active, payload, label }: RupiahTooltipProps) {
     }
 
     return (
-        <div className="rounded-md border border-daiku-border bg-white px-3 py-2 text-xs shadow-sm">
+        <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
             <p className="mb-1 font-medium text-daiku-dark">{label}</p>
             {payload.map((entry) => (
                 <p key={String(entry.name)} className="flex items-center gap-2 text-daiku-muted">

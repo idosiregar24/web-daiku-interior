@@ -86,7 +86,7 @@ export function TaskKanbanBoard({ tasks, milestones, onCardClick }: TaskKanbanBo
                                         key={task.id}
                                         {...(onCardClick ? { type: 'button' as const, onClick: () => onCardClick(task) } : {})}
                                         className={cn(
-                                            'rounded-md border border-daiku-border bg-white p-2.5 text-left shadow-xs',
+                                            'rounded-lg border border-border bg-card p-2.5 text-left shadow-xs',
                                             onCardClick && 'transition-colors hover:border-daiku-yellow-dark focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                                         )}
                                     >
@@ -99,7 +99,7 @@ export function TaskKanbanBoard({ tasks, milestones, onCardClick }: TaskKanbanBo
                                                 <User className="size-3" aria-hidden />
                                                 {task.assignee?.name ?? 'Belum ditugaskan'}
                                             </span>
-                                            <span className={cn('flex items-center gap-1', late && 'font-medium text-error')}>
+                                            <span className={cn('flex items-center gap-1', late && 'font-medium text-error-ink')}>
                                                 <CalendarDays className="size-3" aria-hidden />
                                                 {formatDate(task.due_date)}
                                             </span>
@@ -107,7 +107,7 @@ export function TaskKanbanBoard({ tasks, milestones, onCardClick }: TaskKanbanBo
                                         </div>
                                         {task.kendala && (
                                             <p className="mt-2 flex items-start gap-1 rounded bg-warning/10 px-1.5 py-1 text-xs text-daiku-dark">
-                                                <AlertCircle className="mt-0.5 size-3 shrink-0 text-warning" aria-hidden />
+                                                <AlertCircle className="mt-0.5 size-3 shrink-0 text-warning-ink" aria-hidden />
                                                 <span className="line-clamp-2">Kendala: {task.kendala}</span>
                                             </p>
                                         )}

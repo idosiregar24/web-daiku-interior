@@ -1,6 +1,7 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Pagination } from '@/Components/shared/Pagination';
+import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { Badge } from '@/Components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
@@ -8,7 +9,7 @@ import { formatDateTime } from '@/lib/format';
 import type { AuditLog, PaginatedData, User } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Lock } from 'lucide-react';
+import { Lock, ScrollText } from 'lucide-react';
 
 interface AuditLogIndexProps {
     logs: PaginatedData<AuditLog>;
@@ -39,6 +40,9 @@ const ACTION_LABELS: Record<string, string> = {
     'user.created': 'User dibuat',
     'user.updated': 'User diubah',
     'analytics.target_set': 'Target pendapatan diatur',
+    'settings.updated': 'Pengaturan situs diubah',
+    'settings.asset_uploaded': 'Gambar branding diunggah',
+    'settings.asset_removed': 'Gambar branding dihapus',
 };
 
 function formatValue(value: unknown): string {
@@ -99,101 +103,104 @@ export default function AuditLogIndex({ logs, filters, areas, actors }: AuditLog
 
             <PageHeader
                 title="Audit Trail"
+                icon={ScrollText}
                 description="Catatan aksi sensitif: approval quotation, keputusan QA, perubahan finance, penalti, dan akses user."
                 actions={
-                    <Badge variant="secondary" className="gap-1 border-transparent bg-daiku-gray text-daiku-muted">
+                    <Badge variant="secondary" className="h-7 gap-1.5 rounded-lg border-transparent bg-daiku-gray px-2.5 text-daiku-muted ring-1 ring-border ring-inset">
                         <Lock className="size-3" />
                         Tidak dapat diubah atau dihapus
                     </Badge>
                 }
             />
 
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                <Select value={filters.area ?? 'all'} onValueChange={(value) => applyFilter({ area: value === 'all' ? undefined : value })}>
-                    <SelectTrigger className="w-40" aria-label="Filter area">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua area</SelectItem>
-                        {Object.entries(areas).map(([key, label]) => (
-                            <SelectItem key={key} value={key}>
-                                {label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Select
-                    value={filters.user_id ? String(filters.user_id) : 'all'}
-                    onValueChange={(value) => applyFilter({ user_id: value === 'all' ? undefined : value })}
-                >
-                    <SelectTrigger className="w-52" aria-label="Filter pelaku">
-                        <SelectValue placeholder="Semua pelaku" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua pelaku</SelectItem>
-                        {actors.map((actor) => (
-                            <SelectItem key={actor.id} value={String(actor.id)}>
-                                {actor.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <DatePicker
-                    value={filters.from ? new Date(filters.from) : undefined}
-                    onChange={(date) => applyFilter({ from: date ? format(date, 'yyyy-MM-dd') : undefined })}
-                    placeholder="Dari tanggal"
-                    className="w-44"
-                />
-                <DatePicker
-                    value={filters.to ? new Date(filters.to) : undefined}
-                    onChange={(date) => applyFilter({ to: date ? format(date, 'yyyy-MM-dd') : undefined })}
-                    placeholder="Sampai tanggal"
-                    className="w-44"
-                />
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-daiku-border bg-white">
+            <TableCard
+                pagination={logs}
+                toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Select value={filters.area ?? 'all'} onValueChange={(value) => applyFilter({ area: value === 'all' ? undefined : value })}>
+                            <SelectTrigger className="w-40" aria-label="Filter area">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua area</SelectItem>
+                                {Object.entries(areas).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>
+                                        {label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={filters.user_id ? String(filters.user_id) : 'all'}
+                            onValueChange={(value) => applyFilter({ user_id: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="w-52" aria-label="Filter pelaku">
+                                <SelectValue placeholder="Semua pelaku" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua pelaku</SelectItem>
+                                {actors.map((actor) => (
+                                    <SelectItem key={actor.id} value={String(actor.id)}>
+                                        {actor.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <DatePicker
+                            value={filters.from ? new Date(filters.from) : undefined}
+                            onChange={(date) => applyFilter({ from: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            placeholder="Dari tanggal"
+                            className="w-44"
+                        />
+                        <DatePicker
+                            value={filters.to ? new Date(filters.to) : undefined}
+                            onChange={(date) => applyFilter({ to: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            placeholder="Sampai tanggal"
+                            className="w-44"
+                        />
+                    </div>
+                }
+            >
                 <table className="w-full text-sm">
-                    <thead className="bg-daiku-yellow-light">
+                    <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="p-2 text-left font-medium whitespace-nowrap">Waktu</th>
-                            <th className="p-2 text-left font-medium">Pelaku</th>
-                            <th className="p-2 text-left font-medium">Aksi</th>
-                            <th className="p-2 text-left font-medium">Data</th>
-                            <th className="p-2 text-left font-medium">Perubahan</th>
-                            <th className="p-2 text-left font-medium">IP</th>
+                            <th className="px-4 py-2.5 text-left font-semibold whitespace-nowrap">Waktu</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Pelaku</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Aksi</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Data</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Perubahan</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">IP</th>
                         </tr>
                     </thead>
                     <tbody>
                         {logs.data.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="p-6 text-center text-daiku-muted">
-                                    Belum ada catatan audit.
+                                <td colSpan={6} className="p-0">
+                                    <EmptyState title="Belum ada catatan audit." />
                                 </td>
                             </tr>
                         ) : (
                             logs.data.map((log) => (
-                                <tr key={log.id} className="border-t border-daiku-border align-top">
-                                    <td className="p-2 whitespace-nowrap text-daiku-muted">{formatDateTime(log.created_at)}</td>
-                                    <td className="p-2 font-medium">{log.user?.name ?? (log.user_id ? 'User dihapus' : 'Sistem')}</td>
-                                    <td className="p-2">
+                                <tr key={log.id} className="border-t border-border align-top transition-colors hover:bg-daiku-gray/60">
+                                    <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">{formatDateTime(log.created_at)}</td>
+                                    <td className="px-4 py-3 font-medium">{log.user?.name ?? (log.user_id ? 'User dihapus' : 'Sistem')}</td>
+                                    <td className="px-4 py-3">
                                         <p className="font-medium text-daiku-dark">{ACTION_LABELS[log.action] ?? log.action}</p>
                                         <p className="font-mono text-xs text-daiku-muted">{log.action}</p>
                                     </td>
-                                    <td className="p-2 whitespace-nowrap text-daiku-muted">
+                                    <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">
                                         {log.model_type} #{log.model_id}
                                     </td>
-                                    <td className="min-w-64 p-2">
+                                    <td className="min-w-64 px-4 py-3">
                                         <ChangeList log={log} />
                                     </td>
-                                    <td className="p-2 font-mono text-xs text-daiku-muted">{log.ip_address ?? '—'}</td>
+                                    <td className="px-4 py-3 font-mono text-xs text-daiku-muted">{log.ip_address ?? '—'}</td>
                                 </tr>
                             ))
                         )}
                     </tbody>
                 </table>
-            </div>
-            <Pagination paginator={logs} />
+            </TableCard>
         </AppLayout>
     );
 }

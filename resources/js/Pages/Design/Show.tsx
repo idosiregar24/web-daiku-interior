@@ -1,8 +1,8 @@
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { SectionCard } from '@/Components/shared/SectionCard';
 import {
     Form,
     FormControl,
@@ -26,7 +26,7 @@ import type { Design, DesignStatus, ProjectType, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Plus, Trash2 } from 'lucide-react';
+import { Info, Palette, PenLine, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -137,6 +137,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
 
             <PageHeader
                 title={`Desain: ${design.lead.client_name}`}
+                icon={Palette}
                 description="Brief, link desain, dan status pipeline desain."
                 actions={
                     <div className="flex items-center gap-2">
@@ -153,239 +154,229 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                 }
             />
 
-            <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-base">Brief Desain</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Form {...form}>
-                            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="pic_id"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>PIC Utama</FormLabel>
-                                                <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="w-full">
-                                                            <SelectValue placeholder="Pilih PIC" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {designers.map((designer) => (
-                                                            <SelectItem key={designer.id} value={String(designer.id)}>
-                                                                {designer.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="jenis_project"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Jenis Project</FormLabel>
-                                                <Select
-                                                    value={field.value || 'none'}
-                                                    onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-                                                    disabled={!canManage}
-                                                >
-                                                    <FormControl>
-                                                        <SelectTrigger className="w-full">
-                                                            <SelectValue placeholder="Pilih jenis" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="none">—</SelectItem>
-                                                        {JENIS_PROJECT_OPTIONS.map((option) => (
-                                                            <SelectItem key={option} value={option}>
-                                                                {option.replace('_', ' ')}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="status"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Status</FormLabel>
-                                                <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
-                                                    <FormControl>
-                                                        <SelectTrigger className="w-full">
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {STATUS_OPTIONS.map((option) => (
-                                                            <SelectItem key={option} value={option}>
-                                                                {option.replace(/_/g, ' ')}
-                                                            </SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="target_hari"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Target Hari</FormLabel>
-                                                <FormControl>
-                                                    <Input type="number" min="1" {...field} disabled={!canManage} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="start_date"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Tanggal Mulai</FormLabel>
-                                                <FormControl>
-                                                    <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                {design.deadline && (
-                                    <p className="text-xs text-daiku-muted">
-                                        Deadline (otomatis): {new Date(design.deadline).toLocaleDateString('id-ID')}
-                                        {design.delay_hari > 0 && (
-                                            <span className="ml-2 font-medium text-error">Delay {design.delay_hari} hari</span>
-                                        )}
-                                    </p>
-                                )}
-
+            <div className="grid gap-6 lg:grid-cols-3">
+                <SectionCard title="Brief Desain" icon={PenLine} className="lg:col-span-2">
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
                                 <FormField
                                     control={form.control}
-                                    name="brief_note"
+                                    name="pic_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Catatan Brief</FormLabel>
-                                            <FormControl>
-                                                <Textarea {...field} rows={3} disabled={!canManage} />
-                                            </FormControl>
+                                            <FormLabel>PIC Utama</FormLabel>
+                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Pilih PIC" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {designers.map((designer) => (
+                                                        <SelectItem key={designer.id} value={String(designer.id)}>
+                                                            {designer.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="problem"
+                                    name="jenis_project"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Problem / Kendala</FormLabel>
-                                            <FormControl>
-                                                <Textarea {...field} rows={2} disabled={!canManage} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div>
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <FormLabel>Link Desain (Drive / Figma)</FormLabel>
-                                        {canManage && (
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => append({ value: '' })}
+                                            <FormLabel>Jenis Project</FormLabel>
+                                            <Select
+                                                value={field.value || 'none'}
+                                                onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                                                disabled={!canManage}
                                             >
-                                                <Plus className="size-4" />
-                                                Tambah Link
-                                            </Button>
-                                        )}
-                                    </div>
-                                    {fields.length === 0 ? (
-                                        <p className="text-sm text-daiku-muted">Belum ada link desain.</p>
-                                    ) : (
-                                        <div className="space-y-2">
-                                            {fields.map((item, index) => (
-                                                <div key={item.id} className="flex items-center gap-2">
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`design_urls.${index}.value`}
-                                                        render={({ field }) => (
-                                                            <FormItem className="flex-1">
-                                                                <FormControl>
-                                                                    <Input
-                                                                        {...field}
-                                                                        placeholder="https://..."
-                                                                        disabled={!canManage}
-                                                                    />
-                                                                </FormControl>
-                                                                <FormMessage />
-                                                            </FormItem>
-                                                        )}
-                                                    />
-                                                    {canManage && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon-sm"
-                                                            onClick={() => remove(index)}
-                                                        >
-                                                            <Trash2 className="size-4 text-error" />
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Pilih jenis" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="none">—</SelectItem>
+                                                    {JENIS_PROJECT_OPTIONS.map((option) => (
+                                                        <SelectItem key={option} value={option}>
+                                                            {option.replace('_', ' ')}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="status"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Status</FormLabel>
+                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {STATUS_OPTIONS.map((option) => (
+                                                        <SelectItem key={option} value={option}>
+                                                            {option.replace(/_/g, ' ')}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="target_hari"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Target Hari</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" min="1" {...field} disabled={!canManage} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="start_date"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Tanggal Mulai</FormLabel>
+                                            <FormControl>
+                                                <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {design.deadline && (
+                                <p className="text-xs text-daiku-muted">
+                                    Deadline (otomatis): {new Date(design.deadline).toLocaleDateString('id-ID')}
+                                    {design.delay_hari > 0 && (
+                                        <span className="ml-2 font-medium text-error-ink">Delay {design.delay_hari} hari</span>
+                                    )}
+                                </p>
+                            )}
+
+                            <FormField
+                                control={form.control}
+                                name="brief_note"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Catatan Brief</FormLabel>
+                                        <FormControl>
+                                            <Textarea {...field} rows={3} disabled={!canManage} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="problem"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Problem / Kendala</FormLabel>
+                                        <FormControl>
+                                            <Textarea {...field} rows={2} disabled={!canManage} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                    <FormLabel>Link Desain (Drive / Figma)</FormLabel>
+                                    {canManage && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => append({ value: '' })}
+                                        >
+                                            <Plus className="size-4" />
+                                            Tambah Link
+                                        </Button>
                                     )}
                                 </div>
-
-                                {canManage && (
-                                    <Button type="submit" disabled={form.formState.isSubmitting}>
-                                        Simpan Brief
-                                    </Button>
+                                {fields.length === 0 ? (
+                                    <p className="text-sm text-daiku-muted">Belum ada link desain.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {fields.map((item, index) => (
+                                            <div key={item.id} className="flex items-center gap-2">
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`design_urls.${index}.value`}
+                                                    render={({ field }) => (
+                                                        <FormItem className="flex-1">
+                                                            <FormControl>
+                                                                <Input
+                                                                    {...field}
+                                                                    placeholder="https://..."
+                                                                    disabled={!canManage}
+                                                                />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                {canManage && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon-sm"
+                                                        onClick={() => remove(index)}
+                                                    >
+                                                        <Trash2 className="size-4 text-error-ink" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
-                            </form>
-                        </Form>
-                    </CardContent>
-                </Card>
+                            </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Ringkasan</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                        <div>
-                            <p className="text-xs text-daiku-muted">Klien</p>
-                            <p className="font-medium text-daiku-dark">{design.lead.client_name}</p>
-                        </div>
-                        <div>
-                            <p className="text-xs text-daiku-muted">Status Client ACC</p>
-                            <p className="font-medium text-daiku-dark">
-                                {design.client_acc ? 'Sudah ACC' : 'Belum ACC'}
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
+                            {canManage && (
+                                <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    Simpan Brief
+                                </Button>
+                            )}
+                        </form>
+                    </Form>
+                </SectionCard>
+
+                <SectionCard title="Ringkasan" icon={Info} contentClassName="space-y-3 text-sm">
+                    <div>
+                        <p className="text-xs text-daiku-muted">Klien</p>
+                        <p className="font-medium text-daiku-dark">{design.lead.client_name}</p>
+                    </div>
+                    <div>
+                        <p className="text-xs text-daiku-muted">Status Client ACC</p>
+                        <p className="font-medium text-daiku-dark">
+                            {design.client_acc ? 'Sudah ACC' : 'Belum ACC'}
+                        </p>
+                    </div>
+                </SectionCard>
             </div>
 
             <ClientAccDialog

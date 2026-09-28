@@ -4,7 +4,11 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        {{-- Branding from Pengaturan Situs (shared by HandleInertiaRequests as `site`). --}}
+        @php($site = $page['props']['site'] ?? null)
+
+        <title inertia>{{ $site['name'] ?? config('app.name', 'Laravel') }}</title>
+        <link rel="icon" href="{{ $site['faviconUrl'] ?? $site['logoUrl'] ?? asset('favicon.ico') }}">
 
         <!-- Scripts -->
         @routes

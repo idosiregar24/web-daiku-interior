@@ -2,10 +2,11 @@ import { STAFF_LOAN_STATUS_LABEL, staffLoanStatus } from '@/Components/modules/f
 import { DataTable } from '@/Components/shared/DataTable';
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { DetailItem, DetailList } from '@/Components/shared/DetailList';
+import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { Card, CardContent } from '@/Components/ui/card';
 import {
     Dialog,
     DialogClose,
@@ -25,7 +26,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
-import { HandCoins, Plus, Receipt, Wallet } from 'lucide-react';
+import { FileText, HandCoins, History, Plus, Receipt, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -39,7 +40,7 @@ const columns: ColumnDef<StaffLoanPayment>[] = [
     {
         accessorKey: 'amount',
         header: 'Nominal',
-        cell: ({ row }) => <span className="font-medium tabular-nums text-success">{formatRupiah(row.original.amount)}</span>,
+        cell: ({ row }) => <span className="font-medium tabular-nums text-success-ink">{formatRupiah(row.original.amount)}</span>,
     },
     {
         id: 'source',
@@ -93,6 +94,7 @@ export default function StaffLoanShow({ loan, bankAccounts }: { loan: StaffLoan;
 
             <PageHeader
                 title={`Pinjaman ${loan.staff?.name ?? ''}`}
+                icon={HandCoins}
                 description={loan.description ?? undefined}
                 actions={
                     canManage &&
@@ -105,7 +107,7 @@ export default function StaffLoanShow({ loan, bankAccounts }: { loan: StaffLoan;
                 }
             />
 
-            <div className="mb-4 grid gap-4 sm:grid-cols-3">
+            <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <StatCard label="Nominal Pinjaman" value={formatRupiah(loan.amount)} icon={HandCoins} />
                 <StatCard label="Sudah Dibayar" value={formatRupiah(loan.paid_amount)} icon={Receipt} tone="success" />
                 <StatCard
@@ -117,31 +119,33 @@ export default function StaffLoanShow({ loan, bankAccounts }: { loan: StaffLoan;
                 />
             </div>
 
-            <Card className="mb-6">
-                <CardContent className="grid gap-4 pt-6 text-sm sm:grid-cols-4">
-                    <Detail label="Cicilan per Upah" value={formatRupiah(loan.installment_amount)} />
-                    <Detail label="Rekening Sumber" value={loan.bank_account?.label ?? '—'} />
-                    <Detail label="Tanggal Pinjam" value={formatDate(loan.created_at)} />
-                    <Detail label="Dicatat oleh" value={loan.creator?.name ?? '—'} />
-                </CardContent>
-            </Card>
+            <SectionCard title="Detail Pinjaman" icon={FileText} className="mb-6">
+                <DetailList className="sm:grid-cols-4">
+                    <DetailItem label="Cicilan per Upah" valueClassName="font-medium">
+                        {formatRupiah(loan.installment_amount)}
+                    </DetailItem>
+                    <DetailItem label="Rekening Sumber" valueClassName="font-medium">
+                        {loan.bank_account?.label ?? '—'}
+                    </DetailItem>
+                    <DetailItem label="Tanggal Pinjam" valueClassName="font-medium">
+                        {formatDate(loan.created_at)}
+                    </DetailItem>
+                    <DetailItem label="Dicatat oleh" valueClassName="font-medium">
+                        {loan.creator?.name ?? '—'}
+                    </DetailItem>
+                </DetailList>
+            </SectionCard>
 
-            <h2 className="mb-3 text-sm font-semibold text-daiku-dark">Riwayat Pembayaran</h2>
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <History className="size-4 text-muted-foreground" />
+                Riwayat Pembayaran
+            </h2>
             <DataTable columns={columns} data={loan.payments ?? []} emptyMessage="Belum ada pembayaran." />
 
             {canManage && (
                 <PaymentDialog loan={loan} bankAccounts={bankAccounts} open={paymentOpen} onOpenChange={setPaymentOpen} />
             )}
         </AppLayout>
-    );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-    return (
-        <div>
-            <p className="text-xs text-daiku-muted">{label}</p>
-            <p className="font-medium text-daiku-dark">{value}</p>
-        </div>
     );
 }
 

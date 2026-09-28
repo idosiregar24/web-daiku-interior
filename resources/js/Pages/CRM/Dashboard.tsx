@@ -1,8 +1,13 @@
+import { AXIS_TICK, VIZ } from '@/Components/modules/analytics/chartTheme';
+import { EmptyState } from '@/Components/shared/EmptyState';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/Components/ui/card';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { StatCard } from '@/Components/shared/StatCard';
+import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
 import type { LeadStatus } from '@/types';
 import { Head, Link } from '@inertiajs/react';
+import { AlarmClock, ArrowLeft, BarChart3, Filter, Handshake, Percent, Share2, Users } from 'lucide-react';
 import {
     Bar,
     BarChart,
@@ -46,18 +51,13 @@ const FUNNEL_LABEL: Record<LeadStatus, string> = {
     LOST: 'Lost',
 };
 
-function StatTile({ label, value, tone }: { label: string; value: string; tone?: 'success' | 'error' | 'default' }) {
-    const toneClass = tone === 'success' ? 'text-success' : tone === 'error' ? 'text-error' : 'text-daiku-dark';
-
-    return (
-        <Card>
-            <CardContent className="pt-6">
-                <p className="text-xs text-daiku-muted">{label}</p>
-                <p className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</p>
-            </CardContent>
-        </Card>
-    );
-}
+// Tooltip box matching chartTheme's RupiahTooltip look.
+const TOOLTIP_STYLE = {
+    fontSize: 12,
+    borderColor: 'var(--color-daiku-border)',
+    borderRadius: 8,
+    boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+} as const;
 
 /**
  * "Pipeline dashboard Marketing: funnel chart + statistik lead"
@@ -83,76 +83,81 @@ export default function CrmDashboard({ funnel, stats, bySource }: CrmDashboardPr
 
             <PageHeader
                 title="Statistik Pipeline"
+                icon={BarChart3}
                 description="Ringkasan funnel dan performa lead Marketing."
                 actions={
-                    <Link href={route('crm.leads.index')} className="text-sm font-medium text-daiku-dark hover:underline">
-                        ← Kembali ke Data Lead
-                    </Link>
+                    <Button variant="outline" asChild>
+                        <Link href={route('crm.leads.index')}>
+                            <ArrowLeft className="size-4" />
+                            Kembali ke Data Lead
+                        </Link>
+                    </Button>
                 }
             />
 
-            <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <StatTile label="Total Lead" value={String(stats.total)} />
-                <StatTile label="Closing" value={String(stats.closing)} tone="success" />
-                <StatTile label="Conversion Rate" value={`${stats.conversionRate}%`} />
-                <StatTile label="Follow-up Terlewat" value={String(stats.overdueFollowUp)} tone={stats.overdueFollowUp > 0 ? 'error' : 'default'} />
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <StatCard label="Total Lead" value={String(stats.total)} icon={Users} />
+                <StatCard label="Closing" value={String(stats.closing)} icon={Handshake} tone="success" />
+                <StatCard label="Conversion Rate" value={`${stats.conversionRate}%`} icon={Percent} />
+                <StatCard
+                    label="Follow-up Terlewat"
+                    value={String(stats.overdueFollowUp)}
+                    icon={AlarmClock}
+                    tone={stats.overdueFollowUp > 0 ? 'error' : 'default'}
+                />
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-2">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Pipeline Funnel</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {stats.total === 0 ? (
-                            <p className="py-10 text-center text-sm text-daiku-muted">Belum ada data lead.</p>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={280}>
-                                <FunnelChart>
-                                    <Tooltip
-                                        formatter={(value, _name, item) => [`${value} lead`, item?.payload?.name]}
+            <div className="grid gap-6 lg:grid-cols-2">
+                <SectionCard
+                    title="Pipeline Funnel"
+                    icon={Filter}
+                    footer={`Lead LOST (${stats.lost}) tidak dihitung dalam funnel — cabang terminal, bukan tahap pipeline.`}
+                >
+                    {stats.total === 0 ? (
+                        <EmptyState title="Belum ada data lead." />
+                    ) : (
+                        <ResponsiveContainer width="100%" height={280}>
+                            <FunnelChart>
+                                <Tooltip
+                                    formatter={(value, _name, item) => [`${value} lead`, item?.payload?.name]}
+                                    contentStyle={TOOLTIP_STYLE}
+                                />
+                                <Funnel dataKey="value" data={funnelData} isAnimationActive>
+                                    <LabelList
+                                        position="right"
+                                        dataKey="name"
+                                        fill="var(--color-foreground)"
+                                        stroke="none"
                                     />
-                                    <Funnel dataKey="value" data={funnelData} isAnimationActive>
-                                        <LabelList
-                                            position="right"
-                                            dataKey="name"
-                                            fill="var(--color-foreground)"
-                                            stroke="none"
-                                        />
-                                    </Funnel>
-                                </FunnelChart>
-                            </ResponsiveContainer>
-                        )}
-                        <p className="mt-2 text-xs text-daiku-muted">
-                            Lead LOST ({stats.lost}) tidak dihitung dalam funnel — cabang terminal, bukan tahap pipeline.
-                        </p>
-                    </CardContent>
-                </Card>
+                                </Funnel>
+                            </FunnelChart>
+                        </ResponsiveContainer>
+                    )}
+                </SectionCard>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Lead per Sumber</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {bySource.length === 0 ? (
-                            <p className="py-10 text-center text-sm text-daiku-muted">Belum ada data lead.</p>
-                        ) : (
-                            <ResponsiveContainer width="100%" height={280}>
-                                <BarChart data={bySource} layout="vertical" margin={{ left: 16 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-daiku-border" />
-                                    <XAxis type="number" allowDecimals={false} tick={{ fontSize: 12 }} />
-                                    <YAxis type="category" dataKey="source" width={90} tick={{ fontSize: 12 }} />
-                                    <Tooltip formatter={(value) => [`${value} lead`, 'Jumlah']} />
-                                    <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={24}>
-                                        {bySource.map((entry) => (
-                                            <Cell key={entry.source} fill="var(--color-daiku-yellow)" />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </CardContent>
-                </Card>
+                <SectionCard title="Lead per Sumber" icon={Share2}>
+                    {bySource.length === 0 ? (
+                        <EmptyState title="Belum ada data lead." />
+                    ) : (
+                        <ResponsiveContainer width="100%" height={280}>
+                            <BarChart data={bySource} layout="vertical" margin={{ left: 16 }}>
+                                <CartesianGrid horizontal={false} stroke={VIZ.grid} />
+                                <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                                <YAxis type="category" dataKey="source" width={90} tick={AXIS_TICK} axisLine={false} tickLine={false} />
+                                <Tooltip
+                                    formatter={(value) => [`${value} lead`, 'Jumlah']}
+                                    cursor={{ fill: 'var(--color-daiku-gray)' }}
+                                    contentStyle={TOOLTIP_STYLE}
+                                />
+                                <Bar dataKey="total" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                                    {bySource.map((entry) => (
+                                        <Cell key={entry.source} fill={VIZ.series1} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    )}
+                </SectionCard>
             </div>
         </AppLayout>
     );
