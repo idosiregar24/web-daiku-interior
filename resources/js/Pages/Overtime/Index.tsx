@@ -336,7 +336,7 @@ export default function OvertimeIndex({
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Lembur' }]}>
+        <AppLayout>
             <Head title="Lembur" />
 
             <PageHeader

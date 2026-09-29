@@ -114,7 +114,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Logistik' }, { label: 'Aset Inventaris' }]}>
+        <AppLayout>
             <Head title="Aset Inventaris" />
 
             <PageHeader

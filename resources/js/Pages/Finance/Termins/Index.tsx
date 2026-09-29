@@ -261,18 +261,19 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
     const { auth } = usePage<PageProps>().props;
     const canMarkPaid = auth.user.role === 'FINANCE' || auth.user.role === 'SUPERADMIN';
     const [payingTermin, setPayingTermin] = useState<Termin | null>(null);
+    const [tab, setTab] = useState('list');
 
     function applyFilter(next: Partial<typeof filters>) {
         router.get(route('finance.termins.index'), { ...filters, ...next }, { preserveState: true, replace: true });
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Termin' }]}>
+        <AppLayout breadcrumbs={[{ label: tab === 'calendar' ? 'Kalender' : 'List' }]}>
             <Head title="Termin" />
 
             <PageHeader title="Termin" icon={CalendarClock} description="Jadwal pembayaran termin seluruh proyek (selalu Sabtu)." />
 
-            <Tabs defaultValue="list">
+            <Tabs value={tab} onValueChange={setTab}>
                 <TabsList>
                     <TabsTrigger value="list" className="px-3">
                         <List />

@@ -65,11 +65,7 @@ export default function SupplierDebtCreate({ projects }: SupplierDebtCreateProps
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'Finance', routeName: 'finance.dashboard' },
-                { label: 'Hutang Supplier', routeName: 'finance.supplierDebts.index' },
-                { label: 'Catat Hutang' },
-            ]}
+            breadcrumbs={[{ label: 'Catat Hutang' }]}
         >
             <Head title="Catat Hutang Supplier" />
 

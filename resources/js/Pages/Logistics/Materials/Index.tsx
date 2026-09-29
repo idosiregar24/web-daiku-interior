@@ -209,7 +209,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Logistik' }, { label: 'Material' }]}>
+        <AppLayout>
             <Head title="Material" />
 
             <PageHeader

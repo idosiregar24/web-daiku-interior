@@ -144,7 +144,7 @@ export default function AnalyticsIndex({
     const activeTaskTotal = Object.values(taskStatus).reduce((sum, count) => sum + count, 0);
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Eksekutif' }, { label: 'Analytics' }]}>
+        <AppLayout>
             <Head title="Executive Dashboard" />
 
             <PageHeader

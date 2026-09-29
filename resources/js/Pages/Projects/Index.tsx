@@ -73,7 +73,7 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Proyek' }]}>
+        <AppLayout>
             <Head title="Proyek" />
 
             <PageHeader

@@ -133,7 +133,7 @@ export default function FamilyFundIndex({ entries, balance, totalIncome, totalEx
     const [dialogOpen, setDialogOpen] = useState(false);
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Dana Family Gathering' }]}>
+        <AppLayout>
             <Head title="Dana Family Gathering" />
 
             <PageHeader

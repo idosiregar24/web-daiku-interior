@@ -134,7 +134,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Sistem' }, { label: 'Pengaturan Situs' }]}>
+        <AppLayout>
             <Head title="Pengaturan Situs" />
 
             <PageHeader

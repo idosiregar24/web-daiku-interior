@@ -98,7 +98,7 @@ export default function AuditLogIndex({ logs, filters, areas, actors }: AuditLog
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Eksekutif' }, { label: 'Audit Trail' }]}>
+        <AppLayout>
             <Head title="Audit Trail" />
 
             <PageHeader

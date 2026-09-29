@@ -77,11 +77,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'Finance', routeName: 'finance.dashboard' },
-                { label: 'Pinjaman Tukang', routeName: 'finance.staffLoans.index' },
-                { label: 'Catat Pinjaman' },
-            ]}
+            breadcrumbs={[{ label: 'Catat Pinjaman' }]}
         >
             <Head title="Catat Pinjaman Tukang" />
 

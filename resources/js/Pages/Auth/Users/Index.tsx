@@ -71,7 +71,7 @@ const columns: ColumnDef<UserWithRoles>[] = [
 
 export default function UsersIndex({ users }: UsersIndexProps) {
     return (
-        <AppLayout breadcrumbs={[{ label: 'User Management' }]}>
+        <AppLayout>
             <Head title="User Management" />
 
             <PageHeader

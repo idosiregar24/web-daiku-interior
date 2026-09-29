@@ -44,7 +44,7 @@ export default function FinanceDashboard({ cashFlow }: FinanceDashboardProps) {
     const net = cashFlow.map((row) => row.income - row.expense);
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Cash Flow' }]}>
+        <AppLayout>
             <Head title="Cash Flow Dashboard" />
 
             <PageHeader title="Cash Flow" icon={Wallet} description="Pemasukan vs pengeluaran 6 bulan terakhir." />

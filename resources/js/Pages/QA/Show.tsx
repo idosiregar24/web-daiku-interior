@@ -85,8 +85,8 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
     return (
         <AppLayout
             breadcrumbs={[
-                { label: 'QA', routeName: 'qa-forms.index' },
                 { label: qaForm.project?.name ?? 'QA Form' },
+                { label: qaForm.milestone?.name ?? 'Milestone' },
             ]}
         >
             <Head title={`QA Form — ${qaForm.project?.name ?? ''}`} />

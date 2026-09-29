@@ -77,13 +77,7 @@ export default function StockMovementIndex({ movements, filters, materials, proj
     }
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { label: 'Logistik' },
-                { label: 'Material', routeName: 'logistics.materials.index' },
-                { label: 'Riwayat Stok' },
-            ]}
-        >
+        <AppLayout>
             <Head title="Riwayat Stok" />
 
             <PageHeader

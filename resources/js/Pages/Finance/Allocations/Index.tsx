@@ -46,7 +46,7 @@ export default function AllocationIndex({ allocations, activeTotal }: Allocation
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Alokasi Persentase' }]}>
+        <AppLayout>
             <Head title="Alokasi Persentase" />
 
             <PageHeader

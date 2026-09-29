@@ -89,7 +89,7 @@ export default function DesignIndex({ designs, filters }: DesignIndexProps) {
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Desain' }]}>
+        <AppLayout>
             <Head title="Desain" />
 
             <PageHeader

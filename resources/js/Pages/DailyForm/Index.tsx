@@ -170,7 +170,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Form Harian' }]}>
+        <AppLayout>
             <Head title="Form Harian" />
 
             <PageHeader

@@ -90,7 +90,7 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Pinjaman Tukang' }]}>
+        <AppLayout>
             <Head title="Pinjaman Tukang" />
 
             <PageHeader

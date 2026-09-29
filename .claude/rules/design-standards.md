@@ -110,11 +110,16 @@ jangan duplikasi mapping ini di tiap halaman.
   modul baru ke `NAV_GROUPS` di file itu begitu route-nya siap — sidebar,
   command menu, dan daftar "Modul Anda" di Dashboard membaca data yang sama
   lewat `useNavGroups()`.
-- Topbar pakai **breadcrumb** (PRD §8.3), bukan judul teks polos — kirim
-  prop `breadcrumbs={[{ label: '...', routeName: '...' }, { label: '...' }]}`
-  ke `<AppLayout>` (entry terakhir tanpa `routeName` = halaman saat ini,
-  tidak bisa diklik). Prop `header` lama masih didukung sebagai fallback
-  kalau `breadcrumbs` tidak dikirim, tapi jangan pakai untuk halaman baru.
+- Topbar pakai **breadcrumb** (PRD §8.3). Awal jejaknya **otomatis** dari
+  menu sidebar tempat route berada: 🏠 › grup ▾ (dropdown menu lain di grup
+  itu) › menu (+ ikon). Menu dicocokkan lewat pola Ziggy `NavItem.match`
+  (default: `x.index`/`x.edit` → `x.*`, jadi halaman detail/tambah ikut
+  menandai menunya di sidebar). Halaman **index menu tidak mengirim
+  `breadcrumbs`**; halaman detail/form hanya mengirim level setelah menu:
+  `breadcrumbs={[{ label: project.name }, { label: 'Finance' }]}` (entry
+  bisa `routeName` atau `href`; entry terakhir = halaman saat ini). Tab
+  level halaman ikut jadi crumb terakhir (lihat Detail Proyek, Termin,
+  Data Master). Jangan ulangi nama grup/menu di `breadcrumbs`.
 - Halaman auth (login/register/dst) pakai `Layouts/AuthLayout.tsx`
   (kartu putih mengambang di atas `bg-daiku-cream`: panel gradien emas di
   kiri — desktop saja — dan form di kanan; judul/deskripsi lewat prop

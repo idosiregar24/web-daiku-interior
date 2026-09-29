@@ -113,10 +113,7 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'CRM', routeName: 'crm.leads.index' },
-                { label: `Quotation — ${quotation.lead.client_name}` },
-            ]}
+            breadcrumbs={[{ label: quotation.lead.client_name }, { label: `Versi ${quotation.version}` }]}
         >
             <Head title={`Quotation — ${quotation.lead.client_name}`} />
 

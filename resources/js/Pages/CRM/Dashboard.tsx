@@ -74,10 +74,7 @@ export default function CrmDashboard({ funnel, stats, bySource }: CrmDashboardPr
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'CRM', routeName: 'crm.leads.index' },
-                { label: 'Statistik Pipeline' },
-            ]}
+            breadcrumbs={[{ label: 'Statistik Pipeline' }]}
         >
             <Head title="Statistik Pipeline" />
 

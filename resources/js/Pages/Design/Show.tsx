@@ -128,10 +128,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'CRM', routeName: 'crm.leads.index' },
-                { label: design.lead.client_name },
-            ]}
+            breadcrumbs={[{ label: design.lead.client_name }]}
         >
             <Head title={`Desain — ${design.lead.client_name}`} />
 

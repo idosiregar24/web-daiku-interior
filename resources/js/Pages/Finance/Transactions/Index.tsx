@@ -53,7 +53,7 @@ export default function TransactionIndex({
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Transaksi' }]}>
+        <AppLayout>
             <Head title="Transaksi Finance" />
 
             <PageHeader

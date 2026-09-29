@@ -26,7 +26,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'QA' }]}>
+        <AppLayout>
             <Head title="QA Form" />
 
             <PageHeader

@@ -52,10 +52,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'User Management', routeName: 'users.index' },
-                { label: 'Tambah User' },
-            ]}
+            breadcrumbs={[{ label: 'Tambah User' }]}
         >
             <Head title="Tambah User" />
 

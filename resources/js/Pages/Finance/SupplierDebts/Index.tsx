@@ -129,7 +129,7 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Hutang Supplier' }]}>
+        <AppLayout>
             <Head title="Hutang Supplier" />
 
             <PageHeader

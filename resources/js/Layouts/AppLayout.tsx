@@ -38,7 +38,9 @@ import {
     BarChart3,
     Bell,
     BellOff,
+    Check,
     CheckCheck,
+    ChevronDown,
     ChevronsUpDown,
     Clock,
     ClipboardCheck,
@@ -46,6 +48,7 @@ import {
     FolderKanban,
     HandCoins,
     History,
+    House,
     LayoutDashboard,
     ListChecks,
     LogOut,
@@ -66,16 +69,21 @@ import {
     Wallet,
     Warehouse,
 } from 'lucide-react';
-import { Fragment, PropsWithChildren, ReactNode, useMemo } from 'react';
+import { Fragment, PropsWithChildren, ReactNode, useEffect, useMemo, useRef } from 'react';
 
 /**
- * Topbar breadcrumb trail — PRD §8.3 "Top Bar: Breadcrumb + user avatar +
- * notification bell". Last entry (or any entry without `routeName`) renders
- * as the current, non-clickable page.
+ * Topbar breadcrumb — PRD §8.3 "Top Bar: Breadcrumb + user avatar +
+ * notification bell". The start of the trail is derived automatically
+ * from the sidebar menu the current route belongs to (🏠 › group › menu);
+ * a page only passes what comes AFTER its menu — a record name, a
+ * "Tambah …" form, the active tab. The last entry is the current page.
  */
 export type BreadcrumbEntry = {
     label: string;
+    /** Link target: a parameterless route name… */
     routeName?: string;
+    /** …or a ready URL, for routes with parameters (`route('projects.show', id)`). */
+    href?: string;
 };
 
 export type NavItem = {
@@ -83,6 +91,12 @@ export type NavItem = {
     icon: LucideIcon;
     /** Ziggy route name once the module controller exists; undefined = not built yet. */
     routeName?: string;
+    /**
+     * Ziggy pattern of the routes that belong to this menu (highlights it in
+     * the sidebar and puts it in the breadcrumb). Defaults to the routeName
+     * with `.index`/`.edit` widened to `.*` — so detail/create pages count.
+     */
+    match?: string;
     /** Restrict visibility to these roles; omit to show to everyone. */
     roles?: Role[];
 };
@@ -113,6 +127,8 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'CRM / Pipeline',
                 icon: Users,
                 routeName: 'crm.leads.index',
+                // leads + the pipeline statistics page (crm.dashboard)
+                match: 'crm.*',
                 roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM'],
             },
             {
@@ -328,6 +344,47 @@ export function useNavGroups(): NavGroup[] {
     );
 }
 
+/** Ziggy pattern of the routes a menu covers (see NavItem.match). */
+function navPattern(item: NavItem): string | null {
+    if (!item.routeName) return null;
+    if (item.match) return item.match;
+
+    return /\.(index|edit)$/.test(item.routeName) ? item.routeName.replace(/\.[^.]+$/, '.*') : item.routeName;
+}
+
+function isCurrentNav(item: NavItem): boolean {
+    const pattern = navPattern(item);
+
+    return Boolean(pattern && typeof route !== 'undefined' && route().current(pattern));
+}
+
+/**
+ * The sidebar menu (and its group) the current page belongs to. Role-visible
+ * menus first; a page reachable without its menu being visible (e.g. a
+ * detail page opened from a notification) still gets a trail, just
+ * without the menu link (`visible: false`).
+ */
+export function useActiveNav(): { group: NavGroup; item: NavItem; visible: boolean } | null {
+    const groups = useNavGroups();
+    const { url } = usePage();
+
+    return useMemo(() => {
+        for (const [list, visible] of [
+            [groups, true],
+            [NAV_GROUPS, false],
+        ] as const) {
+            for (const group of list) {
+                const item = group.items.find(isCurrentNav);
+                if (item) return { group, item, visible };
+            }
+        }
+
+        return null;
+        // `url` re-runs the match after every visit.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groups, url]);
+}
+
 function initials(name: string) {
     return name
         .split(' ')
@@ -339,9 +396,16 @@ function initials(name: string) {
 
 function SidebarNav() {
     const groups = useNavGroups();
+    const navRef = useRef<HTMLElement>(null);
+
+    // Menus low in the list (Logistik, Sistem…) would otherwise sit below
+    // the fold — bring the active one into view.
+    useEffect(() => {
+        navRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+    }, []);
 
     return (
-        <nav className="scrollbar-thin flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2">
+        <nav ref={navRef} className="scrollbar-thin flex flex-1 flex-col gap-5 overflow-y-auto px-3 py-2">
             {groups.map((group) => (
                 <div key={group.label}>
                     <p className="px-2.5 pb-1.5 text-[11px] font-semibold tracking-wider text-daiku-muted/80 uppercase">
@@ -350,10 +414,8 @@ function SidebarNav() {
                     <div className="flex flex-col gap-0.5">
                         {group.items.map((item) => {
                             const Icon = item.icon;
-                            const isActive =
-                                item.routeName &&
-                                typeof route !== 'undefined' &&
-                                route().current(item.routeName);
+                            // Detail/create pages keep their parent menu highlighted.
+                            const isActive = isCurrentNav(item);
 
                             if (!item.routeName) {
                                 return (
@@ -514,32 +576,135 @@ function SidebarContents() {
     );
 }
 
-function TopbarBreadcrumb({ breadcrumbs }: { breadcrumbs: BreadcrumbEntry[] }) {
+type Crumb =
+    | { kind: 'home' }
+    | { kind: 'group'; group: NavGroup; current: NavItem }
+    | { kind: 'page'; label: string; href?: string; icon?: LucideIcon };
+
+/** Switch to a sibling menu of the same group straight from the breadcrumb. */
+function GroupCrumb({ group, current }: { group: NavGroup; current: NavItem }) {
+    const siblings = group.items.filter((item) => item.routeName);
+
     return (
-        <Breadcrumb className="min-w-0">
-            <BreadcrumbList className="flex-nowrap">
-                {breadcrumbs.map((item, index) => {
-                    const isLast = index === breadcrumbs.length - 1;
+        <DropdownMenu>
+            <DropdownMenuTrigger
+                className="-mx-1 flex items-center gap-1 rounded-md px-1 py-0.5 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                aria-label={`Menu lain di ${group.label}`}
+            >
+                {group.label}
+                <ChevronDown className="size-3.5" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuLabel className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                    {group.label}
+                </DropdownMenuLabel>
+                {siblings.map((item) => {
+                    const Icon = item.icon;
+                    const active = item === current;
 
                     return (
-                        <Fragment key={item.label}>
-                            <BreadcrumbItem className={cn(!isLast && 'hidden sm:inline-flex')}>
-                                {isLast || !item.routeName ? (
-                                    <BreadcrumbPage
-                                        className={cn(
-                                            'truncate',
-                                            isLast ? 'font-semibold text-foreground' : 'text-muted-foreground',
-                                        )}
-                                    >
-                                        {item.label}
-                                    </BreadcrumbPage>
-                                ) : (
+                        <DropdownMenuItem key={item.label} asChild>
+                            <Link
+                                href={route(item.routeName!)}
+                                aria-current={active ? 'page' : undefined}
+                                className={cn(active && 'bg-daiku-yellow-light/60 font-medium')}
+                            >
+                                <Icon className={cn('size-4', active ? 'text-daiku-yellow-dark' : 'text-muted-foreground')} />
+                                <span className="flex-1">{item.label}</span>
+                                {active && <Check className="size-3.5 text-daiku-yellow-dark" />}
+                            </Link>
+                        </DropdownMenuItem>
+                    );
+                })}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
+/**
+ * 🏠 › group ▾ › menu › …page crumbs. The group/menu part comes from the
+ * sidebar entry this route belongs to (useActiveNav), so every page gets
+ * the same, complete trail; pages add only their own detail levels.
+ * Phones show just the last two levels.
+ */
+function TopbarBreadcrumb({ extra, header }: { extra: BreadcrumbEntry[]; header?: ReactNode }) {
+    const active = useActiveNav();
+    const groups = useNavGroups();
+
+    const crumbs: Crumb[] = [];
+    const isDashboard = active?.item.routeName === 'dashboard' && extra.length === 0;
+
+    if (!isDashboard) {
+        crumbs.push({ kind: 'home' });
+    }
+
+    if (active) {
+        const visibleGroup = groups.find((group) => group.label === active.group.label);
+        if (active.group.label !== 'Utama' && visibleGroup) {
+            crumbs.push({ kind: 'group', group: visibleGroup, current: active.item });
+        }
+        crumbs.push({
+            kind: 'page',
+            label: active.item.label,
+            icon: active.item.icon,
+            // A link only when there's a deeper level to come back from.
+            href: extra.length > 0 && active.visible ? route(active.item.routeName!) : undefined,
+        });
+    }
+
+    for (const entry of extra) {
+        crumbs.push({
+            kind: 'page',
+            label: entry.label,
+            href: entry.href ?? (entry.routeName ? route(entry.routeName) : undefined),
+        });
+    }
+
+    if (crumbs.length <= 1 && header) {
+        return <div className="truncate text-sm text-muted-foreground">{header}</div>;
+    }
+
+    return (
+        <Breadcrumb className="min-w-0">
+            <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-2">
+                {crumbs.map((crumb, index) => {
+                    const isLast = index === crumbs.length - 1;
+                    // Phones: only the parent + current page.
+                    const mobileHidden = index < crumbs.length - 2;
+                    const key = crumb.kind === 'page' ? `${crumb.label}-${index}` : `${crumb.kind}-${index}`;
+
+                    return (
+                        <Fragment key={key}>
+                            <BreadcrumbItem className={cn('min-w-0', mobileHidden && 'hidden sm:inline-flex')}>
+                                {crumb.kind === 'home' && (
                                     <BreadcrumbLink asChild>
-                                        <Link href={route(item.routeName)}>{item.label}</Link>
+                                        <Link href={route('dashboard')} aria-label="Dashboard" className="flex items-center">
+                                            <House className="size-4" />
+                                        </Link>
                                     </BreadcrumbLink>
                                 )}
+                                {crumb.kind === 'group' && <GroupCrumb group={crumb.group} current={crumb.current} />}
+                                {crumb.kind === 'page' &&
+                                    (isLast ? (
+                                        <BreadcrumbPage className="flex min-w-0 items-center gap-1.5 font-semibold text-foreground">
+                                            {crumb.icon && <crumb.icon className="size-4 shrink-0 text-daiku-yellow-dark" />}
+                                            <span className="truncate">{crumb.label}</span>
+                                        </BreadcrumbPage>
+                                    ) : crumb.href ? (
+                                        <BreadcrumbLink asChild>
+                                            <Link href={crumb.href} className="flex min-w-0 items-center gap-1.5">
+                                                {crumb.icon && <crumb.icon className="size-4 shrink-0" />}
+                                                <span className="max-w-48 truncate">{crumb.label}</span>
+                                            </Link>
+                                        </BreadcrumbLink>
+                                    ) : (
+                                        <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                                            {crumb.icon && <crumb.icon className="size-4 shrink-0" />}
+                                            <span className="max-w-48 truncate">{crumb.label}</span>
+                                        </span>
+                                    ))}
                             </BreadcrumbItem>
-                            {!isLast && <BreadcrumbSeparator className="hidden sm:list-item" />}
+                            {!isLast && <BreadcrumbSeparator className={cn(mobileHidden && 'hidden sm:list-item')} />}
                         </Fragment>
                     );
                 })}
@@ -681,11 +846,7 @@ function Topbar({
                         <SidebarContents />
                     </SheetContent>
                 </Sheet>
-                {breadcrumbs && breadcrumbs.length > 0 ? (
-                    <TopbarBreadcrumb breadcrumbs={breadcrumbs} />
-                ) : (
-                    <div className="truncate text-sm text-muted-foreground">{header}</div>
-                )}
+                <TopbarBreadcrumb extra={breadcrumbs ?? []} header={header} />
             </div>
 
             <div className="flex shrink-0 items-center gap-2">

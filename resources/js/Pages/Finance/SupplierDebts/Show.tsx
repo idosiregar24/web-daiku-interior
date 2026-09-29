@@ -68,11 +68,7 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'Finance', routeName: 'finance.dashboard' },
-                { label: 'Hutang Supplier', routeName: 'finance.supplierDebts.index' },
-                { label: debt.supplier_name },
-            ]}
+            breadcrumbs={[{ label: debt.supplier_name }]}
         >
             <Head title={`Hutang ${debt.supplier_name}`} />
 

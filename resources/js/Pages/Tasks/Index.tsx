@@ -118,7 +118,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Task' }]}>
+        <AppLayout>
             <Head title="Task" />
 
             <PageHeader

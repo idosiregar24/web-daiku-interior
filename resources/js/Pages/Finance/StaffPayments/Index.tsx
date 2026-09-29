@@ -50,7 +50,7 @@ export default function StaffPaymentsIndex({ tasks, bankAccounts }: StaffPayment
     const [paying, setPaying] = useState<PayableTask | null>(null);
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Finance', routeName: 'finance.dashboard' }, { label: 'Upah Tukang' }]}>
+        <AppLayout>
             <Head title="Upah Tukang" />
 
             <PageHeader

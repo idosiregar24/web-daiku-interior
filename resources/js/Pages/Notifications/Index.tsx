@@ -42,7 +42,13 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Notifikasi' }]}>
+        <AppLayout
+            breadcrumbs={
+                filters.unread
+                    ? [{ label: 'Notifikasi', routeName: 'notifications.index' }, { label: 'Belum dibaca' }]
+                    : [{ label: 'Notifikasi' }]
+            }
+        >
             <Head title="Notifikasi" />
 
             <PageHeader

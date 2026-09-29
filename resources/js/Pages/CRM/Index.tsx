@@ -212,7 +212,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
     ];
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'CRM' }, { label: 'Data Lead' }]}>
+        <AppLayout>
             <Head title="Data Lead" />
 
             <PageHeader

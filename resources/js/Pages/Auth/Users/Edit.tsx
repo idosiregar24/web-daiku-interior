@@ -69,10 +69,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'User Management', routeName: 'users.index' },
-                { label: 'Edit User' },
-            ]}
+            breadcrumbs={[{ label: user.name }, { label: 'Edit' }]}
         >
             <Head title={`Edit ${user.name}`} />
 

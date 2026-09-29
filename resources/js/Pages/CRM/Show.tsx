@@ -82,11 +82,7 @@ export default function LeadShow({
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'CRM' },
-                { label: 'Data Lead', routeName: 'crm.leads.index' },
-                { label: lead.client_name },
-            ]}
+            breadcrumbs={[{ label: lead.client_name }]}
         >
             <Head title={`Lead — ${lead.client_name}`} />
 

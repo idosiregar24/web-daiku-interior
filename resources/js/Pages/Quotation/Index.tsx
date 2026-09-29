@@ -72,7 +72,7 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Quotation' }]}>
+        <AppLayout>
             <Head title="Quotation" />
 
             <PageHeader

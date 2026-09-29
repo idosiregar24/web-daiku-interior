@@ -8,7 +8,16 @@ import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption } from '@/types';
 import { Head } from '@inertiajs/react';
+import { useState } from 'react';
 import { Database } from 'lucide-react';
+
+/** Tab → breadcrumb label. */
+const MASTER_TAB_LABEL: Record<string, string> = {
+    branches: 'Cabang',
+    'lead-sources': 'Sumber Lead',
+    'lead-categories': 'Kategori Customer',
+    'bank-accounts': 'Rekening Bank',
+};
 
 interface MasterDataIndexProps {
     branches: Branch[];
@@ -23,8 +32,10 @@ export default function MasterDataIndex({
     leadCategories,
     bankAccounts,
 }: MasterDataIndexProps) {
+    const [tab, setTab] = useState('branches');
+
     return (
-        <AppLayout breadcrumbs={[{ label: 'Sistem' }, { label: 'Data Master' }]}>
+        <AppLayout breadcrumbs={[{ label: MASTER_TAB_LABEL[tab] }]}>
             <Head title="Data Master" />
 
             <PageHeader
@@ -35,7 +46,7 @@ export default function MasterDataIndex({
 
             <Card>
                 <CardContent className="px-5 py-2 sm:px-6">
-                    <Tabs defaultValue="branches">
+                    <Tabs value={tab} onValueChange={setTab}>
                         <UnderlineTabsList>
                             <TabsTrigger value="branches">Cabang</TabsTrigger>
                             <TabsTrigger value="lead-sources">Sumber Lead</TabsTrigger>

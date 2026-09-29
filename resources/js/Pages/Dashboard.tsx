@@ -165,7 +165,7 @@ export default function Dashboard({ followUps }: DashboardProps) {
     const now = new Date();
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Dashboard' }]}>
+        <AppLayout>
             <Head title="Dashboard" />
 
             <Card className="relative mb-6 gap-0 overflow-hidden py-0">

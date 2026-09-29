@@ -45,7 +45,7 @@ export default function PenaltyIndex({ penalties, filters, fieldStaff, perStaff,
     }
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Penalti' }]}>
+        <AppLayout>
             <Head title="Penalti" />
 
             <PageHeader

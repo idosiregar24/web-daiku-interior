@@ -615,6 +615,16 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
     );
 }
 
+/** Top-level tab → breadcrumb label. */
+const PROJECT_TAB_LABEL: Record<string, string> = {
+    overview: 'Overview',
+    milestone: 'Milestone',
+    task: 'Task',
+    progress: 'Progress',
+    finance: 'Finance',
+    material: 'Material',
+};
+
 const SUPPLIER_DEBT_LABEL: Record<NonNullable<SupplierDebt['status']>, string> = {
     BERJALAN: 'Berjalan',
     JATUH_TEMPO: 'Jatuh Tempo',
@@ -645,12 +655,11 @@ export default function ProjectShow({
     materialPermissions,
     materialOptions,
 }: ProjectShowProps) {
+    const [tab, setTab] = useState('overview');
+
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'Proyek', routeName: 'projects.index' },
-                { label: project.name },
-            ]}
+            breadcrumbs={[{ label: project.name }, { label: PROJECT_TAB_LABEL[tab] }]}
         >
             <Head title={project.name} />
 
@@ -661,7 +670,7 @@ export default function ProjectShow({
                 actions={<StatusChip status={project.status} />}
             />
 
-            <Tabs defaultValue="overview">
+            <Tabs value={tab} onValueChange={setTab}>
                 <UnderlineTabsList>
                     <TabsTrigger value="overview">
                         <LayoutDashboard />

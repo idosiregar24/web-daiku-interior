@@ -84,11 +84,7 @@ export default function StaffLoanShow({ loan, bankAccounts }: { loan: StaffLoan;
 
     return (
         <AppLayout
-            breadcrumbs={[
-                { label: 'Finance', routeName: 'finance.dashboard' },
-                { label: 'Pinjaman Tukang', routeName: 'finance.staffLoans.index' },
-                { label: loan.staff?.name ?? `Pinjaman #${loan.id}` },
-            ]}
+            breadcrumbs={[{ label: loan.staff?.name ?? `Pinjaman #${loan.id}` }]}
         >
             <Head title={`Pinjaman ${loan.staff?.name ?? ''}`} />
 
