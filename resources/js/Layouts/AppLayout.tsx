@@ -1,4 +1,4 @@
-import { BrandMark } from '@/Components/shared/BrandMark';
+import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import { CommandMenu } from '@/Components/shared/CommandMenu';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
@@ -419,9 +419,7 @@ function SidebarBrand() {
     return (
         <Link href={route('dashboard')} className="flex shrink-0 items-center gap-3 px-5 pt-5 pb-4">
             {site.logoUrl ? (
-                <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-background p-1 shadow-xs ring-1 ring-border">
-                    <BrandMark className="size-full" />
-                </span>
+                <BrandLogoTile className="h-9 max-w-32" />
             ) : (
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-daiku-yellow shadow-xs">
                     <BrandMark className="size-5" fallbackClassName="fill-daiku-dark" />

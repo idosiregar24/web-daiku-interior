@@ -1,4 +1,4 @@
-import { BrandMark } from '@/Components/shared/BrandMark';
+import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import type { PageProps } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode } from 'react';
@@ -41,9 +41,7 @@ function BrandPanel() {
 
             <Link href="/" className="relative w-fit" aria-label={site.name}>
                 {site.logoUrl ? (
-                    <span className="flex h-12 items-center rounded-xl bg-background/90 px-3 shadow-sm">
-                        <BrandMark className="h-8 w-auto max-w-44" />
-                    </span>
+                    <BrandLogoTile className="h-12 max-w-48 shadow-sm ring-0" />
                 ) : (
                     <BrandMark className="size-10" fallbackClassName={hasPhoto ? 'fill-daiku-cream' : 'fill-daiku-dark'} />
                 )}
@@ -78,7 +76,11 @@ export default function AuthLayout({ title, description, children }: PropsWithCh
                 <div className="flex flex-col justify-center px-5 py-10 sm:px-10 lg:px-16">
                     <div className="mx-auto w-full max-w-sm">
                         <Link href="/" className="inline-flex" aria-label={site.name}>
-                            <BrandMark className={site.logoUrl ? 'h-10 w-auto max-w-48' : 'size-9'} fallbackClassName="fill-daiku-yellow-dark" />
+                            {site.logoUrl ? (
+                                <BrandLogoTile className="h-11 max-w-48" />
+                            ) : (
+                                <BrandMark className="size-9" fallbackClassName="fill-daiku-yellow-dark" />
+                            )}
                         </Link>
 
                         {title && (

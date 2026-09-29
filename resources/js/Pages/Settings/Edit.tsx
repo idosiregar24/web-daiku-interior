@@ -1,5 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { BrandAssetCard } from '@/Components/modules/settings/BrandAssetCard';
+import { BrandLogoTile } from '@/Components/shared/BrandMark';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
@@ -51,9 +52,7 @@ function LivePreview({ settings, values }: { settings: SiteSetting; values: Form
                 <p className="mb-2 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Sidebar</p>
                 <div className="flex items-center gap-3 rounded-xl bg-daiku-gray p-3">
                     {settings.logo_url ? (
-                        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-background p-1 ring-1 ring-border">
-                            <img src={settings.logo_url} alt="" className="size-full object-contain" />
-                        </span>
+                        <BrandLogoTile src={settings.logo_url} className="h-9 max-w-32" />
                     ) : (
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-daiku-yellow">
                             <ApplicationLogo className="size-5 fill-daiku-dark" />
@@ -157,7 +156,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                                 title="Logo"
                                 description="Sidebar, halaman login, dan PDF penawaran/invoice."
                                 url={settings.logo_url}
-                                preview={(url) => <img src={url} alt="Logo" className="max-h-24 max-w-[80%] object-contain" />}
+                                preview={(url) => <BrandLogoTile src={url} className="h-24 max-w-[85%] rounded-2xl" />}
                                 placeholder={<ApplicationLogo className="size-12 fill-daiku-muted/50" />}
                             />
                             <BrandAssetCard
@@ -165,11 +164,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                                 title="Favicon"
                                 description="Ikon kecil di tab browser. Jika kosong, logo dipakai."
                                 url={settings.favicon_url}
-                                preview={(url) => (
-                                    <span className="flex size-16 items-center justify-center rounded-xl bg-background shadow-xs ring-1 ring-border">
-                                        <img src={url} alt="Favicon" className="size-8 object-contain" />
-                                    </span>
-                                )}
+                                preview={(url) => <BrandLogoTile src={url} className="h-16 rounded-xl" />}
                                 placeholder={<ImageIcon className="size-10 text-daiku-muted/50" />}
                             />
                             <BrandAssetCard
