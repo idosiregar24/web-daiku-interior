@@ -41,20 +41,27 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
+// forwardRef: the shadcn CLI emits React 19-style components (ref as a
+// plain prop), but this project runs React 18, where a function component
+// silently drops `ref`. Radix triggers (`<DropdownMenuTrigger asChild>`,
+// `<PopoverTrigger asChild>`) need that ref to anchor their content —
+// without it the menu opens off-screen and blocks clicks on the page.
+// Re-apply this if `npx shadcn add button --overwrite` regenerates the file.
+const Button = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<"button"> &
+    VariantProps<typeof buttonVariants> & {
+      asChild?: boolean
+    }
+>(function Button(
+  { className, variant = "default", size = "default", asChild = false, ...props },
+  ref
+) {
   const Comp = asChild ? Slot.Root : "button"
 
   return (
     <Comp
+      ref={ref}
       data-slot="button"
       data-variant={variant}
       data-size={size}
@@ -62,6 +69,6 @@ function Button({
       {...props}
     />
   )
-}
+})
 
 export { Button, buttonVariants }

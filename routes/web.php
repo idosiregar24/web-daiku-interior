@@ -85,6 +85,10 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM')
         ->name('leads.index');
 
+    Route::get('leads/{lead}', [LeadController::class, 'show'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM')
+        ->name('leads.show');
+
     Route::post('leads', [LeadController::class, 'store'])
         ->middleware('role:CEO|MARKETING')
         ->name('leads.store');

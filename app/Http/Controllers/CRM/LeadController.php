@@ -11,6 +11,7 @@ use App\Http\Requests\CRM\UpdateLeadStatusRequest;
 use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadSource;
+use App\Models\PipelineLog;
 use App\Models\User;
 use App\Services\LeadService;
 use Illuminate\Http\RedirectResponse;
@@ -57,6 +58,63 @@ class LeadController extends Controller
             // legacy `source`/`category` strings in sync.
             'leadSources' => LeadSource::orderBy('name')->get(['id', 'name']),
             'leadCategories' => LeadCategory::orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * Lead detail — client data, the downstream Design/Quotation/Project it
+     * turned into, and the pipeline history. Same read roles as index();
+     * the history itself follows PRD §7.1's narrower "CRM – Pipeline Log"
+     * row (CEO/MKT/PM only — Designer and Estimator see the lead, not its
+     * log).
+     */
+    public function show(Request $request, Lead $lead): Response
+    {
+        $user = $request->user();
+        $canManage = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
+        $canViewPipelineLog = $user->hasAnyRole(['CEO', 'MARKETING', 'PM', 'SUPERADMIN']);
+        $canOpenDesign = $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']);
+
+        $lead->load([
+            'assignee:id,name',
+            'creator:id,name',
+            'leadSource:id,name',
+            'leadCategory:id,name',
+            'design:id,lead_id,pic_id,status,deadline,client_acc',
+            'design.pic:id,name',
+            'quotation:id,lead_id,status,total_amount,version',
+            'project:id,lead_id,name,pm_id,status,contract_value',
+            'project.pm:id,name',
+        ]);
+
+        return Inertia::render('CRM/Show', [
+            'lead' => $lead,
+            // Flattened instead of serializing the `changedBy` relation —
+            // it snake_cases to `changed_by` and would overwrite the FK
+            // column of the same name (see Lead::assignee()).
+            'pipelineLogs' => $canViewPipelineLog
+                ? $lead->pipelineLogs()
+                    ->with('changedBy:id,name')
+                    ->orderByDesc('id')
+                    ->get()
+                    ->map(fn (PipelineLog $log) => [
+                        'id' => $log->id,
+                        'from_status' => $log->from_status,
+                        'to_status' => $log->to_status,
+                        'note' => $log->note,
+                        'changed_by_name' => $log->changedBy?->name,
+                        'created_at' => $log->created_at,
+                    ])
+                : null,
+            'canManage' => $canManage,
+            'canOpenDesign' => $canOpenDesign,
+            // Option lists for the edit/deal/design dialogs — only sent to
+            // roles that can open them.
+            'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
+            'projectManagers' => $canManage ? User::role('PM')->orderBy('name')->get(['id', 'name']) : [],
+            'designers' => $canOpenDesign ? User::role('DESIGNER')->orderBy('name')->get(['id', 'name']) : [],
+            'leadSources' => $canManage ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
+            'leadCategories' => $canManage ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
         ]);
     }
 

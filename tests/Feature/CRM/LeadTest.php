@@ -30,6 +30,49 @@ test('roles without access are forbidden from the lead index', function (string 
     $this->actingAs($user)->get(route('crm.leads.index'))->assertForbidden();
 })->with(['QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF']);
 
+test('roles with read access can view a lead detail', function (string $role) {
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $lead = Lead::factory()->create();
+
+    $this->actingAs($user)->get(route('crm.leads.show', ['lead' => $lead->id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('CRM/Show')
+            ->where('lead.id', $lead->id)
+        );
+})->with(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM']);
+
+test('roles without access are forbidden from a lead detail', function (string $role) {
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $lead = Lead::factory()->create();
+
+    $this->actingAs($user)->get(route('crm.leads.show', ['lead' => $lead->id]))->assertForbidden();
+})->with(['QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF']);
+
+test('lead detail shows the pipeline log only to CEO, Marketing and PM', function (string $role, bool $seesLog) {
+    $user = User::factory()->create();
+    $user->assignRole($role);
+    $lead = Lead::factory()->create(['status' => LeadStatus::FollowUp->value]);
+    app(LeadService::class)->changeStatus($lead, ['status' => 'DEAL_DESAIN', 'note' => 'Klien sudah ACC brief.'], $user);
+
+    $this->actingAs($user)->get(route('crm.leads.show', ['lead' => $lead->id]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $seesLog
+            ? $page->has('pipelineLogs', 1)
+                ->where('pipelineLogs.0.to_status', LeadStatus::DealDesain->value)
+                ->where('pipelineLogs.0.changed_by_name', $user->name)
+            : $page->where('pipelineLogs', null)
+        );
+})->with([
+    ['CEO', true],
+    ['MARKETING', true],
+    ['PM', true],
+    ['DESIGNER', false],
+    ['ESTIMATOR', false],
+]);
+
 test('lead index exposes lead sources from the master data table', function () {
     $this->seed(LeadSourceSeeder::class);
     $user = User::factory()->create();

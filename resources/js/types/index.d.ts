@@ -98,6 +98,17 @@ export interface Lead {
     updated_at: string;
 }
 
+/** PRD 4.1 "Pipeline History Log" — one status change, flattened by LeadController::show(). */
+export interface PipelineLogEntry {
+    id: number;
+    /** Null on the "Lead dibuat." entry written at creation. */
+    from_status: LeadStatus | null;
+    to_status: LeadStatus;
+    note: string | null;
+    changed_by_name: string | null;
+    created_at: string;
+}
+
 /** PRD 4.2 — Desain */
 export type DesignStatus =
     | 'BRIEF'

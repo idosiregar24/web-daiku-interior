@@ -49,6 +49,10 @@ const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 export default function LeadIndex({ leads, filters, marketers, projectManagers, designers, leadSources, leadCategories }: LeadIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
+    // PRD §4.1: only Marketing and CEO create/edit leads — mirrors the
+    // `role:CEO|MARKETING` write routes so other readers don't see actions
+    // that would 403.
+    const canManage = role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN';
     const canOpenDesign = role === 'DESIGNER' || role === 'SUPERADMIN';
 
     const [search, setSearch] = useState(filters.search ?? '');
@@ -96,6 +100,14 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
         {
             accessorKey: 'client_name',
             header: 'Nama Klien',
+            cell: ({ row }) => (
+                <Link
+                    href={route('crm.leads.show', { lead: row.original.id })}
+                    className="font-medium text-foreground underline-offset-4 hover:underline hover:decoration-daiku-yellow"
+                >
+                    {row.original.client_name}
+                </Link>
+            ),
         },
         {
             accessorKey: 'contact',
@@ -154,24 +166,31 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 return (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm">
+                            <Button variant="ghost" size="icon-sm" aria-label={`Aksi untuk ${lead.client_name}`}>
                                 <MoreHorizontal className="size-4" />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onSelect={() => openEdit(lead)}>Edit Lead</DropdownMenuItem>
-                            <DropdownMenuItem
-                                disabled={lead.status === 'LOST' || lead.status === 'CLOSING'}
-                                onSelect={() => openStatus(lead)}
-                            >
-                                Ubah Status
+                        <DropdownMenuContent align="end" className="w-auto min-w-40">
+                            <DropdownMenuItem asChild>
+                                <Link href={route('crm.leads.show', { lead: lead.id })}>Lihat Detail</Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                                disabled={lead.status !== 'DEAL_DESAIN'}
-                                onSelect={() => openDeal(lead)}
-                            >
-                                Konfirmasi Deal
-                            </DropdownMenuItem>
+                            {canManage && (
+                                <>
+                                    <DropdownMenuItem onSelect={() => openEdit(lead)}>Edit Lead</DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        disabled={lead.status === 'LOST' || lead.status === 'CLOSING'}
+                                        onSelect={() => openStatus(lead)}
+                                    >
+                                        Ubah Status
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        disabled={lead.status !== 'DEAL_DESAIN'}
+                                        onSelect={() => openDeal(lead)}
+                                    >
+                                        Konfirmasi Deal
+                                    </DropdownMenuItem>
+                                </>
+                            )}
                             {canOpenDesign && lead.status === 'DEAL_DESAIN' && (
                                 lead.design ? (
                                     <DropdownMenuItem asChild>
@@ -210,10 +229,12 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                                 </Link>
                             </Button>
                         )}
-                        <Button onClick={openCreate}>
-                            <Plus className="size-4" />
-                            Tambah Lead
-                        </Button>
+                        {canManage && (
+                            <Button onClick={openCreate}>
+                                <Plus className="size-4" />
+                                Tambah Lead
+                            </Button>
+                        )}
                     </div>
                 }
             />
