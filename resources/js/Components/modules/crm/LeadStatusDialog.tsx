@@ -49,7 +49,8 @@ type FormValues = z.infer<typeof schema>;
 interface LeadStatusDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    lead: Lead | null;
+    /** Only `id`/`status` are read — the Dashboard follow-up widget passes a slimmed-down lead. */
+    lead: Pick<Lead, 'id' | 'status'> | null;
 }
 
 /**

@@ -5,7 +5,7 @@ import { Button } from '@/Components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatRelative } from '@/lib/format';
-import { notificationHref } from '@/lib/notificationHref';
+import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
 import type { AppNotification, PageProps, PaginatedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -23,23 +23,6 @@ interface NotificationIndexProps {
  */
 export default function NotificationIndex({ items, filters }: NotificationIndexProps) {
     const { unreadNotificationsCount } = usePage<PageProps>().props;
-
-    function open(notification: AppNotification) {
-        const href = notificationHref(notification);
-        const visit = () => href && router.visit(href);
-
-        if (notification.is_read) {
-            visit();
-
-            return;
-        }
-
-        router.patch(
-            route('notifications.markAsRead', { notification: notification.id }),
-            {},
-            { preserveScroll: true, onSuccess: visit },
-        );
-    }
 
     return (
         <AppLayout
@@ -98,7 +81,7 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
                             <li key={notification.id}>
                                 <button
                                     type="button"
-                                    onClick={() => open(notification)}
+                                    onClick={() => openNotification(notification)}
                                     className={cn(
                                         'flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-daiku-gray/60',
                                         !notification.is_read && 'bg-daiku-yellow-light/40',

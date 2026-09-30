@@ -29,9 +29,9 @@ import { Toaster } from '@/Components/ui/sonner';
 import { useFlashToasts } from '@/hooks/useFlashToasts';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { formatRelative } from '@/lib/format';
-import { notificationHref } from '@/lib/notificationHref';
+import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
-import type { AppNotification, PageProps, Role, User } from '@/types';
+import type { PageProps, Role, User } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     AlertOctagon,
@@ -715,16 +715,6 @@ function TopbarBreadcrumb({ extra, header }: { extra: BreadcrumbEntry[]; header?
 
 function NotificationBell() {
     const { notifications, unreadNotificationsCount } = usePage<PageProps>().props;
-
-    function openNotification(notification: AppNotification) {
-        const href = notificationHref(notification);
-
-        router.patch(
-            route('notifications.markAsRead', { notification: notification.id }),
-            {},
-            { preserveScroll: true, onSuccess: () => href && router.visit(href) },
-        );
-    }
 
     function markAllAsRead() {
         router.patch(route('notifications.markAllAsRead'), {}, { preserveScroll: true });

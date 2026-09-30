@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\LeadStatus;
 use App\Models\Lead;
+use App\Models\LeadCategory;
+use App\Models\LeadSource;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,6 +22,10 @@ class DashboardController extends Controller
      * is the "tampil di dashboard Marketing" half of the task; the
      * cross-cutting notification system lands with whichever module
      * needs it first.
+     *
+     * The same roles are the lead writers (PRD §4.1 "Marketing dan CEO"),
+     * so the widget's quick actions (Tambah Lead, Ubah Status) work right
+     * from here — the option lists below feed the reused CRM dialogs.
      */
     public function index(Request $request): Response
     {
@@ -42,6 +49,9 @@ class DashboardController extends Controller
 
         return Inertia::render('Dashboard', [
             'followUps' => $followUps,
+            'marketers' => $canSeeFollowUps ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
+            'leadSources' => $canSeeFollowUps ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
+            'leadCategories' => $canSeeFollowUps ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
         ]);
     }
 }

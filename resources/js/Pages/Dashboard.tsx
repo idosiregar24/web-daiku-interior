@@ -4,12 +4,37 @@ import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { Card } from '@/Components/ui/card';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/Components/ui/dropdown-menu';
+import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
+import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import AppLayout, { ROLE_LABEL, useNavGroups } from '@/Layouts/AppLayout';
 import { formatDate, formatRelative } from '@/lib/format';
+import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
-import { Lead, PageProps, User } from '@/types';
+import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, User } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertTriangle, ArrowRight, Bell, CalendarClock, ChevronRight, LayoutGrid, PhoneCall } from 'lucide-react';
+import { startOfToday } from 'date-fns';
+import {
+    AlertTriangle,
+    ArrowRight,
+    Bell,
+    CalendarClock,
+    ChevronRight,
+    LayoutGrid,
+    ListChecks,
+    MessageCircle,
+    MoreHorizontal,
+    PhoneCall,
+    Plus,
+    UserRound,
+    Users,
+} from 'lucide-react';
+import { useState } from 'react';
 
 type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'follow_up_date'> & {
     assignee?: Pick<User, 'id' | 'name'>;
@@ -17,6 +42,10 @@ type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'fo
 
 interface DashboardProps {
     followUps: FollowUpLead[];
+    /** Option lists for the "Tambah Lead" quick action — empty for roles that can't create leads. */
+    marketers: Pick<User, 'id' | 'name'>[];
+    leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
+    leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
 }
 
 function greeting(hour: number) {
@@ -27,12 +56,38 @@ function greeting(hour: number) {
     return 'Selamat malam';
 }
 
+/** Same rule as Lead::scopeOverdueFollowUp() — due before today, so today's follow-up isn't "terlewat" yet. */
 function isOverdue(lead: FollowUpLead) {
-    return Boolean(lead.follow_up_date && new Date(lead.follow_up_date) < new Date());
+    return Boolean(lead.follow_up_date && new Date(lead.follow_up_date) < startOfToday());
 }
 
-/** PRD §4.1 follow-up reminder — CEO/MARKETING/SUPERADMIN only, see DashboardController::index(). */
+/**
+ * wa.me wants the number in international form without "+" or
+ * separators: "0812-3456-7890" / "+62 812 3456 7890" → "6281234567890".
+ * Null when the contact isn't a phone number (an email, an Instagram
+ * handle), so the action is simply not offered.
+ */
+function whatsappNumber(contact: string): string | null {
+    if (/[a-z@]/i.test(contact)) return null;
+
+    const digits = contact.replace(/\D/g, '');
+    if (digits.length < 9) return null;
+    if (digits.startsWith('0')) return `62${digits.slice(1)}`;
+    if (digits.startsWith('8')) return `62${digits}`;
+
+    return digits;
+}
+
+/**
+ * PRD §4.1 follow-up reminder — CEO/MARKETING/SUPERADMIN only, see
+ * DashboardController::index(). Each row opens the lead's detail page
+ * directly; the row menu covers the follow-up itself (WhatsApp the
+ * client, then record the outcome via Ubah Status) without leaving the
+ * dashboard.
+ */
 function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
+    const [statusLead, setStatusLead] = useState<FollowUpLead | null>(null);
+
     return (
         <SectionCard
             title="Follow-up Lead"
@@ -57,11 +112,12 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                 <ul className="divide-y divide-border">
                     {followUps.map((lead) => {
                         const overdue = isOverdue(lead);
+                        const whatsapp = whatsappNumber(lead.contact);
 
                         return (
                             <li
                                 key={lead.id}
-                                className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-daiku-gray/60 sm:px-5"
+                                className="relative flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-daiku-gray/60 sm:px-5"
                             >
                                 <div className="flex min-w-0 items-center gap-3">
                                     <span
@@ -73,9 +129,10 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                                         {lead.client_name.slice(0, 1).toUpperCase()}
                                     </span>
                                     <div className="min-w-0">
+                                        {/* after:inset-0 stretches the link over the whole row. */}
                                         <Link
-                                            href={route('crm.leads.index')}
-                                            className="block truncate text-sm font-medium text-foreground hover:underline"
+                                            href={route('crm.leads.show', { lead: lead.id })}
+                                            className="block truncate text-sm font-medium text-foreground after:absolute after:inset-0 hover:underline"
                                         >
                                             {lead.client_name}
                                         </Link>
@@ -88,21 +145,58 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                                     <StatusChip status={lead.status} className="hidden sm:inline-flex" />
                                     <span
                                         className={cn(
-                                            'min-w-24 text-right text-xs tabular-nums',
+                                            'min-w-20 text-right text-xs tabular-nums',
                                             overdue ? 'font-medium text-error-ink' : 'text-muted-foreground',
                                         )}
                                     >
-                                        {lead.follow_up_date
-                                            ? new Date(lead.follow_up_date).toLocaleDateString('id-ID')
-                                            : '—'}
+                                        {formatDate(lead.follow_up_date)}
                                         {overdue && <span className="block text-[11px] font-normal">Terlewat</span>}
                                     </span>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            {/* z-10 lifts the trigger above the row's stretched link. */}
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-sm"
+                                                className="relative z-10"
+                                                aria-label={`Aksi untuk ${lead.client_name}`}
+                                            >
+                                                <MoreHorizontal className="size-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-auto min-w-48">
+                                            <DropdownMenuItem asChild>
+                                                <Link href={route('crm.leads.show', { lead: lead.id })}>
+                                                    <UserRound />
+                                                    Lihat Detail
+                                                </Link>
+                                            </DropdownMenuItem>
+                                            {whatsapp && (
+                                                <DropdownMenuItem asChild>
+                                                    <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer">
+                                                        <MessageCircle />
+                                                        Hubungi via WhatsApp
+                                                    </a>
+                                                </DropdownMenuItem>
+                                            )}
+                                            <DropdownMenuItem onSelect={() => setStatusLead(lead)}>
+                                                <ListChecks />
+                                                Ubah Status
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
                             </li>
                         );
                     })}
                 </ul>
             )}
+
+            <LeadStatusDialog
+                open={statusLead !== null}
+                onOpenChange={(open) => !open && setStatusLead(null)}
+                lead={statusLead}
+            />
         </SectionCard>
     );
 }
@@ -153,10 +247,12 @@ function ModuleDirectory() {
     );
 }
 
-export default function Dashboard({ followUps }: DashboardProps) {
+export default function Dashboard({ followUps, marketers, leadSources, leadCategories }: DashboardProps) {
     const { auth, notifications, unreadNotificationsCount, site } = usePage<PageProps>().props;
     const role = auth.user?.role;
+    // Follow-up readers are exactly the lead writers (PRD §4.1 "Marketing dan CEO").
     const showFollowUps = role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN';
+    const [leadFormOpen, setLeadFormOpen] = useState(false);
     const moduleCount = useNavGroups().reduce(
         (sum, group) => sum + group.items.filter((item) => item.routeName && item.routeName !== 'dashboard').length,
         0,
@@ -174,8 +270,8 @@ export default function Dashboard({ followUps }: DashboardProps) {
                     className="bg-grid-pattern absolute inset-0 [mask-image:linear-gradient(to_left,black,transparent_75%)]"
                 />
                 <div aria-hidden className="absolute -top-24 -right-16 size-72 rounded-full bg-daiku-yellow/25 blur-3xl" />
-                <div className="relative p-5 sm:p-6">
-                    <div>
+                <div className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
+                    <div className="min-w-0">
                         <p className="text-xs font-medium text-muted-foreground">
                             <span className="capitalize">
                                 {now.toLocaleDateString('id-ID', {
@@ -194,6 +290,20 @@ export default function Dashboard({ followUps }: DashboardProps) {
                             Selamat datang di {site.name} {site.tagline} — ringkasan pekerjaan Anda hari ini.
                         </p>
                     </div>
+                    {showFollowUps && (
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            <Button variant="outline" asChild>
+                                <Link href={route('crm.leads.index')}>
+                                    <Users className="size-4" />
+                                    Data Lead
+                                </Link>
+                            </Button>
+                            <Button onClick={() => setLeadFormOpen(true)}>
+                                <Plus className="size-4" />
+                                Tambah Lead
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </Card>
 
@@ -250,21 +360,44 @@ export default function Dashboard({ followUps }: DashboardProps) {
                     ) : (
                         <ul className="divide-y divide-border">
                             {notifications.slice(0, 6).map((notification) => (
-                                <li key={notification.id} className="flex gap-3 px-4 py-3 sm:px-5">
-                                    <span className="mt-1.5 size-2 shrink-0 rounded-full bg-daiku-yellow" />
-                                    <div className="min-w-0">
-                                        <p className="text-sm font-medium text-foreground">{notification.title}</p>
-                                        <p className="line-clamp-2 text-xs text-muted-foreground">{notification.message}</p>
-                                        <p className="mt-1 text-[11px] text-muted-foreground/80" title={formatDate(notification.created_at)}>
-                                            {formatRelative(notification.created_at)}
-                                        </p>
-                                    </div>
+                                <li key={notification.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => openNotification(notification)}
+                                        className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-daiku-yellow-light/60 sm:px-5"
+                                    >
+                                        <span className="mt-1.5 size-2 shrink-0 rounded-full bg-daiku-yellow" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block text-sm font-medium text-foreground">{notification.title}</span>
+                                            <span className="line-clamp-2 block text-xs text-muted-foreground">
+                                                {notification.message}
+                                            </span>
+                                            <span
+                                                className="mt-1 block text-[11px] text-muted-foreground/80"
+                                                title={formatDate(notification.created_at)}
+                                            >
+                                                {formatRelative(notification.created_at)}
+                                            </span>
+                                        </span>
+                                        <ChevronRight className="mt-0.5 size-4 shrink-0 self-center text-muted-foreground/60" />
+                                    </button>
                                 </li>
                             ))}
                         </ul>
                     )}
                 </SectionCard>
             </div>
+
+            {showFollowUps && (
+                <LeadFormDialog
+                    open={leadFormOpen}
+                    onOpenChange={setLeadFormOpen}
+                    editing={null}
+                    marketers={marketers}
+                    leadSources={leadSources}
+                    leadCategories={leadCategories}
+                />
+            )}
         </AppLayout>
     );
 }
