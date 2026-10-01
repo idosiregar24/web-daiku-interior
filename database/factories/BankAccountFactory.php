@@ -19,7 +19,7 @@ class BankAccountFactory extends Factory
             'bank_name' => $bank,
             'account_no' => $accountNo,
             'label' => "{$bank} {$accountNo}",
-            'balance' => fake()->randomFloat(2, 0, 500_000_000),
+            'opening_balance' => fake()->randomFloat(2, 0, 500_000_000),
             'is_active' => true,
         ];
     }

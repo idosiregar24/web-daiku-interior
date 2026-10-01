@@ -21,6 +21,16 @@ class TaskPolicy
         return $user->hasRole('PM');
     }
 
+    /**
+     * PRD §7.1 "Task – Create/Edit" PM "D" — same unscoped PM rule as
+     * update(). Whether this particular task may still go (no history,
+     * not DONE) is TaskService::delete()'s business rule, not an RBAC one.
+     */
+    public function delete(User $user, Task $task): bool
+    {
+        return $user->hasRole('PM');
+    }
+
     /** Status/kendala/note — PM (any task) or the task's own assignee. */
     public function updateStatus(User $user, Task $task): bool
     {

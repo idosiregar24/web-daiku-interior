@@ -1,5 +1,5 @@
-import { Badge } from '@/Components/ui/badge';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
 import {
@@ -14,6 +14,7 @@ import {
 import {
     Form,
     FormControl,
+    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -21,6 +22,7 @@ import {
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
+import { formatRupiah } from '@/lib/format';
 import type { BankAccount } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -33,19 +35,16 @@ const schema = z.object({
     bank_name: z.string().min(1, 'Nama bank wajib diisi'),
     account_no: z.string().min(1, 'Nomor rekening wajib diisi'),
     label: z.string().min(1, 'Label wajib diisi'),
-    balance: z
+    // Mirrors StoreBankAccountRequest/UpdateBankAccountRequest.
+    opening_balance: z
         .string()
-        .refine((v) => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Saldo tidak valid'),
+        .refine((v) => v === '' || !isNaN(Number(v)), 'Saldo awal harus berupa angka')
+        .refine((v) => v === '' || Number(v) >= 0, 'Saldo awal tidak boleh negatif')
+        .refine((v) => v === '' || Number(v) <= 9_999_999_999_999.99, 'Saldo awal terlalu besar'),
     is_active: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
-
-function formatRupiah(value: string | number) {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
-        Number(value),
-    );
-}
 
 export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount[] }) {
     const [editing, setEditing] = useState<BankAccount | null>(null);
@@ -53,12 +52,12 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { bank_name: '', account_no: '', label: '', balance: '0', is_active: true },
+        defaultValues: { bank_name: '', account_no: '', label: '', opening_balance: '0', is_active: true },
     });
 
     function openCreate() {
         setEditing(null);
-        form.reset({ bank_name: '', account_no: '', label: '', balance: '0', is_active: true });
+        form.reset({ bank_name: '', account_no: '', label: '', opening_balance: '0', is_active: true });
         setOpen(true);
     }
 
@@ -68,7 +67,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
             bank_name: account.bank_name,
             account_no: account.account_no,
             label: account.label,
-            balance: String(account.balance),
+            opening_balance: String(Number(account.opening_balance)),
             is_active: account.is_active,
         });
         setOpen(true);
@@ -81,7 +80,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
             });
         };
         const onSuccess = () => setOpen(false);
-        const payload = { ...values, balance: Number(values.balance || 0) };
+        const payload = { ...values, opening_balance: Number(values.opening_balance || 0) };
 
         if (editing) {
             router.put(route('master-data.bank-accounts.update', { bank_account: editing.id }), payload, {
@@ -100,10 +99,11 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
 
     return (
         <div>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex items-center justify-between gap-4">
                 <p className="text-sm text-daiku-muted">
-                    Rekening bank perusahaan (PRD §4.7 "Multi-Rekening"). Saldo di sini masih diisi manual —
-                    begitu modul Finance dibangun, saldo akan dihitung otomatis dari transaksi.
+                    Rekening bank perusahaan (PRD §4.7 "Multi-Rekening"). Saldo saat ini dihitung otomatis: saldo awal +
+                    pemasukan − pengeluaran yang tercatat di Finance. Rekening yang sudah bertransaksi dinonaktifkan,
+                    tidak dihapus.
                 </p>
                 <Dialog open={open} onOpenChange={setOpen}>
                     <DialogTrigger asChild>
@@ -159,17 +159,29 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                 />
                                 <FormField
                                     control={form.control}
-                                    name="balance"
+                                    name="opening_balance"
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Saldo Awal (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" step="0.01" {...field} />
+                                                <Input type="number" min="0" step="0.01" {...field} />
                                             </FormControl>
+                                            <FormDescription>
+                                                Saldo sebelum transaksi pertama yang dicatat di sistem. Perubahannya tercatat
+                                                di Audit Log.
+                                            </FormDescription>
                                             <FormMessage />
                                         </FormItem>
                                     )}
                                 />
+                                {editing?.current_balance !== undefined && (
+                                    <p className="text-sm text-daiku-muted">
+                                        Saldo saat ini:{' '}
+                                        <span className="font-medium text-foreground">
+                                            {formatRupiah(editing.current_balance)}
+                                        </span>
+                                    </p>
+                                )}
                                 <FormField
                                     control={form.control}
                                     name="is_active"
@@ -208,7 +220,8 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                 <th className="px-4 py-2.5 text-left font-semibold">Label</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">Bank</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">No. Rekening</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">Saldo</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Saldo Awal</th>
+                                <th className="px-4 py-2.5 text-right font-semibold">Saldo Saat Ini</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                                 <th className="w-20 px-4 py-2.5" />
                             </tr>
@@ -219,18 +232,18 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                     <td className="px-4 py-3 font-medium">{account.label}</td>
                                     <td className="px-4 py-3">{account.bank_name}</td>
                                     <td className="px-4 py-3 text-daiku-muted">{account.account_no}</td>
-                                    <td className="px-4 py-3 text-right">{formatRupiah(account.balance)}</td>
+                                    <td className="px-4 py-3 text-right whitespace-nowrap text-daiku-muted tabular-nums">
+                                        {formatRupiah(account.opening_balance)}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap tabular-nums">
+                                        {account.current_balance !== undefined ? formatRupiah(account.current_balance) : '—'}
+                                    </td>
                                     <td className="px-4 py-3">
-                                        <Badge
-                                            variant="secondary"
-                                            className={
-                                                account.is_active
-                                                    ? 'bg-success/10 text-success-ink'
-                                                    : 'bg-daiku-gray text-daiku-muted'
-                                            }
-                                        >
-                                            {account.is_active ? 'Aktif' : 'Nonaktif'}
-                                        </Badge>
+                                        <StatusChip
+                                            status={account.is_active ? 'ACTIVE' : 'INACTIVE'}
+                                            label={account.is_active ? 'Aktif' : 'Nonaktif'}
+                                            tone={account.is_active ? 'success' : 'neutral'}
+                                        />
                                     </td>
                                     <td className="flex justify-end gap-1 px-4 py-3">
                                         <Button variant="ghost" size="icon-sm" onClick={() => openEdit(account)}>

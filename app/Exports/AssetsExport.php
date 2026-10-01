@@ -10,7 +10,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithTitle;
 
-/** PRD §4.8 "Export daftar ... aset ke Excel". */
+/** PRD §4.8 "Export daftar ... aset ke Excel", incl. the §4.7 installment plan. */
 class AssetsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping, WithTitle
 {
     private const CONDITION_LABELS = ['GOOD' => 'Baik', 'FAIR' => 'Cukup', 'DAMAGED' => 'Rusak'];
@@ -22,11 +22,25 @@ class AssetsExport implements FromCollection, ShouldAutoSize, WithHeadings, With
 
     public function headings(): array
     {
-        return ['Nama', 'Kategori', 'Tanggal Beli', 'Nilai', 'Kondisi', 'Lokasi', 'Catatan'];
+        return [
+            'Nama', 'Kategori', 'Tanggal Beli', 'Nilai', 'Kondisi', 'Lokasi', 'Catatan',
+            'Cicilan', 'Total Cicilan', 'Terbayar', 'Sisa Cicilan', 'Cicilan per Bulan', 'Jatuh Tempo (Tgl)',
+        ];
     }
 
     public function map($asset): array
     {
+        $plan = $asset->has_installment
+            ? [
+                'Ya',
+                (float) $asset->total_install,
+                (float) $asset->paid_install,
+                (float) $asset->remaining_install,
+                $asset->installment_amount !== null ? (float) $asset->installment_amount : '-',
+                $asset->installment_due_day ?? '-',
+            ]
+            : ['Tidak', '-', '-', '-', '-', '-'];
+
         return [
             $asset->name,
             $asset->category ?? '-',
@@ -35,6 +49,7 @@ class AssetsExport implements FromCollection, ShouldAutoSize, WithHeadings, With
             self::CONDITION_LABELS[$asset->condition->value],
             $asset->location ?? '-',
             $asset->notes ?? '',
+            ...$plan,
         ];
     }
 

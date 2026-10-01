@@ -85,7 +85,11 @@ test('termin payment and fund usage are audited', function () {
     $finance = auditUser('FINANCE');
     app(TerminService::class)->markPaid(Termin::factory()->create(), $finance);
     FamilyGatheringFund::factory()->create(['type' => 'INCOME', 'amount' => 50000]);
-    app(FamilyGatheringFundService::class)->recordExpense(['amount' => 20000, 'description' => 'Konsumsi'], $finance);
+    app(FamilyGatheringFundService::class)->recordExpense([
+        'amount' => 20000,
+        'description' => 'Konsumsi',
+        'bank_account_id' => BankAccount::factory()->create()->id,
+    ], $finance);
 
     expect(AuditLog::pluck('action')->all())->toContain('finance.termin_paid', 'finance.family_fund_expense');
 });

@@ -6,9 +6,14 @@ use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\CRM\LeadController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\DesignController;
+use App\Http\Controllers\Design\DesignDashboardController;
+use App\Http\Controllers\Finance\AssetInstallmentController;
+use App\Http\Controllers\Finance\EmployeeController;
 use App\Http\Controllers\Finance\FamilyGatheringFundController;
 use App\Http\Controllers\Finance\FinanceAllocationConfigController;
 use App\Http\Controllers\Finance\FinanceTransactionController;
+use App\Http\Controllers\Finance\FundTransferController;
+use App\Http\Controllers\Finance\PayrollController;
 use App\Http\Controllers\Finance\PenaltyController;
 use App\Http\Controllers\Finance\StaffLoanController;
 use App\Http\Controllers\Finance\SupplierDebtController;
@@ -28,9 +33,12 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
 use App\Http\Controllers\Projects\ProjectController;
+use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\TaskController;
+use App\Http\Controllers\QA\QaDashboardController;
 use App\Http\Controllers\QA\QaFormController;
 use App\Http\Controllers\Quotation\QuotationController;
+use App\Http\Controllers\Quotation\QuotationDashboardController;
 use App\Http\Controllers\Settings\BrandingAssetController;
 use App\Http\Controllers\Settings\SiteSettingController;
 use App\Http\Controllers\Tasks\DailyTaskFormController;
@@ -119,6 +127,13 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA')
         ->name('index');
 
+    // KPI Desain (PRD §4.2 KPI per PIC + omset desain) — "Analytics – Per
+    // Divisi" (§7.1 `P`), CEO + Designer. Before `{design}` so it isn't
+    // swallowed by the wildcard.
+    Route::get('dashboard', [DesignDashboardController::class, 'index'])
+        ->middleware('role:CEO|DESIGNER')
+        ->name('dashboard');
+
     Route::get('{design}', [DesignController::class, 'show'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA')
         ->name('show');
@@ -140,6 +155,12 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
     Route::get('/', [QuotationController::class, 'index'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
         ->name('index');
+
+    // Dashboard Quotation (Estimator's "Analytics – Per Divisi", §7.1 `P`)
+    // — CEO + Estimator. Before `{quotation}` (wildcard).
+    Route::get('dashboard', [QuotationDashboardController::class, 'index'])
+        ->middleware('role:CEO|ESTIMATOR')
+        ->name('dashboard');
 
     Route::get('{quotation}', [QuotationController::class, 'show'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
@@ -164,6 +185,14 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
     Route::post('{quotation}/pm-decision', [QuotationController::class, 'pmDecision'])
         ->middleware('role:PM')
         ->name('pmDecision');
+
+    // PRD §6.2 "SENT TO CLIENT → REJECTED (klien) → DRAFT (revisi)" — the
+    // client's decision is recorded by the people talking to the client:
+    // the same CEO/Marketing actors as `crm.leads.confirmDeal` (its
+    // acceptance counterpart).
+    Route::post('{quotation}/client-reject', [QuotationController::class, 'clientReject'])
+        ->middleware('role:CEO|MARKETING')
+        ->name('clientReject');
 });
 
 // Projects — PRD §4.4 / §7.1 "Project (overview)" row: broad read access,
@@ -174,6 +203,13 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('index');
 
+    // Monitor Proyek — PRD §4.4 "Overdue Monitor: Dashboard khusus PM".
+    // CEO (all PMs) + PM (own projects, scoped in DivisionDashboardService).
+    // Before `/{project}` (wildcard).
+    Route::get('/dashboard', [ProjectDashboardController::class, 'index'])
+        ->middleware('role:CEO|PM')
+        ->name('dashboard');
+
     Route::get('/{project}', [ProjectController::class, 'show'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('show');
@@ -181,6 +217,12 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
     Route::post('/', [ProjectController::class, 'store'])
         ->middleware('role:CEO|PM')
         ->name('store');
+
+    // Sprint 9 "Edit Proyek": CEO any project, PM only their own
+    // (ProjectPolicy::update()); PM re-assignment CEO-only (PRD §4.4).
+    Route::put('/{project}', [ProjectController::class, 'update'])
+        ->middleware('role:CEO|PM')
+        ->name('update');
 });
 
 // Milestones — PRD §7.1 "Milestone" row: PM has CRUD (+ CEO oversight,
@@ -208,6 +250,12 @@ Route::post('projects/{project}/progress-logs', [ProgressLogController::class, '
     ->middleware(['auth', 'role:PM'])
     ->name('progress-logs.store');
 
+// Dashboard QA (QA's "Analytics – Per Divisi", §7.1 `P`) — CEO + QA, no
+// task data (PRD §4.6). Registered before the group's `{qa_form}` wildcard.
+Route::get('qa-forms/dashboard', [QaDashboardController::class, 'index'])
+    ->middleware(['auth', 'role:CEO|QA'])
+    ->name('qa-forms.dashboard');
+
 // QA — PRD §4.6 / §7.1 "QA Form" row: CEO/PM read, QA CRUD (review only —
 // rows themselves are system-created, see QaFormService's docblock).
 Route::middleware(['auth', 'role:CEO|PM|QA'])->prefix('qa-forms')->name('qa-forms.')->group(function () {
@@ -234,6 +282,13 @@ Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
     ->middleware(['auth', 'role:PM|FIELD_STAFF', 'throttle:60,1'])
     ->name('tasks.updateStatus');
 
+// Sprint 9 — full edit / delete: PM only ("Task – Create/Edit" CRUD).
+// Field Staff get 403 (task immutability, CLAUDE.md golden rule #6).
+Route::middleware(['auth', 'role:PM'])->group(function () {
+    Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
+    Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+});
+
 // Daily Task Form — PRD §4.5 / §7.1 "Daily Task Form" row (CEO/PM read,
 // Field Staff create+read own — see DailyTaskFormController::index()).
 Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('daily-forms')->name('daily-forms.')->group(function () {
@@ -257,10 +312,16 @@ Route::post('family-fund/expense', [FamilyGatheringFundController::class, 'recor
     ->name('family-fund.recordExpense');
 
 // Penalty — PRD §7.1 "Penalty – View" row: CEO/PM/Finance read all, Field
-// Staff read own only (`R*`). Read-only — see PenaltyController's docblock.
+// Staff read own only (`R*`). Penalties themselves are only written by the
+// automated job; Finance records a tukang's manual payment (Sprint 9
+// decision #10 — a PEMASUKAN PENALTY_COLLECT). No edit/destroy (PRD §9.4).
 Route::get('penalties', [PenaltyController::class, 'index'])
     ->middleware(['auth', 'role:CEO|PM|FINANCE|FIELD_STAFF'])
     ->name('penalties.index');
+
+Route::post('penalties/payments', [PenaltyController::class, 'recordPayment'])
+    ->middleware(['auth', 'role:FINANCE', 'throttle:60,1'])
+    ->name('penalties.recordPayment');
 
 // Termin — PRD §4.4/§4.7/§6.4 / §7.1 "Finance – Termin" row: CEO/FIN read,
 // PM create-only (nested under project — see ProjectController::show()'s
@@ -332,6 +393,44 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
         ->middleware('role:FINANCE')
         ->name('supplierDebts.storePayment');
 
+    // Asset installments (Aset & Cicilan) — PRD §4.7, Sprint 9 decision #8.
+    // Read like §7.1 "Asset Inventory" (CEO/PM/FIN read, LOG CRUD); the plan
+    // is set by Logistics on the asset form (logistics.assets.*), but every
+    // payment is a finance transaction (PENGELUARAN / ANGSURAN), so only
+    // Finance records it. Append-only ledger — no edit/destroy routes.
+    Route::get('asset-installments', [AssetInstallmentController::class, 'index'])
+        ->middleware('role:CEO|PM|FINANCE|LOGISTICS')
+        ->name('assetInstallments.index');
+
+    Route::get('asset-installments/{asset}', [AssetInstallmentController::class, 'show'])
+        ->middleware('role:CEO|PM|FINANCE|LOGISTICS')
+        ->name('assetInstallments.show');
+
+    Route::post('asset-installments/{asset}/payments', [AssetInstallmentController::class, 'storePayment'])
+        ->middleware('role:FINANCE')
+        ->name('assetInstallments.storePayment');
+
+    // Payroll (Gaji Karyawan Tetap) — PRD §4.7, Sprint 9 decision #7.
+    // Salaries are confidential: CEO reads, Finance pays and manages the
+    // employee list; every other role (PM included) gets 403. Employees
+    // are deactivated, never deleted, and salary payments are append-only
+    // — deliberately no destroy routes.
+    Route::get('payroll', [PayrollController::class, 'index'])
+        ->middleware('role:CEO|FINANCE')
+        ->name('payroll.index');
+
+    Route::post('payroll/payments', [PayrollController::class, 'pay'])
+        ->middleware('role:FINANCE')
+        ->name('payroll.pay');
+
+    Route::post('employees', [EmployeeController::class, 'store'])
+        ->middleware('role:FINANCE')
+        ->name('employees.store');
+
+    Route::put('employees/{employee}', [EmployeeController::class, 'update'])
+        ->middleware('role:FINANCE')
+        ->name('employees.update');
+
     // Allocation percentages — PRD §4.7 "dikonfigurasi di
     // finance_allocation_configs dan bisa diubah CEO/Finance". Rows are
     // deactivated (is_active), never deleted.
@@ -357,6 +456,13 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
     Route::get('transactions/export', [FinanceTransactionController::class, 'exportExcel'])
         ->middleware('role:CEO|PM|FINANCE')
         ->name('transactions.export');
+
+    // Pindah Dana between the company's own accounts — two PINDAH_DANA
+    // legs (FundTransferService). Same "Finance – Transaction" row:
+    // Finance creates, CEO/PM read the legs above. Create-only.
+    Route::post('transfers', [FundTransferController::class, 'store'])
+        ->middleware(['role:FINANCE', 'throttle:60,1'])
+        ->name('transfers.store');
 
     Route::get('dashboard', [FinanceTransactionController::class, 'dashboard'])
         ->middleware('role:CEO|PM|FINANCE')

@@ -13,7 +13,8 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Project, User } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { FolderKanban } from 'lucide-react';
+import { AlertTriangle, FolderKanban } from 'lucide-react';
+import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
@@ -80,6 +81,7 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
                 title="Proyek"
                 icon={FolderKanban}
                 description="Daftar proyek eksekusi — dibuat otomatis saat lead dikonfirmasi Deal dari CRM."
+                actions={<DashboardLinkButton routeName="projects.dashboard" label="Monitor Proyek" icon={AlertTriangle} roles={['CEO', 'PM']} />}
             />
 
             <DataTable

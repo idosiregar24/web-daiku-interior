@@ -48,6 +48,10 @@ const STATUS_TONE: Record<string, Tone> = {
     SENT_TO_CLIENT: 'info',
     APPROVED: 'success',
     REJECTED: 'error',
+    // Quotation — QuotationRevisionReason (why a version was closed)
+    CEO_REJECTED: 'error',
+    PM_REJECTED: 'error',
+    CLIENT_REJECTED: 'error',
     // Project — ProjectStatus / MilestoneStatus
     ACTIVE: 'info',
     COMPLETED: 'success',
@@ -69,6 +73,8 @@ const STATUS_TONE: Record<string, Tone> = {
     BERJALAN: 'info',
     LUNAS: 'success',
     JATUH_TEMPO: 'error',
+    // Penalti — PenaltyPaymentStatus (LUNAS reused from above)
+    BELUM_DIBAYAR: 'warning',
     // Termin — TerminStatus (PENDING/APPROVED/REJECTED/OVERDUE reused from above)
     SCHEDULED: 'neutral',
     INVOICED: 'info',

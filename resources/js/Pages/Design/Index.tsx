@@ -12,7 +12,8 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Design, DesignStatus, PaginatedData } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Palette } from 'lucide-react';
+import { BarChart3, Palette } from 'lucide-react';
+import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 
 interface DesignIndexProps {
     designs: PaginatedData<Design & { lead: { id: number; client_name: string } }>;
@@ -39,6 +40,20 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
         id: 'pic',
         header: 'PIC',
         cell: ({ row }) => row.original.pic?.name ?? '—',
+    },
+    {
+        id: 'staff',
+        header: 'Sub-Staff',
+        cell: ({ row }) => {
+            const staff = row.original.staff ?? [];
+            if (staff.length === 0) return '—';
+
+            return (
+                <span title={staff.map((member) => member.name + (member.pivot.role_note ? ` (${member.pivot.role_note})` : '')).join(', ')}>
+                    {staff.map((member) => member.name).join(', ')}
+                </span>
+            );
+        },
     },
     {
         accessorKey: 'jenis_project',
@@ -96,6 +111,7 @@ export default function DesignIndex({ designs, filters }: DesignIndexProps) {
                 title="Desain"
                 icon={Palette}
                 description="Daftar proyek desain — dibuka dari lead CRM berstatus DEAL_DESAIN."
+                actions={<DashboardLinkButton routeName="design.dashboard" label="KPI Desain" icon={BarChart3} roles={['CEO', 'DESIGNER']} />}
             />
 
             <DataTable

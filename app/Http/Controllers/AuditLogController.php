@@ -19,6 +19,8 @@ class AuditLogController extends Controller
     /** Action prefixes written by AuditLogService callers — the page's area filter. */
     private const AREAS = [
         'quotation' => 'Quotation',
+        'project' => 'Proyek',
+        'task' => 'Task',
         'qa' => 'QA',
         'finance' => 'Finance',
         'overtime' => 'Lembur',

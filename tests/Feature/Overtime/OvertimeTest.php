@@ -4,6 +4,7 @@ use App\Enums\FinanceTransactionType;
 use App\Enums\OvertimeStatus;
 use App\Models\BankAccount;
 use App\Models\FinanceTransaction;
+use App\Models\Notification;
 use App\Models\OvertimeRequest;
 use App\Models\Project;
 use App\Models\User;
@@ -205,4 +206,26 @@ test('the Sprint 8 migration renames legacy APPROVED_PM rows to PENDING_FINANCE 
 
     $migration->down();
     expect(DB::table('overtime_requests')->where('id', $overtime->id)->value('status'))->toBe('APPROVED_PM');
+});
+
+test('Finance rejecting notifies the project PM as well as the staff (PRD §6.6)', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $pm = User::factory()->create();
+    $staff = User::factory()->create();
+    $overtime = OvertimeRequest::factory()->create([
+        'status' => OvertimeStatus::PendingFinance->value,
+        'staff_id' => $staff->id,
+        'project_id' => Project::factory()->create(['pm_id' => $pm->id])->id,
+    ]);
+
+    $this->actingAs($finance)->post(route('overtime.financeReject', ['overtime_request' => $overtime->id]), [
+        'decision' => 'reject',
+        'note' => 'Anggaran lembur habis.',
+    ])->assertSessionHasNoErrors();
+
+    $pmNotification = Notification::where('user_id', $pm->id)->where('type', 'overtime_rejected')->sole();
+    expect($pmNotification->message)->toContain('ditolak Finance: Anggaran lembur habis.')
+        ->and($pmNotification->metadata['overtime_id'])->toBe($overtime->id)
+        ->and(Notification::where('user_id', $staff->id)->where('type', 'overtime_rejected')->exists())->toBeTrue();
 });

@@ -9,7 +9,8 @@ import {
 } from '@/Components/ui/popover';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { cn } from '@/lib/utils';
-import type { Termin, TerminStatus } from '@/types';
+import { isPartiallyPaid, TerminPaymentDialog } from '@/Components/modules/finance/TerminPaymentDialog';
+import type { BankAccount, Termin, TerminStatus } from '@/types';
 import { router } from '@inertiajs/react';
 import {
     addMonths,
@@ -56,6 +57,8 @@ interface TerminCalendarProps {
     /** 'yyyy-MM' of the month currently being viewed — server-computed (TerminController::index()). */
     month: string;
     canMarkPaid: boolean;
+    /** Active accounts for the payment dialog (FINANCE/SUPERADMIN only — empty otherwise). */
+    bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
 
 /**
@@ -64,11 +67,13 @@ interface TerminCalendarProps {
  * Sabtu, TerminService::getNextSaturday()) as a colored event chip;
  * clicking one opens its detail + actions in a popover rather than
  * navigating away, since the calendar's whole point is staying in one
- * view across a month.
+ * view across a month. Payments go through the same partial-payment
+ * dialog as the list (TerminPaymentDialog → finance.termins.recordPayment).
  */
-export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarProps) {
+export function TerminCalendar({ termins, month, canMarkPaid, bankAccounts }: TerminCalendarProps) {
     const monthDate = useMemo(() => new Date(`${month}-01T00:00:00`), [month]);
     const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+    const [payingTermin, setPayingTermin] = useState<Termin | null>(null);
 
     function goToMonth(date: Date) {
         router.get(
@@ -107,9 +112,9 @@ export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarPr
         return map;
     }, [termins]);
 
-    const monthTotal = termins
-        .filter((termin) => isSameMonth(new Date(termin.scheduled_date), monthDate))
-        .reduce((sum, termin) => sum + Number(termin.amount), 0);
+    const monthTermins = termins.filter((termin) => isSameMonth(new Date(termin.scheduled_date), monthDate));
+    const monthTotal = monthTermins.reduce((sum, termin) => sum + Number(termin.amount), 0);
+    const monthOutstanding = monthTermins.reduce((sum, termin) => sum + Number(termin.sisa_piutang), 0);
 
     return (
         <div className="grid gap-4 lg:grid-cols-[260px_1fr]">
@@ -132,6 +137,7 @@ export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarPr
                     <CardContent className="space-y-1 pt-4">
                         <p className="text-xs text-daiku-muted">Total termin bulan ini</p>
                         <p className="text-lg font-semibold text-daiku-dark">{formatRupiah(monthTotal)}</p>
+                        <p className="text-xs text-daiku-muted">Sisa piutang {formatRupiah(monthOutstanding)}</p>
                     </CardContent>
                 </Card>
 
@@ -204,7 +210,12 @@ export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarPr
                                     </span>
                                     <div className="mt-1 flex flex-col gap-1">
                                         {dayTermins.map((termin) => (
-                                            <TerminEventChip key={termin.id} termin={termin} canMarkPaid={canMarkPaid} />
+                                            <TerminEventChip
+                                                key={termin.id}
+                                                termin={termin}
+                                                canPay={canMarkPaid}
+                                                onPay={setPayingTermin}
+                                            />
                                         ))}
                                     </div>
                                 </div>
@@ -213,25 +224,21 @@ export function TerminCalendar({ termins, month, canMarkPaid }: TerminCalendarPr
                     </div>
                 </CardContent>
             </Card>
+
+            {canMarkPaid && payingTermin && (
+                <TerminPaymentDialog
+                    key={payingTermin.id}
+                    termin={payingTermin}
+                    bankAccounts={bankAccounts}
+                    onClose={() => setPayingTermin(null)}
+                />
+            )}
         </div>
     );
 }
 
-function TerminEventChip({ termin, canMarkPaid }: { termin: Termin; canMarkPaid: boolean }) {
+function TerminEventChip({ termin, canPay, onPay }: { termin: Termin; canPay: boolean; onPay: (termin: Termin) => void }) {
     const [open, setOpen] = useState(false);
-
-    // Legacy full payment into the termin's own account — needs one (TerminService::recordPayment()).
-    const canQuickPay = canMarkPaid && termin.bank_account_id !== null;
-
-    function onMarkPaid() {
-        if (!confirm(`Tandai termin #${termin.termin_number} (${termin.project?.name}) sudah dibayar?`)) return;
-
-        router.post(
-            route('finance.termins.markPaid', { termin: termin.id }),
-            {},
-            { preserveScroll: true, only: ['calendarTermins', 'calendarMonth'], onSuccess: () => setOpen(false) },
-        );
-    }
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -246,16 +253,27 @@ function TerminEventChip({ termin, canMarkPaid }: { termin: Termin; canMarkPaid:
                     {termin.project?.name} · #{termin.termin_number}
                 </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 space-y-2" align="start">
+            <PopoverContent className="w-72 space-y-2" align="start">
                 <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-daiku-dark">{termin.project?.name}</p>
-                    <StatusChip status={termin.status} />
+                    <div className="flex flex-wrap justify-end gap-1">
+                        <StatusChip status={termin.status} />
+                        {isPartiallyPaid(termin) && <StatusChip status="PARTIAL" label="Dibayar Sebagian" />}
+                    </div>
                 </div>
                 <p className="text-xs text-daiku-muted">
                     Termin #{termin.termin_number} ({termin.percentage}%)
                     {termin.milestone && ` · ${termin.milestone.name}`}
                 </p>
                 <p className="text-base font-semibold text-daiku-dark">{formatRupiah(termin.amount)}</p>
+                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+                    <dt className="text-daiku-muted">DP</dt>
+                    <dd className="text-right tabular-nums">{formatRupiah(termin.dp_amount)}</dd>
+                    <dt className="text-daiku-muted">Pelunasan</dt>
+                    <dd className="text-right tabular-nums">{formatRupiah(termin.pelunasan)}</dd>
+                    <dt className="text-daiku-muted">Sisa piutang</dt>
+                    <dd className="text-right font-medium tabular-nums">{formatRupiah(termin.sisa_piutang)}</dd>
+                </dl>
                 <div className="flex items-center gap-2 pt-1">
                     <Button variant="outline" size="sm" asChild>
                         <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
@@ -263,9 +281,15 @@ function TerminEventChip({ termin, canMarkPaid }: { termin: Termin; canMarkPaid:
                             PDF
                         </a>
                     </Button>
-                    {canQuickPay && termin.status !== 'PAID' && (
-                        <Button size="sm" onClick={onMarkPaid}>
-                            Tandai Dibayar
+                    {canPay && termin.status !== 'PAID' && (
+                        <Button
+                            size="sm"
+                            onClick={() => {
+                                setOpen(false);
+                                onPay(termin);
+                            }}
+                        >
+                            Catat Pembayaran
                         </Button>
                     )}
                 </div>

@@ -1,9 +1,11 @@
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { Notice } from '@/Components/shared/Notice';
 import {
     Dialog,
     DialogClose,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -25,19 +27,22 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Milestone, TaskPriority, User } from '@/types';
+import type { Milestone, Task, TaskPriority, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const PRIORITY_OPTIONS: TaskPriority[] = ['HIGH', 'MEDIUM', 'LOW'];
 
+// Mirrors StoreTaskRequest/UpdateTaskRequest. Which milestones and tukang
+// are selectable (same project, not COMPLETED; active Field Staff) is
+// narrowed in the option lists below — the server re-checks both.
 const schema = z.object({
     milestone_id: z.string().optional(),
-    title: z.string().min(1, 'Judul task wajib diisi'),
+    title: z.string().trim().min(1, 'Judul task wajib diisi').max(150, 'Judul task maksimal 150 karakter'),
     description: z.string().optional(),
     assignee_id: z.string().min(1, 'Tukang wajib dipilih'),
     due_date: z.date({ message: 'Tanggal jatuh tempo wajib diisi' }),
@@ -45,7 +50,8 @@ const schema = z.object({
     rate_per_task: z
         .string()
         .optional()
-        .refine((v) => !v || (!isNaN(Number(v)) && Number(v) >= 0), 'Rate tidak valid'),
+        .refine((v) => !v || (!isNaN(Number(v)) && Number(v) >= 0), 'Rate tidak valid')
+        .refine((v) => !v || Number(v) <= 9999999999.99, 'Rate terlalu besar'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -60,61 +66,132 @@ const EMPTY_VALUES: FormValues = {
     rate_per_task: '',
 };
 
+const FIELDS = Object.keys(EMPTY_VALUES);
+
+/** What a DONE-but-unpaid task still allows — TaskService::update()'s DONE_EDITABLE. */
+const DONE_EDITABLE: (keyof FormValues)[] = ['title', 'description', 'rate_per_task'];
+
 interface TaskFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    projectId: number;
-    milestones: Milestone[];
-    fieldStaff: Pick<User, 'id' | 'name'>[];
+    /** Project a new task goes into — ignored when editing (the task carries its own). */
+    projectId?: number;
+    /** Task being edited, or null/undefined for create. */
+    editing?: Task | null;
+    /** May span several projects (Tasks/Index) — filtered to the task's project here. */
+    milestones: Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'>[];
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
 }
 
 /**
  * "Task assignment form PM: pilih tukang, due date, rate per task"
- * (.claude/plan/sprint-02.md Week 4). Scoped to a Project — reached from
- * Projects/Show.tsx's Task tab, mirroring MilestoneFormDialog's pattern.
+ * (.claude/plan/sprint-02.md Week 4) and, since Sprint 9, "Edit Task" —
+ * PM only (TaskPolicy::update()). Create is reached from Projects/Show.tsx's
+ * Task tab; edit from there and from Tasks/Index.tsx.
  */
-export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fieldStaff }: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff }: TaskFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
     });
 
+    const targetProjectId = editing?.project_id ?? projectId;
+    const isDone = editing?.status === 'DONE';
+    const isPaid = isDone && !!editing?.is_wage_paid;
+
+    // Same project; a milestone that already passed QA only stays listed
+    // for the task that already sits in it (see UpdateTaskRequest).
+    const milestoneOptions = useMemo(
+        () =>
+            milestones.filter(
+                (milestone) =>
+                    milestone.project_id === targetProjectId &&
+                    (milestone.status !== 'COMPLETED' || milestone.id === editing?.milestone_id),
+            ),
+        [milestones, targetProjectId, editing],
+    );
+
+    // Active tukang only — plus a deactivated one who already holds this task.
+    const staffOptions = useMemo(
+        () => fieldStaff.filter((staff) => staff.is_active !== false || staff.id === editing?.assignee_id),
+        [fieldStaff, editing],
+    );
+
     useEffect(() => {
-        if (open) {
+        if (!open) return;
+
+        if (editing) {
+            form.reset({
+                milestone_id: editing.milestone_id ? String(editing.milestone_id) : '',
+                title: editing.title,
+                description: editing.description ?? '',
+                assignee_id: editing.assignee_id ? String(editing.assignee_id) : '',
+                due_date: editing.due_date ? new Date(editing.due_date) : (undefined as unknown as Date),
+                priority: editing.priority,
+                rate_per_task: editing.rate_per_task !== null ? String(Number(editing.rate_per_task)) : '',
+            });
+        } else {
             form.reset(EMPTY_VALUES);
         }
-    }, [open]);
+    }, [open, editing]);
+
+    function isLocked(field: keyof FormValues) {
+        return isPaid || (isDone && !DONE_EDITABLE.includes(field));
+    }
 
     function onSubmit(values: FormValues) {
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
-                form.setError(field as keyof FormValues, { message });
+                if (FIELDS.includes(field)) {
+                    form.setError(field as keyof FormValues, { message });
+                } else {
+                    form.setError('root.server', { message });
+                }
             });
         };
 
-        router.post(
-            route('tasks.store', { project: projectId }),
-            {
-                milestone_id: values.milestone_id ? Number(values.milestone_id) : null,
-                title: values.title,
-                description: values.description || null,
-                assignee_id: Number(values.assignee_id),
-                due_date: format(values.due_date, 'yyyy-MM-dd'),
-                priority: values.priority,
-                rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null,
-            },
-            { onError, onSuccess: () => onOpenChange(false) },
-        );
+        const payload = {
+            milestone_id: values.milestone_id ? Number(values.milestone_id) : null,
+            title: values.title,
+            description: values.description || null,
+            assignee_id: Number(values.assignee_id),
+            due_date: format(values.due_date, 'yyyy-MM-dd'),
+            priority: values.priority,
+            rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null,
+        };
+        const options = { preserveScroll: true, onError, onSuccess: () => onOpenChange(false) };
+
+        if (editing) {
+            router.put(route('tasks.update', { task: editing.id }), payload, options);
+        } else if (targetProjectId) {
+            router.post(route('tasks.store', { project: targetProjectId }), payload, options);
+        }
     }
+
+    const serverError = form.formState.errors.root?.server?.message;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Tambah Task</DialogTitle>
+                    <DialogTitle>{editing ? 'Edit Task' : 'Tambah Task'}</DialogTitle>
+                    {editing?.project && <DialogDescription>Proyek {editing.project.name}</DialogDescription>}
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        {serverError && <Notice tone="error">{serverError}</Notice>}
+                        {isPaid ? (
+                            <Notice tone="info">Upah task ini sudah dibayar — task terkunci dan tidak bisa diubah lagi.</Notice>
+                        ) : isDone ? (
+                            <Notice tone="info">Task sudah DONE — hanya judul, deskripsi, dan rate yang masih bisa diubah.</Notice>
+                        ) : (
+                            editing?.status === 'OVER' && (
+                                <Notice tone="warning">
+                                    Task ini melewati deadline (OVER). Mundurkan jatuh tempo ke hari ini atau setelahnya untuk
+                                    mengembalikan statusnya ke {editing.pre_overdue_status ?? 'PENDING'}.
+                                </Notice>
+                            )
+                        )}
                         <FormField
                             control={form.control}
                             name="title"
@@ -122,7 +199,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                 <FormItem>
                                     <FormLabel>Judul Task</FormLabel>
                                     <FormControl>
-                                        <Input {...field} autoFocus placeholder="mis. Pasang kusen lantai 2" />
+                                        <Input {...field} autoFocus disabled={isLocked('title')} placeholder="mis. Pasang kusen lantai 2" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -135,7 +212,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                 <FormItem>
                                     <FormLabel>Deskripsi (opsional)</FormLabel>
                                     <FormControl>
-                                        <Textarea {...field} rows={2} />
+                                        <Textarea {...field} rows={2} disabled={isLocked('description')} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -148,16 +225,16 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Tukang</FormLabel>
-                                        <Select value={field.value} onValueChange={field.onChange}>
+                                        <Select value={field.value} onValueChange={field.onChange} disabled={isLocked('assignee_id')}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
                                                     <SelectValue placeholder="Pilih tukang" />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {fieldStaff.map((staff) => (
+                                                {staffOptions.map((staff) => (
                                                     <SelectItem key={staff.id} value={String(staff.id)}>
-                                                        {staff.name}
+                                                        {staff.is_active === false ? `${staff.name} (nonaktif)` : staff.name}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -175,6 +252,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                                            disabled={isLocked('milestone_id')}
                                         >
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -183,7 +261,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value="none">—</SelectItem>
-                                                {milestones.map((milestone) => (
+                                                {milestoneOptions.map((milestone) => (
                                                     <SelectItem key={milestone.id} value={String(milestone.id)}>
                                                         {milestone.name}
                                                     </SelectItem>
@@ -203,7 +281,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                     <FormItem>
                                         <FormLabel>Jatuh Tempo</FormLabel>
                                         <FormControl>
-                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                            <DatePicker value={field.value} onChange={field.onChange} disabled={isLocked('due_date')} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -215,7 +293,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Prioritas</FormLabel>
-                                        <Select value={field.value} onValueChange={field.onChange}>
+                                        <Select value={field.value} onValueChange={field.onChange} disabled={isLocked('priority')}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
                                                     <SelectValue />
@@ -241,7 +319,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                                 <FormItem>
                                     <FormLabel>Rate per Task (Rp, opsional)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" min="0" step="0.01" {...field} />
+                                        <Input type="number" min="0" step="0.01" disabled={isLocked('rate_per_task')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -250,12 +328,14 @@ export function TaskFormDialog({ open, onOpenChange, projectId, milestones, fiel
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">
-                                    Batal
+                                    {isPaid ? 'Tutup' : 'Batal'}
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Simpan
-                            </Button>
+                            {!isPaid && (
+                                <Button type="submit" disabled={form.formState.isSubmitting}>
+                                    Simpan
+                                </Button>
+                            )}
                         </DialogFooter>
                     </form>
                 </Form>

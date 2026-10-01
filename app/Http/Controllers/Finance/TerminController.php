@@ -43,8 +43,12 @@ class TerminController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $month = $request->string('month')->value()
-            ? Carbon::createFromFormat('Y-m', $request->string('month')->value())->startOfMonth()
+        // `!` = day 1: plain 'Y-m' takes today's day, so on the 29th–31st
+        // February (or any shorter month) overflowed into the next one.
+        // A malformed value falls back to the current month instead of a 500.
+        $requestedMonth = $request->string('month')->value();
+        $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $requestedMonth)
+            ? Carbon::createFromFormat('!Y-m', $requestedMonth)
             : now()->startOfMonth();
 
         // Grid always shows full weeks (Senin–Minggu), so it pads a few

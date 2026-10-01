@@ -90,6 +90,8 @@ export interface Lead {
     creator?: Pick<User, 'id' | 'name'>;
     /** Loaded via `with('design:id,lead_id')` — presence alone tells the CRM index whether to show "Buka Desain" or "Lihat Desain". */
     design?: Pick<Design, 'id'> | null;
+    /** CRM index/detail — the offer's state drives "Konfirmasi Deal" / "Klien Menolak Penawaran" and the expiry warning. */
+    quotation?: Pick<Quotation, 'id' | 'status' | 'valid_until' | 'version'> | null;
     follow_up_date: string | null;
     lost_reason: string | null;
     notes: string | null;
@@ -138,11 +140,17 @@ export type ProjectType =
     | 'RETAIL_TOKO'
     | 'LAINNYA';
 
+/** PRD 4.2 "PIC & Sub-Staff" — a `design_staff` pivot row, loaded via `with('staff:id,name')`. */
+export type DesignStaffMember = Pick<User, 'id' | 'name'> & {
+    pivot: { role_note: string | null };
+};
+
 export interface Design {
     id: number;
     lead_id: number;
     pic_id: number | null;
     pic?: Pick<User, 'id' | 'name'>;
+    staff?: DesignStaffMember[];
     jenis_project: ProjectType | null;
     status: DesignStatus;
     target_hari: number | null;
@@ -182,11 +190,40 @@ export interface QuotationItem {
 export interface QuotationApproval {
     id: number;
     quotation_id: number;
+    /** The quotation version this decision was about. */
+    version: number;
     approver_id: number;
     approver?: Pick<User, 'id' | 'name'>;
-    approver_role: 'CEO' | 'PM';
+    /** CLIENT = the client's decision, recorded by the CEO/Marketing `approver`. */
+    approver_role: 'CEO' | 'PM' | 'CLIENT';
     status: 'APPROVED' | 'REJECTED';
     note: string | null;
+    created_at: string;
+}
+
+/** Why a quotation version was closed — App\Models\QuotationRevision::REASON_*. */
+export type QuotationRevisionReason = 'CEO_REJECTED' | 'PM_REJECTED' | 'CLIENT_REJECTED';
+
+/** One RAB line as frozen in a revision snapshot (money stays a decimal string, like QuotationItem). */
+export interface QuotationRevisionItem {
+    description: string;
+    qty: number;
+    unit: string;
+    unit_price: string;
+    total_price: string;
+}
+
+/** PRD 4.3 "Versi Revisi" — a closed (rejected) version, append-only. */
+export interface QuotationRevision {
+    id: number;
+    quotation_id: number;
+    version: number;
+    total_amount: string;
+    items: QuotationRevisionItem[];
+    reason: QuotationRevisionReason;
+    note: string | null;
+    closed_by: number;
+    closer?: Pick<User, 'id' | 'name'> | null;
     created_at: string;
 }
 
@@ -196,11 +233,13 @@ export interface Quotation {
     lead?: Pick<Lead, 'id' | 'client_name'>;
     total_amount: string;
     status: QuotationStatus;
+    /** Set when CEO & PM approval sends the offer (+14 days), cleared when it returns to DRAFT. */
     valid_until: string | null;
     version: number;
     created_by: number;
     items?: QuotationItem[];
     approvals?: QuotationApproval[];
+    revisions?: QuotationRevision[];
     created_at: string;
     updated_at: string;
 }
@@ -230,6 +269,13 @@ export interface Project {
     updated_at: string;
 }
 
+/** ProjectService::statusNote() — why the project is ON_HOLD/CANCELLED (from its audit row). */
+export interface ProjectStatusNote {
+    note: string | null;
+    by: string | null;
+    at: string;
+}
+
 export interface Milestone {
     id: number;
     project_id: number;
@@ -245,11 +291,14 @@ export interface Milestone {
 /** PRD 4.5 — Task Management (Field Staff) */
 export type TaskStatus = 'PENDING' | 'ONPROGRESS' | 'PENGECEKAN' | 'DONE' | 'OVER';
 export type TaskPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+/** `tasks.index?due=` — Task::scopeByDue(). */
+export type TaskDueFilter = 'today' | 'week' | 'overdue';
 
 export interface Task {
     id: number;
     project_id: number;
-    project?: Pick<Project, 'id' | 'name'>;
+    /** `status` is loaded on the task list (hides edit actions on closed projects). */
+    project?: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'status'>>;
     milestone_id: number | null;
     milestone?: Pick<Milestone, 'id' | 'name'>;
     title: string;
@@ -259,12 +308,16 @@ export interface Task {
     created_by: number;
     due_date: string | null;
     status: TaskStatus;
+    /** Status before TaskOverdueJob set OVER — restored when the PM moves the deadline back. */
+    pre_overdue_status?: TaskStatus | null;
     priority: TaskPriority;
     is_locked: boolean;
     kendala: string | null;
     note: string | null;
     rate_per_task: string | null;
     completed_at: string | null;
+    /** `withExists('wagePayment')` — PM views only; a paid DONE task is fully locked. */
+    is_wage_paid?: boolean;
     created_at: string;
     updated_at: string;
 }
@@ -349,6 +402,13 @@ export interface OvertimeRequest {
     updated_at: string;
 }
 
+/**
+ * Sprint 9 decision #10 — a penalty is paid by the tukang manually;
+ * derived from `is_deducted` (Penalty::STATUS_UNPAID / STATUS_PAID), also
+ * the Penalty page's `status` filter values.
+ */
+export type PenaltyPaymentStatus = 'BELUM_DIBAYAR' | 'LUNAS';
+
 /** PRD 6.5 — Logika Penalti Harian */
 export interface Penalty {
     id: number;
@@ -358,7 +418,15 @@ export interface Penalty {
     reference_id: number | null;
     amount: string;
     date_occurred: string;
+    /** true = lunas (paid by the tukang, recorded by Finance) — wages are never deducted. */
     is_deducted: boolean;
+    collected_at: string | null;
+    collected_by: number | null;
+    collector?: Pick<User, 'id' | 'name'> | null;
+    /** The PEMASUKAN PENALTY_COLLECT transaction that paid it. */
+    finance_transaction_id: number | null;
+    /** Not sent to Field Staff (finance data, PRD §7.1). */
+    finance_transaction?: (Pick<FinanceTransaction, 'id' | 'bank_account_id' | 'date'> & { bank_account?: Pick<BankAccount, 'id' | 'label'> | null }) | null;
     created_at: string;
 }
 
@@ -369,10 +437,26 @@ export interface FamilyGatheringFund {
     amount: string;
     description: string | null;
     source_penalty_id: number | null;
-    source_penalty?: Pick<Penalty, 'id'> & { staff?: Pick<User, 'id' | 'name'> };
+    source_penalty?: (Pick<Penalty, 'id' | 'staff_id' | 'is_deducted' | 'collected_at'> & { staff?: Pick<User, 'id' | 'name'> }) | null;
+    /** EXPENSE rows: the PENGELUARAN the usage was paid out of (null for INCOME and legacy rows). */
+    finance_transaction_id: number | null;
+    finance_transaction?: (Pick<FinanceTransaction, 'id' | 'bank_account_id' | 'date'> & { bank_account?: Pick<BankAccount, 'id' | 'label'> | null }) | null;
     recorded_by: number;
     recorder?: Pick<User, 'id' | 'name'>;
     created_at: string;
+}
+
+/** FamilyGatheringFundService::summary() — spendable = collected + otherIncome − totalExpense. */
+export interface FamilyFundSummary {
+    /** Income from every issued penalty (paid or not). */
+    penaltyTotal: number;
+    /** …of which the penalty is already paid. */
+    collected: number;
+    outstanding: number;
+    /** Income not tied to a penalty. */
+    otherIncome: number;
+    totalExpense: number;
+    spendable: number;
 }
 
 /** PRD 4.4/4.7/6.4 — Termin (Finance – Termin) */
@@ -504,8 +588,46 @@ export interface Asset {
     condition: AssetCondition;
     location: string | null;
     notes: string | null;
+    /** PRD 4.7 "Aset & Cicilan" — plan set by Logistics; `paid_install` mirrors the payment ledger. */
+    has_installment: boolean;
+    total_install: string | null;
+    paid_install: string;
+    /** Expected amount per payment (Sprint 9 deviation) — prefills Finance's payment dialog. */
+    installment_amount: string | null;
+    /** Day of month (1–28) the installment is due. */
+    installment_due_day: number | null;
+    /** Appended: total_install − paid_install, never negative; null without a plan. */
+    remaining_install: string | null;
     created_at: string;
     updated_at: string;
+}
+
+/** Derived by Asset::installmentStatus() (not a DB column) — StatusChip already maps the keys. */
+export type AssetInstallmentStatus = 'BERJALAN' | 'JATUH_TEMPO' | 'LUNAS';
+
+/** An asset with a plan as listed on the Cicilan Aset pages. */
+export interface InstallmentAsset extends Asset {
+    total_install: string;
+    installment_status: AssetInstallmentStatus;
+    /** Loaded on the list only (withPaidThisMonth / withMax). */
+    paid_this_month?: boolean | number;
+    last_paid_at?: string | null;
+    installment_payments?: AssetInstallmentPayment[];
+}
+
+/** One installment payment — append-only ledger with its ANGSURAN FinanceTransaction. */
+export interface AssetInstallmentPayment {
+    id: number;
+    asset_id: number;
+    amount: string;
+    paid_at: string;
+    bank_account_id: number;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
+    finance_transaction_id: number;
+    note: string | null;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    created_at: string;
 }
 
 /** PRD 9.4 — Audit Trail (append-only) */
@@ -569,10 +691,40 @@ export interface BankAccount {
     bank_name: string;
     account_no: string;
     label: string;
-    balance: string;
+    /** Saldo awal — before the first transaction recorded in the system. The running balance is derived, never stored (Sprint 9). */
+    opening_balance: string;
     is_active: boolean;
+    /** Only when loaded through BankAccount::withBalance() — all-time Σ PEMASUKAN / Σ PENGELUARAN (Pindah Dana included). */
+    total_income?: string | null;
+    total_expense?: string | null;
+    /** Appended accessor (BankAccount::currentBalance()) — opening_balance + total_income − total_expense. */
+    current_balance?: number;
     created_at: string;
     updated_at: string;
+}
+
+/** FinanceTransactionService::accountSummary() — one row of the Finance Dashboard's per-account cash flow. */
+export interface BankAccountSummaryRow {
+    id: number;
+    label: string;
+    bank_name: string;
+    account_no: string;
+    is_active: boolean;
+    opening_balance: number;
+    total_income: number;
+    total_expense: number;
+    current_balance: number;
+    month_income: number;
+    month_expense: number;
+}
+
+export interface BankAccountSummary {
+    /** 'yyyy-MM' */
+    month: string;
+    label: string;
+    accounts: BankAccountSummaryRow[];
+    /** "Keseluruhan" — balances summed, masuk/keluar company-level (Pindah Dana left out). */
+    total: Omit<BankAccountSummaryRow, 'id' | 'label' | 'bank_name' | 'account_no' | 'is_active'>;
 }
 
 /** PRD 4.7 — Pinjaman Tukang (staff_loans). `remaining` is DB-generated (amount - paid_amount). */
@@ -660,6 +812,50 @@ export interface FinanceAllocationLine {
     amount: number;
 }
 
+/** PRD 4.7 "Gaji Karyawan Tetap" — permanent staff (not field staff); `user_id` optionally links an account. */
+export interface Employee {
+    id: number;
+    name: string;
+    position: string;
+    user_id: number | null;
+    user?: Pick<User, 'id' | 'name'> | null;
+    base_salary: string;
+    bank_name: string | null;
+    account_no: string | null;
+    join_date: string | null;
+    is_active: boolean;
+    notes: string | null;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+}
+
+/** One monthly salary (append-only); amount = base_salary (snapshot) + allowance − deduction. */
+export interface SalaryPayment {
+    id: number;
+    employee_id: number;
+    /** `YYYY-MM` */
+    period: string;
+    base_salary: string;
+    allowance: string;
+    deduction: string;
+    amount: string;
+    bank_account_id: number;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
+    paid_at: string;
+    note: string | null;
+    finance_transaction_id: number;
+    created_by: number;
+    creator?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+}
+
+/** One row of the Penggajian table (PayrollController::index()). */
+export interface PayrollRow {
+    employee: Pick<Employee, 'id' | 'name' | 'position' | 'base_salary' | 'bank_name' | 'account_no' | 'is_active'>;
+    payment: SalaryPayment | null;
+}
+
 /**
  * Site Settings / web customization — CEO + SUPERADMIN only (added on
  * request, not in PRD). Singleton — see App\Models\SiteSetting::current().
@@ -691,4 +887,232 @@ export interface SiteBranding {
     logoUrl: string | null;
     faviconUrl: string | null;
     loginImageUrl: string | null;
+}
+
+/**
+ * Division dashboards (Sprint 9 decision #6) — PRD §7.1 "Analytics – Per
+ * Divisi" (`P`). Payloads built by App\Services\DivisionDashboardService,
+ * so keys are camelCase (arrays, not serialized models). Dates are
+ * `YYYY-MM-DD`; `since`/`waitingSince`/`at`/`reviewedAt` are ISO datetimes.
+ */
+export interface MonthOption {
+    /** `YYYY-MM` */
+    value: string;
+    label: string;
+}
+
+/** PRD 4.2 — KPI per PIC. On schedule + delayed = total. */
+export interface DesignPicKpi {
+    /** null = the "Tanpa PIC" row. */
+    picId: number | null;
+    name: string;
+    total: number;
+    active: number;
+    done: number;
+    onSchedule: number;
+    delayed: number;
+    onTimeRate: number | null;
+    avgDelayDays: number | null;
+}
+
+export interface DesignKpis {
+    summary: { total: number; active: number; done: number; delayedActive: number; onTimeRate: number | null };
+    byPic: DesignPicKpi[];
+}
+
+/** PRD 4.2 — Tracking Omset Desain (per closing month / per project). */
+export interface DesignRevenueMonth {
+    month: string;
+    label: string;
+    omset: number;
+    piutang: number;
+    projects: number;
+}
+
+export interface DesignRevenueProject {
+    projectId: number;
+    projectName: string;
+    designId: number | null;
+    client: string;
+    pic: string | null;
+    status: ProjectStatus;
+    /** Deal month = the Project's creation (LeadService::confirmDeal()). */
+    closedAt: string;
+    contractValue: number;
+    paid: number;
+    /** contract − paid (includes `unscheduled`). */
+    piutang: number;
+    /** Contract value no termin covers yet. */
+    unscheduled: number;
+}
+
+export interface DesignRevenue {
+    months: DesignRevenueMonth[];
+    totals: { omset: number; paid: number; piutang: number; unscheduled: number; projects: number };
+    projects: DesignRevenueProject[];
+}
+
+export interface MyDesignRow {
+    id: number;
+    client: string;
+    status: DesignStatus;
+    deadline: string | null;
+    /** Signed: negative = past the deadline. */
+    daysLeft: number | null;
+    delayDays: number;
+}
+
+export interface MyDesigns {
+    openCount: number;
+    dueThisWeek: MyDesignRow[];
+    overdue: MyDesignRow[];
+}
+
+/** PRD 4.3 — one approval-pipeline queue (DRAFT / SUBMITTED / CEO_REVIEW). */
+export interface QuotationQueueRow {
+    id: number;
+    client: string;
+    totalAmount: number;
+    version: number;
+    since: string;
+    daysWaiting: number;
+    /** Drafts only: the latest decision when it was a rejection. `role` = CEO | PM | CLIENT. */
+    lastRejection: { role: string; by: string | null; note: string | null; at: string | null } | null;
+}
+
+export interface QuotationQueue {
+    total: number;
+    rows: QuotationQueueRow[];
+}
+
+export interface QuotationMonthlyValue {
+    month: string;
+    label: string;
+    sent: number;
+    sentCount: number;
+    deal: number;
+    dealCount: number;
+}
+
+export interface QuotationTurnaround {
+    avgDays: number | null;
+    count: number;
+    avgRejections: number | null;
+}
+
+/** PRD 4.4 — Monitor Proyek (Overdue Monitor). */
+export interface MonitorStats {
+    projects: number;
+    onHold: number;
+    overdueTasks: number;
+    dueToday: number;
+    dueThisWeek: number;
+    milestonesOverdue: number;
+    qaWaiting: number;
+    pendingOvertime: number;
+}
+
+export interface MonitorProject {
+    id: number;
+    name: string;
+    client: string | null;
+    status: ProjectStatus;
+    pm: string | null;
+    progress: number | null;
+    progressDate: string | null;
+    milestonesCompleted: number;
+    milestonesTotal: number;
+    openTasks: number;
+    overdueTasks: number;
+}
+
+export interface OverdueTaskRow {
+    id: number;
+    title: string;
+    milestone: string | null;
+    dueDate: string;
+    daysLate: number;
+    status: TaskStatus;
+    priority: TaskPriority;
+}
+
+export interface OverdueProjectGroup {
+    projectId: number;
+    projectName: string;
+    client: string | null;
+    total: number;
+    maxDaysLate: number;
+    assignees: { id: number; name: string; maxDaysLate: number; tasks: OverdueTaskRow[] }[];
+}
+
+export interface DueTaskRow {
+    id: number;
+    title: string;
+    projectId: number;
+    projectName: string;
+    assignee: string | null;
+    milestone: string | null;
+    dueDate: string;
+    isToday: boolean;
+    status: TaskStatus;
+    priority: TaskPriority;
+}
+
+export interface AttentionMilestone {
+    id: number;
+    name: string;
+    projectId: number;
+    projectName: string;
+    status: MilestoneStatus;
+    targetDate: string;
+    /** Signed: negative = past the target date. */
+    daysLeft: number;
+    reason: 'OVERDUE' | 'QA_WAITING' | 'DUE_SOON';
+}
+
+export interface PendingOvertimeRow {
+    id: number;
+    staff: string | null;
+    projectId: number;
+    projectName: string;
+    workDate: string;
+    hours: number;
+    totalAmount: number;
+    reason: string;
+    daysWaiting: number;
+}
+
+/** PRD 4.6 — Dashboard QA (project/milestone level only, never task detail). */
+export interface QaPendingRow {
+    id: number;
+    projectId: number;
+    projectName: string;
+    projectProgress: number | null;
+    milestoneName: string;
+    milestoneTargetDate: string | null;
+    /** 1 = first review, 2+ = re-submitted after a rejection. */
+    round: number;
+    waitingSince: string;
+    daysWaiting: number;
+}
+
+export interface QaRepeatRejection {
+    id: number;
+    projectId: number;
+    projectName: string;
+    milestoneName: string;
+    status: QAStatus;
+    rejectionCount: number;
+    notes: string | null;
+    reviewedAt: string | null;
+}
+
+export interface QaDashboardStats {
+    monthLabel: string;
+    approvedThisMonth: number;
+    rejectedThisMonth: number;
+    rejectionRate: number | null;
+    avgReviewHours: number | null;
+    reviewSample: number;
+    reviewWindowDays: number;
 }

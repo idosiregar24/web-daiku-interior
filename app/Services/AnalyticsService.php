@@ -8,7 +8,6 @@ use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\StockMovementType;
 use App\Enums\TaskStatus;
-use App\Models\FamilyGatheringFund;
 use App\Models\Lead;
 use App\Models\Material;
 use App\Models\Milestone;
@@ -122,7 +121,7 @@ class AnalyticsService
             ->map(fn (int $i) => $from->copy()->addMonths($i)->format('Y-m'))
             ->map(fn (string $month) => [
                 'month' => $month,
-                'label' => Carbon::createFromFormat('Y-m', $month)->translatedFormat('M Y'),
+                'label' => Carbon::createFromFormat('!Y-m', $month)->translatedFormat('M Y'),
                 'revenue' => $revenue->get($month, 0.0),
                 'target' => isset($targets[$month]) ? (float) $targets[$month] : null,
             ]);
@@ -178,14 +177,13 @@ class AnalyticsService
         $monthStart = now()->startOfMonth()->toDateString();
         $thisMonth = Penalty::whereDate('date_occurred', '>=', $monthStart);
 
-        $income = (float) FamilyGatheringFund::where('type', 'INCOME')->sum('amount');
-        $expense = (float) FamilyGatheringFund::where('type', 'EXPENSE')->sum('amount');
-
         return [
             'monthTotal' => (float) (clone $thisMonth)->sum('amount'),
             'monthCount' => (clone $thisMonth)->count(),
             'allTimeTotal' => (float) Penalty::sum('amount'),
-            'fundBalance' => $income - $expense,
+            // Spendable balance only — unpaid penalties aren't money yet
+            // (sprint-09 decision #10).
+            'fundBalance' => app(FamilyGatheringFundService::class)->spendableBalance(),
             'topStaff' => (clone $thisMonth)
                 ->with('staff:id,name')
                 ->get(['staff_id', 'amount'])

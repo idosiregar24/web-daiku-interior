@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Logistics\StoreAssetRequest;
 use App\Http\Requests\Logistics\UpdateAssetRequest;
 use App\Models\Asset;
+use App\Services\AssetInstallmentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -16,8 +17,9 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * PRD §4.8 "Aset Inventaris" — §7.1 "Asset Inventory" row: CEO/PM/Finance
- * read, Logistics CRUD. Plain CRUD, no Service (skill step 4: lookup-style
- * modules don't need one).
+ * read, Logistics CRUD. Writes go through AssetInstallmentService because
+ * the form also carries the asset's installment plan (PRD §4.7 "Aset &
+ * Cicilan"), whose rules depend on the payments Finance already recorded.
  */
 class AssetController extends Controller
 {
@@ -31,6 +33,8 @@ class AssetController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $outstanding = Asset::query()->installmentOutstanding();
+
         return Inertia::render('Logistics/Assets/Index', [
             'assets' => $assets,
             'filters' => $request->only(['search', 'condition', 'category']),
@@ -39,28 +43,31 @@ class AssetController extends Controller
                 'totalItems' => Asset::count(),
                 'totalValue' => (float) Asset::sum('value'),
                 'damagedCount' => Asset::where('condition', 'DAMAGED')->count(),
+                // "Sisa Cicilan" across every asset still being paid off.
+                'installmentRemaining' => (float) (clone $outstanding)->sum('total_install') - (float) (clone $outstanding)->sum('paid_install'),
+                'installmentCount' => (clone $outstanding)->count(),
             ],
             'canManage' => $request->user()->hasAnyRole(['LOGISTICS', 'SUPERADMIN']),
         ]);
     }
 
-    public function store(StoreAssetRequest $request): RedirectResponse
+    public function store(StoreAssetRequest $request, AssetInstallmentService $service): RedirectResponse
     {
-        Asset::create($request->validated());
+        $service->createAsset($request->validated(), $request->user());
 
         return back()->with('success', 'Aset berhasil ditambahkan.');
     }
 
-    public function update(UpdateAssetRequest $request, Asset $asset): RedirectResponse
+    public function update(UpdateAssetRequest $request, Asset $asset, AssetInstallmentService $service): RedirectResponse
     {
-        $asset->update($request->validated());
+        $service->updateAsset($asset, $request->validated(), $request->user());
 
         return back()->with('success', 'Aset berhasil diperbarui.');
     }
 
-    public function destroy(Asset $asset): RedirectResponse
+    public function destroy(Asset $asset, AssetInstallmentService $service): RedirectResponse
     {
-        $asset->delete();
+        $service->deleteAsset($asset);
 
         return back()->with('success', 'Aset berhasil dihapus.');
     }

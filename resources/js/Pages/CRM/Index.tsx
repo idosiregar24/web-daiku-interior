@@ -20,6 +20,7 @@ import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
+import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -61,6 +62,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
     const [statusOpen, setStatusOpen] = useState(false);
     const [dealOpen, setDealOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
+    const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
     function applyFilter(next: Partial<typeof filters>) {
@@ -94,6 +96,11 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
     function openDesign(lead: Lead) {
         setActiveLead(lead);
         setDesignOpen(true);
+    }
+
+    function openClientReject(lead: Lead) {
+        setActiveLead(lead);
+        setClientRejectOpen(true);
     }
 
     const columns: ColumnDef<Lead>[] = [
@@ -189,6 +196,11 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                                     >
                                         Konfirmasi Deal
                                     </DropdownMenuItem>
+                                    {lead.quotation?.status === 'SENT_TO_CLIENT' && (
+                                        <DropdownMenuItem onSelect={() => openClientReject(lead)}>
+                                            Klien Menolak Penawaran
+                                        </DropdownMenuItem>
+                                    )}
                                 </>
                             )}
                             {canOpenDesign && lead.status === 'DEAL_DESAIN' && (
@@ -351,6 +363,16 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 lead={activeLead}
                 projectManagers={projectManagers}
             />
+            {canManage && activeLead?.quotation && (
+                <QuotationDecisionDialog
+                    open={clientRejectOpen}
+                    onOpenChange={setClientRejectOpen}
+                    quotation={activeLead.quotation}
+                    role="CLIENT"
+                    decision="reject"
+                    clientName={activeLead.client_name}
+                />
+            )}
             {canOpenDesign && (
                 <OpenDesignDialog
                     open={designOpen}

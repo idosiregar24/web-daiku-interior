@@ -6,6 +6,8 @@ use App\Enums\QuotationStatus;
 use App\Models\Design;
 use App\Models\Quotation;
 use App\Models\QuotationApproval;
+use App\Models\QuotationItem;
+use App\Models\QuotationRevision;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,12 +26,34 @@ use Illuminate\Validation\ValidationException;
  * pattern as LeadService's CLOSING guard, and exactly the check
  * security-standards.md §4 calls out ("approval PM ditolak kalau
  * ceo_approved_at masih null").
- * Recording the client's own SENT_TO_CLIENT → APPROVED/REJECTED decision
- * and PDF-triggered "mark as sent" are out of scope — nothing in the
- * Week 5 CSV tasks names that actor/action, so it isn't invented here.
+ *
+ * After SENT_TO_CLIENT (Sprint 9 decision #3, PRD §6.2): the client's
+ * acceptance is recorded by LeadService::confirmDeal() (→ APPROVED), their
+ * rejection by clientReject() — straight back to DRAFT for a revision, so
+ * `REJECTED` stays unpersisted like the other "in between" states. Every
+ * rejection that returns the quotation to DRAFT (CEO, PM or client) closes
+ * the rejected version into `quotation_revisions` and opens the next
+ * version number (closeVersion()); PM's approval starts the
+ * VALIDITY_DAYS offer period (`valid_until`). The lead's design follows
+ * each step via DesignService::syncWithPipeline().
  */
 class QuotationService
 {
+    /** PRD §4.3 "Validity Period: Tanggal berlaku penawaran (default 14 hari dari tanggal kirim)". */
+    public const VALIDITY_DAYS = 14;
+
+    /**
+     * Decision gates, keyed by QuotationApproval::approver_role: the
+     * status the quotation must be in, the status an approval moves it to
+     * (null for CLIENT — only the rejection is recorded here, acceptance
+     * is LeadService::confirmDeal()), and the error when it isn't there.
+     */
+    private const GATES = [
+        'CEO' => [QuotationStatus::Submitted, QuotationStatus::CeoReview, 'Quotation ini belum berstatus SUBMITTED — belum bisa direview CEO.'],
+        'PM' => [QuotationStatus::CeoReview, QuotationStatus::SentToClient, 'Quotation ini menunggu approval CEO terlebih dahulu.'],
+        'CLIENT' => [QuotationStatus::SentToClient, null, 'Penolakan klien hanya bisa dicatat saat penawaran berstatus SENT_TO_CLIENT (sudah disetujui CEO & PM).'],
+    ];
+
     public function __construct(
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
@@ -68,7 +92,8 @@ class QuotationService
      * — only while still DRAFT, matching the RBAC matrix's Estimator-only
      * CRUD and keeping edits impossible once approval has started.
      * `total_price` is always computed server-side from qty × unit_price,
-     * never trusted from the client.
+     * never trusted from the client. A rejected version's items survive
+     * in its QuotationRevision snapshot, so overwriting them here is safe.
      */
     public function replaceItems(Quotation $quotation, array $items): Quotation
     {
@@ -99,6 +124,9 @@ class QuotationService
 
             $quotation->update(['total_amount' => $total]);
 
+            // The RAB is being written — the design is now "Pembuatan Penawaran".
+            $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_DRAFTED);
+
             return $quotation->fresh('items');
         });
     }
@@ -121,19 +149,23 @@ class QuotationService
             ]);
         }
 
-        $quotation->update(['status' => QuotationStatus::Submitted->value]);
+        return DB::transaction(function () use ($quotation) {
+            $quotation->update(['status' => QuotationStatus::Submitted->value]);
 
-        // PRD §4.9 "Quotation disubmit → CEO, PM" — CEO acts first (see
-        // ceoDecision()), PM is told now so the second gate isn't a surprise.
-        $this->notificationService->notifyRoles(
-            ['CEO', 'PM'],
-            'quotation_submitted',
-            'Quotation Menunggu Approval',
-            "Quotation \"{$quotation->lead->client_name}\" (".$this->rupiah($quotation->total_amount).') disubmit dan menunggu approval CEO.',
-            ['quotation_id' => $quotation->id],
-        );
+            $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_DRAFTED);
 
-        return $quotation->fresh();
+            // PRD §4.9 "Quotation disubmit → CEO, PM" — CEO acts first (see
+            // ceoDecision()), PM is told now so the second gate isn't a surprise.
+            $this->notificationService->notifyRoles(
+                ['CEO', 'PM'],
+                'quotation_submitted',
+                'Quotation Menunggu Approval',
+                "Quotation \"{$quotation->lead->client_name}\" versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') disubmit dan menunggu approval CEO.',
+                ['quotation_id' => $quotation->id],
+            );
+
+            return $quotation->fresh();
+        });
     }
 
     /**
@@ -143,106 +175,196 @@ class QuotationService
      */
     public function ceoDecision(Quotation $quotation, string $decision, User $actor, ?string $note = null): Quotation
     {
-        if ($quotation->status !== QuotationStatus::Submitted) {
-            throw ValidationException::withMessages([
-                'status' => 'Quotation ini belum berstatus SUBMITTED — belum bisa direview CEO.',
-            ]);
-        }
-
-        return $this->recordDecision($quotation, $decision, 'CEO', QuotationStatus::CeoReview, $actor, $note);
+        return $this->recordDecision($quotation, 'CEO', $decision, $actor, $note);
     }
 
     /**
      * PM's gate — only reachable once CEO has approved (status
      * CEO_REVIEW), which is exactly how "CEO dulu, baru PM" is enforced.
      * Approving here also marks the quotation SENT_TO_CLIENT in the same
-     * step (see class docblock for why PM_REVIEW is never persisted).
+     * step (see class docblock for why PM_REVIEW is never persisted) and
+     * starts its VALIDITY_DAYS validity period.
      */
     public function pmDecision(Quotation $quotation, string $decision, User $actor, ?string $note = null): Quotation
     {
-        if ($quotation->status !== QuotationStatus::CeoReview) {
-            throw ValidationException::withMessages([
-                'status' => 'Quotation ini menunggu approval CEO terlebih dahulu.',
-            ]);
-        }
-
-        return $this->recordDecision($quotation, $decision, 'PM', QuotationStatus::SentToClient, $actor, $note);
+        return $this->recordDecision($quotation, 'PM', $decision, $actor, $note);
     }
 
-    private function recordDecision(
-        Quotation $quotation,
-        string $decision,
-        string $approverRole,
-        QuotationStatus $approveStatus,
-        User $actor,
-        ?string $note,
-    ): Quotation {
-        if (! in_array($decision, ['approve', 'reject'], true)) {
+    /**
+     * PRD §6.2 "SENT TO CLIENT → REJECTED (klien) → DRAFT (revisi)": the
+     * client turned the offer down but wants a revised one (a client who
+     * walks away is a LOST lead instead). Recorded by CEO/Marketing — the
+     * same people who confirm the deal — as a CLIENT approval row, then
+     * the version is closed and the Estimator revises a new one.
+     */
+    public function clientReject(Quotation $quotation, User $actor, ?string $note): Quotation
+    {
+        return $this->recordDecision($quotation, 'CLIENT', 'reject', $actor, $note);
+    }
+
+    private function recordDecision(Quotation $quotation, string $gate, string $decision, User $actor, ?string $note): Quotation
+    {
+        [$requiredStatus, $approveStatus, $notReadyMessage] = self::GATES[$gate];
+
+        $this->assertStatus($quotation, $requiredStatus, $notReadyMessage);
+
+        if (! in_array($decision, $approveStatus ? ['approve', 'reject'] : ['reject'], true)) {
             throw ValidationException::withMessages(['decision' => 'Keputusan tidak valid.']);
         }
 
-        if ($decision === 'reject' && ! $note) {
-            throw ValidationException::withMessages(['note' => 'Catatan alasan reject wajib diisi.']);
+        if ($decision === 'reject' && blank($note)) {
+            throw ValidationException::withMessages([
+                'note' => $gate === 'CLIENT' ? 'Alasan penolakan klien wajib diisi.' : 'Catatan alasan reject wajib diisi.',
+            ]);
         }
 
-        return DB::transaction(function () use ($quotation, $decision, $approverRole, $approveStatus, $actor, $note) {
+        return DB::transaction(function () use ($quotation, $gate, $decision, $approveStatus, $requiredStatus, $notReadyMessage, $actor, $note) {
+            // Serialize decisions on one quotation — a double-submitted
+            // click must not record two decisions or close one version
+            // twice: take the row lock, reload, and re-check the gate.
+            Quotation::whereKey($quotation->getKey())->lockForUpdate()->first();
+            $quotation->refresh();
+            $this->assertStatus($quotation, $requiredStatus, $notReadyMessage);
+
+            $oldStatus = $quotation->status;
+            $oldVersion = $quotation->version;
+            $oldValidUntil = $quotation->valid_until;
+
             QuotationApproval::create([
                 'quotation_id' => $quotation->id,
+                'version' => $quotation->version,
                 'approver_id' => $actor->id,
-                'approver_role' => $approverRole,
+                'approver_role' => $gate,
                 'status' => $decision === 'approve' ? 'APPROVED' : 'REJECTED',
                 'note' => $note,
             ]);
 
-            $oldStatus = $quotation->status;
+            if ($decision === 'reject') {
+                $this->closeVersion($quotation, $gate, $actor, $note);
+            } elseif ($approveStatus === QuotationStatus::SentToClient) {
+                // PM's approval is the moment the offer goes out (PRD §4.3
+                // "default 14 hari dari tanggal kirim").
+                $quotation->update([
+                    'status' => $approveStatus->value,
+                    'valid_until' => now('Asia/Jakarta')->startOfDay()->addDays(self::VALIDITY_DAYS)->toDateString(),
+                ]);
+            } else {
+                $quotation->update(['status' => $approveStatus->value]);
+            }
 
-            $quotation->update([
-                'status' => $decision === 'approve' ? $approveStatus->value : QuotationStatus::Draft->value,
-            ]);
+            if ($decision === 'approve' && $approveStatus === QuotationStatus::SentToClient) {
+                $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_SENT);
+            } elseif ($gate === 'CLIENT') {
+                $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_CLIENT_REJECTED);
+            }
 
             // PRD §9.4 "approval quotation" — audit trail.
+            $old = ['status' => $oldStatus];
+            $new = ['status' => $quotation->status, 'total_amount' => $quotation->total_amount, 'note' => $note];
+
+            if ($decision === 'reject') {
+                $old['version'] = $oldVersion;
+                $new['version'] = $quotation->version;
+            }
+
+            if ($quotation->wasChanged('valid_until')) {
+                $old['valid_until'] = $oldValidUntil;
+                $new['valid_until'] = $quotation->valid_until;
+            }
+
             $this->auditLogService->record(
-                'quotation.'.strtolower($approverRole).'_'.($decision === 'approve' ? 'approved' : 'rejected'),
+                'quotation.'.strtolower($gate).'_'.($decision === 'approve' ? 'approved' : 'rejected'),
                 $quotation,
-                ['status' => $oldStatus],
-                ['status' => $quotation->status, 'total_amount' => $quotation->total_amount, 'note' => $note],
+                $old,
+                $new,
                 $actor,
             );
 
-            $this->notifyDecision($quotation, $decision, $approverRole, $note);
+            $this->notifyDecision($quotation, $decision, $gate, $note, $actor, $oldVersion);
 
             return $quotation->fresh();
         });
     }
 
     /**
-     * PRD §4.9 "Quotation approve/reject → Estimator, Marketing": the
-     * Estimator who built the RAB and the Marketing owner of the lead.
-     * A CEO approval additionally hands the next gate to PM.
+     * PRD §4.3 "Versi Revisi: Sistem menyimpan riwayat revisi quotation".
+     * Freezes the rejected version — its items and total, why and by whom
+     * it was turned down — into an append-only QuotationRevision, then
+     * reopens the quotation as the next version's DRAFT for the Estimator.
+     * The validity period goes with the old version: a new one only
+     * starts when the revised offer is sent again.
      */
-    private function notifyDecision(Quotation $quotation, string $decision, string $approverRole, ?string $note): void
+    private function closeVersion(Quotation $quotation, string $gate, User $actor, string $note): void
+    {
+        QuotationRevision::create([
+            'quotation_id' => $quotation->id,
+            'version' => $quotation->version,
+            'total_amount' => $quotation->total_amount,
+            'items' => $quotation->items()->get()->map(fn (QuotationItem $item) => [
+                'description' => $item->description,
+                'qty' => (int) $item->qty,
+                'unit' => $item->unit,
+                'unit_price' => $item->unit_price,
+                'total_price' => $item->total_price,
+            ])->all(),
+            'reason' => QuotationRevision::reasonFor($gate),
+            'note' => $note,
+            'closed_by' => $actor->id,
+        ]);
+
+        $quotation->update([
+            'status' => QuotationStatus::Draft->value,
+            'version' => $quotation->version + 1,
+            'valid_until' => null,
+        ]);
+    }
+
+    private function assertStatus(Quotation $quotation, QuotationStatus $required, string $message): void
+    {
+        if ($quotation->status !== $required) {
+            throw ValidationException::withMessages(['status' => $message]);
+        }
+    }
+
+    /**
+     * PRD §4.9 "Quotation approve/reject → Estimator, Marketing": the
+     * Estimator who built the RAB and the Marketing owner of the lead —
+     * minus whoever made the decision (a Marketing user recording their
+     * own client's rejection doesn't need telling). A CEO approval
+     * additionally hands the next gate to PM.
+     */
+    private function notifyDecision(Quotation $quotation, string $decision, string $gate, ?string $note, User $actor, int $decidedVersion): void
     {
         $quotation->loadMissing(['creator', 'lead.assignee']);
         $client = $quotation->lead->client_name;
         $metadata = ['quotation_id' => $quotation->id];
 
-        if ($decision === 'reject') {
-            $message = "Quotation \"{$client}\" ditolak {$approverRole} dan kembali ke DRAFT: {$note}";
-        } elseif ($approverRole === 'CEO') {
+        if ($decision === 'reject' && $gate === 'CLIENT') {
+            $title = 'Penawaran Ditolak Klien';
+            $message = "Klien menolak penawaran \"{$client}\" versi {$decidedVersion} — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi: {$note}";
+        } elseif ($decision === 'reject') {
+            $title = 'Quotation Ditolak';
+            $message = "Quotation \"{$client}\" versi {$decidedVersion} ditolak {$gate} dan kembali ke DRAFT sebagai versi {$quotation->version}: {$note}";
+        } elseif ($gate === 'CEO') {
+            $title = 'Quotation Disetujui';
             $message = "Quotation \"{$client}\" disetujui CEO, menunggu approval PM.";
         } else {
-            $message = "Quotation \"{$client}\" disetujui CEO & PM dan siap dikirim ke klien.";
+            $title = 'Quotation Disetujui';
+            $message = "Quotation \"{$client}\" disetujui CEO & PM dan siap dikirim ke klien — berlaku sampai "
+                .$quotation->valid_until->translatedFormat('d F Y').'.';
         }
 
         $this->notificationService->notifyMany(
-            [$quotation->creator, $quotation->lead->assignee],
+            collect([$quotation->creator, $quotation->lead->assignee])
+                ->filter()
+                ->reject(fn (User $user) => $user->is($actor)),
             $decision === 'reject' ? 'quotation_rejected' : 'quotation_approved',
-            $decision === 'reject' ? 'Quotation Ditolak' : 'Quotation Disetujui',
+            $title,
             $message,
             $metadata,
         );
 
-        if ($decision === 'approve' && $approverRole === 'CEO') {
+        if ($decision === 'approve' && $gate === 'CEO') {
             $this->notificationService->notifyRoles(
                 ['PM'],
                 'quotation_awaiting_pm',
@@ -251,6 +373,16 @@ class QuotationService
                 $metadata,
             );
         }
+    }
+
+    /**
+     * Resolved on demand rather than constructor-injected: DesignService
+     * already depends on this class (clientAcc() opens the quotation), so
+     * injecting both ways would be a circular dependency.
+     */
+    private function designService(): DesignService
+    {
+        return app(DesignService::class);
     }
 
     private function rupiah(string|float|null $amount): string

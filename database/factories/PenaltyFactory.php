@@ -22,4 +22,16 @@ class PenaltyFactory extends Factory
             'is_deducted' => false,
         ];
     }
+
+    /**
+     * Already paid — flags only, no PENALTY_COLLECT transaction behind it.
+     * Go through PenaltyCollectionService when the transaction matters.
+     */
+    public function paid(): static
+    {
+        return $this->state(fn () => [
+            'is_deducted' => true,
+            'collected_at' => now(),
+        ]);
+    }
 }

@@ -9,9 +9,11 @@ namespace App\Enums;
  * persists DRAFT → SUBMITTED → CEO_REVIEW → SENT_TO_CLIENT (or back to
  * DRAFT on any reject) — see QuotationService's class docblock for why
  * `PmReview` is defined but never produced (same "last completed gate"
- * simplification already applied to `Submitted`). `Approved`/`Rejected`
- * are reserved for the client's own SENT_TO_CLIENT decision, which no
- * sprint has scheduled an actor/action for yet.
+ * simplification already applied to `Submitted`). `Approved` is the
+ * client's acceptance (LeadService::confirmDeal()); the client's rejection
+ * returns straight to DRAFT as a new version (QuotationService::clientReject(),
+ * Sprint 9) — so `Rejected`, like `PmReview`, stays reserved and is never
+ * persisted.
  */
 enum QuotationStatus: string
 {

@@ -66,7 +66,8 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
         const payload = { name: values.name, target_date: format(values.target_date, 'yyyy-MM-dd') };
 
         if (editing) {
-            router.put(route('milestones.update', { milestone: editing.id }), payload, { onError, onSuccess });
+            // UpdateMilestoneRequest requires `status`; this form doesn't change it, so send it back as-is.
+            router.put(route('milestones.update', { milestone: editing.id }), { ...payload, status: editing.status }, { onError, onSuccess });
         } else {
             router.post(route('milestones.store', { project: projectId }), payload, { onError, onSuccess });
         }

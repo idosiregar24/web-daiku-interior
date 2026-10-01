@@ -38,6 +38,7 @@ import {
     BarChart3,
     Bell,
     BellOff,
+    CalendarClock,
     Check,
     CheckCheck,
     ChevronDown,
@@ -67,6 +68,7 @@ import {
     Database,
     Settings,
     Wallet,
+    WalletCards,
     Warehouse,
 } from 'lucide-react';
 import { Fragment, PropsWithChildren, ReactNode, useEffect, useMemo, useRef } from 'react';
@@ -208,6 +210,13 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'PM', 'FINANCE'],
             },
             {
+                label: 'Penggajian',
+                icon: WalletCards,
+                routeName: 'finance.payroll.index',
+                // Salaries are confidential — not PM (sprint-09 decision #7).
+                roles: ['CEO', 'FINANCE'],
+            },
+            {
                 label: 'Pinjaman Tukang',
                 icon: HandCoins,
                 routeName: 'finance.staffLoans.index',
@@ -218,6 +227,12 @@ const NAV_GROUPS: NavGroup[] = [
                 icon: Receipt,
                 routeName: 'finance.supplierDebts.index',
                 roles: ['CEO', 'PM', 'FINANCE'],
+            },
+            {
+                label: 'Cicilan Aset',
+                icon: CalendarClock,
+                routeName: 'finance.assetInstallments.index',
+                roles: ['CEO', 'PM', 'FINANCE', 'LOGISTICS'],
             },
             {
                 label: 'Alokasi Persentase',

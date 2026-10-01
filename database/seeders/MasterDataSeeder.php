@@ -26,9 +26,9 @@ class MasterDataSeeder extends Seeder
     private const LEAD_CATEGORIES = ['RESIDENTIAL', 'KOMERSIAL', 'DEVELOPER', 'KONTRAKTOR', 'LAINNYA'];
 
     private const BANK_ACCOUNTS = [
-        ['bank_name' => 'BCA', 'account_no' => '5835123456', 'label' => 'BCA 5835', 'balance' => 250_000_000, 'is_active' => true],
-        ['bank_name' => 'Mandiri', 'account_no' => '1300009988', 'label' => 'Mandiri Operasional', 'balance' => 120_000_000, 'is_active' => true],
-        ['bank_name' => 'BRI', 'account_no' => '0092012345', 'label' => 'BRI Cadangan', 'balance' => 45_000_000, 'is_active' => true],
+        ['bank_name' => 'BCA', 'account_no' => '5835123456', 'label' => 'BCA 5835', 'opening_balance' => 250_000_000, 'is_active' => true],
+        ['bank_name' => 'Mandiri', 'account_no' => '1300009988', 'label' => 'Mandiri Operasional', 'opening_balance' => 120_000_000, 'is_active' => true],
+        ['bank_name' => 'BRI', 'account_no' => '0092012345', 'label' => 'BRI Cadangan', 'opening_balance' => 45_000_000, 'is_active' => true],
     ];
 
     public function run(): void

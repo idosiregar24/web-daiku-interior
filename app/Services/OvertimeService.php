@@ -140,7 +140,15 @@ class OvertimeService
                 // is implied by the §6.6 flow; CSV Sprint 5 lists it explicitly).
                 $this->notifyStaff($overtime, 'overtime_approved_finance', 'Lembur Disetujui Finance', 'disetujui Finance dan dicatat untuk pembayaran.');
             } else {
+                // PRD §6.6 "Finance Review → REJECT → notif PM + tukang".
                 $this->notifyStaff($overtime, 'overtime_rejected', 'Lembur Ditolak', "ditolak Finance: {$note}");
+                $this->notificationService->notifyMany(
+                    [$overtime->project->pm],
+                    'overtime_rejected',
+                    'Lembur Ditolak Finance',
+                    "Lembur {$overtime->staff->name} {$overtime->hours} jam ({$this->workDate($overtime)}) di proyek \"{$overtime->project->name}\" ditolak Finance: {$note}",
+                    ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
+                );
             }
 
             return $overtime->fresh();

@@ -70,3 +70,15 @@ Schedule::job(new DailyFormReminderJob)
 Schedule::job(new PruneNotificationsJob)
     ->dailyAt('02:00')
     ->timezone('Asia/Jakarta');
+
+// PRD §3.3 "mysqldump cron harian", §9.5 backup terenkripsi di lokasi
+// terpisah, §11.4 "setiap tengah malam, retensi 30 hari" — see
+// app/Console/Commands/DatabaseBackup.php and config/backup.php. Runs in the
+// background so a long dump never delays the other midnight jobs; the
+// overlap lock expires after 12h in case a run dies without releasing it
+// (the default 24h would swallow the next night's backup).
+Schedule::command('db:backup')
+    ->dailyAt('00:00')
+    ->timezone('Asia/Jakarta')
+    ->withoutOverlapping(12 * 60)
+    ->runInBackground();

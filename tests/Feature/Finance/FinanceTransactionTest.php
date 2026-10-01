@@ -65,7 +65,46 @@ test('categories owned by a dedicated flow cannot be recorded manually', functio
     ['HUTANG_IDEAL', 'PENGELUARAN'],
     ['DOWN_PAYMENT', 'PEMASUKAN'],
     ['TERMIN', 'PEMASUKAN'],
+    // Sprint 9: one-legged transfers / wages outside their flows.
+    ['PINDAH_DANA', 'PEMASUKAN'],
+    ['PINDAH_DANA', 'PENGELUARAN'],
+    ['GAJI_KARYAWAN', 'PENGELUARAN'],
 ]);
+
+test('a manual transaction needs an active bank account', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+
+    $this->actingAs($finance)->post(route('finance.transactions.store'), [
+        'bank_account_id' => BankAccount::factory()->create(['is_active' => false])->id,
+        'type' => 'PENGELUARAN',
+        'kategori' => 'OPERASIONAL',
+        'amount' => 250000,
+        'description' => 'Rekening lama',
+        'date' => now()->toDateString(),
+    ])->assertSessionHasErrors(['bank_account_id' => 'Rekening bank tidak valid atau tidak aktif.']);
+});
+
+test('the transaction list filters by account and kategori and sends the system-managed list', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $bca = BankAccount::factory()->create();
+    $mandiri = BankAccount::factory()->create();
+    FinanceTransaction::factory()->create(['bank_account_id' => $bca->id, 'kategori' => 'OPERASIONAL']);
+    FinanceTransaction::factory()->create(['bank_account_id' => $bca->id, 'kategori' => 'BBM']);
+    FinanceTransaction::factory()->create(['bank_account_id' => $mandiri->id, 'kategori' => 'BBM']);
+
+    $this->actingAs($finance)
+        ->get(route('finance.transactions.index', ['bank_account_id' => $bca->id, 'kategori' => 'BBM']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->has('transactions.data', 1)
+            ->where('transactions.data.0.bank_account_id', $bca->id)
+            ->where('filters.kategori', 'BBM')
+            ->has('bankAccounts', 2)
+            ->where('systemManagedCategories', fn ($categories) => collect($categories)->contains('PINDAH_DANA')
+                && collect($categories)->contains('GAJI_KARYAWAN')));
+});
 
 test('bank_account_id is required to record a transaction', function () {
     $finance = User::factory()->create();

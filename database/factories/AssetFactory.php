@@ -23,4 +23,20 @@ class AssetFactory extends Factory
             'notes' => null,
         ];
     }
+
+    /**
+     * An installment plan with nothing paid yet (PRD §4.7 "Aset & Cicilan").
+     * Record payments through AssetInstallmentService::recordPayment() so
+     * `paid_install`, the ledger and the FinanceTransaction stay in sync.
+     */
+    public function withInstallmentPlan(float $total = 60_000_000, ?float $perPayment = 5_000_000, ?int $dueDay = 10): static
+    {
+        return $this->state(fn () => [
+            'has_installment' => true,
+            'total_install' => $total,
+            'paid_install' => 0,
+            'installment_amount' => $perPayment,
+            'installment_due_day' => $dueDay,
+        ]);
+    }
 }

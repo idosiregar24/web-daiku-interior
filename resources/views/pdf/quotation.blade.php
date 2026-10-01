@@ -16,6 +16,7 @@
         .total-row td { font-weight: bold; background-color: #f5f5f5; }
         .meta { margin-top: 16px; width: 100%; }
         .meta td { border: none; padding: 2px 0; }
+        .validity { margin-top: 16px; }
         .footer { margin-top: 32px; font-size: 10px; color: #999; }
     </style>
 </head>
@@ -51,12 +52,15 @@
             <td><strong>Tanggal Cetak</strong></td>
             <td>: {{ now()->translatedFormat('d F Y') }}</td>
         </tr>
-        @if($quotation->valid_until)
         <tr>
             <td><strong>Berlaku Sampai</strong></td>
-            <td>: {{ \Illuminate\Support\Carbon::parse($quotation->valid_until)->translatedFormat('d F Y') }}</td>
+            {{-- Set when CEO & PM approval sends the offer (QuotationService::VALIDITY_DAYS); a draft only states the rule. --}}
+            @if($quotation->valid_until)
+            <td>: {{ $quotation->valid_until->translatedFormat('d F Y') }}</td>
+            @else
+            <td>: {{ $validityDays }} hari sejak penawaran dikirim</td>
+            @endif
         </tr>
-        @endif
     </table>
 
     <table>
@@ -87,6 +91,12 @@
             </tr>
         </tbody>
     </table>
+
+    @if($quotation->valid_until)
+    <p class="validity">
+        Penawaran ini berlaku sampai {{ $quotation->valid_until->translatedFormat('d F Y') }}. Setelah tanggal tersebut, harga dan ketersediaan dapat berubah.
+    </p>
+    @endif
 
     <p class="footer">
         Dokumen ini dihasilkan otomatis oleh sistem {{ $siteSettings->site_name ?? 'Daiku Interior' }} pada {{ now()->translatedFormat('d F Y, H:i') }} WIB.

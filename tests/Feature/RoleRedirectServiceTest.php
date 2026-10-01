@@ -17,7 +17,10 @@ test('resolves each role to its PRD §8.4 landing page', function (string $role,
     ['FINANCE', 'finance.dashboard'],
     ['LOGISTICS', 'logistics.materials.index'],
     ['FIELD_STAFF', 'tasks.index'],
-    ['PM', 'dashboard'],
+    ['DESIGNER', 'design.dashboard'],
+    ['ESTIMATOR', 'quotations.dashboard'],
+    ['PM', 'projects.dashboard'],
+    ['QA', 'qa-forms.dashboard'],
     ['SUPERADMIN', 'master-data.index'],
 ]);
 

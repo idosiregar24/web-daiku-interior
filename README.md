@@ -90,7 +90,8 @@ Login awal (dari seeder, ganti password setelah login pertama — semua akun pak
   versi PHP Laragon = 8.4 (Menu → PHP → Version).
 - **Cepat tanpa web server**: `php artisan serve --port=8010`.
 - **Scheduler** (penalti 21:00, reminder form 20:30, overdue task/milestone
-  00:00, termin & follow-up 08:00, prune notifikasi 02:00 — lihat
+  00:00, backup database 00:00, termin & follow-up 08:00, prune notifikasi
+  02:00 — lihat
   `routes/console.php`): production butuh cron
   `* * * * * php artisan schedule:run`; lokal: `php artisan schedule:work`.
 - **Notifikasi real-time**: set `BROADCAST_CONNECTION=pusher` (otomatis
@@ -103,11 +104,14 @@ Login awal (dari seeder, ganti password setelah login pertama — semua akun pak
 - Semua service dalam satu perintah (server + queue listener + log tail +
   vite dev): `composer run dev`.
 
-## Deploy production (ringkas)
+## Produksi
+
+### Deploy manual tanpa Docker (ringkas)
 
 ```bash
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
+php artisan db:backup            # backup sebelum migrasi
 php artisan migrate --force
 # Isi INITIAL_CEO_* dan INITIAL_SUPERADMIN_* di .env dulu (password ≥ 12 karakter)
 php artisan db:seed --class=ProductionSeeder --force
@@ -118,7 +122,131 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 awal dari env — tanpa akun demo. `DatabaseSeeder` otomatis menolak data
 demo bila `APP_ENV=production`. Rekening bank & cabang asli diisi lewat
 **Data Master** (SUPERADMIN). Jalankan queue worker (Horizon) dan cron
-scheduler di server.
+scheduler (`* * * * * php artisan schedule:run`) di server.
+
+### HTTPS / Produksi (Docker Compose + Let's Encrypt)
+
+PRD §9.5: HTTPS wajib. Server butuh Docker Engine + **Docker Compose ≥ 2.24.4**,
+port 80/443 terbuka, dan DNS `APP_DOMAIN` mengarah ke server. Produksi selalu
+memakai dua file: `docker-compose.yml` + `docker-compose.prod.yml`:
+
+- Image berisi kode + aset hasil build (tanpa bind-mount source); yang di-mount
+  hanya `.env` (read-only) dan volume `daiku_storage` (log, sesi, file
+  upload, backup).
+- `nginx` melayani port 80 → redirect ke 443 (kecuali
+  `/.well-known/acme-challenge/`) dengan sertifikat Let's Encrypt, HSTS +
+  security header (`docker/nginx/production.conf`). Laravel memaksa URL
+  `https` saat `APP_ENV=production` (`AppServiceProvider`).
+- MySQL, Redis, Soketi **tidak** membuka port ke host. Browser terhubung ke
+  Soketi lewat `wss://APP_DOMAIN/app/...` (di-proxy nginx); Laravel memakai
+  `soketi:6001` di jaringan internal.
+
+Setup pertama di server:
+
+```bash
+git clone <url-repo> /srv/daiku-interior && cd /srv/daiku-interior
+git checkout main                       # staging: develop
+cp .env.example .env                    # isi nilai produksi — lihat komentar di bagian bawah .env.example
+chmod 640 .env && sudo chgrp 33 .env    # harus terbaca www-data (uid 33) di container
+
+C="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+
+# Sertifikat pertama (nginx belum jalan, certbot memakai port 80 sendiri)
+$C run --rm -p 80:80 certbot certonly --standalone \
+  -d erp.daikuinterior.com --email it@daikuinterior.com --agree-tos --no-eff-email
+
+bash deploy/deploy.sh main              # build, backup, migrate, start semua service
+$C exec --user www-data app php artisan db:seed --class=ProductionSeeder --force
+```
+
+Perpanjangan sertifikat — cron di host (harian; `renew` hanya memperbarui
+yang hampir kedaluwarsa):
+
+```cron
+0 3 * * * cd /srv/daiku-interior && docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot renew --webroot -w /var/www/certbot --quiet && docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T nginx nginx -s reload
+```
+
+Perintah artisan di container selalu dengan `--user www-data` (file yang
+dibuat root di `storage` tidak bisa ditulis php-fpm). Setelah mengubah
+`.env`: `$C up -d` lalu `$C exec --user www-data app php artisan optimize`.
+
+### Deploy otomatis (CI/CD)
+
+`.github/workflows/ci.yml`: setiap push ke `develop` → staging, ke `main` →
+production, **hanya setelah job test lulus**. Job deploy SSH ke server lalu
+menjalankan `deploy/deploy.sh <branch>`: `git pull --ff-only` → build image →
+maintenance mode → `db:backup` → `migrate --force` → recreate container →
+`optimize` (cache config/route/view/event) → `horizon:terminate` →
+maintenance mode off. Gagal sebelum migrasi = app kembali online di versi
+lama; gagal saat/sesudah migrasi = app sengaja tetap maintenance sampai
+diperiksa.
+
+Repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Isi |
+|---|---|
+| `STAGING_HOST` / `PRODUCTION_HOST` | IP/hostname server |
+| `STAGING_USER` / `PRODUCTION_USER` | user SSH (anggota grup `docker`) |
+| `STAGING_SSH_KEY` / `PRODUCTION_SSH_KEY` | private key SSH (public key-nya di `~/.ssh/authorized_keys` server) |
+| `STAGING_PATH` / `PRODUCTION_PATH` | path checkout di server, mis. `/srv/daiku-interior` |
+| `*_SSH_PORT` *(opsional)* | port SSH, default 22 |
+| `*_SSH_FINGERPRINT` *(opsional, disarankan)* | fingerprint SHA256 host key (`ssh-keyscan host \| ssh-keygen -lf -`) — mencegah MITM |
+
+Tanpa secrets, job deploy dilewati dengan notice (build tidak gagal). Server
+butuh akses baca ke repo (deploy key) untuk `git pull`. Satu stack per
+server (nama container tetap di `docker-compose.yml`).
+
+## Backup & Restore
+
+PRD §3.3/§9.5/§11.4: `php artisan db:backup` berjalan otomatis setiap
+**00:00 WIB** (scheduler) — `mysqldump --single-transaction --routines
+--triggers --no-tablespaces` → gzip → enkripsi **AES-256-GCM**
+(`BACKUP_ENCRYPTION_KEY`) → disimpan di disk `BACKUP_DISK` dengan nama
+`<database>_<YYYY-MM-DD_HHMMSS>.sql.gz.enc` → backup lebih tua dari
+`BACKUP_RETENTION_DAYS` (30 hari) dihapus. Password DB tidak pernah muncul
+di command line (file kredensial sementara 0600). Gagal = exit code ≠ 0 +
+log error, dan backup lama tidak dihapus.
+
+| Env | Default | Keterangan |
+|---|---|---|
+| `BACKUP_ENCRYPTION_KEY` | *(kosong)* | `openssl rand -base64 32`. Kosong = backup **tidak** terenkripsi (warning di log). **Simpan salinan kunci di luar server** — tanpa kunci, backup tidak bisa dipulihkan. |
+| `BACKUP_DISK` | `backups` | disk di `config/filesystems.php` |
+| `BACKUP_LOCAL_PATH` | `storage/app/backups` | root disk `backups`; arahkan ke volume/disk terpisah |
+| `BACKUP_RETENTION_DAYS` | `30` | `0` = tidak pernah menghapus |
+| `BACKUP_MYSQLDUMP_PATH` | `mysqldump` | path binary (client MySQL atau MariaDB — terdeteksi otomatis) |
+
+**Lokasi terpisah (§9.5):** default-nya backup ada di volume `storage` server
+yang sama. Agar benar-benar terpisah: arahkan `BACKUP_LOCAL_PATH` ke
+disk/NFS lain yang di-mount ke container, sinkronkan folder backup ke
+penyimpanan lain (rclone/rsync), atau pakai disk `s3`/`sftp` (perlu
+`composer require league/flysystem-aws-s3-v3` / `league/flysystem-sftp-v3`
+dulu — belum terpasang).
+
+Manual & restore (lokal):
+
+```bash
+php artisan db:backup                                   # backup sekarang
+php artisan db:backup-decrypt daiku_interior_2026-09-30_000000.sql.gz.enc
+#   → storage/app/restore/daiku_interior_2026-09-30_000000.sql.gz (atau --output=...)
+gunzip -c storage/app/restore/daiku_interior_2026-09-30_000000.sql.gz | mysql -u root -p daiku_interior
+rm storage/app/restore/daiku_interior_2026-09-30_000000.sql.gz   # isinya data tanpa enkripsi
+```
+
+Di Docker:
+
+```bash
+C="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
+$C exec --user www-data app php artisan db:backup-decrypt <file>.sql.gz.enc
+$C exec -T app gunzip -c storage/app/restore/<file>.sql.gz \
+  | $C exec -T mysql sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"'
+$C exec app rm storage/app/restore/<file>.sql.gz
+```
+
+Argumen file bisa path lokal atau path di disk backup. Dekripsi dengan kunci
+lama (setelah rotasi): `BACKUP_ENCRYPTION_KEY=<kunci lama> php artisan
+db:backup-decrypt ...` (di Docker: `$C run --rm -e BACKUP_ENCRYPTION_KEY=...
+--user www-data app php artisan db:backup-decrypt ...`). Uji restore secara
+berkala ke database terpisah, bukan database produksi.
 
 ## Keamanan & audit
 
@@ -136,7 +264,14 @@ npm run build            # tsc + vite build, harus lulus tanpa error
 ```
 
 CI (`.github/workflows/ci.yml`) menjalankan kombinasi keduanya pada setiap
-push/PR ke `main`/`develop`.
+push/PR ke `main`/`develop`, lalu menjalankan ulang test dengan `--coverage`
+sebagai laporan (angka total tampil di ringkasan job, belum menggagalkan
+build). Setelah angka pertama diketahui, jadikan gerbang: tambahkan
+`--min=70` di step "Coverage report" dan hapus `continue-on-error`.
+
+**Lupa password:** link "Lupa password?" di halaman login hanya tampil bila
+`MAIL_MAILER` bukan `log`/`array` (email reset benar-benar terkirim). Isi
+akun SMTP di `.env` untuk mengaktifkannya.
 
 ## Struktur proyek
 

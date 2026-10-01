@@ -47,6 +47,18 @@ return [
             'report' => false,
         ],
 
+        // Daily database backups (`php artisan db:backup`, config/backup.php).
+        // Kept apart from `local` so dumps never mix with app files; point
+        // BACKUP_LOCAL_PATH at a separately mounted volume (or BACKUP_DISK at
+        // a remote disk) to keep them off the app server's own storage.
+        'backups' => [
+            'driver' => 'local',
+            'root' => env('BACKUP_LOCAL_PATH') ?: storage_path('app/backups'),
+            'visibility' => 'private',
+            'throw' => true,
+            'report' => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

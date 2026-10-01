@@ -25,7 +25,7 @@ class DesignController extends Controller
     public function index(Request $request): Response
     {
         $designs = Design::query()
-            ->with(['lead:id,client_name', 'pic:id,name'])
+            ->with(['lead:id,client_name', 'pic:id,name', 'staff:id,name'])
             ->byStatus($request->string('status')->value() ?: null)
             ->latest()
             ->paginate(15)
@@ -46,13 +46,16 @@ class DesignController extends Controller
 
     public function show(Request $request, Design $design): Response
     {
-        $design->load(['lead:id,client_name', 'pic:id,name']);
+        $design->load(['lead:id,client_name', 'pic:id,name', 'staff:id,name']);
 
         return Inertia::render('Design/Show', [
             'design' => $design,
             'canManage' => $request->user()->hasAnyRole(['DESIGNER', 'SUPERADMIN']),
             'canClientAcc' => $request->user()->hasAnyRole(['MARKETING', 'DESIGNER', 'SUPERADMIN']),
-            'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name']),
+            // `is_active` lets the sub-staff picker offer active designers
+            // only (UpdateDesignRequest's rule) while still naming a
+            // deactivated one already on the team.
+            'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name', 'is_active']),
         ]);
     }
 

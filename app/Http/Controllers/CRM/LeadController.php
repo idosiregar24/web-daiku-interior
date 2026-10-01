@@ -29,6 +29,9 @@ class LeadController extends Controller
                 'assignee:id,name',
                 'creator:id,name',
                 'design:id,lead_id',
+                // Row actions "Konfirmasi Deal" / "Klien Menolak Penawaran"
+                // need the offer's state and validity.
+                'quotation:id,lead_id,status,valid_until,version',
                 'leadSource:id,name',
                 'leadCategory:id,name',
             ])
@@ -82,7 +85,7 @@ class LeadController extends Controller
             'leadCategory:id,name',
             'design:id,lead_id,pic_id,status,deadline,client_acc',
             'design.pic:id,name',
-            'quotation:id,lead_id,status,total_amount,version',
+            'quotation:id,lead_id,status,total_amount,version,valid_until',
             'project:id,lead_id,name,pm_id,status,contract_value',
             'project.pm:id,name',
         ]);

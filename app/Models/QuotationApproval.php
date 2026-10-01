@@ -9,7 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Append-only (PRD §9.4 spirit — approval decisions are never edited or
  * deleted once recorded); written only from QuotationService's
- * ceoDecision()/pmDecision() — no direct controller/route of its own.
+ * ceoDecision()/pmDecision()/clientReject() — no direct controller/route
+ * of its own. `approver_role` is CEO, PM or CLIENT; for CLIENT the
+ * approver is the CEO/Marketing user who recorded the client's decision.
+ * `version` is the quotation version the decision was about.
  */
 class QuotationApproval extends Model
 {
@@ -19,11 +22,19 @@ class QuotationApproval extends Model
 
     protected $fillable = [
         'quotation_id',
+        'version',
         'approver_id',
         'approver_role',
         'status',
         'note',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'version' => 'integer',
+        ];
+    }
 
     public function quotation(): BelongsTo
     {

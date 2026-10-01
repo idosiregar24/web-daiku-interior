@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\FamilyGatheringFund;
+use App\Models\Penalty;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -20,5 +21,15 @@ class FamilyGatheringFundFactory extends Factory
             'source_penalty_id' => null,
             'recorded_by' => User::factory(),
         ];
+    }
+
+    /** The INCOME row PenaltyService writes when `$penalty` is issued. */
+    public function forPenalty(Penalty $penalty): static
+    {
+        return $this->state(fn () => [
+            'type' => 'INCOME',
+            'amount' => $penalty->amount,
+            'source_penalty_id' => $penalty->id,
+        ]);
     }
 }

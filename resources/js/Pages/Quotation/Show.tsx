@@ -1,4 +1,5 @@
-import { formatRupiah } from '@/lib/format';
+import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
+import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -13,12 +14,28 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
-import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
+import {
+    QuotationDecisionDialog,
+    type QuotationDecisionGate,
+} from '@/Components/modules/quotation/QuotationDecisionDialog';
+import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
+import { QuotationRevisionHistory } from '@/Components/modules/quotation/QuotationRevisionHistory';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Quotation } from '@/types';
+import type { Quotation, QuotationApproval, QuotationRevisionReason } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Head, router } from '@inertiajs/react';
-import { BadgeCheck, Calculator, FileDown, FileText, History, Plus, Trash2 } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import {
+    ArrowRight,
+    BadgeCheck,
+    Calculator,
+    FileClock,
+    FileDown,
+    FileText,
+    Handshake,
+    History,
+    Plus,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -28,6 +45,10 @@ interface QuotationShowProps {
     canManage: boolean;
     canCeoDecide: boolean;
     canPmDecide: boolean;
+    /** CEO/Marketing — records the client's rejection (`quotations.clientReject`) and confirms the deal on the lead. */
+    canClientDecide: boolean;
+    /** QuotationService::VALIDITY_DAYS */
+    validityDays: number;
 }
 
 const itemSchema = z.object({
@@ -49,15 +70,37 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+const REVISION_REASON_TEXT: Record<QuotationRevisionReason, string> = {
+    CEO_REJECTED: 'ditolak CEO',
+    PM_REJECTED: 'ditolak PM',
+    CLIENT_REJECTED: 'ditolak klien',
+};
+
+function approverLabel(approval: QuotationApproval): string {
+    const name = approval.approver?.name ?? '—';
+
+    return approval.approver_role === 'CLIENT' ? `Klien (dicatat oleh ${name})` : `${name} (${approval.approver_role})`;
+}
+
 /**
  * RAB builder — add/remove item + auto-calculated totals
  * (.claude/plan/sprint-02.md Week 4, Ido task 5). Reached from the Design
  * page's Client ACC trigger. Only editable while DRAFT (see
- * QuotationService::replaceItems()) — CEO/PM approval UI is Week 5.
+ * QuotationService::replaceItems()). CEO→PM approval (Sprint 3 Week 5),
+ * then — once SENT_TO_CLIENT — the client's side (Sprint 9): validity
+ * period, "Klien Menolak" (back to DRAFT as a new version) and the
+ * revision history of every rejected version.
  */
-export default function QuotationShow({ quotation, canManage, canCeoDecide, canPmDecide }: QuotationShowProps) {
+export default function QuotationShow({
+    quotation,
+    canManage,
+    canCeoDecide,
+    canPmDecide,
+    canClientDecide,
+    validityDays,
+}: QuotationShowProps) {
     const [decisionDialog, setDecisionDialog] = useState<{
-        role: 'CEO' | 'PM';
+        role: QuotationDecisionGate;
         decision: 'approve' | 'reject';
     } | null>(null);
 
@@ -85,6 +128,10 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
 
     const isDraft = quotation.status === 'DRAFT';
     const editable = canManage && isDraft;
+    const isSentToClient = quotation.status === 'SENT_TO_CLIENT';
+    const revisions = quotation.revisions ?? [];
+    // The version the Estimator is revising right now, if the last one was rejected.
+    const lastRevision = isDraft ? revisions.find((revision) => revision.version === quotation.version - 1) : undefined;
 
     function onError(errors: Record<string, string>) {
         Object.entries(errors).forEach(([field, message]) => {
@@ -120,7 +167,11 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
             <PageHeader
                 title={`Quotation: ${quotation.lead.client_name}`}
                 icon={FileText}
-                description={`Versi ${quotation.version} · dibuat dari desain yang sudah di-ACC klien.`}
+                description={
+                    quotation.valid_until
+                        ? `Versi ${quotation.version} · berlaku sampai ${formatDate(quotation.valid_until)}.`
+                        : `Versi ${quotation.version} · dibuat dari desain yang sudah di-ACC klien.`
+                }
                 actions={
                     <div className="flex items-center gap-2">
                         <StatusChip status={quotation.status} />
@@ -133,6 +184,16 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
                     </div>
                 }
             />
+
+            <QuotationExpiryNotice quotation={quotation} className="mb-6" />
+
+            {lastRevision && (
+                <Notice tone="info" className="mb-6">
+                    Versi {quotation.version} adalah revisi: versi {lastRevision.version}{' '}
+                    {REVISION_REASON_TEXT[lastRevision.reason]}
+                    {lastRevision.note ? ` — “${lastRevision.note}”` : ''}. Perbarui RAB lalu submit ulang ke CEO.
+                </Notice>
+            )}
 
             <SectionCard title="Rincian RAB" icon={Calculator} description="Item pekerjaan, volume, dan harga satuan penawaran.">
                 <Form {...form}>
@@ -334,22 +395,72 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
                 </SectionCard>
             )}
 
+            {isSentToClient && (
+                <SectionCard
+                    title="Keputusan Klien"
+                    icon={Handshake}
+                    description={`Penawaran berlaku ${validityDays} hari sejak disetujui PM.`}
+                    className="mt-6"
+                >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <p className="flex-1 text-sm text-daiku-muted">
+                            Disetujui CEO &amp; PM dan dikirim ke klien — berlaku sampai{' '}
+                            <span className="font-medium text-foreground">{formatDate(quotation.valid_until)}</span>.{' '}
+                            {canClientDecide
+                                ? 'Klien setuju? Konfirmasi deal dari halaman lead. Klien minta revisi? Catat penolakannya.'
+                                : 'Menunggu keputusan klien.'}
+                        </p>
+                        {canClientDecide && (
+                            <div className="flex shrink-0 gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setDecisionDialog({ role: 'CLIENT', decision: 'reject' })}
+                                >
+                                    Klien Menolak
+                                </Button>
+                                <Button size="sm" asChild>
+                                    <Link href={route('crm.leads.show', { lead: quotation.lead.id })}>
+                                        Konfirmasi Deal
+                                        <ArrowRight className="size-3.5" aria-hidden />
+                                    </Link>
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </SectionCard>
+            )}
+
             {quotation.approvals && quotation.approvals.length > 0 && (
                 <SectionCard title="Riwayat Approval" icon={History} className="mt-6" contentClassName="space-y-3">
                     {quotation.approvals.map((approval) => (
                         <div key={approval.id} className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
                             <div>
-                                <p className="text-sm font-medium text-daiku-dark">
-                                    {approval.approver?.name ?? '—'} ({approval.approver_role})
-                                </p>
+                                <p className="text-sm font-medium text-daiku-dark">{approverLabel(approval)}</p>
                                 {approval.note && <p className="text-sm text-daiku-muted">{approval.note}</p>}
                                 <p className="text-xs text-daiku-muted">
-                                    {new Date(approval.created_at).toLocaleString('id-ID')}
+                                    Versi {approval.version} · {formatDateTime(approval.created_at)}
                                 </p>
                             </div>
                             <StatusChip status={approval.status} />
                         </div>
                     ))}
+                </SectionCard>
+            )}
+
+            {revisions.length > 0 && (
+                <SectionCard
+                    title="Riwayat Revisi"
+                    icon={FileClock}
+                    description="Versi yang ditolak beserta RAB-nya saat itu, dibandingkan dengan versi saat ini."
+                    className="mt-6"
+                    flush
+                >
+                    <QuotationRevisionHistory
+                        revisions={revisions}
+                        currentTotal={quotation.total_amount}
+                        currentVersion={quotation.version}
+                    />
                 </SectionCard>
             )}
 
@@ -360,6 +471,7 @@ export default function QuotationShow({ quotation, canManage, canCeoDecide, canP
                     quotation={quotation}
                     role={decisionDialog.role}
                     decision={decisionDialog.decision}
+                    validityDays={validityDays}
                 />
             )}
         </AppLayout>

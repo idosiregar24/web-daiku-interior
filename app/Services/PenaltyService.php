@@ -130,8 +130,11 @@ class PenaltyService
     }
 
     /**
-     * Field Staff with at least one not-DONE task and no daily form for
-     * `$date` — the population both the reminder and the penalty act on.
+     * Field Staff with at least one not-DONE task on an ACTIVE project and
+     * no daily form for `$date` — the population both the reminder and the
+     * penalty act on. Tasks of ON_HOLD/COMPLETED/CANCELLED projects don't
+     * count: there is no work to report on a paused project (Sprint 9
+     * decision #1).
      *
      * @return Collection<int, User>
      */
@@ -139,7 +142,9 @@ class PenaltyService
     {
         return User::role('FIELD_STAFF')
             ->where('is_active', true)
-            ->whereHas('assignedTasks', fn ($query) => $query->where('status', '!=', TaskStatus::Done->value))
+            ->whereHas('assignedTasks', fn ($query) => $query
+                ->where('status', '!=', TaskStatus::Done->value)
+                ->whereHas('project', fn ($project) => $project->active()))
             // whereDate(), not where() — `work_date` is cast to 'date' and
             // stored with a midnight time component, so a bare string
             // comparison never matches (see DailyTaskFormService::store()'s

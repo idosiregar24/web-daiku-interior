@@ -9,9 +9,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/Components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/Components/ui/tabs';
+import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
+import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
+import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Milestone, PageProps, PaginatedData, Task, TaskStatus, User } from '@/types';
+import type { Milestone, PageProps, PaginatedData, Task, TaskDueFilter, TaskStatus, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { ListChecks } from 'lucide-react';
@@ -19,13 +23,21 @@ import { useState } from 'react';
 
 interface TasksIndexProps {
     tasks: PaginatedData<Task>;
-    filters: { status?: string; assignee_id?: string; milestone_id?: string };
-    fieldStaff: Pick<User, 'id' | 'name'>[];
-    milestones: Milestone[];
+    filters: { status?: string; assignee_id?: string; milestone_id?: string; due?: TaskDueFilter };
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+    milestones: (Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'> & { project?: Milestone['project'] })[];
     canAssign: boolean;
 }
 
 const STATUS_OPTIONS: TaskStatus[] = ['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE', 'OVER'];
+
+/** PRD §4.5 "Task List … (hari ini & minggu ini)" — `due` query param, see Task::scopeByDue(). */
+const DUE_TABS: { value: TaskDueFilter | 'all'; label: string }[] = [
+    { value: 'all', label: 'Semua' },
+    { value: 'today', label: 'Hari ini' },
+    { value: 'week', label: 'Minggu ini' },
+    { value: 'overdue', label: 'Terlambat' },
+];
 
 function formatDate(value: string | null) {
     return value ? new Date(value).toLocaleDateString('id-ID') : '—';
@@ -36,14 +48,19 @@ function formatDate(value: string | null) {
  * Week 4) — for PM/CEO this is every task across every project; Field
  * Staff only ever see their own (scoped server-side, TaskController::index()).
  * Task *creation* stays on Projects/Show.tsx's Task tab (project context
- * required); this page is read + status-update only.
+ * required); PM can edit/delete from here (Sprint 9), everyone else only
+ * reads + updates status.
  */
 export default function TasksIndex({ tasks, filters, fieldStaff, milestones, canAssign }: TasksIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     const isFieldStaff = role === 'FIELD_STAFF';
+    // tasks.updateStatus is PM|FIELD_STAFF — CEO reads only.
+    const canUpdateStatus = canAssign || isFieldStaff;
 
     const [statusOpen, setStatusOpen] = useState(false);
+    const [formOpen, setFormOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
 
     function applyFilter(next: Partial<typeof filters>) {
@@ -57,6 +74,16 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
     function openStatus(task: Task) {
         setActiveTask(task);
         setStatusOpen(true);
+    }
+
+    function openEdit(task: Task) {
+        setActiveTask(task);
+        setFormOpen(true);
+    }
+
+    function openDelete(task: Task) {
+        setActiveTask(task);
+        setDeleteOpen(true);
     }
 
     const columns: ColumnDef<Task>[] = [
@@ -109,11 +136,21 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
         {
             id: 'actions',
             header: '',
-            cell: ({ row }) => (
-                <Button variant="outline" size="sm" onClick={() => openStatus(row.original)}>
-                    Update Status
-                </Button>
-            ),
+            cell: ({ row }) => {
+                const task = row.original;
+                const projectClosed = task.project?.status === 'COMPLETED' || task.project?.status === 'CANCELLED';
+
+                return (
+                    <div className="flex items-center justify-end gap-1">
+                        {canUpdateStatus && (
+                            <Button variant="outline" size="sm" onClick={() => openStatus(task)}>
+                                Update Status
+                            </Button>
+                        )}
+                        {canAssign && !projectClosed && <TaskRowMenu task={task} onEdit={openEdit} onDelete={openDelete} />}
+                    </div>
+                );
+            },
         },
     ];
 
@@ -127,7 +164,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                 description={
                     isFieldStaff
                         ? 'Daftar task yang di-assign ke Anda.'
-                        : 'Semua task di seluruh proyek — filter berdasarkan milestone, tukang, dan status.'
+                        : 'Semua task di seluruh proyek — filter berdasarkan jatuh tempo, milestone, tukang, dan status.'
                 }
             />
 
@@ -138,6 +175,19 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                 pagination={tasks}
                 toolbar={
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        <Tabs
+                            value={filters.due ?? 'all'}
+                            onValueChange={(value) => applyFilter({ due: value === 'all' ? undefined : (value as TaskDueFilter) })}
+                        >
+                            <TabsList>
+                                {DUE_TABS.map((tab) => (
+                                    <TabsTrigger key={tab.value} value={tab.value}>
+                                        {tab.label}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+
                         <Select
                             value={filters.status ?? 'all'}
                             onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
@@ -197,6 +247,18 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
             />
 
             <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
+            {canAssign && (
+                <>
+                    <TaskFormDialog
+                        open={formOpen}
+                        onOpenChange={setFormOpen}
+                        editing={activeTask}
+                        milestones={milestones}
+                        fieldStaff={fieldStaff}
+                    />
+                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} />
+                </>
+            )}
         </AppLayout>
     );
 }

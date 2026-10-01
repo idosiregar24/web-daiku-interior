@@ -28,6 +28,7 @@ class Quotation extends Model
             'status' => QuotationStatus::class,
             'total_amount' => 'decimal:2',
             'valid_until' => 'date',
+            'version' => 'integer',
         ];
     }
 
@@ -49,6 +50,12 @@ class Quotation extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(QuotationApproval::class)->latest('created_at');
+    }
+
+    /** Closed (rejected) versions, newest first — PRD §4.3 "Versi Revisi", see QuotationRevision. */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(QuotationRevision::class)->orderByDesc('version');
     }
 
     public function scopeByStatus(Builder $query, ?string $status): Builder

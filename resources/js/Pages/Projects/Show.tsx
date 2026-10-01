@@ -1,8 +1,9 @@
-import { formatRupiah } from '@/lib/format';
+import { formatDateTime, formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
+import { Notice } from '@/Components/shared/Notice';
 import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
@@ -14,8 +15,11 @@ import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneForm
 import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneGanttCalendar';
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
+import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDialog';
+import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
+import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import { TerminFormDialog } from '@/Components/modules/projects/TerminFormDialog';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
@@ -28,6 +32,7 @@ import type {
     ProgressLog,
     Project,
     ProjectMaterial,
+    ProjectStatusNote,
     SupplierDebt,
     Task,
     Termin,
@@ -43,6 +48,7 @@ import {
     LayoutDashboard,
     ListChecks,
     Package,
+    PenLine,
     PieChart,
     Plus,
     Receipt,
@@ -52,13 +58,20 @@ import { useMemo, useState } from 'react';
 
 interface ProjectShowProps {
     project: Project;
+    /** ProjectPolicy::update() and not COMPLETED/CANCELLED. */
+    canEditProject: boolean;
+    /** CEO only — PRD §4.4 "PM di-assign oleh CEO". */
+    canChangePm: boolean;
+    projectManagers: Pick<User, 'id' | 'name'>[];
+    hasTerminPayments: boolean;
+    statusNote: ProjectStatusNote | null;
     milestones: Milestone[];
     canViewMilestones: boolean;
     canManageMilestones: boolean;
     canManageTasks: boolean;
     canViewTasks: boolean;
     tasks: Task[];
-    fieldStaff: Pick<User, 'id' | 'name'>[];
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     progressLogs: ProgressLog[];
     canViewProgressLogs: boolean;
     canManageProgressLogs: boolean;
@@ -214,12 +227,19 @@ function TaskAssigneeTable({
     assigneeName,
     tasks,
     canManage,
+    canEdit,
     onStatusClick,
+    onEditClick,
+    onDeleteClick,
 }: {
     assigneeName: string;
     tasks: Task[];
     canManage: boolean;
+    /** Edit/delete — PM on a project that isn't COMPLETED/CANCELLED. */
+    canEdit: boolean;
     onStatusClick: (task: Task) => void;
+    onEditClick: (task: Task) => void;
+    onDeleteClick: (task: Task) => void;
 }) {
     const doneCount = tasks.filter((t) => t.status === 'DONE').length;
 
@@ -252,7 +272,7 @@ function TaskAssigneeTable({
                         <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Prioritas</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Jatuh Tempo</th>
-                        <th className="w-32 px-4 py-2.5" />
+                        <th className="w-44 px-4 py-2.5" />
                     </tr>
                 </thead>
                 <tbody>
@@ -261,15 +281,25 @@ function TaskAssigneeTable({
                             <td className="px-4 py-3 font-medium">{task.title}</td>
                             <td className="px-4 py-3 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
                             <td className="px-4 py-3">
-                                <StatusChip status={task.status} />
+                                <div className="flex flex-wrap gap-1">
+                                    <StatusChip status={task.status} />
+                                    {task.status === 'DONE' && task.is_wage_paid && (
+                                        <StatusChip status="PAID" label="Upah dibayar" />
+                                    )}
+                                </div>
                             </td>
                             <td className="px-4 py-3 text-daiku-muted">{task.priority}</td>
                             <td className="px-4 py-3 text-daiku-muted">{formatDate(task.due_date)}</td>
                             <td className="px-4 py-3">
                                 {canManage && (
-                                    <Button variant="outline" size="sm" onClick={() => onStatusClick(task)}>
-                                        Update Status
-                                    </Button>
+                                    <div className="flex items-center justify-end gap-1">
+                                        <Button variant="outline" size="sm" onClick={() => onStatusClick(task)}>
+                                            Update Status
+                                        </Button>
+                                        {canEdit && (
+                                            <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} />
+                                        )}
+                                    </div>
                                 )}
                             </td>
                         </tr>
@@ -291,21 +321,42 @@ function TaskTab({
     milestones,
     tasks,
     canManage,
+    isClosed,
     fieldStaff,
 }: {
     project: Project;
     milestones: Milestone[];
     tasks: Task[];
     canManage: boolean;
-    fieldStaff: Pick<User, 'id' | 'name'>[];
+    /** COMPLETED/CANCELLED — the task plan is final (TaskService refuses create/edit/delete). */
+    isClosed: boolean;
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
 }) {
-    const [assignOpen, setAssignOpen] = useState(false);
+    const [formOpen, setFormOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [statusOpen, setStatusOpen] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
+    const canEdit = canManage && !isClosed;
 
     function openStatus(task: Task) {
         setActiveTask(task);
         setStatusOpen(true);
+    }
+
+    function openCreate() {
+        setEditingTask(null);
+        setFormOpen(true);
+    }
+
+    function openEdit(task: Task) {
+        setEditingTask(task);
+        setFormOpen(true);
+    }
+
+    function openDelete(task: Task) {
+        setActiveTask(task);
+        setDeleteOpen(true);
     }
 
     const groups = useMemo(() => {
@@ -326,9 +377,9 @@ function TaskTab({
 
     return (
         <div>
-            {canManage && (
+            {canEdit && (
                 <div className="mb-4 flex justify-end">
-                    <Button size="sm" onClick={() => setAssignOpen(true)}>
+                    <Button size="sm" onClick={openCreate}>
                         <Plus className="size-4" />
                         Tambah Task
                     </Button>
@@ -350,7 +401,10 @@ function TaskTab({
                                 assigneeName={group.name}
                                 tasks={group.tasks}
                                 canManage={canManage}
+                                canEdit={canEdit}
                                 onStatusClick={openStatus}
+                                onEditClick={openEdit}
+                                onDeleteClick={openDelete}
                             />
                         ))}
                     </TabsContent>
@@ -364,14 +418,18 @@ function TaskTab({
                 </Tabs>
             )}
 
-            {canManage && (
-                <TaskFormDialog
-                    open={assignOpen}
-                    onOpenChange={setAssignOpen}
-                    projectId={project.id}
-                    milestones={milestones}
-                    fieldStaff={fieldStaff}
-                />
+            {canEdit && (
+                <>
+                    <TaskFormDialog
+                        open={formOpen}
+                        onOpenChange={setFormOpen}
+                        projectId={project.id}
+                        editing={editingTask}
+                        milestones={milestones}
+                        fieldStaff={fieldStaff}
+                    />
+                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} />
+                </>
             )}
             <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
         </div>
@@ -631,8 +689,43 @@ const SUPPLIER_DEBT_LABEL: Record<NonNullable<SupplierDebt['status']>, string> =
     LUNAS: 'Lunas',
 };
 
+/** Why a non-ACTIVE project looks the way it does — status + (from the audit trail) who/why. */
+function ProjectStatusNotice({ project, statusNote }: { project: Project; statusNote: ProjectStatusNote | null }) {
+    const reason = statusNote?.note ? ` Alasan: ${statusNote.note}` : '';
+    const byline = statusNote ? ` (${statusNote.by ?? 'Sistem'}, ${formatDateTime(statusNote.at)})` : '';
+
+    switch (project.status) {
+        case 'ON_HOLD':
+            return (
+                <Notice tone="warning" className="mb-6">
+                    Proyek sedang ditahan (ON HOLD){byline} — penalti form harian dan penanda overdue otomatis dijeda.
+                    {reason}
+                </Notice>
+            );
+        case 'CANCELLED':
+            return (
+                <Notice tone="error" className="mb-6">
+                    Proyek dibatalkan{byline} dan bersifat read-only.{reason}
+                </Notice>
+            );
+        case 'COMPLETED':
+            return (
+                <Notice tone="success" className="mb-6">
+                    Proyek selesai — semua milestone lolos QA. Data proyek tidak bisa diubah lagi.
+                </Notice>
+            );
+        default:
+            return null;
+    }
+}
+
 export default function ProjectShow({
     project,
+    canEditProject,
+    canChangePm,
+    projectManagers,
+    hasTerminPayments,
+    statusNote,
     milestones,
     canViewMilestones,
     canManageMilestones,
@@ -656,6 +749,8 @@ export default function ProjectShow({
     materialOptions,
 }: ProjectShowProps) {
     const [tab, setTab] = useState('overview');
+    const [editOpen, setEditOpen] = useState(false);
+    const isClosed = project.status === 'COMPLETED' || project.status === 'CANCELLED';
 
     return (
         <AppLayout
@@ -667,8 +762,31 @@ export default function ProjectShow({
                 title={project.name}
                 icon={FolderKanban}
                 description={project.lead?.client_name ? `Klien: ${project.lead.client_name}` : undefined}
-                actions={<StatusChip status={project.status} />}
+                actions={
+                    <>
+                        <StatusChip status={project.status} />
+                        {canEditProject && (
+                            <Button variant="outline" onClick={() => setEditOpen(true)}>
+                                <PenLine className="size-4" />
+                                Edit Proyek
+                            </Button>
+                        )}
+                    </>
+                }
             />
+
+            <ProjectStatusNotice project={project} statusNote={statusNote} />
+
+            {canEditProject && (
+                <ProjectFormDialog
+                    open={editOpen}
+                    onOpenChange={setEditOpen}
+                    project={project}
+                    canChangePm={canChangePm}
+                    projectManagers={projectManagers}
+                    hasTerminPayments={hasTerminPayments}
+                />
+            )}
 
             <Tabs value={tab} onValueChange={setTab}>
                 <UnderlineTabsList>
@@ -709,7 +827,7 @@ export default function ProjectShow({
                         project={project}
                         milestones={milestones}
                         canView={canViewMilestones}
-                        canManage={canManageMilestones}
+                        canManage={canManageMilestones && !isClosed}
                     />
                 </TabsContent>
                 <TabsContent value="task" className="mt-6">
@@ -718,6 +836,7 @@ export default function ProjectShow({
                         milestones={milestones}
                         tasks={tasks}
                         canManage={canManageTasks}
+                        isClosed={isClosed}
                         fieldStaff={fieldStaff}
                     />
                 </TabsContent>

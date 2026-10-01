@@ -12,7 +12,8 @@ import {
 import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, QaForm } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { ShieldCheck } from 'lucide-react';
+import { BarChart3, ShieldCheck } from 'lucide-react';
+import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 
 interface QaIndexProps {
     qaForms: PaginatedData<QaForm>;
@@ -33,6 +34,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                 title="QA Form"
                 icon={ShieldCheck}
                 description="Checklist kualitas per milestone — dibuat otomatis saat PM menandai milestone selesai."
+                actions={<DashboardLinkButton routeName="qa-forms.dashboard" label="Dashboard QA" icon={BarChart3} roles={['CEO', 'QA']} />}
             />
 
             <TableCard

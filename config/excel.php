@@ -1,6 +1,6 @@
 <?php
 
-use Maatwebsite\Excel\DefaultValueBinder;
+use App\Exports\SafeValueBinder;
 use Maatwebsite\Excel\Excel;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 
@@ -225,7 +225,8 @@ return [
     |
     */
     'value_binder' => [
-        'default' => DefaultValueBinder::class,
+        // Writes formula-looking text as plain text (formula injection).
+        'default' => SafeValueBinder::class,
     ],
 
     'cache' => [

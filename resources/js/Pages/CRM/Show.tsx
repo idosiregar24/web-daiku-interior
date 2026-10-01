@@ -9,6 +9,8 @@ import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
+import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
+import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import type {
@@ -36,9 +38,9 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
-type LeadDetail = Omit<Lead, 'design'> & {
+type LeadDetail = Omit<Lead, 'design' | 'quotation'> & {
     design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
-    quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version'> | null;
+    quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until'> | null;
     project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
 };
 
@@ -75,8 +77,10 @@ export default function LeadShow({
     const [statusOpen, setStatusOpen] = useState(false);
     const [dealOpen, setDealOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
+    const [clientRejectOpen, setClientRejectOpen] = useState(false);
 
     const isClosed = lead.status === 'LOST' || lead.status === 'CLOSING';
+    const quotationExpired = isQuotationExpired(lead.quotation);
     const isOverdue = !!lead.follow_up_date && !isClosed && new Date(lead.follow_up_date) < startOfToday();
     const sourceName = lead.lead_source?.name ?? lead.source;
 
@@ -109,6 +113,11 @@ export default function LeadShow({
                             <Button variant="outline" disabled={isClosed} onClick={() => setStatusOpen(true)}>
                                 Ubah Status
                             </Button>
+                            {lead.quotation?.status === 'SENT_TO_CLIENT' && (
+                                <Button variant="outline" onClick={() => setClientRejectOpen(true)}>
+                                    Klien Menolak
+                                </Button>
+                            )}
                             {lead.status === 'DEAL_DESAIN' && (
                                 <Button onClick={() => setDealOpen(true)}>Konfirmasi Deal</Button>
                             )}
@@ -196,9 +205,21 @@ export default function LeadShow({
                             status={lead.quotation?.status}
                             href={lead.quotation ? route('quotations.show', { quotation: lead.quotation.id }) : undefined}
                         >
-                            {lead.quotation
-                                ? `Versi ${lead.quotation.version} · ${formatRupiah(lead.quotation.total_amount)}`
-                                : 'Dibuat otomatis setelah desain di-ACC klien.'}
+                            {lead.quotation ? (
+                                <>
+                                    Versi {lead.quotation.version} · {formatRupiah(lead.quotation.total_amount)}
+                                    {lead.quotation.valid_until && (
+                                        <>
+                                            {' · '}
+                                            <span className={quotationExpired ? 'font-medium text-error-ink' : undefined}>
+                                                {quotationExpired ? 'kedaluwarsa' : 'berlaku'} s.d. {formatDate(lead.quotation.valid_until)}
+                                            </span>
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                'Dibuat otomatis setelah desain di-ACC klien.'
+                            )}
                         </StageRow>
                         <StageRow
                             icon={FolderKanban}
@@ -275,6 +296,16 @@ export default function LeadShow({
                         lead={lead}
                         projectManagers={projectManagers}
                     />
+                    {lead.quotation && (
+                        <QuotationDecisionDialog
+                            open={clientRejectOpen}
+                            onOpenChange={setClientRejectOpen}
+                            quotation={lead.quotation}
+                            role="CLIENT"
+                            decision="reject"
+                            clientName={lead.client_name}
+                        />
+                    )}
                 </>
             )}
             {canOpenDesign && (

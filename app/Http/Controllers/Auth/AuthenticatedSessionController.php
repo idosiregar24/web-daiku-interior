@@ -20,9 +20,20 @@ class AuthenticatedSessionController extends Controller
     public function create(): Response
     {
         return Inertia::render('Auth/Login', [
-            'canResetPassword' => Route::has('password.request'),
+            'canResetPassword' => Route::has('password.request') && $this->mailerDeliversEmail(),
             'status' => session('status'),
         ]);
+    }
+
+    /**
+     * The `log`/`array` mailers never deliver the reset link, so the
+     * "Lupa password?" link would be a dead end — only show it once a real
+     * mailer (smtp, ses, …) is configured. The reset routes stay registered
+     * either way.
+     */
+    private function mailerDeliversEmail(): bool
+    {
+        return ! in_array(config('mail.default'), ['log', 'array'], true);
     }
 
     /**

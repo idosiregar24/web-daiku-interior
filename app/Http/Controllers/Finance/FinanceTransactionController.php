@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Finance;
 
+use App\Enums\FinanceCategory;
 use App\Enums\TaskStatus;
 use App\Exports\CashFlowExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Finance\FinanceDashboardRequest;
+use App\Http\Requests\Finance\FinanceTransactionFilterRequest;
 use App\Http\Requests\Finance\PayStaffRequest;
 use App\Http\Requests\Finance\StoreFinanceTransactionRequest;
 use App\Models\BankAccount;
@@ -14,7 +17,6 @@ use App\Models\Task;
 use App\Services\FinanceTransactionService;
 use App\Services\StaffPaymentService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -25,35 +27,40 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class FinanceTransactionController extends Controller
 {
-    public function index(Request $request): Response
+    /**
+     * "Transaksi list: filter by type/tanggal/proyek + total summary" —
+     * plus rekening/kategori filters (Sprint 9). The summary leaves Pindah
+     * Dana out unless the list is scoped to one account (see
+     * FinanceTransactionService::isCompanyLevel()).
+     */
+    public function index(FinanceTransactionFilterRequest $request, FinanceTransactionService $service): Response
     {
+        $filters = $request->filters();
+        $scope = $this->withSalaryScope($filters, $request);
+
         $transactions = FinanceTransaction::query()
             ->with(['project:id,name', 'bankAccount:id,label', 'creator:id,name'])
-            ->byType($request->string('type')->value() ?: null)
-            ->byProject($request->integer('project_id') ?: null)
-            ->when($request->date('from'), fn ($q, $from) => $q->whereDate('date', '>=', $from))
-            ->when($request->date('to'), fn ($q, $to) => $q->whereDate('date', '<=', $to))
+            ->filter($scope)
             ->latest('date')
+            ->latest('id')
             ->paginate(20)
             ->withQueryString();
 
-        $summaryQuery = FinanceTransaction::query()
-            ->byType($request->string('type')->value() ?: null)
-            ->byProject($request->integer('project_id') ?: null)
-            ->when($request->date('from'), fn ($q, $from) => $q->whereDate('date', '>=', $from))
-            ->when($request->date('to'), fn ($q, $to) => $q->whereDate('date', '<=', $to));
-
-        $totalIncome = (float) (clone $summaryQuery)->where('type', 'PEMASUKAN')->sum('amount');
-        $totalExpense = (float) (clone $summaryQuery)->where('type', 'PENGELUARAN')->sum('amount');
-
         return Inertia::render('Finance/Transactions/Index', [
             'transactions' => $transactions,
-            'filters' => $request->only(['type', 'project_id', 'from', 'to']),
-            'totalIncome' => $totalIncome,
-            'totalExpense' => $totalExpense,
-            'balance' => $totalIncome - $totalExpense,
+            'filters' => $filters,
+            'summary' => $service->summarize($scope),
             'projects' => Project::orderBy('name')->get(['id', 'name']),
-            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']),
+            // Every account for the filter (inactive ones keep their history);
+            // the "Catat Transaksi"/"Pindah Dana" dialogs only offer active ones.
+            'bankAccounts' => BankAccount::query()
+                ->select(['id', 'label', 'opening_balance', 'is_active'])
+                ->withBalance()
+                ->orderBy('label')
+                ->get()
+                ->append('current_balance'),
+            // "Catat Transaksi" hides these — same list the Form Request rejects.
+            'systemManagedCategories' => array_map(fn (FinanceCategory $category) => $category->value, FinanceCategory::systemManaged()),
         ]);
     }
 
@@ -66,21 +73,41 @@ class FinanceTransactionController extends Controller
 
     /**
      * "Cash flow dashboard: chart pemasukan vs pengeluaran 6 bulan"
-     * (Recharts bar chart, frontend). Grouped in PHP rather than
-     * `DATE_FORMAT()` (MySQL-only — breaks the SQLite connection
-     * `phpunit.xml` runs tests against, per database-standards.md §1
-     * "jangan pakai fitur khusus" one engine can't share).
+     * (Recharts bar chart, frontend) + PRD §4.7 "Ringkasan pemasukan dan
+     * pengeluaran per rekening dan keseluruhan" for a chosen month. Both
+     * lazy, so the month picker's partial reload (`only:
+     * ['accountSummary']`) doesn't recompute the chart.
      */
-    public function dashboard(FinanceTransactionService $service): Response
+    public function dashboard(FinanceDashboardRequest $request, FinanceTransactionService $service): Response
     {
         return Inertia::render('Finance/Dashboard', [
-            'cashFlow' => $service->monthlyCashFlow(6),
+            'cashFlow' => fn () => $service->monthlyCashFlow(6),
+            'accountSummary' => fn () => $service->accountSummary($request->month()),
         ]);
     }
 
-    public function exportExcel(): BinaryFileResponse
+    /**
+     * PRD §4.7 "Export Excel: Laporan cash flow per bulan, per proyek, per
+     * rekening" — same filters as the Transactions page; none = the last
+     * 6 months (see CashFlowExport).
+     */
+    public function exportExcel(FinanceTransactionFilterRequest $request): BinaryFileResponse
     {
-        return Excel::download(new CashFlowExport, 'cash-flow-'.now()->format('Y-m').'.xlsx');
+        $filters = $this->withSalaryScope($request->filters(), $request);
+
+        return Excel::download(new CashFlowExport($filters), 'cash-flow-'.now()->format('Y-m').'.xlsx');
+    }
+
+    /**
+     * Salaries are CEO/FINANCE-only (sprint-09 decision #7): every other
+     * reader of the list/export gets payroll legs filtered out. Added
+     * server-side, never accepted from the query string.
+     */
+    private function withSalaryScope(array $filters, FinanceTransactionFilterRequest $request): array
+    {
+        return FinanceTransaction::canSeeSalaries($request->user())
+            ? $filters
+            : $filters + ['hide_salary_payments' => true];
     }
 
     /** "Pencatatan upah tukang per task selesai + staff payment list". */

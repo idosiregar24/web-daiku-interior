@@ -1,4 +1,5 @@
-import { formatRupiah } from '@/lib/format';
+import { formatDate, formatRupiah } from '@/lib/format';
+import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -13,7 +14,8 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Quotation, QuotationStatus } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { FileText } from 'lucide-react';
+import { BarChart3, FileText } from 'lucide-react';
+import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 
 interface QuotationIndexProps {
     quotations: PaginatedData<Quotation & { lead: { id: number; client_name: string } }>;
@@ -51,8 +53,16 @@ const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string }
     {
         accessorKey: 'valid_until',
         header: 'Berlaku Sampai',
-        cell: ({ row }) =>
-            row.original.valid_until ? new Date(row.original.valid_until).toLocaleDateString('id-ID') : '—',
+        cell: ({ row }) => {
+            const quotation = row.original;
+            if (!quotation.valid_until) return '—';
+
+            return isQuotationExpired(quotation) ? (
+                <span className="font-medium text-error-ink">{formatDate(quotation.valid_until)} · kedaluwarsa</span>
+            ) : (
+                formatDate(quotation.valid_until)
+            );
+        },
     },
 ];
 
@@ -79,6 +89,7 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                 title="Quotation"
                 icon={FileText}
                 description="Daftar RAB/penawaran — dibuka otomatis saat desain di-ACC klien."
+                actions={<DashboardLinkButton routeName="quotations.dashboard" label="Dashboard Quotation" icon={BarChart3} roles={['CEO', 'ESTIMATOR']} />}
             />
 
             <DataTable

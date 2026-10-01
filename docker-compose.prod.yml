@@ -1,0 +1,123 @@
+# Production / staging override — always used together with the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# (deploy/deploy.sh does exactly that; README "HTTPS / Produksi" has the
+# first-time setup.) Requires Docker Compose >= 2.24.4 for the !override /
+# !reset tags. docker-compose.yml itself stays the dev setup.
+#
+# Differences from dev:
+# - No source bind-mounts: app/worker/scheduler run the code + built assets
+#   baked into the image. Only .env (read-only) and a persistent `storage`
+#   volume (uploads, logs, sessions, db:backup files) are mounted.
+# - nginx serves HTTPS on 80/443 with Let's Encrypt (docker/nginx/
+#   production.conf); certbot is a run-on-demand tool service.
+# - MySQL, Redis and Soketi publish no host ports. Browsers reach Soketi only
+#   through nginx at wss://APP_DOMAIN/app/…; Laravel reaches it internally at
+#   soketi:6001.
+# - worker/scheduler run as www-data so files they create in `storage` stay
+#   writable for php-fpm. Run one-off artisan commands the same way:
+#   `docker compose … exec --user www-data app php artisan …`.
+
+# Frontend build args — identical for the app and web images, so the Vite
+# manifest PHP renders matches the files nginx serves.
+x-vite-build-args: &vite-build-args
+  VITE_APP_NAME: ${APP_NAME:-Daiku Interior}
+  VITE_BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-log}
+  VITE_PUSHER_APP_KEY: ${PUSHER_APP_KEY:-}
+  VITE_PUSHER_HOST: ${APP_DOMAIN:-}
+  VITE_PUSHER_PORT: '443'
+  VITE_PUSHER_SCHEME: https
+  VITE_PUSHER_APP_CLUSTER: ${PUSHER_APP_CLUSTER:-mt1}
+
+services:
+  app:
+    build:
+      target: app
+      args: *vite-build-args
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+    volumes: !override
+      - ./.env:/var/www/html/.env:ro
+      - daiku_storage:/var/www/html/storage
+
+  worker:
+    build:
+      target: app
+      args: *vite-build-args
+    user: www-data
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+    volumes: !override
+      - ./.env:/var/www/html/.env:ro
+      - daiku_storage:/var/www/html/storage
+
+  scheduler:
+    build:
+      target: app
+      args: *vite-build-args
+    user: www-data
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+    volumes: !override
+      - ./.env:/var/www/html/.env:ro
+      - daiku_storage:/var/www/html/storage
+
+  mysql:
+    environment:
+      MYSQL_USER: ${DB_USERNAME:?Isi DB_USERNAME di .env (bukan root)}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Isi DB_PASSWORD di .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Isi DB_ROOT_PASSWORD di .env}
+    ports: !reset []
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '--silent']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  redis:
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  soketi:
+    environment:
+      SOKETI_DEBUG: '0'
+    ports: !reset []
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+      args: *vite-build-args
+    image: daiku-interior-web
+    environment:
+      NGINX_SERVER_NAME: ${APP_DOMAIN:?Isi APP_DOMAIN di .env (mis. erp.daikuinterior.com)}
+    ports: !override
+      - '80:80'
+      - '443:443'
+    volumes: !override
+      - ./docker/nginx/production.conf:/etc/nginx/templates/default.conf.template:ro
+      - daiku_certbot_conf:/etc/letsencrypt:ro
+      - daiku_certbot_www:/var/www/certbot:ro
+    depends_on:
+      - app
+      - soketi
+
+  # Not started by `up` (profile). Used via `docker compose … run --rm
+  # certbot …` for the first certificate and the renewal cron — see README.
+  certbot:
+    image: certbot/certbot:v5.8.0
+    profiles: ['certbot']
+    volumes:
+      - daiku_certbot_conf:/etc/letsencrypt
+      - daiku_certbot_www:/var/www/certbot
+
+volumes:
+  daiku_storage:
+  daiku_certbot_conf:
+  daiku_certbot_www:

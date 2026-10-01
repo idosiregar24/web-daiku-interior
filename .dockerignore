@@ -19,3 +19,5 @@ docker
 .dockerignore
 .editorconfig
 .phpunit.result.cache
+storage/app/backups
+storage/app/restore

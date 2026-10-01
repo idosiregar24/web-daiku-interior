@@ -68,16 +68,21 @@ export const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCa
     ],
 };
 
-// Mirrors FinanceCategory::systemManaged() — written only by their own menus
-// (Termin, Pinjaman Tukang, Hutang Supplier) so those balances stay in sync.
-const SYSTEM_MANAGED_CATEGORIES: FinanceCategory[] = ['PINJAMAN', 'HUTANG_IDEAL', 'DOWN_PAYMENT', 'TERMIN'];
+/** Display label of every kategori (both lists together cover all of `FinanceCategory`). */
+export const CATEGORY_LABELS = Object.fromEntries(
+    [...CATEGORY_OPTIONS.PEMASUKAN, ...CATEGORY_OPTIONS.PENGELUARAN].map((option) => [option.value, option.label]),
+) as Record<FinanceCategory, string>;
 
-const MANUAL_CATEGORY_OPTIONS = Object.fromEntries(
-    Object.entries(CATEGORY_OPTIONS).map(([type, options]) => [
-        type,
-        options.filter((option) => !SYSTEM_MANAGED_CATEGORIES.includes(option.value)),
-    ]),
-) as typeof CATEGORY_OPTIONS;
+/**
+ * Drops FinanceCategory::systemManaged() — written only by their own menus
+ * (Termin, Pinjaman Tukang, Hutang Supplier, Pindah Dana, Upah Tukang/
+ * Penggajian) so those balances stay in sync. The list comes from the
+ * server (`systemManagedCategories` prop), so it can't drift from the
+ * Form Request.
+ */
+function manualCategoryOptions(type: FinanceTransactionType, systemManaged: FinanceCategory[]) {
+    return CATEGORY_OPTIONS[type].filter((option) => !systemManaged.includes(option.value));
+}
 
 const schema = z.object({
     project_id: z.string().optional(),
@@ -108,11 +113,20 @@ interface TransactionFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     projects: Pick<Project, 'id' | 'name'>[];
+    /** Active accounts only — StoreFinanceTransactionRequest rejects inactive ones. */
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
+    /** FinanceCategory::systemManaged() values, sent by the server. */
+    systemManagedCategories: FinanceCategory[];
 }
 
 /** "FinanceTransactionController + model" create form (.claude/plan/sprint-04.md Jonathan Week 8). */
-export function TransactionFormDialog({ open, onOpenChange, projects, bankAccounts }: TransactionFormDialogProps) {
+export function TransactionFormDialog({
+    open,
+    onOpenChange,
+    projects,
+    bankAccounts,
+    systemManagedCategories,
+}: TransactionFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
@@ -200,7 +214,7 @@ export function TransactionFormDialog({ open, onOpenChange, projects, bankAccoun
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {MANUAL_CATEGORY_OPTIONS[type].map((option) => (
+                                                {manualCategoryOptions(type, systemManagedCategories).map((option) => (
                                                     <SelectItem key={option.value} value={option.value}>
                                                         {option.label}
                                                     </SelectItem>

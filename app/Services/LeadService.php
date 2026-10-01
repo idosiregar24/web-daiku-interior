@@ -18,6 +18,7 @@ class LeadService
         private ProjectService $projectService,
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
+        private DesignService $designService,
     ) {}
 
     /**
@@ -257,6 +258,9 @@ class LeadService
             );
 
             $project = $this->projectService->createFromLead($lead->setRelation('quotation', $quotation), $projectData);
+
+            // The design goes into production with the project (Sprint 9 decision #4).
+            $this->designService->syncWithPipeline($lead->id, DesignService::EVENT_DEAL_CONFIRMED);
 
             // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" —
             // the project's own PM plus the divisions that act on a new

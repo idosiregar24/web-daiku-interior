@@ -2,10 +2,10 @@
 
 use App\Providers\AppServiceProvider;
 use App\Providers\HorizonServiceProvider;
-use App\Providers\TelescopeServiceProvider;
 
+// TelescopeServiceProvider is registered from AppServiceProvider::register()
+// only when Telescope is installed (it's a require-dev package).
 return [
     AppServiceProvider::class,
     HorizonServiceProvider::class,
-    TelescopeServiceProvider::class,
 ];

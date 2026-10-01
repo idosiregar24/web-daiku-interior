@@ -25,7 +25,8 @@ class MasterDataController extends Controller
             'branches' => Branch::query()->orderBy('name')->get(),
             'leadSources' => LeadSource::query()->orderBy('name')->get(),
             'leadCategories' => LeadCategory::query()->orderBy('name')->get(),
-            'bankAccounts' => BankAccount::query()->orderBy('bank_name')->get(),
+            // Saldo Saat Ini is derived (opening_balance + transactions).
+            'bankAccounts' => BankAccount::query()->withBalance()->orderBy('bank_name')->get()->append('current_balance'),
         ]);
     }
 }

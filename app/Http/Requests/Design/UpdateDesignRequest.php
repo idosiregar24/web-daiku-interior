@@ -3,18 +3,29 @@
 namespace App\Http\Requests\Design;
 
 use App\Enums\DesignStatus;
+use App\Models\Design;
+use App\Models\User;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 class UpdateDesignRequest extends FormRequest
 {
+    /** @var list<int>|null Memoized — one query per request, not one per sub-staff row. */
+    private ?array $assignableStaffIds = null;
+
     /** Route-level `role:DESIGNER` middleware already gates this action (PRD §7.1 "Design Brief" — DES has CRUD). */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * The status rule that depends on the design's state (post-ACC stages
+     * need Client ACC) lives in DesignService::update(), next to the rest
+     * of the status logic.
+     */
     public function rules(): array
     {
         return [
@@ -30,6 +41,12 @@ class UpdateDesignRequest extends FormRequest
             'problem' => ['nullable', 'string'],
             'design_urls' => ['nullable', 'array'],
             'design_urls.*' => ['url:http,https', 'max:2048'],
+            // PRD §4.2 "PIC & Sub-Staff" — the complete sub-staff list
+            // (replaces the current one); omitted = left untouched.
+            'staff' => ['sometimes', 'array', 'max:20'],
+            'staff.*' => ['array'],
+            'staff.*.user_id' => ['bail', 'required', 'integer', 'distinct', $this->staffMemberRule()],
+            'staff.*.role_note' => ['nullable', 'string', 'max:100'],
         ];
     }
 
@@ -40,6 +57,49 @@ class UpdateDesignRequest extends FormRequest
             'pic_id.exists' => 'PIC yang dipilih tidak ditemukan.',
             'status.required' => 'Status wajib dipilih.',
             'design_urls.*.url' => 'Link desain harus berupa URL yang valid.',
+            'staff.max' => 'Maksimal 20 sub-staff per desain.',
+            'staff.*.user_id.required' => 'Pilih desainer untuk setiap baris sub-staff.',
+            'staff.*.user_id.integer' => 'Sub-staff yang dipilih tidak valid.',
+            'staff.*.user_id.distinct' => 'Desainer yang sama dipilih lebih dari sekali.',
+            'staff.*.role_note.max' => 'Peran sub-staff maksimal 100 karakter.',
         ];
+    }
+
+    /**
+     * A sub-staff member is never the PIC, and must be an active DESIGNER
+     * — except someone already on this design's team, who may stay after
+     * being deactivated (history is kept, a re-save shouldn't fail).
+     */
+    private function staffMemberRule(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            if ((int) $value === (int) $this->input('pic_id')) {
+                $fail('PIC utama tidak perlu ditambahkan lagi sebagai sub-staff.');
+
+                return;
+            }
+
+            if (! in_array((int) $value, $this->assignableStaffIds(), true)) {
+                $fail('Sub-staff harus pengguna ber-role Designer yang masih aktif.');
+            }
+        };
+    }
+
+    /** @return list<int> */
+    private function assignableStaffIds(): array
+    {
+        if ($this->assignableStaffIds === null) {
+            /** @var Design $design */
+            $design = $this->route('design');
+
+            $this->assignableStaffIds = User::role('DESIGNER')->where('is_active', true)->pluck('id')
+                ->merge($design->staff()->pluck('users.id'))
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return $this->assignableStaffIds;
     }
 }

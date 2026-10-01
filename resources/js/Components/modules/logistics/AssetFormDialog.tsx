@@ -1,15 +1,17 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { Button } from '@/Components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { formatRupiah } from '@/lib/format';
 import type { Asset, AssetCondition } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -19,21 +21,83 @@ export const CONDITION_LABELS: Record<AssetCondition, string> = {
     DAMAGED: 'Rusak',
 };
 
-// Mirrors App\Http\Requests\Logistics\StoreAssetRequest.
-const schema = z.object({
-    name: z.string().min(1, 'Nama aset wajib diisi').max(150),
-    category: z.string().min(1, 'Kategori wajib diisi').max(50),
-    purchase_date: z.date({ message: 'Tanggal pembelian wajib diisi' }).max(new Date(), 'Tidak boleh di masa depan'),
-    value: z
-        .string()
-        .min(1, 'Nilai aset wajib diisi')
-        .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, 'Nilai tidak valid'),
-    condition: z.enum(['GOOD', 'FAIR', 'DAMAGED']),
-    location: z.string().max(100).optional(),
-    notes: z.string().max(2000).optional(),
-});
+const isPositiveNumber = (v: string) => v !== '' && !isNaN(Number(v)) && Number(v) > 0;
 
-type FormValues = z.infer<typeof schema>;
+/**
+ * Mirrors App\Http\Requests\Logistics\StoreAssetRequest. `paid` is what
+ * Finance already paid on the plan: the total can't go below it and the
+ * plan can't be switched off (AssetInstallmentService re-checks both
+ * under a row lock).
+ */
+function buildSchema(paid: number) {
+    return z
+        .object({
+            name: z.string().min(1, 'Nama aset wajib diisi').max(150),
+            category: z.string().min(1, 'Kategori wajib diisi').max(50),
+            purchase_date: z.date({ message: 'Tanggal pembelian wajib diisi' }).max(new Date(), 'Tidak boleh di masa depan'),
+            value: z
+                .string()
+                .min(1, 'Nilai aset wajib diisi')
+                .refine((v) => !isNaN(Number(v)) && Number(v) >= 0, 'Nilai tidak valid'),
+            condition: z.enum(['GOOD', 'FAIR', 'DAMAGED']),
+            location: z.string().max(100).optional(),
+            notes: z.string().max(2000).optional(),
+            // PRD §4.7 "Aset & Cicilan" — only validated while the plan is on.
+            has_installment: z.boolean(),
+            total_install: z.string(),
+            installment_amount: z.string(),
+            installment_due_day: z.string(),
+        })
+        .superRefine((values, ctx) => {
+            if (!values.has_installment) {
+                if (paid > 0) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['has_installment'],
+                        message: 'Cicilan aset ini sudah dibayar sebagian — rencana cicilan tidak bisa dihapus.',
+                    });
+                }
+
+                return;
+            }
+
+            if (!isPositiveNumber(values.total_install)) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['total_install'],
+                    message: values.total_install === '' ? 'Total cicilan wajib diisi untuk aset bercicilan.' : 'Total cicilan harus lebih dari 0.',
+                });
+            } else if (Number(values.total_install) < paid) {
+                ctx.addIssue({
+                    code: 'custom',
+                    path: ['total_install'],
+                    message: `Total cicilan tidak boleh lebih kecil dari yang sudah dibayar (${formatRupiah(paid)}).`,
+                });
+            }
+
+            if (values.installment_amount !== '') {
+                if (!isPositiveNumber(values.installment_amount)) {
+                    ctx.addIssue({ code: 'custom', path: ['installment_amount'], message: 'Cicilan per bulan harus lebih dari 0.' });
+                } else if (isPositiveNumber(values.total_install) && Number(values.installment_amount) > Number(values.total_install)) {
+                    ctx.addIssue({
+                        code: 'custom',
+                        path: ['installment_amount'],
+                        message: 'Cicilan per bulan tidak boleh melebihi total cicilan.',
+                    });
+                }
+            }
+
+            if (values.installment_due_day !== '') {
+                const day = Number(values.installment_due_day);
+
+                if (!Number.isInteger(day) || day < 1 || day > 28) {
+                    ctx.addIssue({ code: 'custom', path: ['installment_due_day'], message: 'Tanggal jatuh tempo harus antara 1 dan 28.' });
+                }
+            }
+        });
+}
+
+type FormValues = z.infer<ReturnType<typeof buildSchema>>;
 
 const EMPTY: FormValues = {
     name: '',
@@ -43,7 +107,16 @@ const EMPTY: FormValues = {
     condition: 'GOOD',
     location: '',
     notes: '',
+    has_installment: false,
+    total_install: '',
+    installment_amount: '',
+    installment_due_day: '',
 };
+
+/** Decimal string from the API → form input ("" when empty). */
+function amountInput(value: string | null): string {
+    return value === null ? '' : String(Number(value));
+}
 
 interface AssetFormDialogProps {
     open: boolean;
@@ -52,9 +125,12 @@ interface AssetFormDialogProps {
     categories: string[];
 }
 
-/** PRD §4.8 "Aset Inventaris" create/edit — Logistics only. */
+/** PRD §4.8 "Aset Inventaris" create/edit — Logistics only — incl. the §4.7 installment plan. */
 export function AssetFormDialog({ open, onOpenChange, asset, categories }: AssetFormDialogProps) {
+    const paid = Number(asset?.paid_install ?? 0);
+    const schema = useMemo(() => buildSchema(paid), [paid]);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
+    const hasInstallment = form.watch('has_installment');
 
     useEffect(() => {
         if (!open) {
@@ -71,6 +147,10 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                       condition: asset.condition,
                       location: asset.location ?? '',
                       notes: asset.notes ?? '',
+                      has_installment: asset.has_installment,
+                      total_install: amountInput(asset.total_install),
+                      installment_amount: amountInput(asset.installment_amount),
+                      installment_due_day: asset.installment_due_day ? String(asset.installment_due_day) : '',
                   }
                 : { ...EMPTY, purchase_date: new Date() },
         );
@@ -78,11 +158,21 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
 
     function onSubmit(values: FormValues) {
         const payload = {
-            ...values,
+            name: values.name,
+            category: values.category,
+            condition: values.condition,
             purchase_date: format(values.purchase_date, 'yyyy-MM-dd'),
             value: Number(values.value),
             location: values.location || null,
             notes: values.notes || null,
+            has_installment: values.has_installment,
+            ...(values.has_installment
+                ? {
+                      total_install: Number(values.total_install),
+                      installment_amount: values.installment_amount === '' ? null : Number(values.installment_amount),
+                      installment_due_day: values.installment_due_day === '' ? null : Number(values.installment_due_day),
+                  }
+                : {}),
         };
         const options = {
             onError: (errors: Record<string, string>) =>
@@ -99,7 +189,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{asset ? 'Edit Aset' : 'Tambah Aset'}</DialogTitle>
                 </DialogHeader>
@@ -216,6 +306,76 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                 </FormItem>
                             )}
                         />
+
+                        <div className="space-y-4 rounded-lg border border-daiku-border p-3">
+                            <FormField
+                                control={form.control}
+                                name="has_installment"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center justify-between gap-4">
+                                        <div>
+                                            <FormLabel className="cursor-pointer">Aset dalam cicilan</FormLabel>
+                                            <FormDescription>
+                                                {paid > 0
+                                                    ? `Sudah dibayar ${formatRupiah(paid)} — rencana cicilan tidak bisa dimatikan.`
+                                                    : 'Pembayaran cicilannya dicatat Finance di menu Cicilan Aset.'}
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </div>
+                                        <FormControl>
+                                            <Switch checked={field.value} onCheckedChange={field.onChange} disabled={paid > 0} />
+                                        </FormControl>
+                                    </FormItem>
+                                )}
+                            />
+                            {hasInstallment && (
+                                <>
+                                    <FormField
+                                        control={form.control}
+                                        name="total_install"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Total Cicilan (Rp)</FormLabel>
+                                                <FormControl>
+                                                    <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                </FormControl>
+                                                <FormDescription>Seluruh nominal yang harus dibayar sampai lunas.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="installment_amount"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Cicilan per Bulan (opsional)</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="installment_due_day"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>Jatuh Tempo Tgl (opsional)</FormLabel>
+                                                    <FormControl>
+                                                        <Input type="number" min="1" max="28" step="1" inputMode="numeric" placeholder="1–28" {...field} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">

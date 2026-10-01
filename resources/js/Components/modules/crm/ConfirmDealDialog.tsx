@@ -8,6 +8,8 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { Notice } from '@/Components/shared/Notice';
+import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import {
     Form,
     FormControl,
@@ -58,6 +60,11 @@ interface ConfirmDealDialogProps {
  * (LeadService::confirmDeal()).
  */
 export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }: ConfirmDealDialogProps) {
+    // LeadService::confirmDeal() refuses anything but a SENT_TO_CLIENT
+    // quotation — say so up front. `undefined` = not loaded by this page,
+    // leave the decision to the server.
+    const quotationNotReady = lead?.quotation !== undefined && lead.quotation?.status !== 'SENT_TO_CLIENT';
+
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { name: '', pm_id: '', start_date: undefined, contract_value: '' },
@@ -109,6 +116,15 @@ export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }:
                             ditutup sebagai <span className="font-medium text-success-ink">CLOSING</span> dan proyek
                             eksekusi baru akan dibuat.
                         </p>
+                        {quotationNotReady && (
+                            <Notice tone="error">
+                                {lead?.quotation
+                                    ? `Quotation masih berstatus ${lead.quotation.status.replace(/_/g, ' ')} — deal baru bisa dikonfirmasi setelah disetujui CEO & PM (SENT TO CLIENT).`
+                                    : 'Lead ini belum punya quotation — deal baru bisa dikonfirmasi setelah quotation disetujui CEO & PM.'}
+                            </Notice>
+                        )}
+                        {/* Warning only — an expired offer can still be accepted (Sprint 9 decision #3). */}
+                        <QuotationExpiryNotice quotation={lead?.quotation} />
                         <FormField
                             control={form.control}
                             name="name"
@@ -183,7 +199,7 @@ export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }:
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={form.formState.isSubmitting || quotationNotReady}>
                                 Konfirmasi &amp; Buat Proyek
                             </Button>
                         </DialogFooter>

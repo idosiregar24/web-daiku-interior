@@ -19,14 +19,17 @@ class MilestoneService
      * targetDate (scheduler)" — PRD §4.4 status list. Only milestones
      * still being worked on (PENDING/IN_PROGRESS) can go overdue: one
      * already handed to QA (QA_WAITING) is waiting on QA, not the team.
-     * The status change is its own idempotency guard, and the PM gets
-     * one notification per project per run.
+     * Only ACTIVE projects — an ON_HOLD/COMPLETED/CANCELLED project's
+     * schedule is paused (Sprint 9 decision #1). The status change is its
+     * own idempotency guard, and the PM gets one notification per project
+     * per run.
      */
     public function markOverdueMilestones(): int
     {
         $overdue = Milestone::query()
             ->whereIn('status', [MilestoneStatus::Pending->value, MilestoneStatus::InProgress->value])
             ->whereDate('target_date', '<', now('Asia/Jakarta')->toDateString())
+            ->whereHas('project', fn ($query) => $query->active())
             ->with('project.pm')
             ->get();
 
@@ -55,10 +58,13 @@ class MilestoneService
     /**
      * New milestones append to the end of the project's order — PM
      * reorders explicitly afterward (via `reorder()`), never by guessing
-     * an `order` value on create.
+     * an `order` value on create. A COMPLETED/CANCELLED project's plan is
+     * final (Sprint 9 decision #1).
      */
     public function create(Project $project, array $data): Milestone
     {
+        $this->ensureProjectOpen($project);
+
         $nextOrder = $project->milestones()->max('order') + 1;
 
         return $project->milestones()->create([
@@ -92,10 +98,13 @@ class MilestoneService
      * sistem"). The milestone only actually becomes COMPLETED once QA
      * approves (QaFormService::review()). Re-callable after a QA reject
      * sent it back to IN_PROGRESS — reuses the existing QaForm (unique
-     * per milestone) rather than creating a second one.
+     * per milestone) rather than creating a second one. Not on a
+     * cancelled project — that would only queue QA work nobody needs.
      */
     public function markDone(Milestone $milestone): Milestone
     {
+        $this->ensureProjectOpen($milestone->project);
+
         // OVERDUE is still finishable — it only marks a missed target date
         // (markOverdueMilestones()), the work can still be handed to QA.
         if (! in_array($milestone->status, [MilestoneStatus::Pending, MilestoneStatus::InProgress, MilestoneStatus::Overdue], true)) {
@@ -113,5 +122,14 @@ class MilestoneService
         }
 
         return $milestone->fresh();
+    }
+
+    private function ensureProjectOpen(Project $project): void
+    {
+        if ($project->isClosed()) {
+            throw ValidationException::withMessages([
+                'project' => "Proyek \"{$project->name}\" sudah {$project->status->value} — milestone-nya tidak bisa ditambah atau diajukan ke QA lagi.",
+            ]);
+        }
     }
 }

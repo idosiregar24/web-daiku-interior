@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Quotation;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
 use App\Http\Requests\Quotation\QuotationDecisionRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Quotation;
@@ -17,9 +18,9 @@ use Inertia\Response;
 
 /**
  * PRD §4.3. RAB builder (Sprint 2 Week 4) + CEO→PM dual approval + PDF
- * export (Sprint 3 Week 5) — see QuotationService's docblock for the
- * approval state machine and what's still deliberately out of scope
- * (client's own SENT_TO_CLIENT decision).
+ * export (Sprint 3 Week 5) + the client's rejection, revision history and
+ * validity period (Sprint 9) — see QuotationService's docblock for the
+ * state machine. The client's acceptance is LeadController::confirmDeal().
  */
 class QuotationController extends Controller
 {
@@ -40,7 +41,12 @@ class QuotationController extends Controller
 
     public function show(Request $request, Quotation $quotation): Response
     {
-        $quotation->load(['lead:id,client_name', 'items', 'approvals.approver:id,name']);
+        $quotation->load([
+            'lead:id,client_name',
+            'items',
+            'approvals.approver:id,name',
+            'revisions.closer:id,name',
+        ]);
 
         $user = $request->user();
 
@@ -49,6 +55,10 @@ class QuotationController extends Controller
             'canManage' => $user->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']),
             'canCeoDecide' => $user->hasAnyRole(['CEO', 'SUPERADMIN']),
             'canPmDecide' => $user->hasAnyRole(['PM', 'SUPERADMIN']),
+            // Recording the client's decision — same roles as the
+            // `quotations.clientReject` / `crm.leads.confirmDeal` routes.
+            'canClientDecide' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']),
+            'validityDays' => QuotationService::VALIDITY_DAYS,
         ]);
     }
 
@@ -80,6 +90,17 @@ class QuotationController extends Controller
         return back()->with('success', 'Keputusan PM atas quotation tersimpan.');
     }
 
+    /**
+     * PRD §6.2 "SENT TO CLIENT → REJECTED (klien) → DRAFT (revisi)" — see
+     * QuotationService::clientReject().
+     */
+    public function clientReject(ClientRejectQuotationRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $quotation = $service->clientReject($quotation, $request->user(), $request->validated('note'));
+
+        return back()->with('success', "Penolakan klien dicatat — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi.");
+    }
+
     public function exportPdf(Quotation $quotation): HttpResponse
     {
         $quotation->load(['lead:id,client_name', 'items']);
@@ -87,6 +108,7 @@ class QuotationController extends Controller
         $pdf = Pdf::loadView('pdf.quotation', [
             'quotation' => $quotation,
             'siteSettings' => SiteSetting::current(),
+            'validityDays' => QuotationService::VALIDITY_DAYS,
         ]);
 
         return $pdf->stream("penawaran-{$quotation->lead->client_name}-v{$quotation->version}.pdf");

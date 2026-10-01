@@ -196,6 +196,10 @@ class QaFormService
             'end_date' => now('Asia/Jakarta')->toDateString(),
         ]);
 
+        // Production is done — the lead's design becomes DONE_PRODUKSI,
+        // which also freezes its delay count (Sprint 9 decision #4).
+        app(DesignService::class)->syncWithPipeline($project->lead_id, DesignService::EVENT_PROJECT_COMPLETED);
+
         $this->notificationService->notifyMany(
             User::role('CEO')->where('is_active', true)->get()->push($project->pm),
             'project_completed',

@@ -19,7 +19,7 @@ class UpdateBankAccountRequest extends FormRequest
             'bank_name' => ['required', 'string', 'max:50'],
             'account_no' => ['required', 'string', 'max:30'],
             'label' => ['required', 'string', 'max:50', Rule::unique('bank_accounts', 'label')->ignore($this->route('bank_account'))],
-            'balance' => ['nullable', 'numeric', 'min:0'],
+            'opening_balance' => ['nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
             'is_active' => ['sometimes', 'boolean'],
         ];
     }
@@ -31,6 +31,9 @@ class UpdateBankAccountRequest extends FormRequest
             'account_no.required' => 'Nomor rekening wajib diisi.',
             'label.required' => 'Label rekening wajib diisi.',
             'label.unique' => 'Label rekening ini sudah dipakai.',
+            'opening_balance.numeric' => 'Saldo awal harus berupa angka.',
+            'opening_balance.min' => 'Saldo awal tidak boleh negatif.',
+            'opening_balance.max' => 'Saldo awal terlalu besar.',
         ];
     }
 }

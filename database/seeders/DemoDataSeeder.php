@@ -12,18 +12,24 @@ use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
 use App\Models\Lead;
 use App\Models\Material;
+use App\Models\Penalty;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\RevenueTarget;
 use App\Models\User;
+use App\Services\AssetInstallmentService;
 use App\Services\DesignService;
+use App\Services\EmployeeService;
 use App\Services\FamilyGatheringFundService;
 use App\Services\FinanceTransactionService;
+use App\Services\FundTransferService;
 use App\Services\LeadService;
 use App\Services\LogisticsService;
 use App\Services\MilestoneService;
 use App\Services\OvertimeService;
+use App\Services\PayrollService;
+use App\Services\PenaltyCollectionService;
 use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
 use App\Services\QaFormService;
@@ -120,6 +126,9 @@ class DemoDataSeeder extends Seeder
         // and issued to the first project (one material left below its
         // minimum so the low-stock badge/alert has something real), assets.
         $this->seedLogistics($projects[0]['project']);
+
+        // 6b. Gaji karyawan tetap + cicilan aset (PRD §4.7, Sprint 9).
+        $this->seedPayrollAndAssetInstallments();
 
         // 7. CEO revenue targets for the Analytics "Revenue vs Target" chart.
         foreach (range(5, 0) as $monthsAgo) {
@@ -283,6 +292,19 @@ class DemoDataSeeder extends Seeder
                 ]);
             }
         }
+
+        // PRD §4.2 "PIC & Sub-Staff" — one design worked on by a second designer.
+        $subStaff = User::firstOrCreate(
+            ['email' => 'lika@daikuinterior.com'],
+            ['name' => 'Lika', 'password' => Hash::make('password')],
+        );
+        $subStaff->assignRole('DESIGNER');
+        $design = Lead::where('client_name', 'Dewi Anggraini')->firstOrFail()->design;
+        $designService->update($design, [
+            'pic_id' => $this->designer->id,
+            'status' => $design->status->value,
+            'staff' => [['user_id' => $subStaff->id, 'role_note' => '3D modeling & render']],
+        ]);
     }
 
     private function seedQuotationInProgressLeads(LeadService $leadService, DesignService $designService, QuotationService $quotationService): void
@@ -291,6 +313,7 @@ class DemoDataSeeder extends Seeder
             ['name' => 'Maya Sari', 'source' => 'Iklan Sosmed', 'quotation_stage' => 'draft'],
             ['name' => 'Yusuf Pratama', 'source' => 'Existing', 'quotation_stage' => 'submitted'],
             ['name' => 'Indah Permata', 'source' => 'Instagram', 'quotation_stage' => 'ceo_review'],
+            ['name' => 'Rina Kartika', 'source' => 'Website', 'quotation_stage' => 'revised'],
         ];
 
         foreach ($specs as $i => $spec) {
@@ -307,6 +330,20 @@ class DemoDataSeeder extends Seeder
             }
 
             $quotationService->submit($quotation);
+
+            // v1 rejected by the CEO, revised and resubmitted as v2 — gives
+            // "Riwayat Revisi" a real entry (PRD §4.3 "Versi Revisi").
+            if ($spec['quotation_stage'] === 'revised') {
+                $quotationService->ceoDecision($quotation, 'reject', $this->ceo, 'Harga kitchen set terlalu tinggi, turunkan ±10%.');
+                $quotationService->replaceItems($quotation, [
+                    ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 16_000_000],
+                    ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit' => 'unit', 'unit_price' => 4_500_000],
+                    ['description' => 'Meja & Kursi Makan', 'qty' => 1, 'unit' => 'set', 'unit_price' => 6_000_000],
+                ]);
+                $quotationService->submit($quotation);
+
+                continue;
+            }
 
             if ($spec['quotation_stage'] === 'submitted') {
                 continue;
@@ -497,14 +534,34 @@ class DemoDataSeeder extends Seeder
             ]);
         }
 
-        app(PenaltyService::class)->runDailyCheck();
+        $penaltyService = app(PenaltyService::class);
+        $penaltyService->runDailyCheck();
+        foreach ([3, 2] as $daysAgo) { // history so Slamet has several penalties
+            $penaltyService->runDailyCheck(now('Asia/Jakarta')->subWeekdays($daysAgo));
+        }
 
-        // Within the balance the penalty above just collected — the fund
-        // can't pay out more than it holds (FamilyGatheringFundService).
-        app(FamilyGatheringFundService::class)->recordExpense([
-            'amount' => 30_000,
-            'description' => 'Konsumsi rapat persiapan gathering internal Q3 2026',
-        ], $this->finance);
+        // Sprint 9 decision #10 — penalties are paid manually: one of
+        // Slamet's is paid in cash, the rest stay outstanding, and the fund
+        // can only spend what was actually collected.
+        $slamet = $this->fieldStaff->firstWhere('name', 'Slamet Wijaya');
+        $slametUnpaid = Penalty::where('staff_id', $slamet->id)->unpaid()->orderBy('date_occurred')->get();
+        $bankAccountId = BankAccount::where('is_active', true)->value('id');
+
+        if ($slametUnpaid->isNotEmpty() && $bankAccountId) {
+            app(PenaltyCollectionService::class)->recordPayment($slamet, [
+                'penalty_ids' => [$slametUnpaid->first()->id],
+                'bank_account_id' => $bankAccountId,
+                'date' => now()->toDateString(),
+                'note' => 'Dibayar tunai di kantor',
+            ], $this->finance);
+
+            app(FamilyGatheringFundService::class)->recordExpense([
+                'amount' => 30_000,
+                'description' => 'Konsumsi rapat persiapan gathering internal Q3 2026',
+                'bank_account_id' => $bankAccountId,
+                'date' => now()->toDateString(),
+            ], $this->finance);
+        }
 
         $this->seedOvertimeRequests($projects);
         $this->seedProgressLogsAndTermins($projects[0]['project']);
@@ -687,6 +744,87 @@ class DemoDataSeeder extends Seeder
 
         if ($doneTask && $bankAccount) {
             app(StaffPaymentService::class)->pay($doneTask, $bankAccount->id, $this->finance);
+        }
+
+        // Pindah Dana between two company accounts (Sprint 9 decision #5).
+        $accounts = BankAccount::where('is_active', true)->orderBy('id')->take(2)->get();
+        if ($accounts->count() === 2) {
+            app(FundTransferService::class)->transfer([
+                'from_bank_account_id' => $accounts[0]->id,
+                'to_bank_account_id' => $accounts[1]->id,
+                'amount' => 10_000_000,
+                'date' => now()->subDays(2)->toDateString(),
+                'description' => 'Top up rekening operasional',
+            ], $this->finance);
+        }
+    }
+
+    /** PRD §4.7 "Gaji Karyawan Tetap" + "Aset & Cicilan" through their services. */
+    private function seedPayrollAndAssetInstallments(): void
+    {
+        $bank = BankAccount::where('is_active', true)->first();
+        if (! $bank) {
+            return;
+        }
+
+        $employees = app(EmployeeService::class);
+        $payroll = app(PayrollService::class);
+        $lastMonth = now()->subMonthNoOverflow();
+
+        $staff = [
+            ['Boy', 'Marketing', 4_500_000, null],
+            ['Icha', 'Desainer Interior', 5_000_000, null],
+            ['Ami', 'Estimator', 5_000_000, null],
+            ['Ibnu', 'Drafter', 4_250_000, null],
+            ['Ilham', 'Admin Finance', 4_000_000, 'finance@daikuinterior.com'],
+            ['Hesti', 'Admin Kantor', 3_750_000, null],
+            ['Satria', 'Staf Gudang', 3_500_000, null],
+        ];
+
+        foreach ($staff as $i => [$name, $position, $salary, $email]) {
+            $employee = $employees->create([
+                'name' => $name,
+                'position' => $position,
+                'base_salary' => $salary,
+                'user_id' => $email ? User::where('email', $email)->value('id') : null,
+                'bank_name' => 'BCA',
+                'account_no' => '52'.str_pad((string) ($i + 1), 8, '0', STR_PAD_LEFT),
+                'join_date' => now()->subYears(2)->subMonths($i)->startOfMonth()->toDateString(),
+            ], $this->finance);
+
+            // Last month paid for the first five; Hesti & Satria stay "Belum" to click through.
+            if ($i < 5) {
+                $payroll->pay($employee, [
+                    'period' => $lastMonth->format('Y-m'),
+                    'allowance' => $i === 0 ? 500_000 : 0,
+                    'deduction' => $i === 3 ? 250_000 : 0,
+                    'paid_at' => $lastMonth->copy()->endOfMonth()->toDateString(),
+                    'bank_account_id' => $bank->id,
+                    'note' => $i === 0 ? 'Bonus target' : ($i === 3 ? 'Potongan kasbon' : null),
+                ], $this->finance);
+            }
+        }
+
+        $installments = app(AssetInstallmentService::class);
+        $pickup = Asset::where('name', 'Mobil Pickup L300')->first();
+
+        if ($pickup) {
+            $installments->updateAsset($pickup, [
+                ...$pickup->only(['name', 'category', 'condition', 'location', 'notes']),
+                'purchase_date' => $pickup->purchase_date->toDateString(),
+                'value' => $pickup->value,
+                'has_installment' => true,
+                'total_install' => 144_000_000,
+                'installment_amount' => 4_000_000,
+                'installment_due_day' => 10,
+            ], User::role('LOGISTICS')->firstOrFail());
+
+            $installments->recordPayment($pickup, [
+                'amount' => 4_000_000,
+                'paid_at' => $lastMonth->copy()->day(10)->toDateString(),
+                'bank_account_id' => $bank->id,
+                'note' => 'Cicilan leasing',
+            ], $this->finance);
         }
     }
 

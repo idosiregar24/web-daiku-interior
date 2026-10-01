@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Projects;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreProjectRequest;
+use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Models\BankAccount;
 use App\Models\Lead;
 use App\Models\Material;
@@ -54,6 +55,7 @@ class ProjectController extends Controller
         ProjectPolicy $policy,
         FinanceAllocationService $allocationService,
         SupplierDebtService $supplierDebtService,
+        ProjectService $projectService,
     ): Response {
         $this->authorize('view', $project);
 
@@ -62,6 +64,11 @@ class ProjectController extends Controller
         $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'QA', 'SUPERADMIN']);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
         $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        // Sprint 9 "Edit Proyek": CEO any project, PM their own
+        // (ProjectPolicy::update()); COMPLETED/CANCELLED are read-only for
+        // everyone, so the action isn't offered at all there.
+        $canEditProject = $user->can('update', $project) && ! $project->isClosed();
+        $canChangePm = $canEditProject && $user->hasAnyRole(['CEO', 'SUPERADMIN']);
         // PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read, PM CRUD.
         $canViewProgressLogs = $user->hasAnyRole(['CEO', 'DESIGNER', 'PM', 'QA', 'FINANCE', 'SUPERADMIN']);
         $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']);
@@ -85,6 +92,14 @@ class ProjectController extends Controller
 
         return Inertia::render('Projects/Show', [
             'project' => $project,
+            'canEditProject' => $canEditProject,
+            'canChangePm' => $canChangePm,
+            'projectManagers' => $canChangePm
+                ? User::role('PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : [],
+            // Once any termin received money the contract value is fixed (ProjectService::update()).
+            'hasTerminPayments' => $canEditProject && $project->hasTerminPayments(),
+            'statusNote' => $projectService->statusNote($project),
             'milestones' => $canViewMilestones
                 ? $project->milestones()->with('qaForm:id,milestone_id,status,rejection_count')->get()
                 : [],
@@ -98,10 +113,14 @@ class ProjectController extends Controller
                 : $project->tasks()
                     ->when($taskVisibility === 'own', fn ($query) => $query->where('assignee_id', $user->id))
                     ->with(['assignee:id,name', 'milestone:id,name'])
+                    // A DONE task whose wage is paid is locked (TaskService::update()).
+                    ->when($canManageTasks, fn ($query) => $query->withExists('wagePayment as is_wage_paid'))
                     ->latest()
                     ->get(),
             'canViewTasks' => $taskVisibility !== 'none',
-            'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name']) : [],
+            // `is_active` lets the task form offer only active tukang while
+            // still showing a deactivated current assignee.
+            'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name', 'is_active']) : [],
             'progressLogs' => $canViewProgressLogs
                 ? $project->progressLogs()->with('logger:id,name')->get()
                 : [],
@@ -136,5 +155,15 @@ class ProjectController extends Controller
         $project = $service->createFromLead($lead, $request->validated());
 
         return redirect()->route('projects.show', $project)->with('success', 'Proyek berhasil dibuat.');
+    }
+
+    /** Sprint 9 "Edit Proyek" — rules in ProjectService::update(), ownership in ProjectPolicy::update(). */
+    public function update(UpdateProjectRequest $request, Project $project, ProjectService $service): RedirectResponse
+    {
+        $this->authorize('update', $project);
+
+        $service->update($project, $request->validated(), $request->user());
+
+        return back()->with('success', 'Proyek berhasil diperbarui.');
     }
 }

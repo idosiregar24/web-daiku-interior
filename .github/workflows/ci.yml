@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, develop]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -86,20 +89,113 @@ jobs:
           DB_USERNAME: root
           DB_PASSWORD: secret
           REDIS_HOST: 127.0.0.1
+          XDEBUG_MODE: "off" # coverage is collected in the next step
         run: php artisan test
 
+      # PRD §10.3 targets >=70% coverage. Informational for now: prints the
+      # per-file table + total and never fails the build. Once the first
+      # number is known, make it a gate: add `--min=70` and remove
+      # `continue-on-error` (README "Testing").
+      - name: Coverage report (informational)
+        continue-on-error: true
+        shell: bash
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: daiku_interior_test
+          DB_USERNAME: root
+          DB_PASSWORD: secret
+          REDIS_HOST: 127.0.0.1
+          XDEBUG_MODE: coverage
+        run: |
+          php artisan test --coverage --compact | tee coverage.txt
+          total="$(sed 's/\x1b\[[0-9;]*m//g' coverage.txt | grep -Eo 'Total: *[0-9.]+ ?%' | tail -n1 || true)"
+          echo "### Test coverage: ${total:-n/a} (target PRD §10.3: 70%)" >> "$GITHUB_STEP_SUMMARY"
+
+  # Auto deploy (PRD §3.3, git flow §10.1): develop → staging, main →
+  # production, only after `test` passed on a push. The remote side is
+  # deploy/deploy.sh. Without the secrets the job is skipped with a notice.
   deploy-staging:
     needs: test
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
     steps:
-      - name: Deploy to staging
-        run: echo "Add SSH/deploy steps for staging server here"
+      - name: Check deploy secrets
+        id: config
+        env:
+          SSH_HOST: ${{ secrets.STAGING_HOST }}
+          SSH_USER: ${{ secrets.STAGING_USER }}
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.STAGING_PATH }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_KEY" ] && [ -n "$DEPLOY_PATH" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy staging dilewati::Isi secrets STAGING_HOST, STAGING_USER, STAGING_SSH_KEY dan STAGING_PATH untuk mengaktifkan auto deploy."
+          fi
+
+      - name: Deploy to staging over SSH
+        if: steps.config.outputs.ready == 'true'
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_PATH: ${{ secrets.STAGING_PATH }}
+          DEPLOY_BRANCH: develop
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          port: ${{ secrets.STAGING_SSH_PORT || 22 }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          fingerprint: ${{ secrets.STAGING_SSH_FINGERPRINT }}
+          command_timeout: 30m
+          envs: DEPLOY_PATH,DEPLOY_BRANCH
+          script: |
+            set -e
+            cd "$DEPLOY_PATH"
+            bash deploy/deploy.sh "$DEPLOY_BRANCH"
 
   deploy-production:
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
-      - name: Deploy to production
-        run: echo "Add SSH/deploy steps for production server here"
+      - name: Check deploy secrets
+        id: config
+        env:
+          SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+          SSH_USER: ${{ secrets.PRODUCTION_USER }}
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.PRODUCTION_PATH }}
+        run: |
+          if [ -n "$SSH_HOST" ] && [ -n "$SSH_USER" ] && [ -n "$SSH_KEY" ] && [ -n "$DEPLOY_PATH" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Deploy production dilewati::Isi secrets PRODUCTION_HOST, PRODUCTION_USER, PRODUCTION_SSH_KEY dan PRODUCTION_PATH untuk mengaktifkan auto deploy."
+          fi
+
+      - name: Deploy to production over SSH
+        if: steps.config.outputs.ready == 'true'
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_PATH: ${{ secrets.PRODUCTION_PATH }}
+          DEPLOY_BRANCH: main
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          port: ${{ secrets.PRODUCTION_SSH_PORT || 22 }}
+          username: ${{ secrets.PRODUCTION_USER }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          fingerprint: ${{ secrets.PRODUCTION_SSH_FINGERPRINT }}
+          command_timeout: 30m
+          envs: DEPLOY_PATH,DEPLOY_BRANCH
+          script: |
+            set -e
+            cd "$DEPLOY_PATH"
+            bash deploy/deploy.sh "$DEPLOY_BRANCH"

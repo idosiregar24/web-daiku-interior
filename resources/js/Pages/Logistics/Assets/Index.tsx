@@ -9,16 +9,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import type { Asset, AssetCondition, PaginatedData } from '@/types';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { AlertTriangle, Download, Package, Pencil, Plus, Trash2, Wallet, Warehouse } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Download, Package, Pencil, Plus, Trash2, Wallet, Warehouse } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface AssetIndexProps {
     assets: PaginatedData<Asset>;
     filters: { search?: string; condition?: string; category?: string };
     categories: string[];
-    summary: { totalItems: number; totalValue: number; damagedCount: number };
+    summary: {
+        totalItems: number;
+        totalValue: number;
+        damagedCount: number;
+        /** PRD §4.7 "Aset & Cicilan" — left to pay across every plan still running. */
+        installmentRemaining: number;
+        installmentCount: number;
+    };
     canManage: boolean;
 }
 
@@ -80,6 +87,21 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
             header: 'Nilai',
             cell: ({ row }) => <span className="tabular-nums">{row.original.value ? formatRupiah(row.original.value) : '—'}</span>,
         },
+        {
+            accessorKey: 'remaining_install',
+            header: 'Sisa Cicilan',
+            cell: ({ row }) =>
+                row.original.has_installment ? (
+                    <Link
+                        href={route('finance.assetInstallments.show', { asset: row.original.id })}
+                        className="tabular-nums underline decoration-daiku-yellow decoration-2 underline-offset-4 hover:text-daiku-dark"
+                    >
+                        {Number(row.original.remaining_install) > 0 ? formatRupiah(row.original.remaining_install) : 'Lunas'}
+                    </Link>
+                ) : (
+                    <span className="text-daiku-muted">—</span>
+                ),
+        },
         ...(canManage
             ? [
                   {
@@ -124,6 +146,12 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                 actions={
                     <>
                         <Button variant="outline" size="sm" asChild>
+                            <Link href={route('finance.assetInstallments.index')}>
+                                <CalendarClock className="size-4" />
+                                Cicilan Aset
+                            </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
                             <a href={route('logistics.assets.export')}>
                                 <Download className="size-4" />
                                 Export Excel
@@ -145,7 +173,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                 }
             />
 
-            <div className="mb-6 grid gap-4 sm:grid-cols-3">
+            <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Jumlah Aset" value={summary.totalItems} icon={Package} />
                 <StatCard label="Total Nilai Aset" value={formatRupiahCompact(summary.totalValue)} icon={Wallet} />
                 <StatCard
@@ -153,6 +181,12 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                     value={summary.damagedCount}
                     icon={AlertTriangle}
                     tone={summary.damagedCount > 0 ? 'error' : 'default'}
+                />
+                <StatCard
+                    label="Sisa Cicilan Aset"
+                    value={formatRupiahCompact(summary.installmentRemaining)}
+                    icon={CalendarClock}
+                    hint={summary.installmentCount > 0 ? `${summary.installmentCount} aset masih dicicil` : 'Tidak ada cicilan berjalan'}
                 />
             </div>
 
