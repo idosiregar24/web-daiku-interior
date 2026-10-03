@@ -77,6 +77,36 @@ test('superadmin can create a lead category', function () {
     expect(LeadCategory::where('name', 'HORECA')->exists())->toBeTrue();
 });
 
+test('superadmin can rename and delete an unused lead source and category', function (string $model, string $routePrefix) {
+    $record = $model::create(['name' => 'Lama']);
+
+    $this->actingAs($this->superadmin)->put(route("{$routePrefix}.update", $record), ['name' => 'Baru'])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect();
+    expect($record->fresh()->name)->toBe('Baru');
+
+    // Saving with its own unchanged name must not trip the unique rule.
+    $this->actingAs($this->superadmin)->put(route("{$routePrefix}.update", $record), ['name' => 'Baru'])
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->superadmin)->delete(route("{$routePrefix}.destroy", $record))->assertRedirect();
+    expect($model::find($record->id))->toBeNull();
+})->with([
+    'lead source' => [LeadSource::class, 'master-data.lead-sources'],
+    'lead category' => [LeadCategory::class, 'master-data.lead-categories'],
+]);
+
+test('renaming a lead source or category to an existing name is rejected', function (string $model, string $routePrefix) {
+    $model::create(['name' => 'Sudah Ada']);
+    $record = $model::create(['name' => 'Lain']);
+
+    $this->actingAs($this->superadmin)->put(route("{$routePrefix}.update", $record), ['name' => 'Sudah Ada'])
+        ->assertSessionHasErrorsK('name');
+})->with([
+    'lead source' => [LeadSource::class, 'master-data.lead-sources'],
+    'lead category' => [LeadCategory::class, 'master-data.lead-categories'],
+]);
+
 test('superadmin can create a bank account', function () {
     $this->actingAs($this->superadmin)->post(route('master-data.bank-accounts.store'), [
         'bank_name' => 'BCA',
