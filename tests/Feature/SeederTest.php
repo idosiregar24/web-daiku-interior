@@ -3,8 +3,10 @@
 use App\Models\AuditLog;
 use App\Models\Material;
 use App\Models\Project;
+use App\Models\ProjectMaterial;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\Vendor;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\ProductionSeeder;
 
@@ -17,10 +19,18 @@ test('the full demo seed runs cleanly and populates every module', function () {
     expect(User::role('CEO')->exists())->toBeTrue()
         ->and(Project::count())->toBeGreaterThan(0)
         ->and(Material::lowStock()->count())->toBe(1)
-        // The ledger reconciles with the running stock totals.
-        ->and((int) Material::sum('stock'))->toBe(
-            (int) StockMovement::where('type', 'IN')->sum('qty') - (int) StockMovement::where('type', 'OUT')->sum('qty'),
+        // The ledger reconciles with the running stock totals (returns and merges — Sprint 11).
+        ->and((float) Material::sum('stock'))->toBe(
+            (float) StockMovement::whereIn('type', ['IN', 'RETURN', 'MERGE_IN'])->sum('qty')
+                - (float) StockMovement::whereIn('type', ['OUT', 'MERGE_OUT'])->sum('qty'),
         )
+        ->and(StockMovement::where('type', 'RETURN')->exists())->toBeTrue()
+        // Sprint 11 Sub 3–5: every material source, every open request state, a flagged duplicate.
+        ->and(ProjectMaterial::approved()->distinct()->pluck('source')->map->value->sort()->values()->all())->toBe(['CUSTOM', 'GUDANG', 'PEMBELIAN'])
+        ->and(ProjectMaterial::where('request_status', 'DIAJUKAN')->exists())->toBeTrue()
+        ->and(ProjectMaterial::where('request_status', 'MENUNGGU_PM')->exists())->toBeTrue()
+        ->and(Material::where('possible_duplicate', true)->count())->toBe(1)
+        ->and(Vendor::count())->toBeGreaterThan(0)
         ->and(AuditLog::count())->toBeGreaterThan(0);
 });
 

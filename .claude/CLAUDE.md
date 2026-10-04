@@ -90,6 +90,19 @@ status): [`plan/README.md`](plan/README.md). Source task list:
    Field staff are never part of SDM: query employees through
    `Employee::query()->hrEligible()`. An employee's own pages are `my.*`
    (`employee.self` middleware) and show only final data.
+10. **Materials & masters (Sprint 11 — `plan/sprint-11-quotation-satuan-material.md`).**
+    Units (`units`), vendors (`vendors`) and material categories/synonyms
+    are masters — never free text; pick through `UnitSelect` /
+    `VendorSelect` / `Unit::options()` / `Vendor::options()`. Material
+    quantities are DECIMAL(12,2): do arithmetic in hundredths via
+    `App\Support\Quantity`, never raw floats. Catalog items are born only
+    through `MaterialCatalogService::create()` (Logistics — "satu pintu";
+    `match_key` UNIQUE, similar items need a reason); project material
+    lines move only through `ProjectMaterialService` / `StockService`
+    (lock line → material), out-of-catalog items only through
+    `MaterialRequestService`. A project reaches COMPLETED only via
+    `ProjectService::completeIfFinished()` (all milestones QA'd, no
+    leftover, no undecided request).
 
 ## Local environment
 

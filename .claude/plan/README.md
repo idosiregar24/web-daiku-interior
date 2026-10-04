@@ -35,7 +35,7 @@ email) to browse it.
 | Sprint 8 | — (di luar CSV) | — | Gap PRD: Pinjaman Tukang, Hutang Supplier, Alokasi %, Termin DP, Lead FK, Overtime, Delay Desain | 28 selesai / 0 sebagian / 0 belum (28) | [sprint-08.md](sprint-08.md) |
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
-| Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 0 selesai / 0 sebagian / 30 belum (30) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
+| Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
 | Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 0 selesai / 0 sebagian / 66 belum (66) | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
@@ -383,6 +383,44 @@ checklist. Notable decisions/deviations:
   Termin, and two more `FinanceTransaction` rows (a manual expense, one
   staff wage payment) — see `sprint-04.md`'s own notes section for the
   full narrative.
+
+## Sprint 11 — Master Satuan, Master Vendor, material proyek, pengajuan barang, katalog anti-dobel (done 2026-10-04)
+
+**Deviasi dari PRD §4.8** (keputusan user 2026-10-04, `sprint-11-quotation-satuan-material.md` §1): material proyek punya sumber GUDANG / PEMBELIAN / CUSTOM dengan siklus terima → pakai → bereskan sisa (retur / susut / serahkan klien) — PRD hanya punya "kebutuhan vs terpakai"; barang di luar katalog wajib lewat pengajuan yang diputuskan Logistik (Tukang lewat PM dulu); proyek tidak bisa COMPLETED selama ada sisa material atau pengajuan belum diputuskan; qty boleh pecahan; satuan, vendor, kategori material jadi master. Fitur A (quotation cukup ACC PM) **tidak dikerjakan** — digantikan Sprint 12 Sub 4. Tautan pembelian ↔ Finance (`BELI_BAHAN`, T2) masih menunggu jawaban Daiku; kolom `project_materials.finance_transaction_id` sudah disiapkan.
+
+### Sub 1–3
+
+Deviations / decisions taken while building (see `sprint-11/01..03`):
+
+- **Legacy unit text that matches no known unit becomes its own unit** (e.g. demo `paket` → code `paket`), not a forced guess — SUPERADMIN can rename/deactivate it in Data Master → Satuan. Rollback (`down()`) writes the unit *code* back as text, so "Lembar" comes back as `lbr`.
+- **`supplier_debts.vendor_id` is nullable at the DB level** (SQLite can't rebuild the table around its generated `remaining` column); `StoreSupplierDebtRequest` requires an active vendor and the migration backfills every row. The oldest spelling of a supplier name names the vendor.
+- **Behaviour change — stock-out no longer means "used".** `logistics.materials.stockOut` / `project-materials.issue` now raise the GUDANG line's `qty_received`; usage is recorded separately (`project-materials.usage`). Existing lines were backfilled `qty_received = qty_used`, so no project starts with a leftover.
+- **Project completion moved to `ProjectService::completeIfFinished()`** (was private in QaFormService). The last QA approval no longer completes a project with unsettled leftovers — PM + Logistics get a `project_material_leftover` notification naming the items, and the project completes automatically when the last leftover is returned/wasted/handed over.
+- **Project Material: a PM now acts only on their own project** (`ProjectPolicy::planMaterials/manageMaterials`) — before, any PM could plan on any project. Issue from / return to warehouse stay Logistics-only (route `role:LOGISTICS`).
+- **Purchases have no ledger table of their own** — each purchase adds to the line (`qty_received`, `cost_total`, latest `unit_price`) and writes an `logistics.material_purchased` audit row; usage/return/waste/hand-over are audited the same way. The Finance link (`finance_transaction_id`) stays empty until T2 is answered.
+- New RAB revision snapshots store `unit_code`; older snapshots keep their free-text `unit` and the history UI reads either.
+
+### Sub 4 — Pengajuan Barang
+
+- A request *is* a `project_materials` row (as the §5.3 draft planned): it waits as a CUSTOM placeholder (no catalog item; a Tukang's has no unit either — `unit_id` became nullable) and Logistics' decision rewrites it into a GUDANG / PEMBELIAN / CUSTOM line. The requester's input stays in `requested_snapshot`.
+- **unique(project, material, source) was dropped** — a request approved as "pakai barang katalog" becomes its own line even when the project already planned that item. `StockService::stockOut()` now takes the target line; the Materials-page stock-out still lands on the project's oldest GUDANG line.
+- "Daftarkan ke katalog" only refuses an exact same name + unit for now (`LogisticsService::registerMaterial()`); match_key / similar-item warnings are Sub 5. The review screen's "barang mirip" and "pengajuan serupa" are a simple keyword match until then.
+- Reminder (`MaterialRequestReminderJob`, Senin–Sabtu 09:00): one combined notification per recipient per day — Logistics for DIAJUKAN, the PM for MENUNGGU_PM — plus a CEO summary; `reminded_at` keeps a same-day re-run silent. "1 hari kerja" skips Sunday. It repeats daily while a request stays undecided.
+- A pending request (MENUNGGU_PM / DIAJUKAN) also blocks COMPLETED; rejecting the last one lets the project complete.
+- Requests can be raised from the project's Material tab (PM/Estimator), the Pengajuan Barang page, and the Tukang's Task page. The Estimator sees only their own requests on the queue page.
+
+### Sub 5 — Katalog anti-dobel
+
+- `match_key` = SHA-1 of category + base name + spec + brand + unit, each part normalized (lower case, punctuation out, "17 mm" = "17mm", "122 × 244" = "122x244", decimal comma, synonyms, word order ignored). UNIQUE in the DB; a race loser gets a readable "sudah ada" error. Changing category or unit makes it a different item.
+- **The legacy backfill calls `MaterialCatalogService::rebuildMatchKeys()` from the migration** (unusual for this repo) — keys built any other way would never match the keys new items get. Legacy free-text categories become master categories with derived prefixes (e.g. "Kayu" → `KYA`), alongside the seeded defaults (`KYP`, `FIN`, …); SUPERADMIN can tidy them in Data Master. Colliding legacy items are flagged `possible_duplicate`, never failed.
+- "Barang mirip" (Lapis 3) = same normalized base name or ≤ 2 edits away (4+ letters), or ≥ 50% shared words; computed in PHP over the active catalog (fine at hundreds of items — revisit if the catalog grows to many thousands). The live lookup on the forms uses a JSON endpoint (`logistics.materials.similar`, axios) — a read-only aid; the server re-checks on save.
+- Every synonym change rebuilds all match keys; newly colliding items get flagged for Cek Duplikat. A merged item keeps its row (`is_active = false`, `merged_into_id`), its stock moves via `MERGE_OUT`/`MERGE_IN` ledger rows, project lines are re-pointed; old stock history stays on the merged item.
+- The project Material tab no longer has a separate "Ajukan Barang" button: "Tambah Kebutuhan" searches the catalog first and offers "Ajukan barang (tidak ada di katalog)" after a search; the request form suggests catalog items while typing ("Mungkin maksud Anda").
+
+### Sub 6 — Penutup
+
+- `DemoDataSeeder` now shows every Sprint 11 state through the real services: units, vendors, GUDANG / PEMBELIAN / CUSTOM lines, the 19 → 17 → retur 2 story, a Tukang request that went PM → Logistik → CUSTOM (bought, used, the spare handed to the client), one request waiting at Logistics and one at the PM, and a "Paku Tembak F30 / F 30" pair flagged by a synonym for Cek Duplikat. `SeederTest` asserts all of it plus the stock ledger reconciling (IN + RETURN + MERGE_IN − OUT − MERGE_OUT).
+- Golden rule #10 added to `.claude/CLAUDE.md` (masters, Quantity helper, the three material services, completion only via `ProjectService::completeIfFinished()`).
 
 ## Sprint 5–7 — Logistics, Notifications, Analytics, Security (done 2026-09-24)
 

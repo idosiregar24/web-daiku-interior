@@ -1,7 +1,7 @@
 # Sprint 11 — Approval Quotation oleh PM · Master Satuan · Material Gudang & Custom
 
 > Status: **keputusan dikunci 2026-10-04 (kecuali 2 pertanyaan tertunda T1/T2
-> di §6), belum ada kode.** Permintaan user 2026-10-04. Sprint ini
+> di §6). Sprint 11 selesai 2026-10-04 (Sub 1–6). T1 tidak relevan lagi (Fitur A dibatalkan); T2 masih menunggu.** Permintaan user 2026-10-04. Sprint ini
 > independen dari Sprint 10 (SDM) — bisa dikerjakan lebih dulu.
 >
 > Aturan kerja tetap: `.claude/CLAUDE.md` + `.claude/rules/*`.

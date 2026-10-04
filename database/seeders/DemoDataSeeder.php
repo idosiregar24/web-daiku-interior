@@ -12,12 +12,17 @@ use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
 use App\Models\Lead;
 use App\Models\Material;
+use App\Models\MaterialCategory;
+use App\Models\MaterialSynonym;
 use App\Models\Penalty;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\RevenueTarget;
+use App\Models\Task;
+use App\Models\Unit;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Services\AssetInstallmentService;
 use App\Services\DesignService;
 use App\Services\EmployeeService;
@@ -25,13 +30,15 @@ use App\Services\FamilyGatheringFundService;
 use App\Services\FinanceTransactionService;
 use App\Services\FundTransferService;
 use App\Services\LeadService;
-use App\Services\LogisticsService;
+use App\Services\MaterialCatalogService;
+use App\Services\MaterialRequestService;
 use App\Services\MilestoneService;
 use App\Services\OvertimeService;
 use App\Services\PayrollService;
 use App\Services\PenaltyCollectionService;
 use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
+use App\Services\ProjectMaterialService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
 use App\Services\StaffLoanService;
@@ -143,34 +150,41 @@ class DemoDataSeeder extends Seeder
     /**
      * PRD §4.8 through the real services: StockService for every stock
      * change (so the ledger and `materials.stock` reconcile) and
-     * LogisticsService for project planning.
+     * ProjectMaterialService for project material lines (Sprint 11).
      */
     private function seedLogistics(Project $project): void
     {
         $logistics = User::role('LOGISTICS')->firstOrFail();
         $stockService = app(StockService::class);
-        $logisticsService = app(LogisticsService::class);
+        $projectMaterials = app(ProjectMaterialService::class);
 
+        // [base name, spec, brand, unit, category prefix, cost, sell, min, received] —
+        // through MaterialCatalogService, so codes and match keys are real (Sprint 11 §5.5).
         $catalog = [
-            ['Plywood Meranti 18mm', 'lembar', 'Kayu', 185_000, 240_000, 10, 40],
-            ['HPL Taco Walnut', 'lembar', 'Finishing', 145_000, 195_000, 8, 25],
-            ['MDF 12mm', 'lembar', 'Kayu', 120_000, 155_000, 10, 30],
-            ['Engsel Sendok Soft Close', 'pcs', 'Hardware', 18_000, 28_000, 50, 200],
-            ['Rel Laci Tandem 45cm', 'set', 'Hardware', 95_000, 135_000, 15, 18],
-            ['Lem Kayu Crossbond 1kg', 'kg', 'Consumable', 42_000, 55_000, 5, 12],
+            ['Triplek Meranti', '18 mm 122×244', null, 'lbr', 'KYP', 185_000, 240_000, 10, 40],
+            ['HPL', 'Walnut', 'Taco', 'lbr', 'FIN', 145_000, 195_000, 8, 25],
+            ['MDF', '12 mm', null, 'lbr', 'KYP', 120_000, 155_000, 10, 30],
+            ['Engsel Sendok', 'Soft Close', null, 'pcs', 'HDW', 18_000, 28_000, 50, 200],
+            ['Rel Laci Tandem', '45 cm', null, 'set', 'HDW', 95_000, 135_000, 15, 18],
+            ['Lem Kayu', '1 kg', 'Crossbond', 'kg', 'BHP', 42_000, 55_000, 5, 12],
         ];
+        $catalogService = app(MaterialCatalogService::class);
 
-        $materials = collect($catalog)->map(function (array $row) use ($stockService, $logistics) {
-            [$name, $unit, $category, $cost, $sell, $min, $received] = $row;
+        $materials = collect($catalog)->map(function (array $row) use ($stockService, $logistics, $catalogService) {
+            [$base, $spec, $brand, $unit, $prefix, $cost, $sell, $min, $received] = $row;
 
-            $material = Material::create([
-                'name' => $name,
-                'unit' => $unit,
-                'category' => $category,
+            $material = $catalogService->create([
+                'material_category_id' => MaterialCategory::where('code_prefix', $prefix)->value('id'),
+                'base_name' => $base,
+                'spec' => $spec,
+                'brand' => $brand,
+                'unit_id' => $this->unit($unit),
                 'cost_price' => $cost,
                 'sell_price' => $sell,
                 'min_stock' => $min,
-            ]);
+                // Items of one demo catalog look alike on purpose (two sheet goods).
+                'similar_reason' => 'Data demo',
+            ], $logistics);
 
             $stockService->stockIn($material, [
                 'qty' => $received,
@@ -181,15 +195,43 @@ class DemoDataSeeder extends Seeder
             return $material;
         });
 
-        // Planned by the Estimator/PM, then partly issued by Logistics.
-        foreach ([[0, 24, 14], [1, 12, 6], [3, 60, 40], [4, 10, 6]] as [$index, $planned, $issued]) {
-            $logisticsService->planMaterial($project, ['material_id' => $materials[$index]->id, 'qty_planned' => $planned]);
-            $stockService->stockOut($materials[$index], $project, [
+        // Planned from the warehouse (GUDANG), partly issued by Logistics,
+        // and the PM records what the crew actually used.
+        foreach ([[0, 24, 14, 12], [1, 12, 6, 6], [3, 60, 40, 32], [4, 10, 6, 6]] as [$index, $planned, $issued, $used]) {
+            $line = $projectMaterials->plan($project, [
+                'material_id' => $materials[$index]->id,
+                'source' => 'GUDANG',
+                'qty_planned' => $planned,
+            ], $logistics);
+            $projectMaterials->issue($line, [
                 'qty' => $issued,
                 'movement_date' => now()->subDays(3)->toDateString(),
                 'note' => 'Produksi kabinet',
             ], $logistics);
+            $projectMaterials->recordUsage($line, ['qty' => $used], $project->pm);
         }
+
+        // Sprint 11 §5.1's story: 19 sheets of MDF bought for the project,
+        // 17 used, the 2 left over returned to the warehouse.
+        $bought = $projectMaterials->plan($project, [
+            'material_id' => $materials[2]->id,
+            'source' => 'PEMBELIAN',
+            'qty_planned' => 19,
+            'vendor_id' => $this->vendor('Toko Sumber Kayu'),
+        ], $project->pm);
+        $projectMaterials->recordPurchase($bought, [
+            'qty' => 19,
+            'unit_price' => 125_000,
+            'purchase_date' => now()->subDays(5)->toDateString(),
+        ], $project->pm);
+        $projectMaterials->recordUsage($bought, ['qty' => 17], $project->pm);
+        $projectMaterials->returnToWarehouse($bought, [
+            'qty' => 2,
+            'movement_date' => now()->subDay()->toDateString(),
+            'note' => 'Sisa potongan utuh',
+        ], $logistics);
+
+        $this->seedMaterialRequests($project, $logistics, $catalogService);
 
         // Rel Laci: 18 received − 6 issued = 12 < min 15 → low stock.
 
@@ -320,9 +362,9 @@ class DemoDataSeeder extends Seeder
             [, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '0812-3333-000'.($i + 1));
 
             $quotationService->replaceItems($quotation, [
-                ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 18_000_000],
-                ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit' => 'unit', 'unit_price' => 4_500_000],
-                ['description' => 'Meja & Kursi Makan', 'qty' => 1, 'unit' => 'set', 'unit_price' => 6_000_000],
+                ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 18_000_000],
+                ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit_id' => $this->unit('unit'), 'unit_price' => 4_500_000],
+                ['description' => 'Meja & Kursi Makan', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 6_000_000],
             ]);
 
             if ($spec['quotation_stage'] === 'draft') {
@@ -336,9 +378,9 @@ class DemoDataSeeder extends Seeder
             if ($spec['quotation_stage'] === 'revised') {
                 $quotationService->ceoDecision($quotation, 'reject', $this->ceo, 'Harga kitchen set terlalu tinggi, turunkan ±10%.');
                 $quotationService->replaceItems($quotation, [
-                    ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 16_000_000],
-                    ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit' => 'unit', 'unit_price' => 4_500_000],
-                    ['description' => 'Meja & Kursi Makan', 'qty' => 1, 'unit' => 'set', 'unit_price' => 6_000_000],
+                    ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 16_000_000],
+                    ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit_id' => $this->unit('unit'), 'unit_price' => 4_500_000],
+                    ['description' => 'Meja & Kursi Makan', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 6_000_000],
                 ]);
                 $quotationService->submit($quotation);
 
@@ -367,9 +409,9 @@ class DemoDataSeeder extends Seeder
             [$lead, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '0812-4444-000'.($i + 1));
 
             $quotationService->replaceItems($quotation, [
-                ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 20_000_000],
-                ['description' => 'Partisi Ruangan', 'qty' => 3, 'unit' => 'unit', 'unit_price' => 2_500_000],
-                ['description' => 'Pengecatan Interior', 'qty' => 1, 'unit' => 'paket', 'unit_price' => 8_000_000],
+                ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 20_000_000],
+                ['description' => 'Partisi Ruangan', 'qty' => 3, 'unit_id' => $this->unit('unit'), 'unit_price' => 2_500_000],
+                ['description' => 'Pengecatan Interior', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => 8_000_000],
             ]);
             $quotationService->submit($quotation);
             $quotationService->ceoDecision($quotation, 'approve', $this->ceo);
@@ -699,7 +741,7 @@ class DemoDataSeeder extends Seeder
         $debts = app(SupplierDebtService::class);
 
         $debts->create([
-            'supplier_name' => 'Kaca Jaya',
+            'vendor_id' => $this->vendor('Kaca Jaya'),
             'total_amount' => 4_500_000,
             'project_id' => $project->id,
             'due_date' => now()->subDays(10)->toDateString(),
@@ -707,7 +749,7 @@ class DemoDataSeeder extends Seeder
         ], $this->finance);
 
         $ideal = $debts->create([
-            'supplier_name' => 'Ideal',
+            'vendor_id' => $this->vendor('Ideal'),
             'total_amount' => 12_000_000,
             'project_id' => $project->id,
             'due_date' => now()->addWeeks(3)->toDateString(),
@@ -720,7 +762,7 @@ class DemoDataSeeder extends Seeder
         ], $this->finance);
 
         $debts->create([
-            'supplier_name' => 'HPL Makmur',
+            'vendor_id' => $this->vendor('HPL Makmur'),
             'total_amount' => 2_750_000,
         ], $this->finance);
     }
@@ -879,5 +921,82 @@ class DemoDataSeeder extends Seeder
             'reason' => 'Lembur tanpa koordinasi PM sebelumnya.',
         ], $this->fieldStaff[2]);
         $overtimeService->pmDecision($rejected, 'reject', $this->pm, 'Tidak ada bukti koordinasi sebelum lembur diajukan.');
+    }
+
+    /**
+     * Sprint 11 Sub 4–5 through the real services: a Tukang request that
+     * went PM → Logistics and became a CUSTOM line (bought, used, the
+     * spare handed to the client), one request still waiting at Logistics
+     * and one at the PM, and a catalog pair flagged "kemungkinan dobel"
+     * after a synonym was added — so the Pengajuan Barang and Cek Duplikat
+     * pages have something real.
+     */
+    private function seedMaterialRequests(Project $project, User $logistics, MaterialCatalogService $catalog): void
+    {
+        $requests = app(MaterialRequestService::class);
+        $projectMaterials = app(ProjectMaterialService::class);
+        $tukang = User::find(Task::where('project_id', $project->id)->value('assignee_id')) ?? $this->fieldStaff[0];
+
+        $handle = $requests->submit($project, [
+            'name' => 'Handle pintu panjang',
+            'qty' => 4,
+            'reason' => 'Handle bawaan lemari patah',
+        ], $tukang);
+        $requests->pmDecide($handle, 'approve', null, $project->pm);
+        $requests->review($handle, [
+            'decision' => 'CUSTOM',
+            'name' => 'Handle pintu aluminium 60cm',
+            'spec' => 'Hitam doff',
+            'unit_id' => $this->unit('pcs'),
+            'qty' => 4,
+            'unit_price' => 85_000,
+            'vendor_id' => $this->vendor('Toko Besi Sentosa'),
+        ], $logistics);
+        $projectMaterials->recordPurchase($handle, [
+            'qty' => 4,
+            'unit_price' => 85_000,
+            'purchase_date' => now()->subDays(2)->toDateString(),
+        ], $project->pm);
+        $projectMaterials->recordUsage($handle, ['qty' => 3], $project->pm);
+        $projectMaterials->handOverToClient($handle, ['qty' => 1, 'note' => 'Cadangan disimpan klien'], $project->pm);
+
+        // Still undecided: one at Logistics (from the PM), one at the PM (from the Tukang).
+        $requests->submit($project, [
+            'name' => 'Kaca cermin bevel 5mm',
+            'spec' => '60×90 cm, potong bevel',
+            'unit_id' => $this->unit('lbr'),
+            'qty' => 2,
+            'estimated_price' => 350_000,
+            'reason' => 'Ukuran khusus kamar mandi, tidak ada di katalog',
+        ], $project->pm);
+        $requests->submit($project, ['name' => 'Lem tembak', 'qty' => 2, 'reason' => 'Stok di lokasi habis'], $tukang);
+
+        // Written differently by two suppliers; the synonym added later reveals the duplicate.
+        $hardware = MaterialCategory::where('code_prefix', 'HDW')->value('id');
+        foreach (['F30' => null, 'F 30' => 'Ditulis berbeda oleh supplier'] as $spec => $reason) {
+            $catalog->create([
+                'material_category_id' => $hardware,
+                'base_name' => 'Paku Tembak',
+                'spec' => $spec,
+                'unit_id' => $this->unit('dus'),
+                'cost_price' => 35_000,
+                'sell_price' => 45_000,
+                'similar_reason' => $reason,
+            ], $logistics);
+        }
+        MaterialSynonym::firstOrCreate(['term' => 'f 30'], ['canonical' => 'f30']);
+        $catalog->rebuildMatchKeys();
+    }
+
+    /** Master Satuan id by code — UnitSeeder (run by DatabaseSeeder) provides the common ones. */
+    private function unit(string $code): int
+    {
+        return Unit::firstOrCreate(['code' => $code], ['name' => ucfirst($code)])->id;
+    }
+
+    /** Master Vendor id by name, created on first use. */
+    private function vendor(string $name): int
+    {
+        return Vendor::firstOrCreate(['name' => $name], ['type' => Vendor::TYPE_MATERIAL, 'created_by' => $this->ceo->id])->id;
     }
 }
