@@ -35,7 +35,22 @@ email) to browse it.
 | Sprint 8 | — (di luar CSV) | — | Gap PRD: Pinjaman Tukang, Hutang Supplier, Alokasi %, Termin DP, Lead FK, Overtime, Delay Desain | 28 selesai / 0 sebagian / 0 belum (28) | [sprint-08.md](sprint-08.md) |
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
-| Sprint 11 | — (di luar PRD/CSV) | — | Quotation cukup ACC PM (CEO notifikasi), master satuan (SUPERADMIN, qty pecahan), material Gudang/Pembelian/Custom + retur sisa ke gudang — + katalog anti-dobel + pengajuan barang ke Logistik — dikunci 2026-10-04, 2 pertanyaan tertunda | 0 selesai / 0 sebagian / 29 belum (29) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
+| Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 0 selesai / 0 sebagian / 30 belum (30) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
+| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 0 selesai / 0 sebagian / 66 belum (66) | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
+
+### Urutan kerja berikutnya (cara menyuruh Claude)
+
+Satu perintah = satu sub-plan = satu sesi. Kerjakan berurutan; Claude
+mengabari setelah tiap sub selesai (test + build lulus) dan mencentang
+checklist-nya.
+
+```
+"Kerjakan Sprint 11 Sub 1"  →  ... Sub 6        (sprint-11/01..06)
+"Kerjakan Sprint 12 Sub 1"  →  ... Sub 14       (sprint-12/01..14)
+```
+
+Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini
+dan checklist sub-plan untuk menemukan sub berikutnya yang belum selesai.
 
 ## Legenda checklist
 - `[x]` — Selesai

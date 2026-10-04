@@ -10,6 +10,15 @@
 > "Catatan penyesuaian", dan `rules/security-standards.md` §4 (contoh
 > "CEO lalu PM") ikut diperbarui.
 
+> ⚠️ **Disesuaikan oleh Sprint 12 (2026-10-04)** — lihat
+> [`sprint-12-revisi-alur.md`](sprint-12-revisi-alur.md) §4:
+> **Fitur A dibatalkan** (diganti Sprint 12 Sub 4: Survey/Desain cukup PM,
+> RAB Proyek PM → CEO); **Master Vendor** masuk Sprint 11 (Sub 2);
+> pengajuan barang diperluas untuk **Tukang** (ACC PM dulu, Sub 4).
+>
+> **Cara mengerjakan:** sprint ini dipecah jadi 6 sub-plan di folder
+> [`sprint-11/`](sprint-11/) — lihat §7. Kerjakan berurutan Sub 1 → Sub 6.
+
 Permintaan:
 1. Quotation dari Estimator **cukup di-ACC PM** (tidak lagi CEO → PM).
 2. Ada **master satuan barang**.
@@ -122,7 +131,7 @@ Permintaan:
 
 ---
 
-## 3. Fitur A — Quotation cukup ACC PM
+## 3. ~~Fitur A — Quotation cukup ACC PM~~ (DIBATALKAN — diganti Sprint 12 Sub 4, jangan dikerjakan)
 
 **Alur baru:** `DRAFT →(submit Estimator) SUBMITTED →(PM approve) SENT_TO_CLIENT`;
 PM reject → DRAFT versi berikutnya (mekanisme revisi tetap sama).
@@ -338,49 +347,16 @@ digabung Logistik (Lapis 6).
 
 ---
 
-## 7. Rencana eksekusi
+## 7. Sub-plan (satu file = satu sesi kerja)
 
-```
-Fase 1  ── A Quotation PM  ·  B Master Satuan        (paralel, kecil)
-Fase 2  ── C Material + C2 Anti-dobel katalog (butuh units dari B)
-Fase 3  ── seeder, test, build, docs
-```
+Saat mengerjakan, baca **file induk ini (§1–§6) + satu sub-plan**.
 
-### A · Quotation cukup ACC PM
-- [ ] **[Quotation]** `QuotationService`: hapus gate CEO, PM membaca dari SUBMITTED, notifikasi PM (aksi) + CEO (info)
-- [ ] **[Database]** Migrasi data `CEO_REVIEW` → `SUBMITTED` (reversibel; histori approval tidak diubah)
-- [ ] **[Quotation]** Hapus route + action `ceoDecision`, UI keputusan CEO di `Show.tsx`, sesuaikan dashboard & antrean
-- [ ] **[Test]** Submit → PM approve → SENT_TO_CLIENT; PM reject → DRAFT v+1; CEO tidak punya aksi approval tapi menerima notifikasi
-- [ ] **[Docs]** Catatan deviasi PRD §4.3/§6.2/§7.1 di `plan/README.md`, perbarui `security-standards.md` §4
-
-### B · Master Satuan
-- [ ] **[Database]** Tabel `units` + seeder satuan umum (pcs, dus, kg, lbr, btg, m, m2, sak, set, unit, ls)
-- [ ] **[MasterData]** Data Master → Satuan (CRUD SUPERADMIN, nonaktif bila terpakai)
-- [ ] **[Database]** Migrasi `materials.unit` & `quotation_items.unit` → `unit_id` (normalisasi + backfill + hapus kolom teks); qty item RAB → DECIMAL
-- [ ] **[UI]** Dropdown satuan di form Material & RAB quotation; PDF/Excel memakai master
-- [ ] **[Test]** CRUD satuan (SUPERADMIN saja, role lain 403), backfill migrasi, qty pecahan
-
-### C · Material Gudang / Pembelian / Custom
-- [ ] **[Database]** `materials` stok DECIMAL; `project_materials` (+source, custom, unit, harga, kolom pengajuan & tinjauan, qty received/returned/wasted/handed_over); `stock_movements` (+RETURN, project_material_id, unit_cost, qty DECIMAL)
-- [ ] **[Logistics]** `ProjectMaterialService`: rencana dari katalog, keluarkan dari gudang (harga gudang disalin), catat pembelian, pemakaian, retur, susut, serahkan ke klien — transaksi + lock, stok tidak negatif, pakai ≤ diterima, hanya baris DISETUJUI
-- [ ] **[Logistics]** `MaterialRequestService`: ajukan (PM/Estimator) → tinjau Logistik (pakai katalog / daftar katalog / custom / tolak + alasan), boleh ubah isi dengan snapshot isian awal, notifikasi pengaju, audit
-- [ ] **[Logistics]** Halaman antrean pengajuan Logistik: barang mirip + riwayat pengajuan serupa di proyek lain, form keputusan
-- [ ] **[Logistics]** Pengingat pengajuan belum ditinjau 1 hari kerja (job terjadwal, idempotent) + ringkasan tertunda untuk CEO
-- [ ] **[Logistics]** Retur barang custom: petakan ke katalog / daftarkan barang baru + harga gudang (lewat cek duplikat §5.5), lalu stok masuk
-- [ ] **[Projects]** Tab Material proyek: tabel per sumber (Gudang · Pembelian · Custom), status pengajuan, sisa per baris, tombol Retur/Susut/Serahkan klien, total biaya per sumber
-- [ ] **[Projects]** Blokir COMPLETED bila masih ada sisa belum dibereskan atau pengajuan masih DIAJUKAN (pesan menyebut barangnya)
-- [ ] **[Logistics]** Riwayat stok: kolom asal retur (proyek), filter jenis RETURN
-- [ ] **[Finance]** Tautan pembelian ↔ transaksi `BELI_BAHAN` — **menunggu T2**
-- [ ] **[Test]** Alur beli 19 → pakai 17 → retur 2 → proyek B ambil 2 (dibebankan harga gudang); pengajuan → 4 keputusan Logistik; baris DIAJUKAN tidak bisa dibeli/dipakai; PM/Estimator tidak bisa membuat custom langsung; custom → retur → katalog; PM hanya proyek miliknya; stok tidak negatif; blokir COMPLETED
-
-### C2 · Anti-dobel katalog (§5.5)
-- [ ] **[MasterData]** Master `material_categories` (+ prefix kode) dan daftar sinonim nama barang — CRUD SUPERADMIN
-- [ ] **[Database]** `materials`: kategori FK, nama dasar, spesifikasi, merek, kode otomatis, `match_key` UNIQUE, `merged_into_id`; migrasi data lama (bentrok → tandai "kemungkinan dobel", tidak gagal)
-- [ ] **[Logistics]** `MaterialCatalogService`: normalisasi `match_key`, cari barang mirip, buat barang (tolak persis, mirip → alasan wajib + audit)
-- [ ] **[UI]** Form barang terstruktur + panel "Barang serupa sudah ada"; pencarian katalog dulu di form material proyek, saran "Mungkin maksud Anda" sebelum mengajukan
-- [ ] **[Logistics]** Halaman Cek Duplikat + gabung barang B → A (stok via pergerakan, referensi diarahkan, B nonaktif, audit)
-- [ ] **[Test]** Variasi penulisan ("17mm"/"17 MM"/sinonim) ditolak sebagai dobel; simpan bersamaan → satu yang lolos; gabung barang memindahkan stok & referensi; PM/Estimator tidak bisa membuat barang katalog
-
-### Penutup
-- [ ] **[Setup]** DemoDataSeeder: quotation alur PM-only, satuan, baris GUDANG/PEMBELIAN/CUSTOM + retur
-- [ ] **[Setup]** `npm run build`, `pint --test`, `php artisan test`, update `plan/README.md`
+| Sub | File | Isi | Prasyarat | Task |
+|---|---|---|---|---|
+| ~~A~~ | — | ~~Quotation cukup ACC PM~~ — **dibatalkan**, diganti Sprint 12 Sub 4 | — | — |
+| 1 | [Master Satuan](sprint-11/01-master-satuan.md) | `units`, qty DECIMAL, dropdown satuan | — | 5 |
+| 2 | [Master Vendor](sprint-11/02-master-vendor.md) | `vendors` (CRUD SUPERADMIN + CEO), hutang supplier → vendor | — | 4 |
+| 3 | [Material Gudang · Pembelian · Custom](sprint-11/03-material-gudang-pembelian-custom.md) | Sumber baris, terima/pakai/retur/susut/serahkan, blokir COMPLETED | 1, 2 | 6 |
+| 4 | [Pengajuan barang](sprint-11/04-pengajuan-barang.md) | PM/Estimator → Logistik; Tukang → PM → Logistik | 3 | 6 |
+| 5 | [Katalog anti-dobel](sprint-11/05-anti-dobel-katalog.md) | `match_key`, barang mirip, gabung barang | 1, 4 | 6 |
+| 6 | [Penutup](sprint-11/06-penutup.md) | Seeder demo, docs, build & test | 1–5 | 3 |
