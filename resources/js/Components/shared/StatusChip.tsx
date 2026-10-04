@@ -86,6 +86,17 @@ const STATUS_TONE: Record<string, Tone> = {
     DAMAGED: 'error',
     IN: 'success',
     OUT: 'info',
+    // SDM — DisciplinaryType
+    TEGURAN_LISAN: 'warning',
+    SP1: 'warning',
+    SP2: 'error',
+    SP3: 'error',
+    CATATAN: 'neutral',
+    PEMBATALAN: 'neutral',
+    // SDM — KpiPeriodStatus / ReviewStatus (DRAFT/SUBMITTED/APPROVED reused from above)
+    OPEN: 'info',
+    CLOSED: 'success',
+    ACKNOWLEDGED: 'success',
 };
 
 function humanize(status: string) {

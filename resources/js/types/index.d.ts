@@ -4,8 +4,8 @@
 // and Inertia pages are built out.
 
 /**
- * PRD 2 — Stakeholders & Users. `SUPERADMIN` is a technical admin role
- * added outside the PRD — see database/seeders/RoleSeeder.php.
+ * PRD 2 — Stakeholders & Users. `SUPERADMIN` (technical admin) and `HR`
+ * (SDM, Sprint 10) are added outside the PRD — see database/seeders/RoleSeeder.php.
  */
 export type Role =
     | 'CEO'
@@ -17,7 +17,8 @@ export type Role =
     | 'FINANCE'
     | 'LOGISTICS'
     | 'FIELD_STAFF'
-    | 'SUPERADMIN';
+    | 'SUPERADMIN'
+    | 'HR';
 
 export interface User {
     id: number;
@@ -26,6 +27,8 @@ export interface User {
     email_verified_at?: string;
     role?: Role;
     is_active?: boolean;
+    /** SDM: linked to an active employee row — the "Milik Saya" menu shows only then. */
+    has_employee?: boolean;
 }
 
 export type PageProps<
@@ -812,11 +815,15 @@ export interface FinanceAllocationLine {
     amount: number;
 }
 
-/** PRD 4.7 "Gaji Karyawan Tetap" — permanent staff (not field staff); `user_id` optionally links an account. */
+/**
+ * PRD 4.7 "Gaji Karyawan Tetap" — permanent staff (not field staff); `user_id` optionally links an account.
+ * Since Sprint 10 the job title is `position_id` → Divisi → Jabatan (never free text), managed by HR.
+ */
 export interface Employee {
     id: number;
     name: string;
-    position: string;
+    position_id: number;
+    position?: (Pick<Position, 'id' | 'name' | 'division_id'> & { division?: Pick<Division, 'id' | 'name'> }) | null;
     user_id: number | null;
     user?: Pick<User, 'id' | 'name'> | null;
     base_salary: string;
@@ -852,8 +859,185 @@ export interface SalaryPayment {
 
 /** One row of the Penggajian table (PayrollController::index()). */
 export interface PayrollRow {
-    employee: Pick<Employee, 'id' | 'name' | 'position' | 'base_salary' | 'bank_name' | 'account_no' | 'is_active'>;
+    employee: Pick<Employee, 'id' | 'name' | 'base_salary' | 'bank_name' | 'account_no' | 'is_active'> & {
+        position_name: string | null;
+    };
     payment: SalaryPayment | null;
+}
+
+// ── SDM / HR (Sprint 10, .claude/plan/sprint-10-sdm.md) ─────────────────
+
+/** Decision #10 — top level of the Divisi → Jabatan master. */
+export interface Division {
+    id: number;
+    name: string;
+    is_active: boolean;
+    sort_order: number;
+    positions?: Position[];
+    positions_count?: number;
+}
+
+/** Decision #10 — a job position under one division (unique name per division). */
+export interface Position {
+    id: number;
+    division_id: number;
+    division?: Pick<Division, 'id' | 'name'>;
+    name: string;
+    is_active: boolean;
+    sort_order: number;
+    /** HR-eligible employees holding it (structure page). */
+    employees_count?: number;
+}
+
+/** §3.1 — SP1→SP2→SP3 escalate (decision #12); PEMBATALAN cancels a record via `voids_id`. */
+export type DisciplinaryType = 'TEGURAN_LISAN' | 'SP1' | 'SP2' | 'SP3' | 'CATATAN' | 'PEMBATALAN';
+
+/** §3.1 — append-only reprimand / warning letter. */
+export interface DisciplinaryRecord {
+    id: number;
+    employee_id: number;
+    employee?: Pick<Employee, 'id' | 'name'> & { position?: Employee['position'] };
+    type: DisciplinaryType;
+    issued_on: string;
+    valid_until: string | null;
+    description: string;
+    link: string | null;
+    voids_id: number | null;
+    recorded_by: number;
+    recorder?: Pick<User, 'id' | 'name'>;
+    created_at: string;
+    /** Derived: cancelled by a PEMBATALAN row. */
+    is_voided?: boolean;
+    /** Derived: an SP in force today. */
+    is_active_sp?: boolean;
+}
+
+/** Decision #3 — HR requests, the CEO decides once. */
+export type SalaryChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface SalaryChange {
+    id: number;
+    employee_id: number;
+    employee?: Pick<Employee, 'id' | 'name'> & { position?: Employee['position'] };
+    old_salary: string;
+    new_salary: string;
+    effective_date: string;
+    reason: string;
+    status: SalaryChangeStatus;
+    reject_note: string | null;
+    performance_review_id: number | null;
+    requested_by: number;
+    requester?: Pick<User, 'id' | 'name'>;
+    decided_by: number | null;
+    decider?: Pick<User, 'id' | 'name'> | null;
+    decided_at: string | null;
+    created_at: string;
+}
+
+/** §3.3 */
+export type KpiIndicatorSource = 'AUTO' | 'MANUAL';
+export type KpiDirection = 'HIGHER_BETTER' | 'LOWER_BETTER';
+export type KpiPeriodStatus = 'OPEN' | 'CLOSED';
+
+export interface KpiIndicator {
+    id: number;
+    kpi_template_id: number;
+    name: string;
+    source: KpiIndicatorSource;
+    metric_key: string | null;
+    target: string;
+    /** Percent; a template's weights total 100. */
+    weight: string;
+    direction: KpiDirection;
+    sort_order: number;
+}
+
+/** One template per position. */
+export interface KpiTemplate {
+    id: number;
+    position_id: number;
+    position?: Employee['position'];
+    is_active: boolean;
+    indicators?: KpiIndicator[];
+}
+
+export interface KpiPeriod {
+    id: number;
+    /** `YYYY-MM` */
+    period: string;
+    status: KpiPeriodStatus;
+    closed_by: number | null;
+    closer?: Pick<User, 'id' | 'name'> | null;
+    closed_at: string | null;
+}
+
+/** One employee × indicator × month, indicator snapshotted in; locked once the period is CLOSED. */
+export interface KpiScore {
+    id: number;
+    kpi_period_id: number;
+    employee_id: number;
+    kpi_indicator_id: number | null;
+    indicator_name: string;
+    source: KpiIndicatorSource;
+    metric_key: string | null;
+    target: string;
+    weight: string;
+    direction: KpiDirection;
+    actual: string | null;
+    /** 0–120 */
+    score: string | null;
+    weighted_score: string | null;
+    input_by: number | null;
+}
+
+/** §3.4 — DRAFT → SUBMITTED → APPROVED → ACKNOWLEDGED (CEO may return SUBMITTED to DRAFT). */
+export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'ACKNOWLEDGED';
+export type ReviewGrade = 'A' | 'B' | 'C' | 'D' | 'E';
+export type ReviewRecommendation = 'NAIK_GAJI' | 'BONUS' | 'PEMBINAAN' | 'SP' | 'TIDAK_ADA';
+
+/** Qualitative aspects, each 1–5. */
+export interface ReviewQualitative {
+    attitude: number;
+    teamwork: number;
+    initiative: number;
+    responsibility: number;
+}
+
+/** Final-score weights in percent (total 100). Default KPI 60 · kualitatif 25 · kedisiplinan 15. */
+export interface ReviewWeights {
+    kpi: number;
+    qualitative: number;
+    discipline: number;
+}
+
+export interface PerformanceReview {
+    id: number;
+    employee_id: number;
+    employee?: Pick<Employee, 'id' | 'name' | 'user_id'> & { position?: Employee['position'] };
+    year: number;
+    /** 1 = Jan–Jun, 2 = Jul–Des */
+    semester: 1 | 2;
+    kpi_average: string | null;
+    kpi_months: number;
+    discipline_summary: Record<string, number | string | null> | null;
+    discipline_score: string | null;
+    qualitative: ReviewQualitative | null;
+    qualitative_score: string | null;
+    weights: ReviewWeights | null;
+    final_score: string | null;
+    grade: ReviewGrade | null;
+    recommendation: ReviewRecommendation | null;
+    notes: string | null;
+    status: ReviewStatus;
+    return_note: string | null;
+    reviewer_id: number;
+    reviewer?: Pick<User, 'id' | 'name'>;
+    submitted_at: string | null;
+    approved_by: number | null;
+    approver?: Pick<User, 'id' | 'name'> | null;
+    approved_at: string | null;
+    acknowledged_at: string | null;
+    created_at: string;
 }
 
 /**

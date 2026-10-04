@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class UserService
 {
@@ -43,6 +45,19 @@ class UserService
         // Attributes left to DB defaults (is_active) aren't on an instance
         // that was never re-read — start from the stored row.
         $user->refresh();
+
+        // Sprint 10 decision #11: field staff are kept out of SDM, so an
+        // account linked to an employee row can't become FIELD_STAFF until
+        // HR unlinks it — otherwise the two data sets would mix silently.
+        if ($data['role'] === 'FIELD_STAFF' && ! $user->hasRole('FIELD_STAFF')) {
+            $employee = Employee::query()->where('user_id', $user->id)->first();
+
+            if ($employee) {
+                throw ValidationException::withMessages([
+                    'role' => "Akun ini tertaut ke data karyawan {$employee->name} — lepas tautannya di menu SDM → Karyawan sebelum dijadikan Field Staff.",
+                ]);
+            }
+        }
 
         return DB::transaction(function () use ($user, $data) {
             $before = [

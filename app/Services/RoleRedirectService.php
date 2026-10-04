@@ -37,6 +37,8 @@ class RoleRedirectService
         // business role — lands straight on its own tool instead of the
         // business dashboard.
         'SUPERADMIN' => 'master-data.index',
+        // SDM (Sprint 10, outside the PRD) — the HR dashboard.
+        'HR' => 'hr.dashboard',
     ];
 
     /**

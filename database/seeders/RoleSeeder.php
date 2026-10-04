@@ -17,6 +17,10 @@ class RoleSeeder extends Seeder
      * app/Http/Middleware/RoleMiddleware.php) plus CRUD over Master Data
      * (Branches, Lead Sources, Lead Categories — app/Http/Controllers/MasterData).
      * It exists for system administration, separate from CEO's business role.
+     *
+     * `HR` (SDM) is also outside the PRD — added in Sprint 10 for the SDM
+     * module (employees, discipline, salary changes, KPI, reviews; see
+     * .claude/plan/sprint-10-sdm.md decision #2).
      */
     private const ROLES = [
         'CEO',
@@ -29,6 +33,7 @@ class RoleSeeder extends Seeder
         'LOGISTICS',
         'FIELD_STAFF',
         'SUPERADMIN',
+        'HR',
     ];
 
     /**

@@ -32,7 +32,6 @@ function payrollEmployee(array $attributes = []): Employee
 {
     return Employee::factory()->create([
         'name' => 'Boy',
-        'position' => 'Marketing',
         'base_salary' => 5_000_000,
         'join_date' => '2024-01-15',
         ...$attributes,
@@ -66,7 +65,7 @@ test('every other role — PM included — is refused the payroll page', functio
     $this->actingAs(payrollUser($role))->get(route('finance.payroll.index'))->assertForbidden();
 })->with(['PM', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'QA', 'LOGISTICS', 'FIELD_STAFF']);
 
-test('only Finance can pay salaries and manage employees', function (string $role) {
+test('only Finance can pay salaries', function (string $role) {
     $user = payrollUser($role);
     $employee = payrollEmployee();
 
@@ -75,19 +74,6 @@ test('only Finance can pay salaries and manage employees', function (string $rol
         'period' => now()->format('Y-m'),
         'paid_at' => now()->toDateString(),
         'bank_account_id' => BankAccount::factory()->create()->id,
-    ])->assertForbidden();
-
-    $this->actingAs($user)->post(route('finance.employees.store'), [
-        'name' => 'Icha',
-        'position' => 'Desainer',
-        'base_salary' => 4_500_000,
-    ])->assertForbidden();
-
-    $this->actingAs($user)->put(route('finance.employees.update', $employee), [
-        'name' => 'Boy',
-        'position' => 'Marketing',
-        'base_salary' => 99_000_000,
-        'is_active' => true,
     ])->assertForbidden();
 
     expect(SalaryPayment::count())->toBe(0)
@@ -103,8 +89,7 @@ test('the CEO reads the page without payment controls', function () {
     $this->actingAs(payrollUser('CEO'))->get(route('finance.payroll.index'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('canManage', false)
-            ->has('bankAccounts', 0)
-            ->has('linkableUsers', 0));
+            ->has('bankAccounts', 0));
 
     $this->actingAs(payrollUser('FINANCE'))->get(route('finance.payroll.index'))
         ->assertInertia(fn (Assert $page) => $page->where('canManage', true)->has('bankAccounts', 1));
@@ -118,95 +103,7 @@ test('no payroll or employee route can delete anything', function () {
     expect($methods->contains('DELETE'))->toBeFalse();
 });
 
-// ── Employees ────────────────────────────────────────────────────────────
-
-test('Finance adds an employee, which is audited', function () {
-    $finance = payrollUser('FINANCE');
-    $account = payrollUser('DESIGNER');
-
-    $this->actingAs($finance)->post(route('finance.employees.store'), [
-        'name' => 'Icha',
-        'position' => 'Desainer',
-        'base_salary' => 4_500_000,
-        'user_id' => $account->id,
-        'bank_name' => 'BCA',
-        'account_no' => '1234567890',
-        'join_date' => '2023-05-02',
-        'is_active' => false, // new employees always start active
-    ])->assertRedirect()->assertSessionHasNoErrors();
-
-    $employee = Employee::sole();
-    expect($employee->name)->toBe('Icha')
-        ->and($employee->user_id)->toBe($account->id)
-        ->and($employee->is_active)->toBeTrue()
-        ->and($employee->created_by)->toBe($finance->id)
-        ->and((float) $employee->base_salary)->toBe(4_500_000.0);
-
-    $audit = AuditLog::where('action', 'finance.employee_created')->sole();
-    expect($audit->model_id)->toBe($employee->id)
-        ->and((float) $audit->new_values['base_salary'])->toBe(4_500_000.0);
-});
-
-test('employee input is validated with Indonesian messages', function () {
-    $finance = payrollUser('FINANCE');
-
-    $this->actingAs($finance)->post(route('finance.employees.store'), ['base_salary' => 0])
-        ->assertSessionHasErrors([
-            'name' => 'Nama karyawan wajib diisi.',
-            'position' => 'Jabatan wajib diisi.',
-            'base_salary' => 'Gaji pokok harus lebih dari 0.',
-        ]);
-
-    // Field staff are paid per task, never a monthly salary.
-    $this->actingAs($finance)->post(route('finance.employees.store'), [
-        'name' => 'Rudi',
-        'position' => 'Tukang',
-        'base_salary' => 3_000_000,
-        'user_id' => payrollUser('FIELD_STAFF')->id,
-    ])->assertSessionHasErrors('user_id');
-
-    // One employee per account.
-    $linked = payrollEmployee(['user_id' => payrollUser('MARKETING')->id]);
-    $this->actingAs($finance)->post(route('finance.employees.store'), [
-        'name' => 'Boy 2',
-        'position' => 'Marketing',
-        'base_salary' => 3_000_000,
-        'user_id' => $linked->user_id,
-    ])->assertSessionHasErrors(['user_id' => 'Akun ini sudah ditautkan ke karyawan lain.']);
-
-    expect(Employee::count())->toBe(1);
-});
-
-test('Finance updates a salary and deactivates an employee, both audited', function () {
-    $finance = payrollUser('FINANCE');
-    $employee = payrollEmployee(['user_id' => payrollUser('MARKETING')->id]);
-
-    $this->actingAs($finance)->put(route('finance.employees.update', $employee), [
-        'name' => 'Boy',
-        'position' => 'Marketing',
-        'base_salary' => 5_500_000,
-        'user_id' => $employee->user_id, // keeping its own link is not a duplicate
-        'join_date' => '2024-01-15',
-        'is_active' => true,
-    ])->assertSessionHasNoErrors();
-
-    $audit = AuditLog::where('action', 'finance.employee_updated')->sole();
-    expect(array_keys($audit->new_values))->toBe(['base_salary'])
-        ->and((float) $audit->old_values['base_salary'])->toBe(5_000_000.0)
-        ->and((float) $audit->new_values['base_salary'])->toBe(5_500_000.0);
-
-    $this->actingAs($finance)->put(route('finance.employees.update', $employee), [
-        'name' => 'Boy',
-        'position' => 'Marketing',
-        'base_salary' => 5_500_000,
-        'user_id' => $employee->user_id,
-        'join_date' => '2024-01-15',
-        'is_active' => false,
-    ])->assertSessionHasNoErrors();
-
-    expect($employee->fresh()->is_active)->toBeFalse()
-        ->and(AuditLog::where('action', 'finance.employee_updated')->latest('id')->first()->new_values)->toBe(['is_active' => false]);
-});
+// ── Employees (managed by HR since Sprint 10 — tests/Feature/HR/EmployeeTest.php) ──
 
 test('employees are never deleted', function () {
     $employee = payrollEmployee();
@@ -473,26 +370,4 @@ test('the page lists who is paid for the selected month', function () {
 
     expect($icha->fresh()->salaryPayments()->count())->toBe(0)
         ->and($newcomer->is_active)->toBeTrue();
-});
-
-test('the link picker offers active non-field-staff accounts plus current links', function () {
-    $finance = payrollUser('FINANCE');
-    $designer = payrollUser('DESIGNER');
-    $fieldStaff = payrollUser('FIELD_STAFF');
-    $inactiveLinked = payrollUser('MARKETING');
-    $inactiveLinked->update(['is_active' => false]);
-    $inactiveUnlinked = payrollUser('QA');
-    $inactiveUnlinked->update(['is_active' => false]);
-    payrollEmployee(['user_id' => $inactiveLinked->id]);
-
-    $this->actingAs($finance)->get(route('finance.payroll.index'))
-        ->assertInertia(fn (Assert $page) => $page->where('linkableUsers', function ($users) use ($finance, $designer, $fieldStaff, $inactiveLinked, $inactiveUnlinked) {
-            $ids = $users->pluck('id');
-
-            return $ids->contains($finance->id)
-                && $ids->contains($designer->id)
-                && $ids->contains($inactiveLinked->id)
-                && ! $ids->contains($fieldStaff->id)
-                && ! $ids->contains($inactiveUnlinked->id);
-        }));
 });

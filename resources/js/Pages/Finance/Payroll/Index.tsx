@@ -1,6 +1,6 @@
-import { EmployeeFormDialog } from '@/Components/modules/finance/EmployeeFormDialog';
 import { SalaryPaymentDialog } from '@/Components/modules/finance/SalaryPaymentDialog';
 import { DataTable } from '@/Components/shared/DataTable';
+import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -10,12 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
-import type { BankAccount, Employee, PayrollRow, User } from '@/types';
+import type { BankAccount, Employee, PayrollRow } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { format, subMonths } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CheckCircle2, Clock, Pencil, UserPlus, Users, Wallet, WalletCards } from 'lucide-react';
+import { CheckCircle2, Clock, Users, Wallet, WalletCards } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface PayrollIndexProps {
@@ -28,7 +28,6 @@ interface PayrollIndexProps {
     employees: Employee[];
     canManage: boolean;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
-    linkableUsers: Pick<User, 'id' | 'name'>[];
 }
 
 const TAB_LABEL: Record<string, string> = { payroll: 'Gaji Bulanan', employees: 'Karyawan' };
@@ -57,12 +56,9 @@ export default function PayrollIndex({
     employees,
     canManage,
     bankAccounts,
-    linkableUsers,
 }: PayrollIndexProps) {
     const [tab, setTab] = useState('payroll');
     const [paying, setPaying] = useState<PayrollRow | null>(null);
-    const [employeeDialogOpen, setEmployeeDialogOpen] = useState(false);
-    const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
     const monthOptions = useMemo(() => {
         const latest = periodToDate(currentPeriod);
@@ -80,11 +76,6 @@ export default function PayrollIndex({
         router.get(route('finance.payroll.index'), { period: value }, { preserveState: true, preserveScroll: true, replace: true });
     }
 
-    function openEmployeeDialog(employee: Employee | null) {
-        setEditingEmployee(employee);
-        setEmployeeDialogOpen(true);
-    }
-
     const payrollColumns: ColumnDef<PayrollRow>[] = [
         {
             id: 'employee',
@@ -98,7 +89,7 @@ export default function PayrollIndex({
                             <StatusChip status="INACTIVE_EMPLOYEE" tone="neutral" label="Nonaktif" className="ml-2" />
                         )}
                     </p>
-                    <p className="text-xs text-daiku-muted">{row.original.employee.position}</p>
+                    <p className="text-xs text-daiku-muted">{row.original.employee.position_name ?? '—'}</p>
                 </div>
             ),
         },
@@ -182,7 +173,7 @@ export default function PayrollIndex({
             cell: ({ row }) => (
                 <div>
                     <p className="font-medium text-daiku-dark">{row.original.name}</p>
-                    <p className="text-xs text-daiku-muted">{row.original.position}</p>
+                    <p className="text-xs text-daiku-muted">{row.original.position?.name ?? '—'}</p>
                 </div>
             ),
         },
@@ -226,27 +217,6 @@ export default function PayrollIndex({
                 />
             ),
         },
-        ...(canManage
-            ? [
-                  {
-                      id: 'actions',
-                      header: '',
-                      enableSorting: false,
-                      cell: ({ row }) => (
-                          <div className="flex justify-end">
-                              <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  aria-label={`Edit ${row.original.name}`}
-                                  onClick={() => openEmployeeDialog(row.original)}
-                              >
-                                  <Pencil className="size-4" />
-                              </Button>
-                          </div>
-                      ),
-                  } satisfies ColumnDef<Employee>,
-              ]
-            : []),
     ];
 
     return (
@@ -271,14 +241,7 @@ export default function PayrollIndex({
                                 ))}
                             </SelectContent>
                         </Select>
-                    ) : (
-                        canManage && (
-                            <Button size="sm" onClick={() => openEmployeeDialog(null)}>
-                                <UserPlus className="size-4" />
-                                Tambah Karyawan
-                            </Button>
-                        )
-                    )
+                    ) : null
                 }
             />
 
@@ -321,34 +284,28 @@ export default function PayrollIndex({
                         data={rows}
                         emptyMessage={
                             employees.length === 0
-                                ? 'Belum ada karyawan — tambahkan di tab Karyawan.'
+                                ? 'Belum ada karyawan — data karyawan dikelola SDM.'
                                 : `Tidak ada karyawan yang digaji untuk ${periodLabel}.`
                         }
                     />
                 </TabsContent>
 
                 <TabsContent value="employees" className="mt-6">
+                    <Notice tone="info" className="mb-4">
+                        Data karyawan dan perubahan gaji pokok dikelola SDM (perubahan gaji disetujui CEO). Finance membayar gaji di tab Gaji Bulanan.
+                    </Notice>
                     <DataTable columns={employeeColumns} data={employees} emptyMessage="Belum ada karyawan tetap." />
                 </TabsContent>
             </Tabs>
 
             {canManage && (
-                <>
-                    <SalaryPaymentDialog
-                        row={paying}
-                        period={period}
-                        periodLabel={periodLabel}
-                        bankAccounts={bankAccounts}
-                        onOpenChange={(open) => !open && setPaying(null)}
-                    />
-                    <EmployeeFormDialog
-                        open={employeeDialogOpen}
-                        onOpenChange={setEmployeeDialogOpen}
-                        employee={editingEmployee}
-                        employees={employees}
-                        linkableUsers={linkableUsers}
-                    />
-                </>
+                <SalaryPaymentDialog
+                    row={paying}
+                    period={period}
+                    periodLabel={periodLabel}
+                    bankAccounts={bankAccounts}
+                    onOpenChange={(open) => !open && setPaying(null)}
+                />
             )}
         </AppLayout>
     );

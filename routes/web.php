@@ -8,7 +8,6 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\DesignController;
 use App\Http\Controllers\Design\DesignDashboardController;
 use App\Http\Controllers\Finance\AssetInstallmentController;
-use App\Http\Controllers\Finance\EmployeeController;
 use App\Http\Controllers\Finance\FamilyGatheringFundController;
 use App\Http\Controllers\Finance\FinanceAllocationConfigController;
 use App\Http\Controllers\Finance\FinanceTransactionController;
@@ -18,6 +17,8 @@ use App\Http\Controllers\Finance\PenaltyController;
 use App\Http\Controllers\Finance\StaffLoanController;
 use App\Http\Controllers\Finance\SupplierDebtController;
 use App\Http\Controllers\Finance\TerminController;
+use App\Http\Controllers\HR\HrDashboardController;
+use App\Http\Controllers\HR\MyHrController;
 use App\Http\Controllers\Logistics\AssetController;
 use App\Http\Controllers\Logistics\MaterialController;
 use App\Http\Controllers\Logistics\ProjectMaterialController;
@@ -411,10 +412,10 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
         ->name('assetInstallments.storePayment');
 
     // Payroll (Gaji Karyawan Tetap) — PRD §4.7, Sprint 9 decision #7.
-    // Salaries are confidential: CEO reads, Finance pays and manages the
-    // employee list; every other role (PM included) gets 403. Employees
-    // are deactivated, never deleted, and salary payments are append-only
-    // — deliberately no destroy routes.
+    // Salaries are confidential: CEO reads, Finance pays; every other role
+    // (PM included) gets 403. The employee list itself is managed by HR
+    // since Sprint 10 (routes/hr/employees.php). Salary payments are
+    // append-only — deliberately no destroy routes.
     Route::get('payroll', [PayrollController::class, 'index'])
         ->middleware('role:CEO|FINANCE')
         ->name('payroll.index');
@@ -422,14 +423,6 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
     Route::post('payroll/payments', [PayrollController::class, 'pay'])
         ->middleware('role:FINANCE')
         ->name('payroll.pay');
-
-    Route::post('employees', [EmployeeController::class, 'store'])
-        ->middleware('role:FINANCE')
-        ->name('employees.store');
-
-    Route::put('employees/{employee}', [EmployeeController::class, 'update'])
-        ->middleware('role:FINANCE')
-        ->name('employees.update');
 
     // Allocation percentages — PRD §4.7 "dikonfigurasi di
     // finance_allocation_configs dan bisa diubah CEO/Finance". Rows are
@@ -597,6 +590,31 @@ Route::middleware(['auth', 'role:SUPERADMIN'])->prefix('master-data')->name('mas
     Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
     Route::put('bank-accounts/{bank_account}', [BankAccountController::class, 'update'])->name('bank-accounts.update');
     Route::delete('bank-accounts/{bank_account}', [BankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
+});
+
+// SDM / HR — Sprint 10 (outside the PRD, .claude/plan/sprint-10-sdm.md).
+// One `module:hr` gate for the whole module (CEO reads, HR manages;
+// decision #2 — swapped for per-user module access later); finer
+// per-action `role:` rules live in each part's route file. Field staff
+// never appear in SDM data (decision #11, Employee::scopeHrEligible()).
+Route::middleware(['auth', 'module:hr'])->prefix('hr')->name('hr.')->group(function () {
+    Route::get('/', [HrDashboardController::class, 'index'])->name('dashboard');
+    require __DIR__.'/hr/employees.php';
+    require __DIR__.'/hr/discipline.php';
+    require __DIR__.'/hr/salary.php';
+    require __DIR__.'/hr/kpi.php';
+    require __DIR__.'/hr/reviews.php';
+});
+
+// SDM "Milik Saya" — an employee's own KPI, reviews, warnings and salary
+// history (decision #6). `employee.self` resolves the signed-in user's
+// own employee row and refuses everyone else, field staff included.
+Route::middleware(['auth', 'employee.self'])->prefix('saya')->name('my.')->group(function () {
+    Route::get('/', [MyHrController::class, 'index'])->name('index');
+    require __DIR__.'/my/discipline.php';
+    require __DIR__.'/my/salary.php';
+    require __DIR__.'/my/kpi.php';
+    require __DIR__.'/my/reviews.php';
 });
 
 // Site Settings / web customization — CEO + SUPERADMIN only (not itemized

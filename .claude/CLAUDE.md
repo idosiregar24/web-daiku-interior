@@ -81,6 +81,15 @@ status): [`plan/README.md`](plan/README.md). Source task list:
 8. **Sidebar nav (`Layouts/AppLayout.tsx`) tracks reality.** A module's
    `NAV_GROUPS` entry gets a real `routeName` only once its `index` route
    actually exists — until then it renders disabled ("Segera").
+9. **SDM / HR module (Sprint 10, outside the PRD — `plan/sprint-10-sdm.md`).**
+   `HR` is a non-PRD role like SUPERADMIN. All `hr.*` routes sit behind one
+   `module:hr` gate (`ModuleAccessMiddleware`, the future per-user module
+   access hook) plus per-action `role:`. HR — not Finance — manages
+   employees; job titles are `position_id` → Divisi → Jabatan, never free
+   text; `base_salary` only changes via a CEO-approved `salary_changes` row.
+   Field staff are never part of SDM: query employees through
+   `Employee::query()->hrEligible()`. An employee's own pages are `my.*`
+   (`employee.self` middleware) and show only final data.
 
 ## Local environment
 

@@ -120,7 +120,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                 <DialogHeader>
                     <DialogTitle>Bayar Gaji</DialogTitle>
                     <DialogDescription>
-                        {row?.employee.name} ({row?.employee.position}) — periode {periodLabel}. Tercatat sebagai
+                        {row?.employee.name} ({row?.employee.position_name ?? '—'}) — periode {periodLabel}. Tercatat sebagai
                         pengeluaran Gaji Karyawan.
                     </DialogDescription>
                 </DialogHeader>

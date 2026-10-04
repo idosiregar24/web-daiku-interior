@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Middleware\EnsureLinkedEmployee;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\ModuleAccessMiddleware;
 use App\Http\Middleware\RoleMiddleware as AppRoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -32,7 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
         // `role` points at our own AppRoleMiddleware (wraps Spatie's), not
         // Spatie's directly — it adds a SUPERADMIN bypass so that technical
         // admin role gets unconditional access to every role-gated route.
+        // `module` gates a whole module route group (Sprint 10 decision #2 —
+        // swapped for per-user module access later); `employee.self` gates
+        // the SDM "Milik Saya" pages to users linked to an employee row.
         $middleware->alias([
+            'module' => ModuleAccessMiddleware::class,
+            'employee.self' => EnsureLinkedEmployee::class,
             'role' => AppRoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'role_or_permission' => RoleOrPermissionMiddleware::class,

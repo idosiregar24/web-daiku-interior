@@ -34,7 +34,7 @@ email) to browse it.
 | Sprint 7 | Week 13 | Bulan 4 | UAT, Setup, Bugfix, Security, Docs | 2 selesai / 1 sebagian / 7 belum (10) | [sprint-07.md](sprint-07.md) |
 | Sprint 8 | — (di luar CSV) | — | Gap PRD: Pinjaman Tukang, Hutang Supplier, Alokasi %, Termin DP, Lead FK, Overtime, Delay Desain | 28 selesai / 0 sebagian / 0 belum (28) | [sprint-08.md](sprint-08.md) |
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
-| Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester — keputusan dikunci 2026-10-04; absensi ditunda (menunggu alat) | 0 selesai / 0 sebagian / 31 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
+| Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
 | Sprint 11 | — (di luar PRD/CSV) | — | Quotation cukup ACC PM (CEO notifikasi), master satuan (SUPERADMIN, qty pecahan), material Gudang/Pembelian/Custom + retur sisa ke gudang — + katalog anti-dobel + pengajuan barang ke Logistik — dikunci 2026-10-04, 2 pertanyaan tertunda | 0 selesai / 0 sebagian / 29 belum (29) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
 
 ## Legenda checklist

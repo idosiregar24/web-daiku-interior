@@ -771,20 +771,27 @@ class DemoDataSeeder extends Seeder
         $payroll = app(PayrollService::class);
         $lastMonth = now()->subMonthNoOverflow();
 
+        // SDM (Sprint 10): positions come from the Divisi → Jabatan master;
+        // demo accounts are linked so KPI auto-indicators and the "Milik
+        // Saya" pages have someone real to show.
+        $this->call(OrganizationStructureSeeder::class);
+
         $staff = [
-            ['Boy', 'Marketing', 4_500_000, null],
-            ['Icha', 'Desainer Interior', 5_000_000, null],
-            ['Ami', 'Estimator', 5_000_000, null],
+            ['Boy', 'Marketing', 4_500_000, 'marketing@daikuinterior.com'],
+            ['Icha', 'Desainer Interior', 5_000_000, 'designer@daikuinterior.com'],
+            ['Ami', 'Estimator', 5_000_000, 'estimator@daikuinterior.com'],
             ['Ibnu', 'Drafter', 4_250_000, null],
             ['Ilham', 'Admin Finance', 4_000_000, 'finance@daikuinterior.com'],
             ['Hesti', 'Admin Kantor', 3_750_000, null],
             ['Satria', 'Staf Gudang', 3_500_000, null],
+            ['Rojab', 'Project Manager', 6_000_000, 'pm@daikuinterior.com'],
+            ['Yola', 'Staf SDM', 4_250_000, 'hr@daikuinterior.com'],
         ];
 
         foreach ($staff as $i => [$name, $position, $salary, $email]) {
             $employee = $employees->create([
                 'name' => $name,
-                'position' => $position,
+                'position_id' => OrganizationStructureSeeder::position($position)->id,
                 'base_salary' => $salary,
                 'user_id' => $email ? User::where('email', $email)->value('id') : null,
                 'bank_name' => 'BCA',

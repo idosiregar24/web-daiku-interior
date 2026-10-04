@@ -1,7 +1,10 @@
 # Sprint 10 — Modul SDM / HR (di luar PRD & CSV)
 
-> Status: **keputusan dikunci 2026-10-04, belum ada kode.** Absensi
-> (SDM-7) masih menunggu pilihan alat absen dari user.
+> Status: **SDM-1 s.d. SDM-6 selesai (2026-10-04)** — 26 dari 31 task;
+> sisanya SDM-7 Absensi, menunggu pilihan alat absen dari user. Suite:
+> 1156 test lulus, `npm run build` dan `pint --test` bersih, migrasi +
+> seed demo diverifikasi di MySQL (database scratch). Catatan
+> implementasi & penyimpangan: §7 di bawah.
 >
 > Aturan kerja tetap sama: `.claude/CLAUDE.md` + `.claude/rules/*` (thin
 > controller → Service, Form Request, `role:` + Policy, audit append-only,
@@ -267,42 +270,42 @@ Ditunda ── SDM-7 Absensi (menunggu pilihan alat absen)
 ```
 
 ### SDM-1 · Fondasi
-- [ ] **[Setup]** Role `HR` di `RoleSeeder` + `ProductionSeeder`, user demo `hr@daikuinterior.com`, redirect dashboard (`RoleRedirectService`)
-- [ ] **[Setup]** Grup route `hr.*` dengan satu middleware modul (siap diganti akses per-user nanti — keputusan #2)
-- [ ] **[Setup]** Grup `NAV_GROUPS` "SDM" (Karyawan, Kedisiplinan, Gaji, KPI, Evaluasi — disabled sampai route ada)
-- [ ] **[Database]** Master `divisions` → `positions` + `employees.position_id` wajib (backfill dari teks `position`, lalu kolom teks dihapus); halaman Divisi & Jabatan di Data Master (aktif/nonaktif, tanpa hapus bila terpakai)
-- [ ] **[HR]** Pengecualian tukang (keputusan #11): validasi `user_id` bukan FIELD_STAFF, `Employee::scopeHrEligible()`, tolak pemberian role FIELD_STAFF ke user yang tertaut karyawan
-- [ ] **[HR]** Halaman Karyawan untuk HR (CRU, nonaktifkan) + profil bertab (Ringkasan · Kedisiplinan · Gaji · KPI · Evaluasi); Finance tetap read + bayar
+- [x] **[Setup]** Role `HR` di `RoleSeeder` + `ProductionSeeder`, user demo `hr@daikuinterior.com`, redirect dashboard (`RoleRedirectService`)
+- [x] **[Setup]** Grup route `hr.*` dengan satu middleware modul (siap diganti akses per-user nanti — keputusan #2)
+- [x] **[Setup]** Grup `NAV_GROUPS` "SDM" (Karyawan, Kedisiplinan, Gaji, KPI, Evaluasi — disabled sampai route ada)
+- [x] **[Database]** Master `divisions` → `positions` + `employees.position_id` wajib (backfill dari teks `position`, lalu kolom teks dihapus); halaman Divisi & Jabatan di Data Master (aktif/nonaktif, tanpa hapus bila terpakai)
+- [x] **[HR]** Pengecualian tukang (keputusan #11): validasi `user_id` bukan FIELD_STAFF, `Employee::scopeHrEligible()`, tolak pemberian role FIELD_STAFF ke user yang tertaut karyawan
+- [x] **[HR]** Halaman Karyawan untuk HR (CRU, nonaktifkan) + profil bertab (Ringkasan · Kedisiplinan · Gaji · KPI · Evaluasi); Finance tetap read + bayar
 
 ### SDM-2 · Kedisiplinan
-- [ ] **[HR]** `disciplinary_records` + `DisciplineService` (terbit, pembatalan, masa berlaku, SP bertingkat wajib — keputusan 12)
-- [ ] **[HR]** Halaman rekap SP aktif + riwayat per karyawan, export Excel
-- [ ] **[HR]** Notifikasi ke karyawan (bila punya akun) saat SP diterbitkan
+- [x] **[HR]** `disciplinary_records` + `DisciplineService` (terbit, pembatalan, masa berlaku, SP bertingkat wajib — keputusan 12)
+- [x] **[HR]** Halaman rekap SP aktif + riwayat per karyawan, export Excel
+- [x] **[HR]** Notifikasi ke karyawan (bila punya akun) saat SP diterbitkan
 
 ### SDM-3 · Gaji
-- [ ] **[HR]** `salary_changes` + `SalaryChangeService` (ajukan → approve/tolak CEO → update `base_salary` dalam satu transaksi, diaudit)
-- [ ] **[Finance]** Kunci `base_salary` dari form edit karyawan (hanya nilai awal saat dibuat)
-- [ ] **[HR]** Rekap gaji per karyawan (riwayat bayar, perubahan gaji pokok, sisa pinjaman)
-- [ ] **[HR]** Rekap beban gaji per bulan & per jabatan
+- [x] **[HR]** `salary_changes` + `SalaryChangeService` (ajukan → approve/tolak CEO → update `base_salary` dalam satu transaksi, diaudit)
+- [x] **[Finance]** Kunci `base_salary` dari form edit karyawan (hanya nilai awal saat dibuat)
+- [x] **[HR]** Rekap gaji per karyawan (riwayat bayar, perubahan gaji pokok, sisa pinjaman)
+- [x] **[HR]** Rekap beban gaji per bulan & per jabatan
 
 ### SDM-4 · KPI
-- [ ] **[HR]** Template & indikator per jabatan (validasi bobot 100%, peringatan indikator otomatis vs karyawan tanpa akun)
-- [ ] **[HR]** `KpiService`: kalkulator `metric_key` otomatis (reuse `DivisionDashboardService`), input manual, rumus skor
-- [ ] **[HR]** Periode KPI: buka (job tanggal 1) → hitung → tutup (snapshot dikunci, diaudit)
-- [ ] **[HR]** Halaman KPI: peringkat per jabatan, detail per karyawan, tren bulanan
+- [x] **[HR]** Template & indikator per jabatan (validasi bobot 100%, peringatan indikator otomatis vs karyawan tanpa akun)
+- [x] **[HR]** `KpiService`: kalkulator `metric_key` otomatis (reuse `DivisionDashboardService`), input manual, rumus skor
+- [x] **[HR]** Periode KPI: buka (job tanggal 1) → hitung → tutup (snapshot dikunci, diaudit)
+- [x] **[HR]** Halaman KPI: peringkat per jabatan, detail per karyawan, tren bulanan
 
 ### SDM-5 · Evaluasi
-- [ ] **[HR]** `performance_reviews` + state machine DRAFT → SUBMITTED → APPROVED/kembali → ACKNOWLEDGED
-- [ ] **[HR]** Form evaluasi: prefill rata-rata KPI semester + ringkasan SP, aspek kualitatif, grade otomatis
-- [ ] **[HR]** Approval CEO + notifikasi; rekomendasi "naik gaji" → draf `salary_changes`
-- [ ] **[HR]** Export PDF evaluasi
+- [x] **[HR]** `performance_reviews` + state machine DRAFT → SUBMITTED → APPROVED/kembali → ACKNOWLEDGED
+- [x] **[HR]** Form evaluasi: prefill rata-rata KPI semester + ringkasan SP, aspek kualitatif, grade otomatis
+- [x] **[HR]** Approval CEO + notifikasi; rekomendasi "naik gaji" → draf `salary_changes`
+- [x] **[HR]** Export PDF evaluasi
 
 ### SDM-6 · Penutup
-- [ ] **[HR]** Dashboard SDM (karyawan aktif, SP aktif, rata-rata KPI per jabatan, evaluasi tertunda, pengajuan gaji menunggu)
-- [ ] **[HR]** Menu "Milik Saya": KPI, evaluasi (+ tombol konfirmasi), SP, riwayat gaji — Policy `R*`
-- [ ] **[Setup]** DemoDataSeeder: jabatan, SP, perubahan gaji, 3 periode KPI, evaluasi di tiap status
-- [ ] **[Test]** Unit test `KpiService`, `DisciplineService` (termasuk SP lompat tingkat/ulang tingkat ditolak, SP kedaluwarsa/dibatalkan reset ke SP1), `SalaryChangeService`, state machine evaluasi; test pengecualian tukang (tidak bisa ditautkan, tidak muncul di daftar SDM, 403 di "Milik Saya"); feature test RBAC tiap route (berhak 200/302, tidak berhak 403, `R*` hanya milik sendiri)
-- [ ] **[Setup]** `npm run build`, `pint --test`, update `plan/README.md` + `CLAUDE.md`
+- [x] **[HR]** Dashboard SDM (karyawan aktif, SP aktif, rata-rata KPI per jabatan, evaluasi tertunda, pengajuan gaji menunggu)
+- [x] **[HR]** Menu "Milik Saya": KPI, evaluasi (+ tombol konfirmasi), SP, riwayat gaji — Policy `R*`
+- [x] **[Setup]** DemoDataSeeder: jabatan, SP, perubahan gaji, 3 periode KPI, evaluasi di tiap status
+- [x] **[Test]** Unit test `KpiService`, `DisciplineService` (termasuk SP lompat tingkat/ulang tingkat ditolak, SP kedaluwarsa/dibatalkan reset ke SP1), `SalaryChangeService`, state machine evaluasi; test pengecualian tukang (tidak bisa ditautkan, tidak muncul di daftar SDM, 403 di "Milik Saya"); feature test RBAC tiap route (berhak 200/302, tidak berhak 403, `R*` hanya milik sendiri)
+- [x] **[Setup]** `npm run build`, `pint --test`, update `plan/README.md` + `CLAUDE.md`
 
 ### SDM-7 · Absensi (DITUNDA — menunggu alat)
 - [ ] **[Riset]** User memilih alat absen; cek syarat integrasi di bawah
@@ -320,3 +323,51 @@ Ditunda ── SDM-7 Absensi (menunggu pilihan alat absen)
 - Server production harus bisa diakses alat (HTTPS publik atau VPN).
 - Tiap scan membawa ID karyawan di alat + waktu + serial alat.
 - Dokumentasi API/SDK tersedia (minta ke distributor sebelum membeli).
+
+---
+
+## 7. Catatan implementasi (2026-10-04)
+
+Dikerjakan: fondasi (SDM-1) + integrasi (SDM-6) oleh sesi utama;
+SDM-2+3, SDM-4, SDM-5 paralel oleh 3 subagent dengan kontrak tetap
+(stub service `forEmployee()`/`dashboardSummary()`, stub tab komponen,
+file route per bagian di `routes/hr/*` dan `routes/my/*`).
+
+**Penyimpangan dari rencana di atas**
+- **Divisi & Jabatan** dikelola di menu **SDM → Divisi & Jabatan** oleh HR
+  (sesuai matriks RBAC §4 "Master jabatan: HR CRU"), bukan di Data Master
+  (SUPERADMIN). Divisi/jabatan yang belum dipakai boleh dihapus; yang
+  sudah dipakai hanya bisa dinonaktifkan. Teks jabatan lama di-backfill ke
+  divisi "Belum Dikelompokkan".
+- **Pengelolaan karyawan pindah dari Finance ke HR** (`HR\EmployeeController`,
+  audit `hr.employee_*`). Finance tetap membaca karyawan & membayar gaji di
+  Penggajian. Finance tidak diberi akses halaman perubahan gaji (RBAC §4
+  "Perubahan gaji pokok: Finance R") — gaji pokok terkini tetap terlihat di
+  Penggajian.
+- **Gaji:** pengajuan baru ditolak selama masih ada perubahan yang sudah
+  disetujui tapi belum berlaku. Perubahan bertanggal masa depan diterapkan
+  oleh `ApplyDueSalaryChangesJob` (harian 00:15 WIB, kolom `applied_at`).
+- **KPI:** metrik otomatis di `App\Services\Kpi\KpiMetricRegistry`.
+  "Selisih stok" (Logistik) dilewati — belum ada data stock opname; template
+  Logistik memakai indikator manual. Metrik desain-delay, follow-up lead
+  terlambat, dan proyek delay membaca kondisi saat dihitung (tidak ada
+  riwayat historisnya) — menutup periode membekukan nilainya. Termin tepat
+  waktu (Finance) adalah angka tim. Indikator tanpa nilai: bobotnya dibagi
+  proporsional ke indikator yang bernilai. Menutup periode menghitung ulang
+  dulu, lalu menolak bila nilai manual belum lengkap. `OpenKpiPeriodJob`
+  tiap tanggal 1 pukul 00:10 WIB.
+- **Evaluasi:** skor kedisiplinan default = 100 − 10×teguran − 20×SP1 −
+  35×SP2 − 50×SP3 (min 0); skor KPI dibatasi 100 di nilai akhir; tanpa
+  KPI bobotnya dibagi ke kualitatif + kedisiplinan. Evaluasi ditolak untuk
+  semester yang belum mulai atau karyawan yang bergabung setelah semester
+  selesai. Tipe notifikasi tambahan `review_approved_reviewer`.
+- **"Kinerja Saya"** (`/saya`, route `my.*`, middleware `employee.self`):
+  KPI hanya periode CLOSED, evaluasi hanya APPROVED/ACKNOWLEDGED, gaji hanya
+  perubahan yang disetujui (tanpa pengajuan pending/ditolak).
+- **Gerbang modul:** `module:hr` (`ModuleAccessMiddleware::MODULE_ROLES`) —
+  titik tunggal yang nanti diganti akses modul per user.
+
+**Terbuka**
+- HR yang juga karyawan (mis. Yola) secara teknis bisa mengevaluasi dirinya
+  sendiri — belum dilarang karena plan tidak menyebutnya. Perlu keputusan.
+- SDM-7 Absensi menunggu alat.

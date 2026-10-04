@@ -1,10 +1,12 @@
 <?php
 
+use App\Jobs\ApplyDueSalaryChangesJob;
 use App\Jobs\DailyFormReminderJob;
 use App\Jobs\DailyPenaltyJob;
 use App\Jobs\DesignDelayJob;
 use App\Jobs\LeadFollowUpReminderJob;
 use App\Jobs\MilestoneOverdueJob;
+use App\Jobs\OpenKpiPeriodJob;
 use App\Jobs\PruneNotificationsJob;
 use App\Jobs\TaskOverdueJob;
 use App\Jobs\TerminOverdueJob;
@@ -82,3 +84,16 @@ Schedule::command('db:backup')
     ->timezone('Asia/Jakarta')
     ->withoutOverlapping(12 * 60)
     ->runInBackground();
+
+// SDM (Sprint 10, decision #3) — a salary change the CEO approved with a
+// future effective date updates the base salary on that date. Idempotent:
+// applied rows are stamped `applied_at` and never touched again.
+Schedule::job(new ApplyDueSalaryChangesJob)
+    ->dailyAt('00:15')
+    ->timezone('Asia/Jakarta');
+
+// SDM (Sprint 10, §3.3) — opens the month's KPI period on the 1st so HR
+// can compute and fill it. Idempotent (an existing period is left alone).
+Schedule::job(new OpenKpiPeriodJob)
+    ->monthlyOn(1, '00:10')
+    ->timezone('Asia/Jakarta');

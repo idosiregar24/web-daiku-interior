@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Employee;
+use App\Models\Position;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -15,7 +16,7 @@ class EmployeeFactory extends Factory
     {
         return [
             'name' => fake()->firstName(),
-            'position' => fake()->randomElement(['Admin', 'Marketing', 'Desainer', 'Estimator', 'Drafter', 'Staf Gudang']),
+            'position_id' => Position::factory(),
             'user_id' => null,
             'base_salary' => fake()->randomElement([3_500_000, 4_000_000, 4_500_000, 5_000_000, 6_000_000]),
             'bank_name' => 'BCA',

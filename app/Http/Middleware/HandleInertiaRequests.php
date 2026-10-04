@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\SiteSetting;
 use Illuminate\Http\Request;
@@ -43,6 +44,10 @@ class HandleInertiaRequests extends Middleware
                     // than one Spatie role, but the UI only needs the first for
                     // nav gating today.
                     'role' => $user->getRoleNames()->first(),
+                    // SDM "Milik Saya" menu — same rule as the `employee.self`
+                    // middleware (field staff are never linked, decision #11).
+                    'has_employee' => ! $user->hasRole('FIELD_STAFF')
+                        && Employee::query()->hrEligible()->active()->where('user_id', $user->id)->exists(),
                 ] : null,
             ],
             // Every controller redirects with `->with('success', ...)` —

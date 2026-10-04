@@ -35,6 +35,7 @@ import type { PageProps, Role, User } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     AlertOctagon,
+    BadgeDollarSign,
     BarChart3,
     Bell,
     BellOff,
@@ -45,16 +46,20 @@ import {
     ChevronsUpDown,
     Clock,
     ClipboardCheck,
+    ClipboardList,
     FileText,
     FolderKanban,
+    Gavel,
     HandCoins,
     History,
     House,
+    IdCard,
     LayoutDashboard,
     ListChecks,
     LogOut,
     type LucideIcon,
     Menu,
+    Network,
     Package,
     Palette,
     Percent,
@@ -62,7 +67,9 @@ import {
     Receipt,
     ScrollText,
     ShieldCheck,
+    Target,
     User as UserIcon,
+    UserRound,
     Users,
     UserCog,
     Database,
@@ -101,6 +108,8 @@ export type NavItem = {
     match?: string;
     /** Restrict visibility to these roles; omit to show to everyone. */
     roles?: Role[];
+    /** SDM: show only when the user is linked to an active employee row (`auth.user.has_employee`). */
+    requiresEmployee?: boolean;
 };
 
 export type NavGroup = {
@@ -120,6 +129,8 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'Utama',
         items: [
             { label: 'Dashboard', icon: LayoutDashboard, routeName: 'dashboard' },
+            // SDM "Milik Saya" — only for accounts linked to an employee row (decision #6/#11).
+            { label: 'Kinerja Saya', icon: UserRound, routeName: 'my.index', match: 'my.*', requiresEmployee: true },
         ],
     },
     {
@@ -278,6 +289,35 @@ const NAV_GROUPS: NavGroup[] = [
         ],
     },
     {
+        // SDM / HR — Sprint 10, outside the PRD (route group `module:hr`).
+        label: 'SDM',
+        items: [
+            {
+                label: 'Dashboard SDM',
+                icon: LayoutDashboard,
+                routeName: 'hr.dashboard',
+                roles: ['CEO', 'HR'],
+            },
+            {
+                label: 'Karyawan',
+                icon: IdCard,
+                routeName: 'hr.employees.index',
+                roles: ['CEO', 'HR'],
+            },
+            {
+                label: 'Divisi & Jabatan',
+                icon: Network,
+                routeName: 'hr.structure.index',
+                roles: ['CEO', 'HR'],
+            },
+            { label: 'Kedisiplinan', icon: Gavel, routeName: 'hr.discipline.index', roles: ['CEO', 'HR'] },
+            { label: 'Gaji', icon: BadgeDollarSign, routeName: 'hr.salary.index', match: 'hr.salary*', roles: ['CEO', 'HR'] },
+            // Covers the template editor too (hr.kpi.templates.index).
+            { label: 'KPI', icon: Target, routeName: 'hr.kpi.index', roles: ['CEO', 'HR'] },
+            { label: 'Evaluasi', icon: ClipboardList, routeName: 'hr.reviews.index', roles: ['CEO', 'HR'] },
+        ],
+    },
+    {
         label: 'Eksekutif',
         items: [
             {
@@ -331,6 +371,7 @@ export const ROLE_LABEL: Record<Role, string> = {
     LOGISTICS: 'Logistik',
     FIELD_STAFF: 'Field Staff',
     SUPERADMIN: 'Super Admin',
+    HR: 'SDM',
 };
 
 /**
@@ -341,6 +382,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 export function useNavGroups(): NavGroup[] {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
+    const hasEmployee = Boolean(auth.user?.has_employee);
 
     return useMemo(
         () =>
@@ -350,12 +392,11 @@ export function useNavGroups(): NavGroup[] {
                 // sees every nav item regardless of its `roles` list.
                 items: group.items.filter(
                     (item) =>
-                        !item.roles ||
-                        role === 'SUPERADMIN' ||
-                        (role && item.roles.includes(role)),
+                        (!item.requiresEmployee || hasEmployee) &&
+                        (!item.roles || role === 'SUPERADMIN' || (role && item.roles.includes(role))),
                 ),
             })).filter((group) => group.items.length > 0),
-        [role],
+        [role, hasEmployee],
     );
 }
 

@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
         'LOGISTICS' => ['name' => 'Logistics Daiku Interior', 'email' => 'logistics@daikuinterior.com'],
         'FIELD_STAFF' => ['name' => 'Field Staff Daiku Interior', 'email' => 'fieldstaff@daikuinterior.com'],
         'SUPERADMIN' => ['name' => 'Super Admin Daiku Interior', 'email' => 'superadmin@daikuinterior.com'],
+        'HR' => ['name' => 'HR Daiku Interior', 'email' => 'hr@daikuinterior.com'],
     ];
 
     /**
@@ -58,5 +59,15 @@ class DatabaseSeeder extends Seeder
         // own docblock. Same "local/staging/UAT only" caveat as
         // DEMO_USERS above.
         $this->call(DemoDataSeeder::class);
+
+        // SDM (Sprint 10) on top of DemoDataSeeder's employees, through the
+        // real services: warnings + salary changes, KPI templates and three
+        // months of scores, then semester reviews (which read the closed
+        // KPI months — hence last).
+        $this->call([
+            Demo\DisciplineSalaryDemoSeeder::class,
+            Demo\KpiDemoSeeder::class,
+            Demo\PerformanceReviewDemoSeeder::class,
+        ]);
     }
 }

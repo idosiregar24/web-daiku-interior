@@ -101,7 +101,7 @@ test('renaming a lead source or category to an existing name is rejected', funct
     $record = $model::create(['name' => 'Lain']);
 
     $this->actingAs($this->superadmin)->put(route("{$routePrefix}.update", $record), ['name' => 'Sudah Ada'])
-        ->assertSessionHasErrorsK('name');
+        ->assertSessionHasErrors('name');
 })->with([
     'lead source' => [LeadSource::class, 'master-data.lead-sources'],
     'lead category' => [LeadCategory::class, 'master-data.lead-categories'],

@@ -11,10 +11,19 @@ import {
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectLabel,
+    SelectTrigger,
+    SelectValue,
+} from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Employee, User } from '@/types';
+import { formatRupiah } from '@/lib/format';
+import type { Division, Employee, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { endOfDay, format } from 'date-fns';
@@ -25,10 +34,11 @@ import { z } from 'zod';
 /** Radix Select can't hold an empty value — "no linked account". */
 const NO_USER = 'none';
 
-// Mirrors StoreEmployeeRequest / UpdateEmployeeRequest.
+// Mirrors HRStoreEmployeeRequest / UpdateEmployeeRequest (base salary only on create —
+// afterwards it changes through a salary-change request the CEO approves).
 const schema = z.object({
     name: z.string().min(1, 'Nama karyawan wajib diisi.').max(100, 'Nama karyawan maksimal 100 karakter.'),
-    position: z.string().min(1, 'Jabatan wajib diisi.').max(100, 'Jabatan maksimal 100 karakter.'),
+    position_id: z.string().min(1, 'Jabatan wajib dipilih.'),
     base_salary: z
         .string()
         .min(1, 'Gaji pokok wajib diisi.')
@@ -48,7 +58,7 @@ type FormValues = z.infer<typeof schema>;
 
 const EMPTY: FormValues = {
     name: '',
-    position: '',
+    position_id: '',
     base_salary: '',
     user_id: NO_USER,
     bank_name: '',
@@ -66,10 +76,16 @@ interface EmployeeFormDialogProps {
     /** Every employee — accounts already linked to someone else are hidden from the picker. */
     employees: Employee[];
     linkableUsers: Pick<User, 'id' | 'name'>[];
+    /** Divisi → Jabatan master; only active positions of active divisions are offered (plus the current one). */
+    structure: Division[];
 }
 
-/** PRD §4.7 "Gaji Karyawan Tetap" — add/edit an employee (Finance only). Employees are deactivated, never deleted. */
-export function EmployeeFormDialog({ open, onOpenChange, employee, employees, linkableUsers }: EmployeeFormDialogProps) {
+/**
+ * SDM (Sprint 10) — HR adds/edits a permanent employee. The job title comes from the
+ * Divisi → Jabatan master (decision #10); field-staff accounts are never offered
+ * (decision #11). Employees are deactivated, never deleted.
+ */
+export function EmployeeFormDialog({ open, onOpenChange, employee, employees, linkableUsers, structure }: EmployeeFormDialogProps) {
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
     const userOptions = useMemo(() => {
@@ -80,6 +96,20 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
         return linkableUsers.filter((user) => !takenByOthers.has(user.id));
     }, [employees, employee, linkableUsers]);
 
+    // Active positions of active divisions, plus the one the employee holds today.
+    const positionGroups = useMemo(
+        () =>
+            structure
+                .map((division) => ({
+                    ...division,
+                    positions: (division.positions ?? []).filter(
+                        (position) => (division.is_active && position.is_active) || position.id === employee?.position_id,
+                    ),
+                }))
+                .filter((division) => division.positions.length > 0),
+        [structure, employee],
+    );
+
     useEffect(() => {
         if (!open) return;
 
@@ -87,7 +117,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
             employee
                 ? {
                       name: employee.name,
-                      position: employee.position,
+                      position_id: String(employee.position_id),
                       base_salary: String(Number(employee.base_salary)),
                       user_id: employee.user_id ? String(employee.user_id) : NO_USER,
                       bank_name: employee.bank_name ?? '',
@@ -103,8 +133,8 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
     function onSubmit(values: FormValues) {
         const payload = {
             name: values.name,
-            position: values.position,
-            base_salary: Number(values.base_salary),
+            position_id: Number(values.position_id),
+            ...(employee ? {} : { base_salary: Number(values.base_salary) }),
             user_id: values.user_id === NO_USER ? null : Number(values.user_id),
             bank_name: values.bank_name || null,
             account_no: values.account_no || null,
@@ -120,9 +150,9 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
         };
 
         if (employee) {
-            router.put(route('finance.employees.update', { employee: employee.id }), payload, options);
+            router.put(route('hr.employees.update', { employee: employee.id }), payload, options);
         } else {
-            router.post(route('finance.employees.store'), payload, options);
+            router.post(route('hr.employees.store'), payload, options);
         }
     }
 
@@ -151,32 +181,58 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                             />
                             <FormField
                                 control={form.control}
-                                name="position"
+                                name="position_id"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Jabatan</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} placeholder="mis. Desainer" />
-                                        </FormControl>
+                                        <Select value={field.value} onValueChange={field.onChange}>
+                                            <FormControl>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Pilih jabatan" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                {positionGroups.map((division) => (
+                                                    <SelectGroup key={division.id}>
+                                                        <SelectLabel>{division.name}</SelectLabel>
+                                                        {division.positions.map((position) => (
+                                                            <SelectItem key={position.id} value={String(position.id)}>
+                                                                {position.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="base_salary"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Gaji Pokok (Rp)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            {employee ? (
+                                <FormItem>
+                                    <FormLabel>Gaji Pokok</FormLabel>
+                                    <p className="flex h-9 items-center text-sm font-medium tabular-nums">
+                                        {formatRupiah(employee.base_salary)}
+                                    </p>
+                                    <FormDescription>Diubah lewat pengajuan perubahan gaji (disetujui CEO).</FormDescription>
+                                </FormItem>
+                            ) : (
+                                <FormField
+                                    control={form.control}
+                                    name="base_salary"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Gaji Pokok (Rp)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
                             <FormField
                                 control={form.control}
                                 name="join_date"

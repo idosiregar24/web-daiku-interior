@@ -31,7 +31,42 @@ const TYPE_FALLBACKS: Record<string, string> = {
     material_low_stock: 'logistics.materials.index',
 };
 
+type Metadata = Record<string, unknown> | null | undefined;
+
+const num = (metadata: Metadata, key: string): number | null =>
+    typeof metadata?.[key] === 'number' ? (metadata[key] as number) : null;
+
+/**
+ * SDM (Sprint 10) — types whose target depends on who receives them: the
+ * employee goes to their own "Kinerja Saya" tab, HR/CEO to the module page.
+ */
+const SDM_TARGETS: Record<string, (metadata: Metadata) => string | null> = {
+    disciplinary_issued: () => route('my.index', { tab: 'discipline' }),
+    review_approved: () => route('my.index', { tab: 'reviews' }),
+    salary_change_requested: () => route('hr.salary.index'),
+    salary_change_decided: (metadata) => {
+        const employee = num(metadata, 'employee_id');
+
+        return employee ? route('hr.employees.show', { employee, tab: 'salary' }) : route('hr.salary.index');
+    },
+    review_submitted: (metadata) => reviewHref(metadata),
+    review_approved_reviewer: (metadata) => reviewHref(metadata),
+    review_returned: (metadata) => reviewHref(metadata),
+};
+
+function reviewHref(metadata: Metadata): string {
+    const review = num(metadata, 'performance_review_id');
+
+    return review ? route('hr.reviews.show', { performance_review: review }) : route('hr.reviews.index');
+}
+
 export function notificationHref(notification: AppNotification): string | null {
+    const sdmTarget = SDM_TARGETS[notification.type];
+
+    if (sdmTarget) {
+        return sdmTarget(notification.metadata as Metadata);
+    }
+
     const typeRoute = TYPE_FALLBACKS[notification.type];
 
     // Type-specific pages win for staff-facing types: a Field Staff
