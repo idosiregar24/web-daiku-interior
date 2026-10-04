@@ -28,7 +28,7 @@ class SupplierDebt extends Model
     public const STATUSES = [self::STATUS_LUNAS, self::STATUS_JATUH_TEMPO, self::STATUS_BERJALAN];
 
     protected $fillable = [
-        'supplier_name',
+        'vendor_id',
         'total_amount',
         'paid_amount',
         'project_id',
@@ -47,6 +47,12 @@ class SupplierDebt extends Model
             'remaining' => 'decimal:2',
             'due_date' => 'date:Y-m-d',
         ];
+    }
+
+    /** Master Vendor (Sprint 11 Sub 2) — replaced the free-text `supplier_name`. */
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class);
     }
 
     public function project(): BelongsTo
@@ -120,6 +126,9 @@ class SupplierDebt extends Model
 
     public function scopeSearchSupplier(Builder $query, ?string $search): Builder
     {
-        return $query->when($search, fn (Builder $q) => $q->where('supplier_name', 'like', '%'.$search.'%'));
+        return $query->when($search, fn (Builder $q) => $q->whereHas(
+            'vendor',
+            fn (Builder $vendor) => $vendor->where('name', 'like', '%'.$search.'%'),
+        ));
     }
 }

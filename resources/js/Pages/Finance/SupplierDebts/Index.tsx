@@ -52,11 +52,11 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
 
     const columns: ColumnDef<SupplierDebtRow>[] = [
         {
-            accessorKey: 'supplier_name',
+            id: 'vendor',
             header: 'Supplier',
             cell: ({ row }) => (
                 <div>
-                    <p className="font-medium text-daiku-dark">{row.original.supplier_name}</p>
+                    <p className="font-medium text-daiku-dark">{row.original.vendor?.name}</p>
                     <p className="text-xs text-daiku-muted">{row.original.project?.name ?? 'Tanpa proyek'}</p>
                 </div>
             ),

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Finance;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSupplierDebtRequest extends FormRequest
 {
@@ -15,7 +16,8 @@ class StoreSupplierDebtRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'supplier_name' => ['required', 'string', 'max:100'],
+            // Master Vendor (Sprint 11 Sub 2) — active vendors only; the CEO adds new ones.
+            'vendor_id' => ['required', 'integer', Rule::exists('vendors', 'id')->where('is_active', true)],
             'total_amount' => ['required', 'numeric', 'gt:0', 'max:9999999999999'],
             'project_id' => ['nullable', 'exists:projects,id'],
             'due_date' => ['nullable', 'date'],
@@ -26,8 +28,8 @@ class StoreSupplierDebtRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'supplier_name.required' => 'Nama supplier wajib diisi.',
-            'supplier_name.max' => 'Nama supplier maksimal 100 karakter.',
+            'vendor_id.required' => 'Vendor wajib dipilih.',
+            'vendor_id.exists' => 'Vendor belum terdaftar atau sudah nonaktif — minta CEO menambahkannya di Data Master → Vendor.',
             'total_amount.required' => 'Total hutang wajib diisi.',
             'total_amount.numeric' => 'Total hutang harus berupa angka.',
             'total_amount.gt' => 'Total hutang harus lebih dari 0.',

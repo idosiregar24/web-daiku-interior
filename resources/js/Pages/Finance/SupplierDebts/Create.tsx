@@ -7,7 +7,8 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Project } from '@/types';
+import { VendorSelect } from '@/Components/shared/VendorSelect';
+import type { Project, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, Link, router } from '@inertiajs/react';
 import { Receipt } from 'lucide-react';
@@ -17,7 +18,7 @@ import { z } from 'zod';
 
 // Mirrors App\Http\Requests\Finance\StoreSupplierDebtRequest.
 const schema = z.object({
-    supplier_name: z.string().trim().min(1, 'Nama supplier wajib diisi.').max(100, 'Nama supplier maksimal 100 karakter.'),
+    vendor_id: z.string().min(1, 'Vendor wajib dipilih.'),
     total_amount: z
         .string()
         .min(1, 'Total hutang wajib diisi.')
@@ -31,23 +32,25 @@ type FormValues = z.infer<typeof schema>;
 
 interface SupplierDebtCreateProps {
     projects: Pick<Project, 'id' | 'name'>[];
+    /** Active vendors (Master Vendor). */
+    vendors: VendorOption[];
 }
 
 /**
  * PRD §4.7 "Hutang Supplier" — Finance only. Creating a debt records the
  * liability only; cash leaves a bank account when each payment is recorded.
  */
-export default function SupplierDebtCreate({ projects }: SupplierDebtCreateProps) {
+export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCreateProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { supplier_name: '', total_amount: '', project_id: '', due_date: undefined, description: '' },
+        defaultValues: { vendor_id: '', total_amount: '', project_id: '', due_date: undefined, description: '' },
     });
 
     function onSubmit(values: FormValues) {
         router.post(
             route('finance.supplierDebts.store'),
             {
-                supplier_name: values.supplier_name,
+                vendor_id: Number(values.vendor_id),
                 total_amount: Number(values.total_amount),
                 project_id: values.project_id ? Number(values.project_id) : null,
                 due_date: values.due_date ? format(values.due_date, 'yyyy-MM-dd') : null,
@@ -81,12 +84,12 @@ export default function SupplierDebtCreate({ projects }: SupplierDebtCreateProps
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                             <FormField
                                 control={form.control}
-                                name="supplier_name"
+                                name="vendor_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama Supplier</FormLabel>
+                                        <FormLabel>Vendor</FormLabel>
                                         <FormControl>
-                                            <Input {...field} placeholder="mis. Ideal, Kaca Jaya" />
+                                            <VendorSelect value={field.value} onChange={field.onChange} vendors={vendors} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

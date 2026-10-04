@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\SupplierDebt;
 use App\Models\User;
+use App\Models\Vendor;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -14,7 +15,7 @@ class SupplierDebtFactory extends Factory
     public function definition(): array
     {
         return [
-            'supplier_name' => fake()->randomElement(['Ideal', 'Kaca Jaya', 'HPL Makmur', 'Besi Sentosa']),
+            'vendor_id' => Vendor::factory(),
             'total_amount' => fake()->randomFloat(2, 1_000_000, 50_000_000),
             'paid_amount' => 0,
             'project_id' => null,

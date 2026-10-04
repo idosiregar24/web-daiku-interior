@@ -24,7 +24,7 @@ import { z } from 'zod';
 interface SupplierDebtPaymentDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    debt: Pick<SupplierDebt, 'id' | 'supplier_name' | 'remaining'>;
+    debt: Pick<SupplierDebt, 'id' | 'vendor' | 'remaining'>;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
 
@@ -90,7 +90,7 @@ export function SupplierDebtPaymentDialog({ open, onOpenChange, debt, bankAccoun
                 <DialogHeader>
                     <DialogTitle>Catat Pembayaran</DialogTitle>
                     <DialogDescription>
-                        {debt.supplier_name} — sisa hutang {formatRupiah(remaining)}. Pembayaran otomatis tercatat
+                        {debt.vendor?.name} — sisa hutang {formatRupiah(remaining)}. Pembayaran otomatis tercatat
                         sebagai pengeluaran Hutang Ideal.
                     </DialogDescription>
                 </DialogHeader>

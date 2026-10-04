@@ -39,7 +39,7 @@ class SupplierDebtService
     {
         return DB::transaction(function () use ($data, $actor) {
             $debt = SupplierDebt::create([
-                'supplier_name' => $data['supplier_name'],
+                'vendor_id' => $data['vendor_id'],
                 'total_amount' => $data['total_amount'],
                 'paid_amount' => 0,
                 'project_id' => $data['project_id'] ?? null,
@@ -52,7 +52,10 @@ class SupplierDebtService
                 'finance.supplier_debt_created',
                 $debt,
                 null,
-                $debt->only(['supplier_name', 'total_amount', 'project_id', 'description', 'due_date']),
+                [
+                    ...$debt->only(['vendor_id', 'total_amount', 'project_id', 'description', 'due_date']),
+                    'vendor' => $debt->vendor()->value('name'),
+                ],
                 $actor,
             );
 
@@ -128,7 +131,7 @@ class SupplierDebtService
                 'type' => FinanceTransactionType::Expense->value,
                 'kategori' => FinanceCategory::HutangIdeal->value,
                 'amount' => $payment->amount,
-                'description' => "Pembayaran hutang supplier {$debt->supplier_name}",
+                'description' => 'Pembayaran hutang supplier '.$debt->vendor()->value('name'),
                 'reference_id' => $debt->id,
                 'date' => $data['paid_date'],
             ], $actor);
@@ -152,6 +155,7 @@ class SupplierDebtService
     public function outstandingForProject(Project $project): Collection
     {
         return SupplierDebt::query()
+            ->with('vendor:id,name')
             ->where('project_id', $project->id)
             ->outstanding()
             ->orderByRaw('due_date IS NULL')

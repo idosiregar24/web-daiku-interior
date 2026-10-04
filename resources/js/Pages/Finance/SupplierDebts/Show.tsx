@@ -68,12 +68,12 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
 
     return (
         <AppLayout
-            breadcrumbs={[{ label: debt.supplier_name }]}
+            breadcrumbs={[{ label: debt.vendor?.name ?? 'Hutang Supplier' }]}
         >
-            <Head title={`Hutang ${debt.supplier_name}`} />
+            <Head title={`Hutang ${debt.vendor?.name ?? ''}`} />
 
             <PageHeader
-                title={debt.supplier_name}
+                title={debt.vendor?.name ?? 'Hutang Supplier'}
                 icon={Receipt}
                 description={debt.project ? `Proyek: ${debt.project.name}` : 'Tidak terkait proyek'}
                 actions={
@@ -114,6 +114,12 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
                     <DetailItem label="Jatuh Tempo" valueClassName={cn(isOverdue && 'font-medium text-error-ink')}>
                         {formatDate(debt.due_date)}
                     </DetailItem>
+                    <DetailItem label="Rekening Vendor">
+                        {debt.vendor?.bank_name && debt.vendor.bank_account_number
+                            ? `${debt.vendor.bank_name} ${debt.vendor.bank_account_number}${debt.vendor.account_holder ? ` a.n. ${debt.vendor.account_holder}` : ''}`
+                            : '—'}
+                    </DetailItem>
+                    <DetailItem label="Kontak Vendor">{debt.vendor?.contact || '—'}</DetailItem>
                     <DetailItem label="Dicatat oleh">
                         {debt.creator?.name ?? '—'}{' '}
                         <span className="text-daiku-muted">· {formatDateTime(debt.created_at)}</span>

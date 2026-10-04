@@ -49,7 +49,7 @@ test('CEO and PM cannot create debts or record payments', function (string $role
 
     $this->actingAs($user)->get(route('finance.supplierDebts.create'))->assertForbidden();
     $this->actingAs($user)->post(route('finance.supplierDebts.store'), [
-        'supplier_name' => 'Ideal',
+        'vendor_id' => vendorId('Ideal'),
         'total_amount' => 500000,
     ])->assertForbidden();
     $this->actingAs($user)->post(route('finance.supplierDebts.storePayment', $debt), [
@@ -69,7 +69,7 @@ test('Finance creates a debt: only the liability, no finance transaction', funct
     $this->actingAs($finance)->get(route('finance.supplierDebts.create'))->assertOk();
 
     $this->actingAs($finance)->post(route('finance.supplierDebts.store'), [
-        'supplier_name' => 'Kaca Jaya',
+        'vendor_id' => vendorId('Kaca Jaya'),
         'total_amount' => 2_500_000,
         'project_id' => $project->id,
         'due_date' => now()->addWeek()->toDateString(),
@@ -78,7 +78,7 @@ test('Finance creates a debt: only the liability, no finance transaction', funct
 
     $debt = SupplierDebt::firstOrFail();
 
-    expect($debt->supplier_name)->toBe('Kaca Jaya')
+    expect($debt->vendor->name)->toBe('Kaca Jaya')
         ->and((float) $debt->remaining)->toBe(2_500_000.0)
         ->and($debt->created_by)->toBe($finance->id)
         ->and($debt->status)->toBe(SupplierDebt::STATUS_BERJALAN)
@@ -90,7 +90,7 @@ test('store validates required fields with Indonesian messages', function () {
     $this->actingAs(supplierDebtUser('FINANCE'))
         ->post(route('finance.supplierDebts.store'), ['total_amount' => 0])
         ->assertSessionHasErrors([
-            'supplier_name' => 'Nama supplier wajib diisi.',
+            'vendor_id' => 'Vendor wajib dipilih.',
             'total_amount' => 'Total hutang harus lebih dari 0.',
         ]);
 });
@@ -100,7 +100,7 @@ test('a payment writes exactly one HUTANG_IDEAL expense with the bank account, p
     $project = Project::factory()->create();
     $bank = BankAccount::factory()->create();
     $debt = app(SupplierDebtService::class)->create([
-        'supplier_name' => 'Ideal',
+        'vendor_id' => vendorId('Ideal'),
         'total_amount' => 1_000_000,
         'project_id' => $project->id,
     ], $finance);
@@ -132,7 +132,7 @@ test('paying the full remaining amount marks the debt LUNAS', function () {
     $finance = supplierDebtUser('FINANCE');
     $bank = BankAccount::factory()->create();
     $service = app(SupplierDebtService::class);
-    $debt = $service->create(['supplier_name' => 'Ideal', 'total_amount' => 750_000, 'due_date' => now()->subDay()->toDateString()], $finance);
+    $debt = $service->create(['vendor_id' => vendorId('Ideal'), 'total_amount' => 750_000, 'due_date' => now()->subDay()->toDateString()], $finance);
 
     expect($debt->status)->toBe(SupplierDebt::STATUS_JATUH_TEMPO);
 
@@ -150,7 +150,7 @@ test('paying the full remaining amount marks the debt LUNAS', function () {
 test('over-payment is rejected and nothing is written', function () {
     $finance = supplierDebtUser('FINANCE');
     $bank = BankAccount::factory()->create();
-    $debt = app(SupplierDebtService::class)->create(['supplier_name' => 'Ideal', 'total_amount' => 300_000], $finance);
+    $debt = app(SupplierDebtService::class)->create(['vendor_id' => vendorId('Ideal'), 'total_amount' => 300_000], $finance);
 
     $this->actingAs($finance)->post(route('finance.supplierDebts.storePayment', $debt), [
         'amount' => 300_001,
@@ -166,7 +166,7 @@ test('over-payment is rejected and nothing is written', function () {
 test('service rejects a non-positive amount', function () {
     $finance = supplierDebtUser('FINANCE');
     $bank = BankAccount::factory()->create();
-    $debt = app(SupplierDebtService::class)->create(['supplier_name' => 'Ideal', 'total_amount' => 300_000], $finance);
+    $debt = app(SupplierDebtService::class)->create(['vendor_id' => vendorId('Ideal'), 'total_amount' => 300_000], $finance);
 
     app(SupplierDebtService::class)->recordPayment($debt, ['amount' => 0, 'paid_date' => now()->toDateString(), 'bank_account_id' => $bank->id], $finance);
 })->throws(ValidationException::class);
@@ -204,14 +204,14 @@ test('overdue scope and derived status', function () {
 
 test('index filters by status and supplier name', function () {
     $finance = supplierDebtUser('FINANCE');
-    SupplierDebt::factory()->overdue()->create(['supplier_name' => 'Kaca Jaya']);
-    SupplierDebt::factory()->create(['supplier_name' => 'Ideal']);
-    SupplierDebt::factory()->paidOff()->create(['supplier_name' => 'Ideal Lunas']);
+    SupplierDebt::factory()->overdue()->create(['vendor_id' => vendorId('Kaca Jaya')]);
+    SupplierDebt::factory()->create(['vendor_id' => vendorId('Ideal')]);
+    SupplierDebt::factory()->paidOff()->create(['vendor_id' => vendorId('Ideal Lunas')]);
 
     $this->actingAs($finance)->get(route('finance.supplierDebts.index', ['status' => 'JATUH_TEMPO']))
         ->assertInertia(fn (Assert $page) => $page
             ->has('debts.data', 1)
-            ->where('debts.data.0.supplier_name', 'Kaca Jaya')
+            ->where('debts.data.0.vendor.name', 'Kaca Jaya')
             ->where('debts.data.0.status', 'JATUH_TEMPO')
             ->where('summary.overdueCount', 1));
 
@@ -219,7 +219,7 @@ test('index filters by status and supplier name', function () {
         ->assertInertia(fn (Assert $page) => $page->has('debts.data', 2));
 
     $this->actingAs($finance)->get(route('finance.supplierDebts.index', ['status' => 'LUNAS']))
-        ->assertInertia(fn (Assert $page) => $page->has('debts.data', 1)->where('debts.data.0.supplier_name', 'Ideal Lunas'));
+        ->assertInertia(fn (Assert $page) => $page->has('debts.data', 1)->where('debts.data.0.vendor.name', 'Ideal Lunas'));
 });
 
 test('outstandingForProject returns only unpaid debts of that project', function () {

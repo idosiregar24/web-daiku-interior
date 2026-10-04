@@ -8,6 +8,7 @@ use App\Http\Requests\Finance\StoreSupplierDebtRequest;
 use App\Models\BankAccount;
 use App\Models\Project;
 use App\Models\SupplierDebt;
+use App\Models\Vendor;
 use App\Services\SupplierDebtService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class SupplierDebtController extends Controller
         $search = $request->string('search')->trim()->value() ?: null;
 
         $debts = SupplierDebt::query()
-            ->with(['project:id,name', 'creator:id,name'])
+            ->with(['vendor:id,name', 'project:id,name', 'creator:id,name'])
             ->byDisplayStatus($status)
             ->searchSupplier($search)
             // Unpaid first, then most urgent due date; no due date last.
@@ -54,6 +55,7 @@ class SupplierDebtController extends Controller
     {
         return Inertia::render('Finance/SupplierDebts/Create', [
             'projects' => Project::orderBy('name')->get(['id', 'name']),
+            'vendors' => Vendor::options(),
         ]);
     }
 
@@ -69,6 +71,7 @@ class SupplierDebtController extends Controller
     public function show(SupplierDebt $supplierDebt): Response
     {
         $supplierDebt->load([
+            'vendor:id,name,contact,bank_name,bank_account_number,account_holder',
             'project:id,name',
             'creator:id,name',
             'payments' => fn ($q) => $q->latest('paid_date')->latest('id'),

@@ -3,7 +3,7 @@
 > Induk: [`../sprint-11-quotation-satuan-material.md`](../sprint-11-quotation-satuan-material.md).
 > Asal keputusan: Sprint 12 keputusan #32 ([`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md)) —
 > dipindah ke Sprint 11 karena pembelian material (Sub 3) membutuhkannya.
-> Status: **belum dikerjakan** · Prasyarat: —
+> Status: **selesai 2026-10-04** · Prasyarat: —
 
 ## Tujuan
 Vendor/supplier jadi master yang dipakai ulang (pembelian material, hutang
@@ -37,7 +37,7 @@ vendors   name (unik), contact, address (text), type (MATERIAL | JASA),
   minta CEO menambahkannya di Data Master → Vendor."
 
 ## Checklist
-- [ ] **[MasterData]** Migration + model `Vendor` (`$fillable`, scope `active`), `VendorService`, requests, controller, route `role:CEO`
-- [ ] **[UI]** Halaman Data Master → Vendor (DataTable + Dialog, toggle aktif) + `VendorSelect` + nav
-- [ ] **[Database]** Migrasi `supplier_debts.supplier_name` → `vendor_id` (reversibel) + update service/request/halaman hutang & `Projects/Show.tsx`
-- [ ] **[Test]** RBAC (CEO/SUPERADMIN 200; FINANCE/LOGISTICS/PM 403), vendor terpakai tidak bisa dihapus, backfill hutang supplier
+- [x] **[MasterData]** Migration + model `Vendor` (`$fillable`, scope `active`), `VendorService`, requests, controller, route `role:CEO`
+- [x] **[UI]** Halaman Data Master → Vendor (DataTable + Dialog, toggle aktif) + `VendorSelect` + nav
+- [x] **[Database]** Migrasi `supplier_debts.supplier_name` → `vendor_id` (reversibel) + update service/request/halaman hutang & `Projects/Show.tsx`
+- [x] **[Test]** RBAC (CEO/SUPERADMIN 200; FINANCE/LOGISTICS/PM 403), vendor terpakai tidak bisa dihapus, backfill hutang supplier
