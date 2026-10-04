@@ -42,6 +42,36 @@ class ProjectPolicy
     }
 
     /**
+     * Sprint 11 §5.6 "Rencana material dari katalog": Estimator and
+     * Logistics on any project, a PM only on the projects they manage.
+     */
+    public function planMaterials(User $user, Project $project): bool
+    {
+        if ($user->hasAnyRole(['ESTIMATOR', 'LOGISTICS'])) {
+            return true;
+        }
+
+        return $this->ownsAsPm($user, $project);
+    }
+
+    /**
+     * Sprint 11 §5.6 — recording purchases, usage, waste and hand-overs on
+     * a project's material lines: Logistics on any project, a PM only on
+     * their own ("proyek miliknya" = `pm_id`, not just the PM role).
+     * Issuing from and returning to the warehouse are Logistics-only and
+     * gated by route middleware on top of this.
+     */
+    public function manageMaterials(User $user, Project $project): bool
+    {
+        return $user->hasRole('LOGISTICS') || $this->ownsAsPm($user, $project);
+    }
+
+    private function ownsAsPm(User $user, Project $project): bool
+    {
+        return $user->hasRole('PM') && (int) $project->pm_id === (int) $user->id;
+    }
+
+    /**
      * Which task rows a viewer of this project may see — PRD §7.1 gives
      * task read to CEO/PM (all) and Field Staff (own only, U†). QA
      * explicitly never sees task detail (PRD §4.6), and the remaining

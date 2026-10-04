@@ -11,7 +11,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * Append-only stock ledger (see the stock_movements migration's
  * docblock). Written only by StockService; there is no update or delete
- * path anywhere.
+ * path anywhere. OUT and RETURN rows point at the project material line
+ * they belong to; `unit_cost` snapshots the price at that moment.
  */
 class StockMovement extends Model
 {
@@ -22,9 +23,11 @@ class StockMovement extends Model
     protected $fillable = [
         'material_id',
         'project_id',
+        'project_material_id',
         'type',
         'qty',
         'stock_after',
+        'unit_cost',
         'movement_date',
         'note',
         'recorded_by',
@@ -34,8 +37,9 @@ class StockMovement extends Model
     {
         return [
             'type' => StockMovementType::class,
-            'qty' => 'integer',
-            'stock_after' => 'integer',
+            'qty' => 'float',
+            'stock_after' => 'float',
+            'unit_cost' => 'decimal:2',
             'movement_date' => 'date',
         ];
     }
@@ -48,6 +52,11 @@ class StockMovement extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function projectMaterial(): BelongsTo
+    {
+        return $this->belongsTo(ProjectMaterial::class);
     }
 
     public function recorder(): BelongsTo

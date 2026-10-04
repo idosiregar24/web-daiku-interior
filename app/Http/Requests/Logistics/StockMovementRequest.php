@@ -22,7 +22,8 @@ class StockMovementRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'qty' => ['required', 'integer', 'min:1', 'max:1000000'],
+            // Fractional quantities allowed (Sprint 11 decision #3).
+            'qty' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'movement_date' => ['required', 'date', 'before_or_equal:today'],
             'note' => ['nullable', 'string', 'max:255'],
             'project_id' => [
@@ -37,7 +38,8 @@ class StockMovementRequest extends FormRequest
     {
         return [
             'qty.required' => 'Jumlah wajib diisi.',
-            'qty.min' => 'Jumlah minimal 1.',
+            'qty.min' => 'Jumlah minimal 0,01.',
+            'qty.decimal' => 'Jumlah maksimal 2 angka di belakang koma.',
             'movement_date.required' => 'Tanggal wajib diisi.',
             'movement_date.before_or_equal' => 'Tanggal tidak boleh di masa depan.',
             'project_id.required' => 'Pemakaian material wajib dikaitkan ke proyek.',

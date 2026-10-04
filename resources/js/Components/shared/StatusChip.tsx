@@ -86,6 +86,17 @@ const STATUS_TONE: Record<string, Tone> = {
     DAMAGED: 'error',
     IN: 'success',
     OUT: 'info',
+    RETURN: 'success',
+    MERGE_OUT: 'neutral',
+    MERGE_IN: 'neutral',
+    // Logistik — ProjectMaterialSource / MaterialRequestStatus (Sprint 11)
+    GUDANG: 'info',
+    PEMBELIAN: 'warning',
+    CUSTOM: 'neutral',
+    MENUNGGU_PM: 'warning',
+    DIAJUKAN: 'warning',
+    DISETUJUI: 'success',
+    DITOLAK: 'error',
     // SDM — DisciplinaryType
     TEGURAN_LISAN: 'warning',
     SP1: 'warning',

@@ -183,8 +183,10 @@ export interface QuotationItem {
     id: number;
     quotation_id: number;
     description: string;
+    /** Fractional allowed (Sprint 11) — 2.5. */
     qty: number;
-    unit: string;
+    unit_id: number;
+    unit: UnitOption | null;
     unit_price: string;
     total_price: string;
     sort_order: number;
@@ -211,7 +213,10 @@ export type QuotationRevisionReason = 'CEO_REJECTED' | 'PM_REJECTED' | 'CLIENT_R
 export interface QuotationRevisionItem {
     description: string;
     qty: number;
-    unit: string;
+    /** Master Satuan code — snapshots taken since Sprint 11. */
+    unit_code?: string | null;
+    /** Free-text unit — snapshots taken before Sprint 11 (history is never rewritten). */
+    unit?: string;
     unit_price: string;
     total_price: string;
 }
@@ -537,10 +542,26 @@ export interface FinanceTransaction {
 export interface Material {
     id: number;
     name: string;
-    unit: string;
-    category: string | null;
+    unit_id: number;
+    /** Always eager-loaded (Material::$with) — Master Satuan. */
+    unit: UnitOption | null;
+    /** Sprint 11 §5.5 — structured identity; `name` is the generated display name. */
+    material_category_id: number;
+    category?: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'> | null;
+    /** Generated per category, e.g. KYP-0012. */
+    code: string;
+    base_name: string | null;
+    spec: string | null;
+    brand: string | null;
+    /** Flagged by the anti-duplicate rebuild — waits on the Cek Duplikat page. */
+    possible_duplicate: boolean;
+    /** False once merged into another item (Lapis 6). */
+    is_active: boolean;
+    merged_into_id: number | null;
+    /** "Harga gudang" set by Logistics — what a project is charged per unit taken from stock (Sprint 11 #5). */
     cost_price: string;
     sell_price: string;
+    /** Fractional allowed (Sprint 11) — 2.5. */
     stock: number;
     min_stock: number;
     /** Appended accessors (App\Models\Material) — sell_price − cost_price. */
@@ -551,17 +572,22 @@ export interface Material {
     updated_at: string;
 }
 
-export type StockMovementType = 'IN' | 'OUT';
+/** IN = receipt, OUT = issued to a project, RETURN = leftover returned from a project (Sprint 11). */
+export type StockMovementType = 'IN' | 'OUT' | 'RETURN' | 'MERGE_OUT' | 'MERGE_IN';
 
 export interface StockMovement {
     id: number;
     material_id: number;
-    material?: Pick<Material, 'id' | 'name' | 'unit'>;
+    material?: Pick<Material, 'id' | 'name' | 'unit_id' | 'unit'>;
+    /** OUT: the receiving project. RETURN: the project the leftover came from. */
     project_id: number | null;
     project?: Pick<Project, 'id' | 'name'> | null;
+    project_material_id: number | null;
     type: StockMovementType;
     qty: number;
     stock_after: number;
+    /** Price per unit at the time of the movement (OUT: harga gudang charged to the project). */
+    unit_cost: string | null;
     movement_date: string;
     note: string | null;
     recorded_by: number;
@@ -569,13 +595,69 @@ export interface StockMovement {
     created_at: string;
 }
 
+/** Sprint 11 Sub 3 — where a project material line comes from. */
+export type ProjectMaterialSource = 'GUDANG' | 'PEMBELIAN' | 'CUSTOM';
+
+/** Sprint 11 Sub 4 — out-of-catalog requests; catalog lines are DISETUJUI from the start. */
+export type MaterialRequestStatus = 'MENUNGGU_PM' | 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
+
+/** Sub 4 — Logistics' four decisions on a request (decision #13). */
+export type MaterialRequestDecision = 'PAKAI_KATALOG' | 'DAFTAR_KATALOG' | 'CUSTOM' | 'TOLAK';
+
+/** What the requester originally asked for (`requested_snapshot`) — Logistics may change it when approving. */
+export interface MaterialRequestSnapshot {
+    name: string;
+    spec?: string;
+    unit_id?: number;
+    qty: number;
+    estimated_price?: number;
+    reason?: string;
+    vendor_id?: number;
+    photo_link?: string;
+}
+
 export interface ProjectMaterial {
     id: number;
     project_id: number;
-    material_id: number;
-    material?: Pick<Material, 'id' | 'name' | 'unit' | 'stock' | 'cost_price' | 'sell_price' | 'min_stock'>;
+    source: ProjectMaterialSource;
+    /** Null only for CUSTOM lines. */
+    material_id: number | null;
+    material?: Pick<Material, 'id' | 'name' | 'unit_id' | 'unit' | 'stock' | 'cost_price'> | null;
+    custom_name: string | null;
+    custom_spec: string | null;
+    /** Null only while a Tukang request waits for Logistics to pick the unit. */
+    unit_id: number | null;
+    unit: UnitOption | null;
+    /** Last actual purchase price per unit (PEMBELIAN/CUSTOM). */
+    unit_price: string | null;
+    vendor_id: number | null;
+    vendor?: Pick<Vendor, 'id' | 'name'> | null;
+    request_status: MaterialRequestStatus;
+    /** Sub 4 — TIM (PM/Estimator) or TUKANG (PM approves first); null for lines planned from the catalog. */
+    request_channel: 'TIM' | 'TUKANG' | null;
+    request_reason: string | null;
+    photo_link: string | null;
+    requested_by: number | null;
+    requester?: Pick<User, 'id' | 'name'> | null;
+    requested_snapshot: MaterialRequestSnapshot | null;
+    submitted_at: string | null;
+    review_decision: MaterialRequestDecision | null;
+    reject_reason: string | null;
+    reviewed_at: string | null;
     qty_planned: number;
+    qty_received: number;
     qty_used: number;
+    qty_returned: number;
+    qty_wasted: number;
+    qty_handed_over: number;
+    /** What the project is charged — Σ issued × harga gudang, Σ bought × harga beli. Returns never lower it (Sprint 11 #9). */
+    cost_total: string;
+    waste_reason: string | null;
+    handover_note: string | null;
+    /** Appended — catalog name or custom name. */
+    display_name: string;
+    /** Appended — received − used − returned − wasted − handed over. */
+    leftover: number;
     created_at: string;
     updated_at: string;
 }
@@ -689,6 +771,61 @@ export interface LeadCategoryOption {
     updated_at: string;
 }
 
+/** Sprint 11 Sub 1 — Master Satuan (App\Models\Unit). No conversion between units. */
+export interface Unit {
+    id: number;
+    code: string;
+    name: string;
+    is_active: boolean;
+    sort_order: number;
+}
+
+/** What a form's `units` prop and an eager-loaded `unit` relation carry. */
+export type UnitOption = Pick<Unit, 'id' | 'code' | 'name'>;
+
+/** Data Master row — `in_use` units can only be deactivated. */
+export interface UnitRow extends Unit {
+    in_use: boolean;
+}
+
+/** Sprint 11 Sub 5 — Data Master → Kategori Material (AppModelsMaterialCategory). */
+export interface MaterialCategory {
+    id: number;
+    name: string;
+    /** Starts every item code of the category (KYP-0012). */
+    code_prefix: string;
+    is_active: boolean;
+    sort_order: number;
+    materials_count?: number;
+}
+
+/** Sprint 11 Sub 5 — "plywood" means "triplek" when matching catalog items. */
+export interface MaterialSynonym {
+    id: number;
+    term: string;
+    canonical: string;
+}
+
+/** Sprint 11 Sub 2 — Master Vendor (App\Models\Vendor). */
+export type VendorType = 'MATERIAL' | 'JASA';
+
+export interface Vendor {
+    id: number;
+    name: string;
+    contact: string | null;
+    address: string | null;
+    type: VendorType;
+    bank_name: string | null;
+    bank_account_number: string | null;
+    account_holder: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+/** What a VendorSelect's `vendors` prop carries (active vendors only). */
+export type VendorOption = Pick<Vendor, 'id' | 'name' | 'type'>;
+
 export interface BankAccount {
     id: number;
     bank_name: string;
@@ -766,7 +903,9 @@ export interface StaffLoanPayment {
 /** PRD 4.7 — Hutang Supplier (supplier_debts). `remaining` is DB-generated. */
 export interface SupplierDebt {
     id: number;
-    supplier_name: string;
+    vendor_id: number;
+    /** Master Vendor (Sprint 11 Sub 2) — replaced the free-text supplier name. */
+    vendor?: Pick<Vendor, 'id' | 'name'> & Partial<Pick<Vendor, 'contact' | 'bank_name' | 'bank_account_number' | 'account_holder'>>;
     total_amount: string;
     paid_amount: string;
     remaining: string;

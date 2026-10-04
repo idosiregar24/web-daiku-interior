@@ -28,6 +28,7 @@ import type {
     BankAccount,
     FinanceAllocationLine,
     Material,
+    MaterialCategory,
     Milestone,
     ProgressLog,
     Project,
@@ -37,6 +38,8 @@ import type {
     Task,
     Termin,
     User,
+    UnitOption,
+    VendorOption,
 } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import {
@@ -85,7 +88,11 @@ interface ProjectShowProps {
     projectMaterials: ProjectMaterial[];
     canViewMaterials: boolean;
     materialPermissions: MaterialPermissions;
-    materialOptions: Pick<Material, 'id' | 'name' | 'unit' | 'stock'>[];
+    materialOptions: Pick<Material, 'id' | 'code' | 'name' | 'unit_id' | 'unit' | 'stock' | 'cost_price'>[];
+    catalogOptions: Pick<Material, 'id' | 'name' | 'unit_id'>[];
+    vendors: VendorOption[];
+    units: UnitOption[];
+    materialCategories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
 }
 
 function formatDate(value: string | null) {
@@ -655,7 +662,7 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
                                     href={route('finance.supplierDebts.show', { supplierDebt: debt.id })}
                                     className="font-medium text-daiku-dark hover:underline"
                                 >
-                                    {debt.supplier_name}
+                                    {debt.vendor?.name}
                                 </Link>
                                 <p className="text-xs text-daiku-muted">
                                     Jatuh tempo {formatDate(debt.due_date)}
@@ -747,6 +754,10 @@ export default function ProjectShow({
     canViewMaterials,
     materialPermissions,
     materialOptions,
+    catalogOptions,
+    vendors,
+    units,
+    materialCategories,
 }: ProjectShowProps) {
     const [tab, setTab] = useState('overview');
     const [editOpen, setEditOpen] = useState(false);
@@ -869,6 +880,10 @@ export default function ProjectShow({
                             canView={canViewMaterials}
                             permissions={materialPermissions}
                             materialOptions={materialOptions}
+                            catalogOptions={catalogOptions}
+                            vendors={vendors}
+                            units={units}
+                            materialCategories={materialCategories}
                         />
                     </TabsContent>
                 )}

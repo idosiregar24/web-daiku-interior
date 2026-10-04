@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\MilestoneStatus;
-use App\Enums\ProjectStatus;
 use App\Enums\QaStatus;
 use App\Models\Milestone;
 use App\Models\Project;
@@ -179,34 +178,14 @@ class QaFormService
 
     /**
      * CSV Sprint 6 "Project selesai flow: semua milestone COMPLETED →
-     * project COMPLETED". Runs inside the approving review's transaction,
-     * so a project can only finish through QA — never by a PM editing a
-     * status field. A project with no milestones never auto-completes.
+     * project COMPLETED" — the rule itself (incl. Sprint 11's "no
+     * unsettled material leftovers") lives in ProjectService. Runs inside
+     * the approving review's transaction, so a project can only finish
+     * through QA — never by a PM editing a status field.
      */
     private function completeProjectIfDone(Project $project): void
     {
-        $milestones = $project->milestones()->get(['id', 'status']);
-
-        if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
-            return;
-        }
-
-        $project->update([
-            'status' => ProjectStatus::Completed->value,
-            'end_date' => now('Asia/Jakarta')->toDateString(),
-        ]);
-
-        // Production is done — the lead's design becomes DONE_PRODUKSI,
-        // which also freezes its delay count (Sprint 9 decision #4).
-        app(DesignService::class)->syncWithPipeline($project->lead_id, DesignService::EVENT_PROJECT_COMPLETED);
-
-        $this->notificationService->notifyMany(
-            User::role('CEO')->where('is_active', true)->get()->push($project->pm),
-            'project_completed',
-            'Proyek Selesai',
-            "Semua milestone proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
-            ['project_id' => $project->id],
-        );
+        app(ProjectService::class)->completeIfFinished($project, notifyWhenBlocked: true);
     }
 
     /** PRD §4.6 "PM mendapat notifikasi langsung ketika QA approve/reject". */

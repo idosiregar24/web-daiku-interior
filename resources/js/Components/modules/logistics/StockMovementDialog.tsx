@@ -12,6 +12,8 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { formatQty, formatRupiah } from '@/lib/format';
+import { parseQty, quantityField } from '@/lib/quantity';
 import type { Material, Project, StockMovementType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -23,10 +25,7 @@ import { z } from 'zod';
 // Mirrors StockMovementRequest. The two rules that depend on context
 // (project required for OUT, qty ≤ current stock) run in onSubmit.
 const schema = z.object({
-    qty: z
-        .string()
-        .min(1, 'Jumlah wajib diisi')
-        .refine((v) => Number.isInteger(Number(v)) && Number(v) >= 1, 'Jumlah minimal 1'),
+    qty: quantityField('Jumlah'),
     movement_date: z.date({ message: 'Tanggal wajib diisi' }),
     project_id: z.string().optional(),
     note: z.string().max(255).optional(),
@@ -66,19 +65,21 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
         return null;
     }
 
+    const unitCode = material.unit?.code ?? '';
+
     function onSubmit(values: FormValues) {
         if (!material) {
             return;
         }
 
         if (isOut && !values.project_id) {
-            form.setError('project_id', { message: 'Pemakaian wajib dikaitkan ke proyek' });
+            form.setError('project_id', { message: 'Barang keluar wajib dikaitkan ke proyek' });
 
             return;
         }
 
-        if (isOut && Number(values.qty) > available) {
-            form.setError('qty', { message: `Melebihi stok tersedia (${available} ${material.unit})` });
+        if (isOut && parseQty(values.qty) > available) {
+            form.setError('qty', { message: `Melebihi stok tersedia (${formatQty(available)} ${unitCode})` });
 
             return;
         }
@@ -86,7 +87,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
         router.post(
             route(isOut ? 'logistics.materials.stockOut' : 'logistics.materials.stockIn', { material: material.id }),
             {
-                qty: Number(values.qty),
+                qty: parseQty(values.qty),
                 movement_date: format(values.movement_date, 'yyyy-MM-dd'),
                 note: values.note || null,
                 ...(isOut ? { project_id: Number(values.project_id) } : {}),
@@ -106,9 +107,10 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{isOut ? 'Pemakaian Material' : 'Terima Barang'}</DialogTitle>
+                    <DialogTitle>{isOut ? 'Keluarkan ke Proyek' : 'Terima Barang'}</DialogTitle>
                     <DialogDescription>
-                        {material.name} — stok saat ini {available} {material.unit}
+                        {material.name} — stok saat ini {formatQty(available)} {unitCode}
+                        {isOut && ` · dibebankan ke proyek ${formatRupiah(material.cost_price)}/${unitCode} (harga gudang)`}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -145,14 +147,14 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                 name="qty"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jumlah ({material.unit})</FormLabel>
+                                        <FormLabel>Jumlah ({unitCode})</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
-                                                min="1"
+                                                min="0.01"
                                                 max={isOut ? available : undefined}
-                                                step="1"
-                                                inputMode="numeric"
+                                                step="0.01"
+                                                inputMode="decimal"
                                                 {...field}
                                             />
                                         </FormControl>
@@ -197,7 +199,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                {isOut ? 'Catat Pemakaian' : 'Catat Penerimaan'}
+                                {isOut ? 'Keluarkan Barang' : 'Catat Penerimaan'}
                             </Button>
                         </DialogFooter>
                     </form>

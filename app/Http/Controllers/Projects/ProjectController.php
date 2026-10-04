@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers\Projects;
 
+use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreProjectRequest;
 use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Models\BankAccount;
 use App\Models\Lead;
 use App\Models\Material;
+use App\Models\MaterialCategory;
 use App\Models\Project;
+use App\Models\ProjectMaterial;
+use App\Models\Unit;
 use App\Models\User;
+use App\Models\Vendor;
 use App\Policies\ProjectPolicy;
 use App\Services\FinanceAllocationService;
 use App\Services\ProjectService;
@@ -86,7 +91,11 @@ class ProjectController extends Controller
         // reads — create-only access without seeing what's already
         // planned would just produce duplicate requests.
         $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'LOGISTICS', 'SUPERADMIN']);
-        $canPlanMaterials = $user->hasAnyRole(['ESTIMATOR', 'PM', 'LOGISTICS', 'SUPERADMIN']);
+        // Sprint 11 §5.6: a PM plans/records only on their own project.
+        $isRunning = in_array($project->status, [ProjectStatus::Active, ProjectStatus::OnHold], true);
+        $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);
+        $canManageMaterials = $user->can('manageMaterials', $project) && $project->status !== ProjectStatus::Completed;
+        $isLogistics = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
 
         $project->load(['pm:id,name', 'lead:id,client_name']);
 
@@ -136,15 +145,34 @@ class ProjectController extends Controller
             'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
             'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => $canViewMaterials
-                ? $project->projectMaterials()->with('material:id,name,unit,stock,cost_price,sell_price,min_stock')->get()
+                ? $project->projectMaterials()
+                    ->with(['material:id,name,unit_id,stock,cost_price', 'unit:id,code,name', 'vendor:id,name', 'requester:id,name'])
+                    ->orderBy('source')
+                    ->orderBy('id')
+                    ->get()
                 : [],
             'canViewMaterials' => $canViewMaterials,
+            // Sprint 11 Sub 3 — which lifecycle actions the tab offers (re-checked server-side).
             'materialPermissions' => [
                 'create' => $canPlanMaterials,
-                'update' => $user->hasAnyRole(['PM', 'LOGISTICS', 'SUPERADMIN']),
-                'delete' => $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']),
+                'update' => $isRunning && $canManageMaterials,
+                'delete' => $isLogistics,
+                'receive' => $isRunning && $canManageMaterials,
+                'issue' => $isRunning && $isLogistics,
+                'settle' => $canManageMaterials,
+                'return' => $isLogistics && $project->status !== ProjectStatus::Completed,
+                // Sub 4 — out-of-catalog requests; Logistics decides on its own queue page.
+                'request' => $isRunning && $user->can('request', [ProjectMaterial::class, $project]),
+                'pmDecide' => $user->hasRole('SUPERADMIN') || ($user->hasRole('PM') && (int) $project->pm_id === (int) $user->id),
+                'review' => $isLogistics,
             ],
-            'materialOptions' => $canPlanMaterials ? Material::orderBy('name')->get(['id', 'name', 'unit', 'stock']) : [],
+            'units' => $isRunning && $canViewMaterials ? Unit::options() : [],
+            'materialOptions' => $canPlanMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id', 'stock', 'cost_price']) : [],
+            // Return-to-stock of a CUSTOM line maps it onto a catalog item (Logistics only).
+            'catalogOptions' => $isLogistics && $canViewMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id']) : [],
+            'vendors' => $canManageMaterials || $canPlanMaterials ? Vendor::options() : [],
+            // Registering a custom leftover as a catalog item on return (Logistics, §5.5).
+            'materialCategories' => $isLogistics && $canViewMaterials ? MaterialCategory::options() : [],
         ]);
     }
 

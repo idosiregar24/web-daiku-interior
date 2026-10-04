@@ -23,7 +23,7 @@ class StockMovementController extends Controller
     public function index(Request $request): Response
     {
         $movements = StockMovement::query()
-            ->with(['material:id,name,unit', 'project:id,name', 'recorder:id,name'])
+            ->with(['material:id,name,unit_id', 'project:id,name', 'recorder:id,name'])
             ->byType($request->string('type')->value() ?: null)
             ->when($request->integer('material_id'), fn ($query, $id) => $query->where('material_id', $id))
             ->when($request->integer('project_id'), fn ($query, $id) => $query->where('project_id', $id))

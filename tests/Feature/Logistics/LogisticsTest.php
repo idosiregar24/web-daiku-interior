@@ -74,9 +74,10 @@ test('the write actions are only offered to Logistics in the UI props', function
 
 test('logistics can create a material and its margin is computed', function () {
     $this->actingAs(logisticsUser('LOGISTICS'))->post(route('logistics.materials.store'), [
-        'name' => 'Plywood 18mm',
-        'unit' => 'lembar',
-        'category' => 'Kayu',
+        'material_category_id' => categoryId('KYP'),
+        'base_name' => 'Plywood',
+        'spec' => '18mm',
+        'unit_id' => unitId('lbr'),
         'cost_price' => 185000,
         'sell_price' => 240000,
         'min_stock' => 10,
@@ -86,7 +87,7 @@ test('logistics can create a material and its margin is computed', function () {
     $material = Material::sole();
     expect($material->margin)->toBe(55000.0)
         ->and($material->margin_percent)->toBe(22.9)
-        ->and($material->stock)->toBe(0);
+        ->and($material->stock)->toBe(0.0);
 });
 
 test('the index can filter to low-stock materials only', function () {
@@ -133,9 +134,9 @@ test('stock in raises stock and writes a ledger row', function () {
     ])->assertRedirect();
 
     $movement = StockMovement::sole();
-    expect($material->fresh()->stock)->toBe(25)
+    expect($material->fresh()->stock)->toBe(25.0)
         ->and($movement->type)->toBe(StockMovementType::In)
-        ->and($movement->stock_after)->toBe(25)
+        ->and($movement->stock_after)->toBe(25.0)
         ->and($movement->project_id)->toBeNull()
         ->and($movement->recorded_by)->toBe($logistics->id);
 });
@@ -158,13 +159,13 @@ test('stock out must be tied to a project', function () {
         'movement_date' => now()->toDateString(),
     ])->assertSessionHasErrors('project_id');
 
-    expect($material->fresh()->stock)->toBe(10);
+    expect($material->fresh()->stock)->toBe(10.0);
 });
 
-test('stock out lowers stock and accumulates the project usage', function () {
+test('stock out lowers stock and adds to the received qty of the project line', function () {
     $material = Material::factory()->create(['stock' => 30]);
     $project = Project::factory()->create();
-    ProjectMaterial::factory()->create(['project_id' => $project->id, 'material_id' => $material->id, 'qty_planned' => 20]);
+    ProjectMaterial::factory()->create(['project_id' => $project->id, 'material_id' => $material->id, 'unit_id' => $material->unit_id, 'qty_planned' => 20]);
     $logistics = logisticsUser('LOGISTICS');
 
     foreach ([4, 6] as $qty) {
@@ -176,11 +177,11 @@ test('stock out lowers stock and accumulates the project usage', function () {
     }
 
     $plan = ProjectMaterial::sole();
-    expect($material->fresh()->stock)->toBe(20)
-        ->and($plan->qty_used)->toBe(10)
-        ->and($plan->qty_planned)->toBe(20)
+    expect($material->fresh()->stock)->toBe(20.0)
+        ->and($plan->qty_received)->toBe(10.0)
+        ->and($plan->qty_planned)->toBe(20.0)
         // Ledger and running total reconcile.
-        ->and((int) StockMovement::where('type', 'OUT')->sum('qty'))->toBe(10);
+        ->and((float) StockMovement::where('type', 'OUT')->sum('qty'))->toBe(10.0);
 });
 
 test('stock out for an unplanned material creates the project row on the fly', function () {
@@ -190,7 +191,7 @@ test('stock out for an unplanned material creates the project row on the fly', f
     app(StockService::class)->stockOut($material, $project, ['qty' => 2], logisticsUser('LOGISTICS'));
 
     $plan = ProjectMaterial::sole();
-    expect($plan->qty_planned)->toBe(0)->and($plan->qty_used)->toBe(2);
+    expect($plan->qty_planned)->toBe(0.0)->and($plan->qty_received)->toBe(2.0)->and($plan->qty_used)->toBe(0.0);
 });
 
 test('stock can never go negative', function () {
@@ -203,7 +204,7 @@ test('stock can never go negative', function () {
         'project_id' => $project->id,
     ])->assertSessionHasErrors('qty');
 
-    expect($material->fresh()->stock)->toBe(3)
+    expect($material->fresh()->stock)->toBe(3.0)
         ->and(StockMovement::count())->toBe(0)
         ->and(ProjectMaterial::count())->toBe(0);
 });
@@ -240,39 +241,62 @@ test('future movement dates are rejected', function () {
 
 // ── Project materials (PRD §4.8 "Kebutuhan Material Proyek") ─────────────
 
-test('estimator, PM and logistics can plan project materials', function (string $role) {
-    $project = Project::factory()->create();
+test('estimator, the project\'s PM and logistics can plan project materials', function (string $role) {
+    $user = logisticsUser($role);
+    $project = Project::factory()->create($role === 'PM' ? ['pm_id' => $user->id] : []);
     $material = Material::factory()->create();
 
-    $this->actingAs(logisticsUser($role))->post(route('projects.materials.store', $project), [
+    $this->actingAs($user)->post(route('projects.materials.store', $project), [
         'material_id' => $material->id,
-        'qty_planned' => 12,
+        'source' => 'GUDANG',
+        'qty_planned' => 12.5,
     ])->assertRedirect()->assertSessionHasNoErrors();
 
-    expect(ProjectMaterial::sole()->qty_planned)->toBe(12);
+    $line = ProjectMaterial::sole();
+    expect($line->qty_planned)->toBe(12.5)
+        ->and($line->unit_id)->toBe($material->unit_id)
+        ->and($line->request_status->value)->toBe('DISETUJUI');
 })->with(['ESTIMATOR', 'PM', 'LOGISTICS']);
 
-test('planning the same material twice updates instead of duplicating', function () {
-    $project = Project::factory()->create();
-    $material = Material::factory()->create();
+test('planning the same material from the same source twice updates instead of duplicating', function () {
     $pm = logisticsUser('PM');
+    $project = Project::factory()->create(['pm_id' => $pm->id]);
+    $material = Material::factory()->create();
 
     foreach ([5, 9] as $qty) {
-        $this->actingAs($pm)->post(route('projects.materials.store', $project), ['material_id' => $material->id, 'qty_planned' => $qty]);
+        $this->actingAs($pm)->post(route('projects.materials.store', $project), ['material_id' => $material->id, 'source' => 'GUDANG', 'qty_planned' => $qty]);
     }
 
-    expect(ProjectMaterial::count())->toBe(1)->and(ProjectMaterial::sole()->qty_planned)->toBe(9);
+    // The same item bought for the project is a separate line.
+    $this->actingAs($pm)->post(route('projects.materials.store', $project), ['material_id' => $material->id, 'source' => 'PEMBELIAN', 'qty_planned' => 4]);
+
+    expect(ProjectMaterial::count())->toBe(2)
+        ->and(ProjectMaterial::where('source', 'GUDANG')->sole()->qty_planned)->toBe(9.0);
+});
+
+test('CUSTOM lines cannot be planned directly', function () {
+    $project = Project::factory()->create();
+
+    $this->actingAs(logisticsUser('LOGISTICS'))->post(route('projects.materials.store', $project), [
+        'material_id' => Material::factory()->create()->id,
+        'source' => 'CUSTOM',
+        'qty_planned' => 1,
+    ])->assertSessionHasErrors('source');
 });
 
 test('project material permissions follow the matrix split', function () {
     $plan = ProjectMaterial::factory()->create();
+    $owner = logisticsUser('PM');
+    $plan->project->update(['pm_id' => $owner->id]);
 
     $this->actingAs(logisticsUser('FINANCE'))->post(route('projects.materials.store', $plan->project_id), [])->assertForbidden();
     $this->actingAs(logisticsUser('ESTIMATOR'))->put(route('project-materials.update', $plan), ['qty_planned' => 3])->assertForbidden();
-    $this->actingAs(logisticsUser('PM'))->delete(route('project-materials.destroy', $plan))->assertForbidden();
-    $this->actingAs(logisticsUser('PM'))->put(route('project-materials.update', $plan), ['qty_planned' => 3])->assertRedirect();
+    $this->actingAs($owner)->delete(route('project-materials.destroy', $plan))->assertForbidden();
+    // Another project's PM is refused by the policy, the owner is not.
+    $this->actingAs(logisticsUser('PM'))->put(route('project-materials.update', $plan), ['qty_planned' => 3])->assertForbidden();
+    $this->actingAs($owner)->put(route('project-materials.update', $plan), ['qty_planned' => 3])->assertRedirect();
 
-    expect($plan->fresh()->qty_planned)->toBe(3);
+    expect($plan->fresh()->qty_planned)->toBe(3.0);
 });
 
 test('a plan with usage cannot be removed', function () {

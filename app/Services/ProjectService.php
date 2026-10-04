@@ -3,14 +3,18 @@
 namespace App\Services;
 
 use App\Enums\LeadStatus;
+use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\TerminStatus;
 use App\Models\AuditLog;
 use App\Models\Lead;
+use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\ProjectMaterial;
 use App\Models\Termin;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,8 +22,9 @@ class ProjectService
 {
     /**
      * Manual status moves (Sprint 9 decision #1). COMPLETED is never
-     * reachable by hand — only QaFormService sets it, once every milestone
-     * passed QA — and CANCELLED is terminal.
+     * reachable by hand — only completeIfFinished() sets it, once every
+     * milestone passed QA and no material leftover remains — and
+     * CANCELLED is terminal.
      */
     private const MANUAL_TRANSITIONS = [
         'ACTIVE' => ['ON_HOLD', 'CANCELLED'],
@@ -162,6 +167,97 @@ class ProjectService
 
             return $locked;
         });
+    }
+
+    /**
+     * CSV Sprint 6 "Project selesai flow: semua milestone COMPLETED →
+     * project COMPLETED", plus Sprint 11 decision #8: not while a material
+     * line still has an unsettled leftover (return / waste / hand over).
+     * Called when the last milestone passes QA (QaFormService) and again
+     * whenever a leftover gets settled (ProjectMaterialService), so the
+     * project finishes the moment both conditions hold. A project with no
+     * milestones never auto-completes. Returns whether it completed.
+     *
+     * $notifyWhenBlocked: tell the PM and Logistics which items are
+     * holding the project up — only on the QA approval that finished the
+     * milestones, not on every partial settlement after it.
+     */
+    public function completeIfFinished(Project $project, bool $notifyWhenBlocked = false): bool
+    {
+        if ($project->isClosed()) {
+            return false;
+        }
+
+        $milestones = $project->milestones()->get(['id', 'status']);
+
+        if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
+            return false;
+        }
+
+        $leftovers = $this->materialLeftovers($project);
+        // Sub 4: an undecided material request blocks completion too.
+        $pendingRequests = $project->projectMaterials()->pendingRequest()->with('material:id,name')->get();
+
+        if ($leftovers->isNotEmpty() || $pendingRequests->isNotEmpty()) {
+            if ($notifyWhenBlocked) {
+                $reasons = array_filter([
+                    $leftovers->isNotEmpty()
+                        ? 'masih ada sisa material: '.$this->describeLeftovers($leftovers).' (bereskan lewat retur / susut / serahkan ke klien)'
+                        : null,
+                    $pendingRequests->isNotEmpty()
+                        ? 'masih ada pengajuan barang yang belum diputuskan: '.$pendingRequests->pluck('display_name')->implode(', ')
+                        : null,
+                ]);
+
+                $this->notificationService->notifyMany(
+                    User::role('LOGISTICS')->where('is_active', true)->get()->push($project->pm)->filter(),
+                    'project_material_leftover',
+                    'Proyek Tertahan: Material',
+                    "Semua milestone proyek \"{$project->name}\" lolos QA, tetapi proyek belum bisa COMPLETED karena "
+                        .implode('; ', $reasons).'. Selesaikan di tab Material.',
+                    ['project_id' => $project->id],
+                );
+            }
+
+            return false;
+        }
+
+        $project->update([
+            'status' => ProjectStatus::Completed->value,
+            'end_date' => now('Asia/Jakarta')->toDateString(),
+        ]);
+
+        // Production is done — the lead's design becomes DONE_PRODUKSI,
+        // which also freezes its delay count (Sprint 9 decision #4).
+        app(DesignService::class)->syncWithPipeline($project->lead_id, DesignService::EVENT_PROJECT_COMPLETED);
+
+        $this->notificationService->notifyMany(
+            User::role('CEO')->where('is_active', true)->get()->push($project->pm)->filter(),
+            'project_completed',
+            'Proyek Selesai',
+            "Semua milestone proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
+            ['project_id' => $project->id],
+        );
+
+        return true;
+    }
+
+    /**
+     * Material lines whose leftover isn't settled yet (Sprint 11 decision #8).
+     *
+     * @return Collection<int, ProjectMaterial>
+     */
+    public function materialLeftovers(Project $project): Collection
+    {
+        return $project->projectMaterials()->withLeftover()->with(['material:id,name,unit_id', 'unit:id,code'])->get();
+    }
+
+    /** "Triplek 17mm (2 lbr), Lem Kayu (0,5 kg)" */
+    public function describeLeftovers(Collection $leftovers): string
+    {
+        return $leftovers
+            ->map(fn (ProjectMaterial $line) => "{$line->display_name} ({$line->quantityLabel($line->leftover)})")
+            ->implode(', ');
     }
 
     /**
