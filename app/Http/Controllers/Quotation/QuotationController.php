@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Quotation;
 
+use App\Enums\QuotationStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
 use App\Http\Requests\Quotation\QuotationDecisionRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Quotation;
 use App\Models\SiteSetting;
+use App\Models\Unit;
 use App\Services\QuotationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -59,6 +61,8 @@ class QuotationController extends Controller
             // `quotations.clientReject` / `crm.leads.confirmDeal` routes.
             'canClientDecide' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']),
             'validityDays' => QuotationService::VALIDITY_DAYS,
+            // Master Satuan dropdown for the RAB builder (only editable while DRAFT).
+            'units' => $quotation->status === QuotationStatus::Draft ? Unit::options() : [],
         ]);
     }
 

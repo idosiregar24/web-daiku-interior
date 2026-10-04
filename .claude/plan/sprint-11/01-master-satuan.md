@@ -1,7 +1,7 @@
 # Sprint 11 · Sub 1 — Master Satuan
 
 > Induk: [`../sprint-11-quotation-satuan-material.md`](../sprint-11-quotation-satuan-material.md) §1 (#3, #4) dan §4.
-> Status: **belum dikerjakan** · Prasyarat: —
+> Status: **selesai 2026-10-04** · Prasyarat: —
 
 ## Tujuan
 Satuan barang jadi master (dropdown), qty boleh pecahan. Dipakai material
@@ -28,11 +28,11 @@ Lihat induk §4. Ringkas:
 - `quotation_items.qty` → `DECIMAL(12,2)`.
 
 ## Checklist
-- [ ] **[Database]** Tabel `units` + seeder satuan umum
-- [ ] **[MasterData]** Data Master → Satuan (CRUD SUPERADMIN, nonaktif bila terpakai)
-- [ ] **[Database]** Migrasi `materials.unit` & `quotation_items.unit` → `unit_id` (normalisasi + backfill + hapus kolom teks); qty item RAB → DECIMAL
-- [ ] **[UI]** Dropdown satuan di form Material & RAB quotation; PDF/Excel memakai master
-- [ ] **[Test]** CRUD satuan (SUPERADMIN saja, role lain 403), backfill migrasi, qty pecahan
+- [x] **[Database]** Tabel `units` + seeder satuan umum
+- [x] **[MasterData]** Data Master → Satuan (CRUD SUPERADMIN, nonaktif bila terpakai)
+- [x] **[Database]** Migrasi `materials.unit` & `quotation_items.unit` → `unit_id` (normalisasi + backfill + hapus kolom teks); qty item RAB → DECIMAL
+- [x] **[UI]** Dropdown satuan di form Material & RAB quotation; PDF/Excel memakai master
+- [x] **[Test]** CRUD satuan (SUPERADMIN saja, role lain 403), backfill migrasi, qty pecahan
 
 ## Selesai bila
 `php artisan test`, `npm run build`, `pint --test` lulus; material & RAB lama

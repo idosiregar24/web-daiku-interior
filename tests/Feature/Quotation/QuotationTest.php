@@ -49,8 +49,8 @@ test('quotation service replaces items and recomputes the total server-side', fu
     QuotationItem::factory()->create(['quotation_id' => $quotation->id]);
 
     app(QuotationService::class)->replaceItems($quotation, [
-        ['description' => 'Kitchen Set', 'qty' => 2, 'unit' => 'set', 'unit_price' => 1_500_000],
-        ['description' => 'Meja Kerja', 'qty' => 3, 'unit' => 'unit', 'unit_price' => 800_000],
+        ['description' => 'Kitchen Set', 'qty' => 2, 'unit_id' => unitId('set'), 'unit_price' => 1_500_000],
+        ['description' => 'Meja Kerja', 'qty' => 3, 'unit_id' => unitId('unit'), 'unit_price' => 800_000],
     ]);
 
     $quotation->refresh();
@@ -62,7 +62,7 @@ test('quotation service refuses to change items once past DRAFT', function () {
     $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
 
     expect(fn () => app(QuotationService::class)->replaceItems($quotation, [
-        ['description' => 'Item', 'qty' => 1, 'unit' => 'unit', 'unit_price' => 100_000],
+        ['description' => 'Item', 'qty' => 1, 'unit_id' => unitId('unit'), 'unit_price' => 100_000],
     ]))->toThrow(ValidationException::class);
 });
 
@@ -105,7 +105,7 @@ test('estimator can save RAB items', function () {
 
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
         'items' => [
-            ['description' => 'Kitchen Set', 'qty' => 1, 'unit' => 'set', 'unit_price' => 5_000_000],
+            ['description' => 'Kitchen Set', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 5_000_000],
         ],
     ])->assertRedirect();
 
@@ -120,7 +120,7 @@ test('roles other than ESTIMATOR cannot save RAB items', function () {
 
     $this->actingAs($ceo)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
         'items' => [
-            ['description' => 'Kitchen Set', 'qty' => 1, 'unit' => 'set', 'unit_price' => 5_000_000],
+            ['description' => 'Kitchen Set', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 5_000_000],
         ],
     ])->assertForbidden();
 });

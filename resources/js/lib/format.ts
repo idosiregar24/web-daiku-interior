@@ -69,3 +69,10 @@ export function formatRelative(value: string): string {
 
     return 'baru saja';
 }
+
+const QUANTITY = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
+
+/** "17", "2,5", "1.250" — material/stock quantities (fractional allowed since Sprint 11). */
+export function formatQty(value: string | number | null | undefined): string {
+    return QUANTITY.format(Number(value ?? 0));
+}

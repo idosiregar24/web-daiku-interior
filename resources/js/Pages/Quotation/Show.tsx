@@ -21,7 +21,9 @@ import {
 import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { QuotationRevisionHistory } from '@/Components/modules/quotation/QuotationRevisionHistory';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Quotation, QuotationApproval, QuotationRevisionReason } from '@/types';
+import { UnitSelect } from '@/Components/shared/UnitSelect';
+import { parseQty, quantityField } from '@/lib/quantity';
+import type { Quotation, QuotationApproval, QuotationRevisionReason, UnitOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, Link, router } from '@inertiajs/react';
 import {
@@ -49,15 +51,14 @@ interface QuotationShowProps {
     canClientDecide: boolean;
     /** QuotationService::VALIDITY_DAYS */
     validityDays: number;
+    /** Active Master Satuan units for the RAB builder (empty once the quotation left DRAFT). */
+    units: UnitOption[];
 }
 
 const itemSchema = z.object({
     description: z.string().min(1, 'Deskripsi wajib diisi'),
-    qty: z
-        .string()
-        .min(1, 'Qty wajib diisi')
-        .refine((v) => !isNaN(Number(v)) && Number(v) >= 1, 'Qty minimal 1'),
-    unit: z.string().min(1, 'Satuan wajib diisi'),
+    qty: quantityField('Qty'),
+    unit_id: z.string().min(1, 'Satuan wajib dipilih'),
     unit_price: z
         .string()
         .min(1, 'Harga wajib diisi')
@@ -98,6 +99,7 @@ export default function QuotationShow({
     canPmDecide,
     canClientDecide,
     validityDays,
+    units,
 }: QuotationShowProps) {
     const [decisionDialog, setDecisionDialog] = useState<{
         role: QuotationDecisionGate;
@@ -110,7 +112,7 @@ export default function QuotationShow({
             items: (quotation.items ?? []).map((item) => ({
                 description: item.description,
                 qty: String(item.qty),
-                unit: item.unit,
+                unit_id: String(item.unit_id),
                 unit_price: String(item.unit_price),
             })),
         },
@@ -120,7 +122,7 @@ export default function QuotationShow({
     const watchedItems = form.watch('items');
 
     const total = watchedItems.reduce((sum, item) => {
-        const qty = Number(item.qty) || 0;
+        const qty = parseQty(item.qty) || 0;
         const price = Number(item.unit_price) || 0;
 
         return sum + qty * price;
@@ -145,8 +147,8 @@ export default function QuotationShow({
             {
                 items: values.items.map((item) => ({
                     description: item.description,
-                    qty: Number(item.qty),
-                    unit: item.unit,
+                    qty: parseQty(item.qty),
+                    unit_id: Number(item.unit_id),
                     unit_price: Number(item.unit_price),
                 })),
             },
@@ -219,7 +221,7 @@ export default function QuotationShow({
                                         </tr>
                                     ) : (
                                         fields.map((item, index) => {
-                                            const qty = Number(watchedItems[index]?.qty) || 0;
+                                            const qty = parseQty(watchedItems[index]?.qty ?? '') || 0;
                                             const price = Number(watchedItems[index]?.unit_price) || 0;
 
                                             return (
@@ -245,7 +247,7 @@ export default function QuotationShow({
                                                             render={({ field }) => (
                                                                 <FormItem>
                                                                     <FormControl>
-                                                                        <Input type="number" min="1" {...field} disabled={!editable} />
+                                                                        <Input type="number" min="0.01" step="0.01" inputMode="decimal" {...field} disabled={!editable} />
                                                                     </FormControl>
                                                                     <FormMessage />
                                                                 </FormItem>
@@ -255,11 +257,17 @@ export default function QuotationShow({
                                                     <td className="px-3 py-2">
                                                         <FormField
                                                             control={form.control}
-                                                            name={`items.${index}.unit`}
+                                                            name={`items.${index}.unit_id`}
                                                             render={({ field }) => (
                                                                 <FormItem>
                                                                     <FormControl>
-                                                                        <Input {...field} disabled={!editable} placeholder="unit" />
+                                                                        <UnitSelect
+                                                                            value={field.value}
+                                                                            onChange={field.onChange}
+                                                                            units={units}
+                                                                            current={quotation.items?.find((line) => String(line.unit_id) === field.value)?.unit}
+                                                                            disabled={!editable}
+                                                                        />
                                                                     </FormControl>
                                                                     <FormMessage />
                                                                 </FormItem>
@@ -324,7 +332,7 @@ export default function QuotationShow({
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => append({ description: '', qty: '1', unit: '', unit_price: '0' })}
+                                    onClick={() => append({ description: '', qty: '1', unit_id: '', unit_price: '0' })}
                                 >
                                     <Plus className="size-4" />
                                     Tambah Item

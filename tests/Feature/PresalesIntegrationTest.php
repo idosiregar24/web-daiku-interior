@@ -83,8 +83,8 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     // 6. Estimator builds the RAB and submits it for review.
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
         'items' => [
-            ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 15_000_000],
-            ['description' => 'Meja Makan', 'qty' => 2, 'unit' => 'unit', 'unit_price' => 3_000_000],
+            ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 15_000_000],
+            ['description' => 'Meja Makan', 'qty' => 2, 'unit_id' => unitId('unit'), 'unit_price' => 3_000_000],
         ],
     ])->assertRedirect();
 
@@ -171,7 +171,7 @@ test('the presales flow survives rejections — CEO reject, client reject, revis
     $quotation = Quotation::where('lead_id', $lead->id)->firstOrFail();
 
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
-        'items' => [['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 30_000_000]],
+        'items' => [['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 30_000_000]],
     ])->assertRedirect();
     expect($design->fresh()->status)->toBe(DesignStatus::PembuatanPenawaran);
 
@@ -190,7 +190,7 @@ test('the presales flow survives rejections — CEO reject, client reject, revis
     // 4. Estimator revises v2 → CEO & PM approve → sent and valid for 14
     // days; design WAITING_ACC_PENAWARAN.
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
-        'items' => [['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit' => 'set', 'unit_price' => 27_000_000]],
+        'items' => [['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 27_000_000]],
     ])->assertRedirect();
     $this->actingAs($estimator)->post(route('quotations.submit', ['quotation' => $quotation->id]))->assertRedirect();
     $this->actingAs($ceo)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), ['decision' => 'approve'])
@@ -227,7 +227,7 @@ test('the presales flow survives rejections — CEO reject, client reject, revis
     Carbon::setTestNow(Carbon::parse('2026-10-01 09:00:00', 'Asia/Jakarta'));
 
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
-        'items' => [['description' => 'Kitchen Set Custom (HPL)', 'qty' => 1, 'unit' => 'set', 'unit_price' => 25_000_000]],
+        'items' => [['description' => 'Kitchen Set Custom (HPL)', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 25_000_000]],
     ])->assertRedirect();
     $this->actingAs($estimator)->post(route('quotations.submit', ['quotation' => $quotation->id]))->assertRedirect();
     $this->actingAs($ceo)->post(route('quotations.ceoDecision', ['quotation' => $quotation->id]), ['decision' => 'approve'])

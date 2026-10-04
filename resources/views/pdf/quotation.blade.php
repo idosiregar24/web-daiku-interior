@@ -79,8 +79,8 @@
             <tr>
                 <td>{{ $index + 1 }}</td>
                 <td>{{ $item->description }}</td>
-                <td>{{ $item->qty }}</td>
-                <td>{{ $item->unit }}</td>
+                <td>{{ \App\Support\Quantity::format($item->qty) }}</td>
+                <td>{{ $item->unit?->code }}</td>
                 <td class="text-right">{{ number_format($item->unit_price, 0, ',', '.') }}</td>
                 <td class="text-right">{{ number_format($item->total_price, 0, ',', '.') }}</td>
             </tr>

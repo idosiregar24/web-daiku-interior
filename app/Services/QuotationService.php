@@ -109,13 +109,14 @@ class QuotationService
             $total = 0;
 
             foreach (array_values($items) as $index => $item) {
-                $totalPrice = $item['qty'] * $item['unit_price'];
+                // qty may be fractional (2,5 m²) — round the line to the cent.
+                $totalPrice = round((float) $item['qty'] * (float) $item['unit_price'], 2);
                 $total += $totalPrice;
 
                 $quotation->items()->create([
                     'description' => $item['description'],
                     'qty' => $item['qty'],
-                    'unit' => $item['unit'],
+                    'unit_id' => $item['unit_id'],
                     'unit_price' => $item['unit_price'],
                     'total_price' => $totalPrice,
                     'sort_order' => $index,
@@ -302,8 +303,9 @@ class QuotationService
             'total_amount' => $quotation->total_amount,
             'items' => $quotation->items()->get()->map(fn (QuotationItem $item) => [
                 'description' => $item->description,
-                'qty' => (int) $item->qty,
-                'unit' => $item->unit,
+                'qty' => (float) $item->qty,
+                // Snapshots taken before Master Satuan (Sprint 11) hold a free-text `unit` instead.
+                'unit_code' => $item->unit?->code,
                 'unit_price' => $item->unit_price,
                 'total_price' => $item->total_price,
             ])->all(),

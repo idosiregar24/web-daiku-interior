@@ -127,7 +127,7 @@ test('saving RAB items moves the design to PEMBUATAN_PENAWARAN', function () {
     [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::GambarRab);
 
     app(QuotationService::class)->replaceItems($quotation, [
-        ['description' => 'Kitchen Set', 'qty' => 1, 'unit' => 'set', 'unit_price' => 1_000_000],
+        ['description' => 'Kitchen Set', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 1_000_000],
     ]);
 
     expect($design->fresh()->status)->toBe(DesignStatus::PembuatanPenawaran);
@@ -216,7 +216,7 @@ test('automatic sync only moves forward', function () {
     [$lead, $design, $quotation] = accdDesignWithQuotation(DesignStatus::Produksi);
 
     app(QuotationService::class)->replaceItems($quotation, [
-        ['description' => 'Tambahan', 'qty' => 1, 'unit' => 'unit', 'unit_price' => 500_000],
+        ['description' => 'Tambahan', 'qty' => 1, 'unit_id' => unitId('unit'), 'unit_price' => 500_000],
     ]);
 
     expect($design->fresh()->status)->toBe(DesignStatus::Produksi);

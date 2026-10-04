@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Quotation;
 use App\Models\QuotationItem;
+use App\Models\Unit;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -20,7 +21,7 @@ class QuotationItemFactory extends Factory
             'quotation_id' => Quotation::factory(),
             'description' => fake()->randomElement(['Kitchen Set Custom', 'Meja Kerja', 'Lemari Pakaian', 'Partisi Ruangan', 'Pengecatan Dinding']),
             'qty' => $qty,
-            'unit' => fake()->randomElement(['unit', 'm2', 'set', 'titik']),
+            'unit_id' => Unit::factory(),
             'unit_price' => $unitPrice,
             'total_price' => $qty * $unitPrice,
             'sort_order' => 0,

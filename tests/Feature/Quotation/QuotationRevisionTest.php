@@ -47,7 +47,7 @@ function sentQuotation(array $attributes = []): Quotation
         'quotation_id' => $quotation->id,
         'description' => 'Kitchen Set',
         'qty' => 1,
-        'unit' => 'set',
+        'unit_id' => unitId('set'),
         'unit_price' => 5_000_000,
         'total_price' => 5_000_000,
         'sort_order' => 0,
@@ -56,7 +56,7 @@ function sentQuotation(array $attributes = []): Quotation
         'quotation_id' => $quotation->id,
         'description' => 'Meja',
         'qty' => 2,
-        'unit' => 'unit',
+        'unit_id' => unitId('unit'),
         'unit_price' => 1_000_000,
         'total_price' => 2_000_000,
         'sort_order' => 1,
@@ -134,8 +134,8 @@ test('a client rejection records a CLIENT approval row, a revision snapshot, an 
         ->and($revision->note)->toBe('Klien minta ganti material.')
         ->and($revision->closed_by)->toBe($ceo->id)
         ->and($revision->items)->toBe([
-            ['description' => 'Kitchen Set', 'qty' => 1, 'unit' => 'set', 'unit_price' => '5000000.00', 'total_price' => '5000000.00'],
-            ['description' => 'Meja', 'qty' => 2, 'unit' => 'unit', 'unit_price' => '1000000.00', 'total_price' => '2000000.00'],
+            ['description' => 'Kitchen Set', 'qty' => 1, 'unit_code' => 'set', 'unit_price' => '5000000.00', 'total_price' => '5000000.00'],
+            ['description' => 'Meja', 'qty' => 2, 'unit_code' => 'unit', 'unit_price' => '1000000.00', 'total_price' => '2000000.00'],
         ]);
 
     // The new DRAFT keeps the items so the Estimator revises from them.

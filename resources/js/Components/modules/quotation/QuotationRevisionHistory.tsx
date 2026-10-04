@@ -1,7 +1,7 @@
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
-import { formatDateTime, formatRupiah } from '@/lib/format';
+import { formatDateTime, formatQty, formatRupiah } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { QuotationRevision, QuotationRevisionReason } from '@/types';
 import { ChevronDown } from 'lucide-react';
@@ -109,8 +109,8 @@ function RevisionRow({
                             {revision.items.map((item, index) => (
                                 <tr key={index} className="border-t border-daiku-border">
                                     <td className="px-3 py-2">{item.description}</td>
-                                    <td className="px-3 py-2 text-right">{item.qty}</td>
-                                    <td className="px-3 py-2">{item.unit}</td>
+                                    <td className="px-3 py-2 text-right">{formatQty(item.qty)}</td>
+                                    <td className="px-3 py-2">{item.unit_code ?? item.unit}</td>
                                     <td className="px-3 py-2 text-right">{formatRupiah(item.unit_price)}</td>
                                     <td className="px-3 py-2 text-right font-medium text-foreground">{formatRupiah(item.total_price)}</td>
                                 </tr>
