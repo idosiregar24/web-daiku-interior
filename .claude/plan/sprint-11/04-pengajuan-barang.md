@@ -2,7 +2,7 @@
 
 > Induk: [`../sprint-11-quotation-satuan-material.md`](../sprint-11-quotation-satuan-material.md) §1 (#13).
 > Perluasan dari Sprint 12 keputusan #31: **Tukang** juga bisa mengajukan.
-> Status: **belum dikerjakan** · Prasyarat: Sub 3
+> Status: **selesai 2026-10-04** · Prasyarat: Sub 3
 
 ## Tujuan
 Barang di luar katalog dan kebutuhan barang dari Tukang lewat pengajuan;
@@ -39,9 +39,9 @@ B. Tukang (FIELD_STAFF): Ajukan barang (nama + jumlah + catatan)      Logistik m
 - Test: `tests/Feature/Logistics/*`
 
 ## Checklist
-- [ ] **[Logistics]** `MaterialRequestService`: ajukan (PM/Estimator → DIAJUKAN; Tukang → MENUNGGU_PM), keputusan PM, tinjau Logistik (4 keputusan + ubah isi + snapshot), notifikasi, audit
-- [ ] **[UI]** Form ajukan (PM/Estimator lengkap; Tukang minimal), antrean PM, halaman antrean Logistik (barang mirip + riwayat pengajuan serupa, form keputusan)
-- [ ] **[Logistics]** Pengingat pengajuan belum ditinjau 1 hari kerja (job terjadwal, idempotent) + ringkasan tertunda untuk CEO
-- [ ] **[Logistics]** Retur barang custom: petakan ke katalog / daftarkan barang baru + harga gudang, lalu stok masuk
-- [ ] **[Projects]** Blokir COMPLETED juga bila ada pengajuan MENUNGGU_PM/DIAJUKAN
-- [ ] **[Test]** Tukang → PM → Logistik; Tukang di proyek lain 403; PM proyek lain 403; baris belum DISETUJUI tidak bisa dibeli/dipakai; PM/Estimator tidak bisa membuat custom langsung; 4 keputusan Logistik; pengingat tidak dobel
+- [x] **[Logistics]** `MaterialRequestService`: ajukan (PM/Estimator → DIAJUKAN; Tukang → MENUNGGU_PM), keputusan PM, tinjau Logistik (4 keputusan + ubah isi + snapshot), notifikasi, audit
+- [x] **[UI]** Form ajukan (PM/Estimator lengkap; Tukang minimal), antrean PM, halaman antrean Logistik (barang mirip + riwayat pengajuan serupa, form keputusan)
+- [x] **[Logistics]** Pengingat pengajuan belum ditinjau 1 hari kerja (job terjadwal, idempotent) + ringkasan tertunda untuk CEO
+- [x] **[Logistics]** Retur barang custom: petakan ke katalog / daftarkan barang baru + harga gudang, lalu stok masuk
+- [x] **[Projects]** Blokir COMPLETED juga bila ada pengajuan MENUNGGU_PM/DIAJUKAN
+- [x] **[Test]** Tukang → PM → Logistik; Tukang di proyek lain 403; PM proyek lain 403; baris belum DISETUJUI tidak bisa dibeli/dipakai; PM/Estimator tidak bisa membuat custom langsung; 4 keputusan Logistik; pengingat tidak dobel

@@ -15,10 +15,11 @@ import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Milestone, PageProps, PaginatedData, Task, TaskDueFilter, TaskStatus, User } from '@/types';
+import { MaterialRequestDialog } from '@/Components/modules/logistics/MaterialRequestDialog';
+import type { Milestone, PageProps, PaginatedData, Project, Task, TaskDueFilter, TaskStatus, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { ListChecks } from 'lucide-react';
+import { ListChecks, PackagePlus } from 'lucide-react';
 import { useState } from 'react';
 
 interface TasksIndexProps {
@@ -27,6 +28,9 @@ interface TasksIndexProps {
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     milestones: (Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'> & { project?: Milestone['project'] })[];
     canAssign: boolean;
+    /** Sprint 11 Sub 4 — projects a Tukang may request goods for (their tasks' projects). */
+    materialRequestProjects: Pick<Project, 'id' | 'name'>[];
+    catalogHints: { id: number; code: string; name: string }[];
 }
 
 const STATUS_OPTIONS: TaskStatus[] = ['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE', 'OVER'];
@@ -51,7 +55,8 @@ function formatDate(value: string | null) {
  * required); PM can edit/delete from here (Sprint 9), everyone else only
  * reads + updates status.
  */
-export default function TasksIndex({ tasks, filters, fieldStaff, milestones, canAssign }: TasksIndexProps) {
+export default function TasksIndex({ tasks, filters, fieldStaff, milestones, canAssign, materialRequestProjects, catalogHints }: TasksIndexProps) {
+    const [requestOpen, setRequestOpen] = useState(false);
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     const isFieldStaff = role === 'FIELD_STAFF';
@@ -166,6 +171,25 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                         ? 'Daftar task yang di-assign ke Anda.'
                         : 'Semua task di seluruh proyek — filter berdasarkan jatuh tempo, milestone, tukang, dan status.'
                 }
+                actions={
+                    isFieldStaff &&
+                    materialRequestProjects.length > 0 && (
+                        <Button size="sm" variant="outline" onClick={() => setRequestOpen(true)}>
+                            <PackagePlus className="size-4" />
+                            Ajukan Barang
+                        </Button>
+                    )
+                }
+            />
+
+            <MaterialRequestDialog
+                open={requestOpen}
+                onOpenChange={setRequestOpen}
+                projects={materialRequestProjects}
+                minimal
+                units={[]}
+                vendors={[]}
+                catalogHints={catalogHints}
             />
 
             <DataTable

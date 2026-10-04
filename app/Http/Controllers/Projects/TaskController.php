@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Projects;
 
+use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreTaskRequest;
 use App\Http\Requests\Projects\UpdateTaskRequest;
 use App\Http\Requests\Projects\UpdateTaskStatusRequest;
+use App\Models\Material;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\Task;
@@ -59,6 +61,17 @@ class TaskController extends Controller
                 ? Milestone::query()->with('project:id,name')->orderBy('name')->get(['id', 'name', 'project_id', 'status'])
                 : [],
             'canAssign' => $canAssign,
+            // Sprint 11 Sub 4 — a Tukang asks for goods from their task list
+            // (name + qty + note); the request goes to the project's PM first.
+            'materialRequestProjects' => $user->hasRole('FIELD_STAFF')
+                ? Project::query()
+                    ->whereIn('status', [ProjectStatus::Active->value, ProjectStatus::OnHold->value])
+                    ->whereHas('tasks', fn ($query) => $query->where('assignee_id', $user->id))
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : [],
+            // §5.5 Lapis 4 — "Mungkin maksud Anda" while the Tukang types the item name.
+            'catalogHints' => $user->hasRole('FIELD_STAFF') ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id']) : [],
         ]);
     }
 

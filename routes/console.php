@@ -5,6 +5,7 @@ use App\Jobs\DailyFormReminderJob;
 use App\Jobs\DailyPenaltyJob;
 use App\Jobs\DesignDelayJob;
 use App\Jobs\LeadFollowUpReminderJob;
+use App\Jobs\MaterialRequestReminderJob;
 use App\Jobs\MilestoneOverdueJob;
 use App\Jobs\OpenKpiPeriodJob;
 use App\Jobs\PruneNotificationsJob;
@@ -66,6 +67,14 @@ Schedule::job(new LeadFollowUpReminderJob)
 Schedule::job(new DailyFormReminderJob)
     ->days([1, 2, 3, 4, 5, 6])
     ->at('20:30')
+    ->timezone('Asia/Jakarta');
+
+// Sprint 11 decision #13 — material requests not reviewed within 1 working
+// day remind Logistics (and a PM sitting on a Tukang request); the CEO gets
+// a summary. Senin–Sabtu like the other working-day jobs; idempotent per day.
+Schedule::job(new MaterialRequestReminderJob)
+    ->days([1, 2, 3, 4, 5, 6])
+    ->at('09:00')
     ->timezone('Asia/Jakarta');
 
 // PRD §4.9 "Riwayat notifikasi tersimpan 90 hari".

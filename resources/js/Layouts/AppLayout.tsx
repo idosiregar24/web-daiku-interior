@@ -74,6 +74,7 @@ import {
     UserCog,
     Database,
     Settings,
+    Store,
     Wallet,
     WalletCards,
     Warehouse,
@@ -281,6 +282,13 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'PM', 'LOGISTICS'],
             },
             {
+                // Sprint 11 Sub 4 — out-of-catalog requests; each role sees its own slice.
+                label: 'Pengajuan Barang',
+                icon: ClipboardList,
+                routeName: 'logistics.material-requests.index',
+                roles: ['CEO', 'PM', 'LOGISTICS', 'ESTIMATOR', 'FIELD_STAFF'],
+            },
+            {
                 label: 'Aset Inventaris',
                 icon: Warehouse,
                 routeName: 'logistics.assets.index',
@@ -347,7 +355,16 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Data Master',
                 icon: Database,
                 routeName: 'master-data.index',
+                // Vendor below lives under master-data.vendors.* — keep it from lighting this item.
+                match: 'master-data.index',
                 roles: ['SUPERADMIN'],
+            },
+            {
+                label: 'Vendor',
+                icon: Store,
+                routeName: 'master-data.vendors.index',
+                match: 'master-data.vendors.*',
+                roles: ['CEO', 'SUPERADMIN'],
             },
             {
                 label: 'Pengaturan Situs',
