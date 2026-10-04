@@ -18,6 +18,7 @@ class Lead extends Model
     protected $fillable = [
         'client_name',
         'contact',
+        'first_contacted_at',
         'source',
         'lead_source_id',
         'priority',
@@ -25,11 +26,12 @@ class Lead extends Model
         'lead_category_id',
         'service',
         'city',
+        'address',
+        'maps_url',
         'gender',
         'order_detail',
         'status',
         'assigned_to',
-        'follow_up_date',
         'lost_reason',
         'notes',
         'created_by',
@@ -40,7 +42,7 @@ class Lead extends Model
         return [
             'status' => LeadStatus::class,
             'priority' => LeadPriority::class,
-            'follow_up_date' => 'date',
+            'first_contacted_at' => 'date:Y-m-d',
         ];
     }
 
@@ -81,6 +83,18 @@ class Lead extends Model
         return $this->hasMany(PipelineLog::class)->latest('created_at');
     }
 
+    /** Sprint 12 decision #2 — FU-1, FU-2, … in order. */
+    public function followUps(): HasMany
+    {
+        return $this->hasMany(LeadFollowUp::class)->orderBy('sequence');
+    }
+
+    /** Sprint 12 decision #3 — site surveys, possibly repeated. */
+    public function surveys(): HasMany
+    {
+        return $this->hasMany(LeadSurvey::class)->orderBy('sequence');
+    }
+
     public function project(): HasOne
     {
         return $this->hasOne(Project::class);
@@ -116,11 +130,32 @@ class Lead extends Model
         return $query->when($leadCategoryId, fn (Builder $q) => $q->where('lead_category_id', $leadCategoryId));
     }
 
-    /** Follow-up date sudah lewat dan lead belum LOST/closed — PRD §4.1 "highlight sebagai reminder". */
+    /**
+     * An open follow-up whose date already passed, on a lead not yet
+     * LOST/closed — PRD §4.1 "highlight sebagai reminder" (Sprint 12: read
+     * from lead_follow_ups).
+     */
     public function scopeOverdueFollowUp(Builder $query): Builder
     {
-        return $query->whereNotNull('follow_up_date')
-            ->where('follow_up_date', '<', now()->toDateString())
-            ->whereNotIn('status', [LeadStatus::Lost->value, LeadStatus::Closing->value]);
+        return $query->whereNotIn('status', [LeadStatus::Lost->value, LeadStatus::Closing->value])
+            ->whereHas('followUps', fn (Builder $q) => $q->pending()->where('scheduled_date', '<', now()->toDateString()));
+    }
+
+    /**
+     * Adds `next_follow_up_date` (earliest open follow-up) and
+     * `follow_ups_count` — what lists and the dashboard show per lead.
+     */
+    public function scopeWithNextFollowUp(Builder $query): Builder
+    {
+        if ($query->getQuery()->columns === null) {
+            $query->select('leads.*');
+        }
+
+        return $query
+            ->addSelect(['next_follow_up_date' => LeadFollowUp::query()
+                ->selectRaw('MIN(scheduled_date)')
+                ->whereColumn('lead_follow_ups.lead_id', 'leads.id')
+                ->whereNull('done_at')])
+            ->withCount('followUps');
     }
 }

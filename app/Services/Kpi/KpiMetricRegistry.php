@@ -354,14 +354,18 @@ class KpiMetricRegistry
         return $deals + $lost > 0 ? $deals / ($deals + $lost) * 100 : null;
     }
 
-    /** Today's state: leads still in FOLLOW_UP whose follow-up date (in the month) already passed. */
+    /**
+     * Today's state: leads still in FOLLOW_UP with an open follow-up
+     * (FU-n, Sprint 12) whose date (in the month) already passed.
+     */
     private function leadOverdueFollowUps(User $user, CarbonInterface $from, CarbonInterface $asOf): float
     {
         return (float) Lead::query()
             ->where('assigned_to', $user->id)
             ->where('status', LeadStatus::FollowUp->value)
-            ->where('follow_up_date', '>=', $from->toDateString())
-            ->where('follow_up_date', '<', $asOf->toDateString())
+            ->whereHas('followUps', fn ($query) => $query->pending()
+                ->where('scheduled_date', '>=', $from->toDateString())
+                ->where('scheduled_date', '<', $asOf->toDateString()))
             ->count();
     }
 

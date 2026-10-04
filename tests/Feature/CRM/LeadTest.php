@@ -281,9 +281,9 @@ test('confirming a deal notifies the project PM, CEO, Finance and Logistics', fu
 test('follow-up reminders go to the assigned marketing once per day', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
-    $due = Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value, 'follow_up_date' => now()->toDateString()]);
-    Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value, 'follow_up_date' => now()->addDays(2)->toDateString()]);
-    Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::Lost->value, 'lost_reason' => 'x', 'follow_up_date' => now()->subDay()->toDateString()]);
+    $due = Lead::factory()->followUpOn(now()->toDateString())->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value]);
+    Lead::factory()->followUpOn(now()->addDays(2)->toDateString())->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::FollowUp->value]);
+    Lead::factory()->followUpOn(now()->subDay()->toDateString())->create(['assigned_to' => $marketing->id, 'status' => LeadStatus::Lost->value, 'lost_reason' => 'x']);
 
     $service = app(LeadService::class);
 

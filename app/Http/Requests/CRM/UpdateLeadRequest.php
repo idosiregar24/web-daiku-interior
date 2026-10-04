@@ -26,7 +26,10 @@ class UpdateLeadRequest extends FormRequest
             'gender' => ['nullable', 'string', 'max:50'],
             'order_detail' => ['nullable', 'string'],
             'assigned_to' => ['required', 'exists:users,id'],
-            'follow_up_date' => ['nullable', 'date'],
+            // Follow-ups (FU-n) are managed on the lead's timeline since Sprint 12.
+            'first_contacted_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'maps_url' => ['nullable', 'string', 'max:500', 'url:http,https'],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -44,6 +47,8 @@ class UpdateLeadRequest extends FormRequest
             'priority.required' => 'Prioritas wajib dipilih.',
             'assigned_to.required' => 'Lead harus di-assign ke salah satu staf Marketing.',
             'assigned_to.exists' => 'Staf yang dipilih tidak ditemukan.',
+            'first_contacted_at.before_or_equal' => 'Tanggal pertama dihubungi tidak boleh di masa depan.',
+            'maps_url.url' => 'Link Google Maps harus berupa URL http/https.',
         ];
     }
 }

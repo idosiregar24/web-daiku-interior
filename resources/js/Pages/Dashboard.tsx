@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'follow_up_date'> & {
+type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'next_follow_up_date' | 'follow_ups_count'> & {
     assignee?: Pick<User, 'id' | 'name'>;
 };
 
@@ -58,7 +58,7 @@ function greeting(hour: number) {
 
 /** Same rule as Lead::scopeOverdueFollowUp() — due before today, so today's follow-up isn't "terlewat" yet. */
 function isOverdue(lead: FollowUpLead) {
-    return Boolean(lead.follow_up_date && new Date(lead.follow_up_date) < startOfToday());
+    return Boolean(lead.next_follow_up_date && new Date(lead.next_follow_up_date) < startOfToday());
 }
 
 /**
@@ -149,7 +149,7 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                                             overdue ? 'font-medium text-error-ink' : 'text-muted-foreground',
                                         )}
                                     >
-                                        {formatDate(lead.follow_up_date)}
+                                        {formatDate(lead.next_follow_up_date)}
                                         {overdue && <span className="block text-[11px] font-normal">Terlewat</span>}
                                     </span>
                                     <DropdownMenu>

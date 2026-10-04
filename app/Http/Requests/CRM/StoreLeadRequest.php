@@ -34,7 +34,11 @@ class StoreLeadRequest extends FormRequest
             'order_detail' => ['nullable', 'string'],
             'status' => ['sometimes', new Enum(LeadStatus::class)],
             'assigned_to' => ['required', 'exists:users,id'],
+            // Sprint 12: the first follow-up's date — saved as FU-1 (LeadService::create()).
             'follow_up_date' => ['nullable', 'date'],
+            'first_contacted_at' => ['nullable', 'date', 'before_or_equal:today'],
+            'address' => ['nullable', 'string', 'max:1000'],
+            'maps_url' => ['nullable', 'string', 'max:500', 'url:http,https'],
             'notes' => ['nullable', 'string'],
         ];
     }
@@ -52,6 +56,8 @@ class StoreLeadRequest extends FormRequest
             'priority.required' => 'Prioritas wajib dipilih.',
             'assigned_to.required' => 'Lead harus di-assign ke salah satu staf Marketing.',
             'assigned_to.exists' => 'Staf yang dipilih tidak ditemukan.',
+            'first_contacted_at.before_or_equal' => 'Tanggal pertama dihubungi tidak boleh di masa depan.',
+            'maps_url.url' => 'Link Google Maps harus berupa URL http/https.',
         ];
     }
 }

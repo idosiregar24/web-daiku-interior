@@ -108,9 +108,26 @@ const STATUS_TONE: Record<string, Tone> = {
     OPEN: 'info',
     CLOSED: 'success',
     ACKNOWLEDGED: 'success',
+    // CRM — LeadSurveyStatus (Sprint 12)
+    DIJADWALKAN: 'info',
+    MENUNGGU_BAYAR: 'warning',
+    SIAP: 'success',
+    SELESAI: 'success',
+    BATAL: 'neutral',
+};
+
+/** Labels that read better than the humanized code (Sprint 12 #5, #3). */
+const STATUS_LABEL: Record<string, string> = {
+    DEAL_DESAIN: 'Pengajuan Desain/Survey',
+    MENUNGGU_BAYAR: 'Menunggu Pembayaran',
+    SIAP: 'Siap Berangkat',
 };
 
 function humanize(status: string) {
+    if (STATUS_LABEL[status]) {
+        return STATUS_LABEL[status];
+    }
+
     return status
         .toLowerCase()
         .split('_')

@@ -6,10 +6,12 @@ use App\Enums\LeadStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CRM\ConfirmLeadDealRequest;
 use App\Http\Requests\CRM\StoreLeadRequest;
+use App\Http\Requests\CRM\SubmitLeadRequestRequest;
 use App\Http\Requests\CRM\UpdateLeadRequest;
 use App\Http\Requests\CRM\UpdateLeadStatusRequest;
 use App\Models\Lead;
 use App\Models\LeadCategory;
+use App\Models\LeadFollowUp;
 use App\Models\LeadSource;
 use App\Models\PipelineLog;
 use App\Models\User;
@@ -35,6 +37,8 @@ class LeadController extends Controller
                 'leadSource:id,name',
                 'leadCategory:id,name',
             ])
+            // Sprint 12: next open FU date + how many FUs, for the list column.
+            ->withNextFollowUp()
             ->byStatus($request->string('status')->value() ?: null)
             ->byPriority($request->string('priority')->value() ?: null)
             ->byLeadSource($request->integer('lead_source_id') ?: null)
@@ -88,6 +92,9 @@ class LeadController extends Controller
             'quotation:id,lead_id,status,total_amount,version,valid_until',
             'project:id,lead_id,name,pm_id,status,contract_value',
             'project.pm:id,name',
+            // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
+            'followUps.creator:id,name',
+            'surveys.creator:id,name',
         ]);
 
         return Inertia::render('CRM/Show', [
@@ -111,6 +118,8 @@ class LeadController extends Controller
                 : null,
             'canManage' => $canManage,
             'canOpenDesign' => $canOpenDesign,
+            // Decision #2: from this FU number on, suggest marking the lead Lost.
+            'suggestLostFrom' => LeadFollowUp::SUGGEST_LOST_FROM,
             // Option lists for the edit/deal/design dialogs — only sent to
             // roles that can open them.
             'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
@@ -185,6 +194,16 @@ class LeadController extends Controller
         $service->changeStatus($lead, $request->validated(), $request->user());
 
         return back()->with('success', 'Status lead diperbarui.');
+    }
+
+    /** Sprint 12 decision #5 — "Ajukan Desain/Survey" (replaces "Deal Desain"). */
+    public function submitRequest(SubmitLeadRequestRequest $request, Lead $lead, LeadService $service): RedirectResponse
+    {
+        $service->submitRequest($lead, $request->validated(), $request->user());
+
+        return back()->with('success', $request->validated('type') === 'SURVEY'
+            ? 'Survey dijadwalkan dan lead masuk tahap Pengajuan Desain/Survey.'
+            : 'Lead masuk tahap Pengajuan Desain/Survey.');
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
 use App\Models\Lead;
 use App\Models\LeadCategory;
+use App\Models\LeadFollowUp;
 use App\Models\LeadSource;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -31,7 +32,6 @@ class LeadFactory extends Factory
                 : null,
             'status' => LeadStatus::FollowUp->value,
             'assigned_to' => User::factory(),
-            'follow_up_date' => fake()->dateTimeBetween('-1 week', '+2 weeks'),
             'notes' => fake()->optional()->sentence(),
             'created_by' => User::factory(),
         ];
@@ -52,5 +52,14 @@ class LeadFactory extends Factory
                 $lead->category = LeadCategory::find($lead->lead_category_id)?->name ?? $lead->category;
             }
         });
+    }
+
+    /** Sprint 12 — the lead's next open follow-up (FU-n) falls on this date. */
+    public function followUpOn(string|\DateTimeInterface $date): static
+    {
+        return $this->afterCreating(fn (Lead $lead) => LeadFollowUp::factory()->create([
+            'lead_id' => $lead->id,
+            'scheduled_date' => $date,
+        ]));
     }
 }

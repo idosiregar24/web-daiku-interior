@@ -32,8 +32,10 @@ import { z } from 'zod';
 
 // CLOSING is excluded — that transition only happens through the
 // "Konfirmasi Deal" action (ConfirmDealDialog), which also creates the
-// Project. See LeadService::changeStatus()/UpdateLeadStatusRequest.
-const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'LOST'] as const;
+// Project. DEAL_DESAIN is reached through "Ajukan Desain/Survey"
+// (SubmitLeadRequestDialog, Sprint 12 #5); moving back to FOLLOW_UP stays
+// here. See LeadService::changeStatus()/UpdateLeadStatusRequest.
+const STATUS_OPTIONS = ['FOLLOW_UP', 'LOST'] as const;
 
 const schema = z.object({
     status: z.enum(STATUS_OPTIONS),
@@ -69,7 +71,8 @@ export function LeadStatusDialog({ open, onOpenChange, lead }: LeadStatusDialogP
     useEffect(() => {
         if (open && lead) {
             form.reset({
-                status: lead.status === 'CLOSING' ? 'FOLLOW_UP' : lead.status,
+                // Only FOLLOW_UP / LOST are picked here (DEAL_DESAIN via "Ajukan Desain/Survey").
+                status: lead.status === 'LOST' ? 'LOST' : 'FOLLOW_UP',
                 lost_reason: '',
                 note: '',
             });

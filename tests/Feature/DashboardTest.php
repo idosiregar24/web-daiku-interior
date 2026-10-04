@@ -15,15 +15,13 @@ test('marketing sees only their own due follow-ups plus the lead form options', 
     $other = User::factory()->create();
     $other->assignRole('MARKETING');
 
-    $own = Lead::factory()->create([
+    $own = Lead::factory()->followUpOn(now()->addDay()->toDateString())->create([
         'assigned_to' => $marketing->id,
         'status' => LeadStatus::FollowUp->value,
-        'follow_up_date' => now()->addDay()->toDateString(),
     ]);
-    Lead::factory()->create([
+    Lead::factory()->followUpOn(now()->addDay()->toDateString())->create([
         'assigned_to' => $other->id,
         'status' => LeadStatus::FollowUp->value,
-        'follow_up_date' => now()->addDay()->toDateString(),
     ]);
 
     $this->actingAs($marketing)->get(route('dashboard'))
@@ -40,9 +38,8 @@ test('marketing sees only their own due follow-ups plus the lead form options', 
 test('roles that cannot write leads get no follow-ups or lead form options', function (string $role) {
     $user = User::factory()->create();
     $user->assignRole($role);
-    Lead::factory()->create([
+    Lead::factory()->followUpOn(now()->toDateString())->create([
         'status' => LeadStatus::FollowUp->value,
-        'follow_up_date' => now()->toDateString(),
     ]);
 
     $this->actingAs($user)->get(route('dashboard'))

@@ -103,12 +103,54 @@ export interface Lead {
     design?: Pick<Design, 'id'> | null;
     /** CRM index/detail — the offer's state drives "Konfirmasi Deal" / "Klien Menolak Penawaran" and the expiry warning. */
     quotation?: Pick<Quotation, 'id' | 'status' | 'valid_until' | 'version'> | null;
-    follow_up_date: string | null;
+    /** Sprint 12 #1 — when Marketing first contacted the client (`created_at` = entered the system). */
+    first_contacted_at: string | null;
+    /** Sprint 12 #4 — general address + Google Maps link (http/https). */
+    address: string | null;
+    maps_url: string | null;
+    /** Lead::scopeWithNextFollowUp() — earliest open follow-up, and how many FUs exist. */
+    next_follow_up_date?: string | null;
+    follow_ups_count?: number;
+    /** Lead detail — the FU-n and survey timeline (Sprint 12 #2–#3). */
+    follow_ups?: LeadFollowUp[];
+    surveys?: LeadSurvey[];
     lost_reason: string | null;
     notes: string | null;
     created_by: number;
     created_at: string;
     updated_at: string;
+}
+
+/** Sprint 12 decision #2 — one numbered follow-up (FU-n) of a lead. */
+export interface LeadFollowUp {
+    id: number;
+    lead_id: number;
+    sequence: number;
+    scheduled_date: string;
+    done_at: string | null;
+    result_note: string | null;
+    creator?: Pick<User, 'id' | 'name'> | null;
+    created_at: string;
+}
+
+/** Sprint 12 decision #3 — App\Enums\LeadSurveyStatus. */
+export type LeadSurveyStatus = 'DIJADWALKAN' | 'MENUNGGU_BAYAR' | 'SIAP' | 'SELESAI' | 'BATAL';
+
+/** Sprint 12 decision #3 — a site survey of a lead (may repeat). */
+export interface LeadSurvey {
+    id: number;
+    lead_id: number;
+    sequence: number;
+    scheduled_at: string;
+    address: string | null;
+    maps_url: string | null;
+    is_outside_pekanbaru: boolean;
+    quotation_id: number | null;
+    status: LeadSurveyStatus;
+    result_note: string | null;
+    cancel_reason: string | null;
+    creator?: Pick<User, 'id' | 'name'> | null;
+    created_at: string;
 }
 
 /** PRD 4.1 "Pipeline History Log" — one status change, flattened by LeadController::show(). */

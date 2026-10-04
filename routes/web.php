@@ -4,6 +4,8 @@ use App\Http\Controllers\Analytics\AnalyticsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\CRM\LeadController;
+use App\Http\Controllers\CRM\LeadFollowUpController;
+use App\Http\Controllers\CRM\LeadSurveyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\DesignController;
 use App\Http\Controllers\Design\DesignDashboardController;
@@ -118,6 +120,18 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
     Route::post('leads/{lead}/confirm-deal', [LeadController::class, 'confirmDeal'])
         ->middleware('role:CEO|MARKETING')
         ->name('leads.confirmDeal');
+
+    // Sprint 12 Sub 2 — "Ajukan Desain/Survey", follow-ups FU-n and site
+    // surveys (decisions #2–#5). Same Marketing + CEO write rule as above.
+    Route::middleware(['role:CEO|MARKETING', 'throttle:60,1'])->group(function () {
+        Route::post('leads/{lead}/submit-request', [LeadController::class, 'submitRequest'])->name('leads.submitRequest');
+        Route::post('leads/{lead}/follow-ups', [LeadFollowUpController::class, 'store'])->name('follow-ups.store');
+        Route::post('follow-ups/{follow_up}/complete', [LeadFollowUpController::class, 'complete'])->name('follow-ups.complete');
+        Route::post('leads/{lead}/surveys', [LeadSurveyController::class, 'store'])->name('surveys.store');
+        Route::put('surveys/{survey}', [LeadSurveyController::class, 'update'])->name('surveys.update');
+        Route::post('surveys/{survey}/complete', [LeadSurveyController::class, 'complete'])->name('surveys.complete');
+        Route::post('surveys/{survey}/cancel', [LeadSurveyController::class, 'cancel'])->name('surveys.cancel');
+    });
 });
 
 // Design — PRD §4.2 / §7.1 "Design Brief" row (DES has CRUD, everyone

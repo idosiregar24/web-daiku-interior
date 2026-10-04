@@ -1,7 +1,7 @@
 # Sprint 12 · 02 — CRM: Follow-up Bertingkat, Survey, Alamat
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: — · Keputusan: #1–#5
+> Status: **selesai 2026-10-04** · Prasyarat: — · Keputusan: #1–#5
 
 ## Tujuan
 Lead menyimpan tanggal masuk/pertama dihubungi, alamat + link Maps,
@@ -46,11 +46,11 @@ lead_surveys       lead_id, sequence, scheduled_at, address, maps_url (default d
   Survey", "Batalkan Survey" (alasan wajib).
 
 ## Checklist
-- [ ] **[Database]** Kolom lead baru; `lead_follow_ups`, `lead_surveys`; backfill `follow_up_date` → FU-1 lalu drop (reversibel)
-- [ ] **[CRM]** `LeadService`: tambah/selesaikan FU, jadwalkan/ubah/batalkan/selesaikan survey, `markSurveyReady()`; audit untuk batal
-- [ ] **[CRM]** Dashboard, pengingat FU jatuh tempo, KPI metric membaca `lead_follow_ups`
-- [ ] **[UI]** Form lead (alamat, Maps, tanggal pertama dihubungi); timeline FU & survey; dialog "Ajukan Desain/Survey"; saran Lost
-- [ ] **[Test]** Urutan sequence, saran Lost ≥ FU-5, survey luar kota tidak bisa SIAP/SELESAI manual, `maps_url` non-http ditolak, RBAC (Marketing/CEO tulis; lainnya baca/403 sesuai route)
+- [x] **[Database]** Kolom lead baru; `lead_follow_ups`, `lead_surveys`; backfill `follow_up_date` → FU-1 lalu drop (reversibel)
+- [x] **[CRM]** `LeadService`: tambah/selesaikan FU, jadwalkan/ubah/batalkan/selesaikan survey, `markSurveyReady()`; audit untuk batal
+- [x] **[CRM]** Dashboard, pengingat FU jatuh tempo, KPI metric membaca `lead_follow_ups`
+- [x] **[UI]** Form lead (alamat, Maps, tanggal pertama dihubungi); timeline FU & survey; dialog "Ajukan Desain/Survey"; saran Lost
+- [x] **[Test]** Urutan sequence, saran Lost ≥ FU-5, survey luar kota tidak bisa SIAP/SELESAI manual, `maps_url` non-http ditolak, RBAC (Marketing/CEO tulis; lainnya baca/403 sesuai route)
 
 ## Selesai bila
 Semua halaman CRM & dashboard yang dulu memakai `follow_up_date` tetap

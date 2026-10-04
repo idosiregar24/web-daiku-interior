@@ -559,9 +559,9 @@ test('PM, QA, marketing and finance AUTO metrics read their operational data', f
     // Marketing: one new lead dealt this month, one older lead lost, one overdue follow-up.
     $this->travelTo($month->copy()->subDays(20));
     $lost = Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => 'LOST']);
-    Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => 'FOLLOW_UP', 'follow_up_date' => $at(3)]);
+    Lead::factory()->followUpOn($at(3))->create(['assigned_to' => $marketing->id, 'status' => 'FOLLOW_UP']);
     $this->travelTo($at(2));
-    $deal = Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => 'DEAL_DESAIN', 'follow_up_date' => null]);
+    $deal = Lead::factory()->create(['assigned_to' => $marketing->id, 'status' => 'DEAL_DESAIN']);
     PipelineLog::create(['lead_id' => $deal->id, 'from_status' => 'FOLLOW_UP', 'to_status' => 'DEAL_DESAIN', 'changed_by' => $marketing->id]);
     $this->travelTo($at(6));
     PipelineLog::create(['lead_id' => $lost->id, 'from_status' => 'FOLLOW_UP', 'to_status' => 'LOST', 'changed_by' => $marketing->id]);

@@ -8,6 +8,8 @@ import { Button } from '@/Components/ui/button';
 import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
+import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
+import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
@@ -17,7 +19,9 @@ import type {
     Design,
     Lead,
     LeadCategoryOption,
+    LeadFollowUp,
     LeadSourceOption,
+    LeadSurvey,
     PipelineLogEntry,
     Project,
     Quotation,
@@ -31,14 +35,18 @@ import {
     FolderKanban,
     History,
     type LucideIcon,
+    MapPin,
     Palette,
     PenLine,
+    Send,
     UserRound,
     Workflow,
 } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
-type LeadDetail = Omit<Lead, 'design' | 'quotation'> & {
+type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> & {
+    follow_ups: LeadFollowUp[];
+    surveys: LeadSurvey[];
     design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
     quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until'> | null;
     project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
@@ -50,6 +58,8 @@ interface LeadShowProps {
     pipelineLogs: PipelineLogEntry[] | null;
     canManage: boolean;
     canOpenDesign: boolean;
+    /** LeadFollowUp::SUGGEST_LOST_FROM (Sprint 12 #2). */
+    suggestLostFrom: number;
     marketers: Pick<User, 'id' | 'name'>[];
     projectManagers: Pick<User, 'id' | 'name'>[];
     designers: Pick<User, 'id' | 'name'>[];
@@ -67,6 +77,7 @@ export default function LeadShow({
     pipelineLogs,
     canManage,
     canOpenDesign,
+    suggestLostFrom,
     marketers,
     projectManagers,
     designers,
@@ -78,10 +89,13 @@ export default function LeadShow({
     const [dealOpen, setDealOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
+    const [requestOpen, setRequestOpen] = useState(false);
 
     const isClosed = lead.status === 'LOST' || lead.status === 'CLOSING';
     const quotationExpired = isQuotationExpired(lead.quotation);
-    const isOverdue = !!lead.follow_up_date && !isClosed && new Date(lead.follow_up_date) < startOfToday();
+    // Sprint 12: the earliest follow-up (FU-n) not done yet.
+    const nextFollowUp = lead.follow_ups.filter((followUp) => !followUp.done_at).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))[0];
+    const isOverdue = !!nextFollowUp && !isClosed && new Date(nextFollowUp.scheduled_date) < startOfToday();
     const sourceName = lead.lead_source?.name ?? lead.source;
 
     return (
@@ -113,6 +127,12 @@ export default function LeadShow({
                             <Button variant="outline" disabled={isClosed} onClick={() => setStatusOpen(true)}>
                                 Ubah Status
                             </Button>
+                            {lead.status === 'FOLLOW_UP' && (
+                                <Button onClick={() => setRequestOpen(true)}>
+                                    <Send className="size-4" />
+                                    Ajukan Desain/Survey
+                                </Button>
+                            )}
                             {lead.quotation?.status === 'SENT_TO_CLIENT' && (
                                 <Button variant="outline" onClick={() => setClientRejectOpen(true)}>
                                     Klien Menolak
@@ -134,7 +154,7 @@ export default function LeadShow({
             )}
             {isOverdue && (
                 <Notice tone="warning" className="mb-6">
-                    Jadwal follow-up {formatDate(lead.follow_up_date)} sudah lewat.
+                    Jadwal FU-{nextFollowUp?.sequence} ({formatDate(nextFollowUp?.scheduled_date)}) sudah lewat.
                 </Notice>
             )}
 
@@ -146,6 +166,22 @@ export default function LeadShow({
                         </DetailItem>
                         <DetailItem label="Kontak">{lead.contact}</DetailItem>
                         <DetailItem label="Kota">{lead.city || '—'}</DetailItem>
+                        <DetailItem label="Pertama Dihubungi">{formatDate(lead.first_contacted_at)}</DetailItem>
+                        <DetailItem label="Masuk Sistem">{formatDate(lead.created_at)}</DetailItem>
+                        <DetailItem label="Alamat" className="sm:col-span-2" valueClassName="whitespace-pre-line">
+                            {lead.address || '—'}
+                            {lead.maps_url && (
+                                <a
+                                    href={lead.maps_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="ml-2 inline-flex items-center gap-1 text-sm underline decoration-daiku-yellow underline-offset-2"
+                                >
+                                    <MapPin className="size-3.5" aria-hidden />
+                                    Buka di Google Maps
+                                </a>
+                            )}
+                        </DetailItem>
                         <DetailItem label="Gender">{lead.gender || '—'}</DetailItem>
                         <DetailItem label="Sumber Lead">{sourceName}</DetailItem>
                         <DetailItem label="Kategori Customer">
@@ -154,10 +190,10 @@ export default function LeadShow({
                         <DetailItem label="Layanan">{lead.service || '—'}</DetailItem>
                         <DetailItem label="PIC Marketing">{lead.assignee?.name ?? '—'}</DetailItem>
                         <DetailItem
-                            label="Jadwal Follow-up"
+                            label="Follow-up Berikutnya"
                             valueClassName={isOverdue ? 'font-medium text-error-ink' : undefined}
                         >
-                            {formatDate(lead.follow_up_date)}
+                            {nextFollowUp ? `FU-${nextFollowUp.sequence} · ${formatDate(nextFollowUp.scheduled_date)}` : '—'}
                         </DetailItem>
                         <DetailItem label="Terakhir Diperbarui">{formatDateTime(lead.updated_at)}</DetailItem>
                         <DetailItem label="Detail Order" className="sm:col-span-2" valueClassName="whitespace-pre-line">
@@ -196,7 +232,7 @@ export default function LeadShow({
                                     'Menunggu Designer membuka proyek desain.'
                                 )
                             ) : (
-                                'Dibuka setelah lead berstatus Deal Desain.'
+                                'Dibuka setelah lead masuk tahap Pengajuan Desain/Survey.'
                             )}
                         </StageRow>
                         <StageRow
@@ -239,6 +275,8 @@ export default function LeadShow({
                     </ul>
                 </SectionCard>
             </div>
+
+            <LeadTimeline lead={lead} canManage={canManage} suggestLostFrom={suggestLostFrom} />
 
             {pipelineLogs && (
                 <SectionCard
@@ -290,6 +328,7 @@ export default function LeadShow({
                         leadCategories={leadCategories}
                     />
                     <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={lead} />
+                    <SubmitLeadRequestDialog open={requestOpen} onOpenChange={setRequestOpen} lead={lead} />
                     <ConfirmDealDialog
                         open={dealOpen}
                         onOpenChange={setDealOpen}

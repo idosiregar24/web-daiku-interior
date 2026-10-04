@@ -39,12 +39,14 @@ class DashboardController extends Controller
                     $user->hasRole('MARKETING') && ! $user->hasAnyRole(['CEO', 'SUPERADMIN']),
                     fn ($query) => $query->where('assigned_to', $user->id),
                 )
-                ->whereNotNull('follow_up_date')
                 ->whereNotIn('status', [LeadStatus::Lost->value, LeadStatus::Closing->value])
-                ->where('follow_up_date', '<=', now()->addDays(3)->toDateString())
-                ->orderBy('follow_up_date')
+                // Sprint 12: an open follow-up (FU-n) due within 3 days, or overdue.
+                ->whereHas('followUps', fn ($query) => $query->pending()->where('scheduled_date', '<=', now()->addDays(3)->toDateString()))
+                ->select(['id', 'client_name', 'contact', 'status', 'assigned_to'])
+                ->withNextFollowUp()
+                ->orderBy('next_follow_up_date')
                 ->limit(10)
-                ->get(['id', 'client_name', 'contact', 'status', 'follow_up_date', 'assigned_to'])
+                ->get()
             : collect();
 
         return Inertia::render('Dashboard', [

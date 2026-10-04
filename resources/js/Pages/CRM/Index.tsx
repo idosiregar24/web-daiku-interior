@@ -147,11 +147,12 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
             cell: ({ row }) => row.original.assignee?.name ?? '—',
         },
         {
-            accessorKey: 'follow_up_date',
+            id: 'next_follow_up',
             header: 'Follow-up',
+            // Sprint 12: the next open FU-n (Lead::scopeWithNextFollowUp()).
             cell: ({ row }) => {
-                const date = row.original.follow_up_date;
-                if (!date) return '—';
+                const date = row.original.next_follow_up_date;
+                if (!date) return row.original.follow_ups_count ? <span className="text-daiku-muted">{row.original.follow_ups_count} FU selesai</span> : '—';
 
                 const isOverdue =
                     new Date(date) < new Date() &&
@@ -160,6 +161,7 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 return (
                     <span className={isOverdue ? 'font-medium text-error-ink' : ''}>
                         {new Date(date).toLocaleDateString('id-ID')}
+                        <span className="block text-xs font-normal text-daiku-muted">{row.original.follow_ups_count ?? 0} FU tercatat</span>
                     </span>
                 );
             },

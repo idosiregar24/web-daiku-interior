@@ -46,7 +46,7 @@ const FUNNEL_COLOR: Record<LeadStatus, string> = {
 
 const FUNNEL_LABEL: Record<LeadStatus, string> = {
     FOLLOW_UP: 'Follow-up',
-    DEAL_DESAIN: 'Deal Desain',
+    DEAL_DESAIN: 'Pengajuan Desain/Survey',
     CLOSING: 'Closing',
     LOST: 'Lost',
 };

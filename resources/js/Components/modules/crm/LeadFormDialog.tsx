@@ -48,7 +48,15 @@ const schema = z.object({
     gender: z.string().optional(),
     order_detail: z.string().optional(),
     assigned_to: z.string().min(1, 'PIC Marketing wajib dipilih'),
+    // Create only: the first follow-up's date (saved as FU-1). Later FUs live on the lead's timeline.
     follow_up_date: z.date().optional(),
+    first_contacted_at: z.date().optional(),
+    address: z.string().max(1000).optional(),
+    maps_url: z
+        .string()
+        .max(500)
+        .optional()
+        .refine((v) => !v || /^https?:\/\//i.test(v), 'Link Google Maps harus diawali http:// atau https://'),
     notes: z.string().optional(),
 });
 
@@ -66,6 +74,9 @@ const EMPTY_VALUES: FormValues = {
     order_detail: '',
     assigned_to: '',
     follow_up_date: undefined,
+    first_contacted_at: undefined,
+    address: '',
+    maps_url: '',
     notes: '',
 };
 
@@ -106,7 +117,10 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                 gender: editing.gender ?? '',
                 order_detail: editing.order_detail ?? '',
                 assigned_to: String(editing.assigned_to),
-                follow_up_date: editing.follow_up_date ? new Date(editing.follow_up_date) : undefined,
+                follow_up_date: undefined,
+                first_contacted_at: editing.first_contacted_at ? new Date(editing.first_contacted_at) : undefined,
+                address: editing.address ?? '',
+                maps_url: editing.maps_url ?? '',
                 notes: editing.notes ?? '',
             });
         } else {
@@ -127,7 +141,11 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
             lead_source_id: Number(values.lead_source_id),
             lead_category_id: values.lead_category_id ? Number(values.lead_category_id) : null,
             assigned_to: Number(values.assigned_to),
-            follow_up_date: values.follow_up_date ? format(values.follow_up_date, 'yyyy-MM-dd') : null,
+            first_contacted_at: values.first_contacted_at ? format(values.first_contacted_at, 'yyyy-MM-dd') : null,
+            address: values.address || null,
+            maps_url: values.maps_url || null,
+            // Only sent on create (FU-1); UpdateLeadRequest no longer takes it.
+            ...(editing ? { follow_up_date: undefined } : { follow_up_date: values.follow_up_date ? format(values.follow_up_date, 'yyyy-MM-dd') : null }),
         };
 
         if (editing) {
@@ -304,10 +322,10 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                             />
                             <FormField
                                 control={form.control}
-                                name="follow_up_date"
+                                name="first_contacted_at"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Follow-up</FormLabel>
+                                        <FormLabel>Pertama Dihubungi</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -316,6 +334,47 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                 )}
                             />
                         </div>
+                        {!editing && (
+                            <FormField
+                                control={form.control}
+                                name="follow_up_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Jadwal Follow-up Pertama (FU-1)</FormLabel>
+                                        <FormControl>
+                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
+                        <FormField
+                            control={form.control}
+                            name="address"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Alamat</FormLabel>
+                                    <FormControl>
+                                        <Textarea {...field} rows={2} placeholder="mis. Jl. Tegal Sari No. 12, Pekanbaru" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="maps_url"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Link Google Maps</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="https://maps.app.goo.gl/…" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <FormField
                             control={form.control}
                             name="order_detail"

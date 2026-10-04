@@ -256,27 +256,46 @@ class DemoDataSeeder extends Seeder
 
     private function seedFollowUpLeads(LeadService $leadService): void
     {
-        $leadService->create([
+        // Sprint 12 decision #2: four follow-ups answered, FU-5 overdue — the
+        // detail page suggests marking the lead Lost.
+        $siti = $leadService->create([
             'client_name' => 'Siti Nurhaliza',
             'contact' => '0812-1111-0001',
+            'first_contacted_at' => now()->subDays(30)->toDateString(),
             'source' => 'Instagram',
             'priority' => 'HOT',
             'category' => 'RESIDENTIAL',
-            'city' => 'Jakarta Selatan',
+            'city' => 'Pekanbaru',
+            'address' => 'Jl. Tegal Sari No. 12, Pekanbaru',
+            'maps_url' => 'https://maps.google.com/?q=Jl.+Tegal+Sari+Pekanbaru',
             'assigned_to' => $this->marketing->id,
-            'follow_up_date' => now()->subDay()->toDateString(), // overdue on purpose
+            'follow_up_date' => now()->subDays(28)->toDateString(),
             'notes' => 'Tertarik renovasi ruang tamu, minta follow-up ulang.',
         ], $this->marketing);
+        foreach ([21, 14, 7] as $daysAgo) {
+            $leadService->addFollowUp($siti, ['scheduled_date' => now()->subDays($daysAgo)->toDateString()], $this->marketing);
+        }
+        foreach ($siti->followUps()->get() as $followUp) {
+            $leadService->completeFollowUp($followUp, ['result_note' => 'Klien belum memutuskan, minta dihubungi lagi.']);
+        }
+        $leadService->addFollowUp($siti, ['scheduled_date' => now()->subDay()->toDateString()], $this->marketing); // FU-5, overdue
 
-        $leadService->create([
+        // Decision #3: a survey outside Pekanbaru waits for the paid RAB Jasa Survey.
+        $ahmad = $leadService->create([
             'client_name' => 'Ahmad Fauzi',
             'contact' => '0812-1111-0002',
+            'first_contacted_at' => now()->subDays(2)->toDateString(),
             'source' => 'WhatsApp',
             'priority' => 'WARM',
             'category' => 'RESIDENTIAL',
-            'city' => 'Bekasi',
+            'city' => 'Bangkinang',
+            'address' => 'Jl. Prof. M. Yamin, Bangkinang, Kampar',
             'assigned_to' => $this->marketing->id,
             'follow_up_date' => now()->addDays(3)->toDateString(),
+        ], $this->marketing);
+        $leadService->scheduleSurvey($ahmad, [
+            'scheduled_at' => now()->addWeek()->setTime(10, 0)->toDateTimeString(),
+            'is_outside_pekanbaru' => true,
         ], $this->marketing);
 
         $lost = $leadService->create([

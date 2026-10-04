@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Enums\LeadStatus;
+use App\Enums\LeadSurveyStatus;
 use App\Enums\QuotationStatus;
 use App\Models\Lead;
 use App\Models\LeadCategory;
+use App\Models\LeadFollowUp;
 use App\Models\LeadSource;
+use App\Models\LeadSurvey;
 use App\Models\PipelineLog;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -31,12 +34,13 @@ class LeadService
     public function sendFollowUpReminders(): int
     {
         $sent = 0;
+        $today = now('Asia/Jakarta')->toDateString();
 
+        // Sprint 12: the open follow-up (FU-n) due today or earlier, per lead.
         Lead::query()
-            ->with('assignee')
-            ->whereNotNull('follow_up_date')
+            ->with(['assignee', 'followUps' => fn ($q) => $q->pending()->where('scheduled_date', '<=', $today)])
             ->whereNotIn('status', [LeadStatus::Lost->value, LeadStatus::Closing->value])
-            ->whereDate('follow_up_date', '<=', now('Asia/Jakarta')->toDateString())
+            ->whereHas('followUps', fn ($q) => $q->pending()->where('scheduled_date', '<=', $today))
             ->each(function (Lead $lead) use (&$sent) {
                 $marketing = $lead->assignee;
 
@@ -44,14 +48,16 @@ class LeadService
                     return;
                 }
 
-                $isOverdue = $lead->follow_up_date->isBefore(now('Asia/Jakarta')->startOfDay());
+                /** @var LeadFollowUp $followUp */
+                $followUp = $lead->followUps->sortBy('scheduled_date')->first();
+                $isOverdue = $followUp->scheduled_date->isBefore(now('Asia/Jakarta')->startOfDay());
 
                 $this->notificationService->notify(
                     $marketing,
                     'lead_follow_up_due',
                     $isOverdue ? 'Follow-up Terlewat' : 'Follow-up Hari Ini',
-                    "Lead \"{$lead->client_name}\" ({$lead->contact}) dijadwalkan follow-up "
-                        .($isOverdue ? 'sejak '.$lead->follow_up_date->translatedFormat('d F Y').'.' : 'hari ini.'),
+                    "Lead \"{$lead->client_name}\" ({$lead->contact}) dijadwalkan FU-{$followUp->sequence} "
+                        .($isOverdue ? 'sejak '.$followUp->scheduled_date->translatedFormat('d F Y').'.' : 'hari ini.'),
                     ['lead_id' => $lead->id],
                 );
 
@@ -67,11 +73,19 @@ class LeadService
     public function create(array $data, User $actor): Lead
     {
         return DB::transaction(function () use ($data, $actor) {
+            $followUpDate = $data['follow_up_date'] ?? null;
+            unset($data['follow_up_date']);
+
             $lead = Lead::create([
                 ...$this->syncMasterReferences($data),
                 'status' => $data['status'] ?? LeadStatus::FollowUp->value,
                 'created_by' => $actor->id,
             ]);
+
+            // Sprint 12: the first follow-up date given on the form is FU-1.
+            if (filled($followUpDate)) {
+                $lead->followUps()->create(['sequence' => 1, 'scheduled_date' => $followUpDate, 'created_by' => $actor->id]);
+            }
 
             PipelineLog::create([
                 'lead_id' => $lead->id,
@@ -275,5 +289,187 @@ class LeadService
 
             return $lead;
         });
+    }
+
+    // ── Sprint 12 Sub 2: follow-up bertingkat & survey ───────────────────
+
+    /**
+     * Decision #2 — the next numbered follow-up (FU-n). Numbering happens
+     * under a lock on the lead so two people adding at once can't both
+     * take the same number. From FU-5 on the UI suggests marking the lead
+     * Lost (LeadFollowUp::SUGGEST_LOST_FROM) — a hint, never a block.
+     */
+    public function addFollowUp(Lead $lead, array $data, User $actor): LeadFollowUp
+    {
+        return DB::transaction(function () use ($lead, $data, $actor) {
+            $lead = Lead::query()->lockForUpdate()->findOrFail($lead->id);
+            $this->ensureOpen($lead, 'scheduled_date');
+
+            return $lead->followUps()->create([
+                'sequence' => (int) $lead->followUps()->max('sequence') + 1,
+                'scheduled_date' => $data['scheduled_date'],
+                'result_note' => null,
+                'created_by' => $actor->id,
+            ]);
+        });
+    }
+
+    /** A follow-up is done once Marketing records what came out of it. */
+    public function completeFollowUp(LeadFollowUp $followUp, array $data): LeadFollowUp
+    {
+        if ($followUp->done_at !== null) {
+            throw ValidationException::withMessages(['result_note' => "FU-{$followUp->sequence} sudah ditandai selesai."]);
+        }
+
+        $followUp->forceFill(['done_at' => now(), 'result_note' => trim($data['result_note'])])->save();
+
+        return $followUp;
+    }
+
+    /**
+     * Decision #3 — schedule a site survey (repeatable). The address and
+     * Maps link default to the lead's. Inside Pekanbaru it's free and
+     * DIJADWALKAN; outside it waits for the paid RAB Jasa Survey
+     * (MENUNGGU_BAYAR) until Finance verifies the payment (Sub 6 calls
+     * markSurveyReady()).
+     */
+    public function scheduleSurvey(Lead $lead, array $data, User $actor): LeadSurvey
+    {
+        return DB::transaction(function () use ($lead, $data, $actor) {
+            $lead = Lead::query()->lockForUpdate()->findOrFail($lead->id);
+            $this->ensureOpen($lead, 'scheduled_at');
+            $outside = (bool) ($data['is_outside_pekanbaru'] ?? false);
+
+            return $lead->surveys()->create([
+                'sequence' => (int) $lead->surveys()->max('sequence') + 1,
+                'scheduled_at' => $data['scheduled_at'],
+                'address' => filled($data['address'] ?? null) ? $data['address'] : $lead->address,
+                'maps_url' => filled($data['maps_url'] ?? null) ? $data['maps_url'] : $lead->maps_url,
+                'is_outside_pekanbaru' => $outside,
+                'status' => ($outside ? LeadSurveyStatus::MenungguBayar : LeadSurveyStatus::Dijadwalkan)->value,
+                'created_by' => $actor->id,
+            ]);
+        });
+    }
+
+    /** Reschedule / correct the place of a survey that's still open. Inside/outside Pekanbaru is fixed. */
+    public function updateSurvey(LeadSurvey $survey, array $data): LeadSurvey
+    {
+        $this->ensureSurveyOpen($survey);
+
+        $survey->update([
+            'scheduled_at' => $data['scheduled_at'],
+            'address' => $data['address'] ?? $survey->address,
+            'maps_url' => $data['maps_url'] ?? $survey->maps_url,
+        ]);
+
+        return $survey;
+    }
+
+    /** Cancelling needs a reason and is audited. */
+    public function cancelSurvey(LeadSurvey $survey, string $reason, User $actor): LeadSurvey
+    {
+        $this->ensureSurveyOpen($survey);
+        $before = $survey->status->value;
+
+        return DB::transaction(function () use ($survey, $reason, $actor, $before) {
+            $survey->update(['status' => LeadSurveyStatus::Batal->value, 'cancel_reason' => trim($reason)]);
+
+            $this->auditLogService->record('crm.survey_cancelled', $survey, ['status' => $before], [
+                'status' => LeadSurveyStatus::Batal->value,
+                'lead_id' => $survey->lead_id,
+                'sequence' => $survey->sequence,
+                'reason' => $survey->cancel_reason,
+            ], $actor);
+
+            return $survey;
+        });
+    }
+
+    /**
+     * Marketing records the survey as done. An outside-Pekanbaru survey
+     * can't be until it's paid and verified (SIAP).
+     */
+    public function completeSurvey(LeadSurvey $survey, array $data): LeadSurvey
+    {
+        if ($survey->status === LeadSurveyStatus::MenungguBayar) {
+            throw ValidationException::withMessages([
+                'result_note' => 'Survey luar Pekanbaru belum bisa diselesaikan — pembayaran RAB Jasa Survey belum diverifikasi Finance.',
+            ]);
+        }
+
+        if (! in_array($survey->status, [LeadSurveyStatus::Dijadwalkan, LeadSurveyStatus::Siap], true)) {
+            throw ValidationException::withMessages(['result_note' => 'Survey ini sudah '.strtolower($survey->status->label()).'.']);
+        }
+
+        $survey->update(['status' => LeadSurveyStatus::Selesai->value, 'result_note' => trim($data['result_note'])]);
+
+        return $survey;
+    }
+
+    /**
+     * Payment of the RAB Jasa Survey verified by Finance → the survey may
+     * go ahead. Called by Sub 6's listener only — there is no route; a
+     * manual "siap" by Marketing doesn't exist (decision #3).
+     */
+    public function markSurveyReady(LeadSurvey $survey): LeadSurvey
+    {
+        if ($survey->status !== LeadSurveyStatus::MenungguBayar) {
+            return $survey;
+        }
+
+        $survey->update(['status' => LeadSurveyStatus::Siap->value]);
+
+        $this->notificationService->notifyMany(
+            [$survey->lead->assignee],
+            'lead_survey_ready',
+            'Survey Siap Berangkat',
+            "Pembayaran survey \"{$survey->lead->client_name}\" sudah diverifikasi — survey #{$survey->sequence} siap berangkat.",
+            ['lead_id' => $survey->lead_id],
+        );
+
+        return $survey;
+    }
+
+    /**
+     * "Ajukan Desain/Survey" (decision #5 — replaces "Deal Desain"): the
+     * lead moves to DEAL_DESAIN (shown as "Pengajuan Desain/Survey") and,
+     * for a survey, the survey is scheduled in the same transaction. The
+     * RAB requests (Jasa Survey / Jasa Desain / Proyek) arrive in Sub 3.
+     *
+     * @param  array{type: string, note?: ?string, scheduled_at?: string, address?: ?string, maps_url?: ?string, is_outside_pekanbaru?: bool}  $data
+     */
+    public function submitRequest(Lead $lead, array $data, User $actor): Lead
+    {
+        return DB::transaction(function () use ($lead, $data, $actor) {
+            if ($data['type'] === 'SURVEY') {
+                $this->scheduleSurvey($lead, $data, $actor);
+            }
+
+            if ($lead->status === LeadStatus::FollowUp) {
+                $lead = $this->changeStatus($lead, [
+                    'status' => LeadStatus::DealDesain->value,
+                    'note' => trim(($data['type'] === 'SURVEY' ? 'Pengajuan survey.' : 'Pengajuan desain.').' '.($data['note'] ?? '')),
+                ], $actor);
+            }
+
+            return $lead;
+        });
+    }
+
+    private function ensureOpen(Lead $lead, string $field): void
+    {
+        if (in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
+            throw ValidationException::withMessages([
+                $field => 'Lead ini sudah '.$lead->status->value.' — tidak bisa menambah follow-up atau survey.',
+            ]);
+        }
+    }
+
+    private function ensureSurveyOpen(LeadSurvey $survey): void
+    {
+        if (! $survey->status->isOpen()) {
+            throw ValidationException::withMessages(['scheduled_at' => 'Survey ini sudah '.strtolower($survey->status->label()).'.']);
+        }
     }
 }
