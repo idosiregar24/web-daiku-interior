@@ -1,7 +1,7 @@
 # Sprint 11 · Sub 5 — Katalog Barang Anti-Dobel
 
 > Induk: [`../sprint-11-quotation-satuan-material.md`](../sprint-11-quotation-satuan-material.md) §1 (#10, #11) dan §5.5 (Lapis 1–6).
-> Status: **belum dikerjakan** · Prasyarat: Sub 1, Sub 4
+> Status: **selesai 2026-10-04** · Prasyarat: Sub 1, Sub 4
 
 ## Tujuan
 Barang yang sama tidak bisa tercatat dua kali di katalog walaupun ditulis
@@ -21,9 +21,9 @@ Ikuti induk §5.5 Lapis 1–6 (identitas terstruktur, `match_key` UNIQUE,
 cek barang mirip, cari katalog dulu, satu pintu Logistik, gabung barang).
 
 ## Checklist
-- [ ] **[MasterData]** Master `material_categories` (+ prefix kode) dan daftar sinonim nama barang — CRUD SUPERADMIN
-- [ ] **[Database]** `materials`: kategori FK, nama dasar, spesifikasi, merek, kode otomatis, `match_key` UNIQUE, `merged_into_id`; migrasi data lama (bentrok → tandai "kemungkinan dobel", tidak gagal)
-- [ ] **[Logistics]** `MaterialCatalogService`: normalisasi `match_key`, cari barang mirip, buat barang (tolak persis, mirip → alasan wajib + audit)
-- [ ] **[UI]** Form barang terstruktur + panel "Barang serupa sudah ada"; pencarian katalog dulu di form material proyek, saran "Mungkin maksud Anda" sebelum mengajukan
-- [ ] **[Logistics]** Halaman Cek Duplikat + gabung barang B → A (stok via pergerakan, referensi diarahkan, B nonaktif, audit)
-- [ ] **[Test]** Variasi penulisan ("17mm"/"17 MM"/sinonim) ditolak sebagai dobel; simpan bersamaan → satu yang lolos; gabung barang memindahkan stok & referensi; PM/Estimator tidak bisa membuat barang katalog
+- [x] **[MasterData]** Master `material_categories` (+ prefix kode) dan daftar sinonim nama barang — CRUD SUPERADMIN
+- [x] **[Database]** `materials`: kategori FK, nama dasar, spesifikasi, merek, kode otomatis, `match_key` UNIQUE, `merged_into_id`; migrasi data lama (bentrok → tandai "kemungkinan dobel", tidak gagal)
+- [x] **[Logistics]** `MaterialCatalogService`: normalisasi `match_key`, cari barang mirip, buat barang (tolak persis, mirip → alasan wajib + audit)
+- [x] **[UI]** Form barang terstruktur + panel "Barang serupa sudah ada"; pencarian katalog dulu di form material proyek, saran "Mungkin maksud Anda" sebelum mengajukan
+- [x] **[Logistics]** Halaman Cek Duplikat + gabung barang B → A (stok via pergerakan, referensi diarahkan, B nonaktif, audit)
+- [x] **[Test]** Variasi penulisan ("17mm"/"17 MM"/sinonim) ditolak sebagai dobel; simpan bersamaan → satu yang lolos; gabung barang memindahkan stok & referensi; PM/Estimator tidak bisa membuat barang katalog

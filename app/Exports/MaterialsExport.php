@@ -15,20 +15,22 @@ class MaterialsExport implements FromCollection, ShouldAutoSize, WithHeadings, W
 {
     public function collection(): Collection
     {
-        return Material::query()->orderBy('category')->orderBy('name')->get();
+        // Working catalog only — merged items are inactive records (Sprint 11 §5.5).
+        return Material::query()->with('category:id,name')->active()->orderBy('code')->get();
     }
 
     public function headings(): array
     {
-        return ['Nama', 'Kategori', 'Satuan', 'Harga Modal', 'Harga Jual', 'Margin', 'Margin (%)', 'Stok', 'Stok Minimum', 'Status Stok'];
+        return ['Kode', 'Nama', 'Kategori', 'Satuan', 'Harga Modal', 'Harga Jual', 'Margin', 'Margin (%)', 'Stok', 'Stok Minimum', 'Status Stok'];
     }
 
     public function map($material): array
     {
         return [
+            $material->code,
             $material->name,
-            $material->category ?? '-',
-            $material->unit,
+            $material->category?->name ?? '-',
+            $material->unit?->code,
             (float) $material->cost_price,
             (float) $material->sell_price,
             $material->margin,

@@ -7,6 +7,9 @@ use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\LeadCategory;
 use App\Models\LeadSource;
+use App\Models\MaterialCategory;
+use App\Models\MaterialSynonym;
+use App\Models\Unit;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,6 +30,18 @@ class MasterDataController extends Controller
             'leadCategories' => LeadCategory::query()->orderBy('name')->get(),
             // Saldo Saat Ini is derived (opening_balance + transactions).
             'bankAccounts' => BankAccount::query()->withBalance()->orderBy('bank_name')->get()->append('current_balance'),
+            // `in_use` decides delete vs. deactivate-only (UnitController::destroy()).
+            'units' => Unit::query()
+                ->ordered()
+                ->withExists(['materials as has_materials', 'quotationItems as has_quotation_items', 'projectMaterials as has_project_materials'])
+                ->get()
+                ->map(fn (Unit $unit) => [
+                    ...$unit->only(['id', 'code', 'name', 'is_active', 'sort_order']),
+                    'in_use' => $unit->has_materials || $unit->has_quotation_items || $unit->has_project_materials,
+                ]),
+            // Sprint 11 Sub 5 — categories in use can only be deactivated.
+            'materialCategories' => MaterialCategory::query()->ordered()->withCount('materials')->get(),
+            'materialSynonyms' => MaterialSynonym::query()->orderBy('canonical')->orderBy('term')->get(),
         ]);
     }
 }

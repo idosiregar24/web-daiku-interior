@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\MaterialCategory;
+use App\Models\Unit;
+use App\Models\Vendor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +50,22 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/** Master Satuan id by code (Sprint 11) — created on first use, like UnitSeeder would. */
+function unitId(string $code): int
+{
+    return Unit::firstOrCreate(['code' => $code], ['name' => ucfirst($code)])->id;
+}
+
+/** Master Vendor id by name (Sprint 11) — created on first use. */
+function vendorId(string $name): int
+{
+    return Vendor::firstOrCreate(['name' => $name], ['type' => Vendor::TYPE_MATERIAL])->id;
+}
+
+/** Material category id by code prefix (Sprint 11 Sub 5) — created on first use. */
+function categoryId(string $prefix = 'KYP', ?string $name = null): int
+{
+    return MaterialCategory::firstOrCreate(['code_prefix' => $prefix], ['name' => $name ?? "Kategori {$prefix}"])->id;
 }

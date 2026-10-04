@@ -21,6 +21,7 @@ use App\Http\Controllers\HR\HrDashboardController;
 use App\Http\Controllers\HR\MyHrController;
 use App\Http\Controllers\Logistics\AssetController;
 use App\Http\Controllers\Logistics\MaterialController;
+use App\Http\Controllers\Logistics\MaterialRequestController;
 use App\Http\Controllers\Logistics\ProjectMaterialController;
 use App\Http\Controllers\Logistics\StockMovementController;
 use App\Http\Controllers\MasterData\BankAccountController;
@@ -28,6 +29,10 @@ use App\Http\Controllers\MasterData\BranchController;
 use App\Http\Controllers\MasterData\LeadCategoryController;
 use App\Http\Controllers\MasterData\LeadSourceController;
 use App\Http\Controllers\MasterData\MasterDataController;
+use App\Http\Controllers\MasterData\MaterialCategoryController;
+use App\Http\Controllers\MasterData\MaterialSynonymController;
+use App\Http\Controllers\MasterData\UnitController;
+use App\Http\Controllers\MasterData\VendorController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Overtime\OvertimeController;
 use App\Http\Controllers\ProfileController;
@@ -513,7 +518,15 @@ Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(functi
         ->middleware('role:CEO|PM|FINANCE|LOGISTICS')
         ->name('assets.export');
 
+    // Sprint 11 Sub 5 (§5.5) — similar-item lookup while typing, the Cek
+    // Duplikat page and merging. Logistics only ("satu pintu", Lapis 5).
+    Route::middleware('role:LOGISTICS')->group(function () {
+        Route::get('materials/similar', [MaterialController::class, 'similar'])->name('materials.similar');
+        Route::get('materials/duplicates', [MaterialController::class, 'duplicates'])->name('materials.duplicates');
+    });
+
     Route::middleware(['role:LOGISTICS', 'throttle:60,1'])->group(function () {
+        Route::post('materials/{material}/merge', [MaterialController::class, 'merge'])->name('materials.merge');
         Route::post('materials', [MaterialController::class, 'store'])->name('materials.store');
         Route::put('materials/{material}', [MaterialController::class, 'update'])->name('materials.update');
         Route::delete('materials/{material}', [MaterialController::class, 'destroy'])->name('materials.destroy');
@@ -540,6 +553,42 @@ Route::put('project-materials/{project_material}', [ProjectMaterialController::c
 Route::delete('project-materials/{project_material}', [ProjectMaterialController::class, 'destroy'])
     ->middleware(['auth', 'role:LOGISTICS'])
     ->name('project-materials.destroy');
+
+// Sprint 11 Sub 4 — "Pengajuan Barang" outside the catalog (decision #13).
+// Estimator / the project's PM / a Tukang with a task there raise it
+// (ProjectMaterialPolicy::request()); the PM approves a Tukang's first;
+// Logistics decides. CEO reads the queue.
+Route::middleware('auth')->group(function () {
+    Route::get('logistics/material-requests', [MaterialRequestController::class, 'index'])
+        ->middleware('role:CEO|PM|LOGISTICS|ESTIMATOR|FIELD_STAFF')
+        ->name('logistics.material-requests.index');
+
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('projects/{project}/material-requests', [MaterialRequestController::class, 'store'])
+            ->middleware('role:ESTIMATOR|PM|FIELD_STAFF')
+            ->name('projects.material-requests.store');
+        Route::post('project-materials/{project_material}/pm-decision', [MaterialRequestController::class, 'pmDecision'])
+            ->middleware('role:PM')
+            ->name('project-materials.pmDecision');
+        Route::post('logistics/material-requests/{project_material}/review', [MaterialRequestController::class, 'review'])
+            ->middleware('role:LOGISTICS')
+            ->name('logistics.material-requests.review');
+    });
+});
+
+// Sprint 11 Sub 3 (§5.6) — a line's lifecycle. Issuing from and returning
+// to the warehouse: Logistics only. Purchase, usage, waste and hand-over:
+// Logistics, or the PM on their own project (ProjectPolicy::manageMaterials()).
+Route::middleware(['auth', 'throttle:60,1'])->prefix('project-materials/{project_material}')->name('project-materials.')->group(function () {
+    Route::post('issue', [ProjectMaterialController::class, 'issue'])->middleware('role:LOGISTICS')->name('issue');
+    Route::post('return', [ProjectMaterialController::class, 'returnToWarehouse'])->middleware('role:LOGISTICS')->name('return');
+    Route::middleware('role:PM|LOGISTICS')->group(function () {
+        Route::post('purchase', [ProjectMaterialController::class, 'purchase'])->name('purchase');
+        Route::post('usage', [ProjectMaterialController::class, 'usage'])->name('usage');
+        Route::post('waste', [ProjectMaterialController::class, 'waste'])->name('waste');
+        Route::post('hand-over', [ProjectMaterialController::class, 'handOver'])->name('handOver');
+    });
+});
 
 // Analytics – Executive — PRD §4.10 / §7.1: CEO only, FULL. Division
 // roles get partial dashboards elsewhere (crm.dashboard, finance.dashboard,
@@ -590,6 +639,31 @@ Route::middleware(['auth', 'role:SUPERADMIN'])->prefix('master-data')->name('mas
     Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
     Route::put('bank-accounts/{bank_account}', [BankAccountController::class, 'update'])->name('bank-accounts.update');
     Route::delete('bank-accounts/{bank_account}', [BankAccountController::class, 'destroy'])->name('bank-accounts.destroy');
+
+    // Sprint 11 Sub 1 — Master Satuan; a unit in use is deactivated, never deleted.
+    Route::post('units', [UnitController::class, 'store'])->name('units.store');
+    Route::put('units/{unit}', [UnitController::class, 'update'])->name('units.update');
+    Route::delete('units/{unit}', [UnitController::class, 'destroy'])->name('units.destroy');
+
+    // Sprint 11 Sub 5 — material categories (in use → deactivate only) and
+    // name synonyms (every change rebuilds the catalog's match keys).
+    Route::post('material-categories', [MaterialCategoryController::class, 'store'])->name('material-categories.store');
+    Route::put('material-categories/{material_category}', [MaterialCategoryController::class, 'update'])->name('material-categories.update');
+    Route::delete('material-categories/{material_category}', [MaterialCategoryController::class, 'destroy'])->name('material-categories.destroy');
+    Route::post('material-synonyms', [MaterialSynonymController::class, 'store'])->name('material-synonyms.store');
+    Route::put('material-synonyms/{material_synonym}', [MaterialSynonymController::class, 'update'])->name('material-synonyms.update');
+    Route::delete('material-synonyms/{material_synonym}', [MaterialSynonymController::class, 'destroy'])->name('material-synonyms.destroy');
+});
+
+// Master Vendor — Sprint 11 Sub 2: CEO + SUPERADMIN (god-mode), unlike the
+// rest of Data Master. Other roles only pick an active vendor in forms.
+Route::middleware(['auth', 'role:CEO'])->prefix('master-data/vendors')->name('master-data.vendors.')->group(function () {
+    Route::get('/', [VendorController::class, 'index'])->name('index');
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('/', [VendorController::class, 'store'])->name('store');
+        Route::put('{vendor}', [VendorController::class, 'update'])->name('update');
+        Route::delete('{vendor}', [VendorController::class, 'destroy'])->name('destroy');
+    });
 });
 
 // SDM / HR — Sprint 10 (outside the PRD, .claude/plan/sprint-10-sdm.md).

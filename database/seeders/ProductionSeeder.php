@@ -28,6 +28,8 @@ class ProductionSeeder extends Seeder
     {
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
+        $this->call(UnitSeeder::class);
+        $this->call(MaterialCatalogSeeder::class);
         // PRD §4.7 default allocation percentages — real configuration, not demo data.
         $this->call(FinanceAllocationConfigSeeder::class);
 

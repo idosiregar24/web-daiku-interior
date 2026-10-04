@@ -1,12 +1,15 @@
 import { BankAccountManager } from '@/Components/modules/master-data/BankAccountManager';
 import { BranchManager } from '@/Components/modules/master-data/BranchManager';
 import { NameOnlyLookupManager } from '@/Components/modules/master-data/NameOnlyLookupManager';
+import { MaterialCategoryManager } from '@/Components/modules/master-data/MaterialCategoryManager';
+import { MaterialSynonymManager } from '@/Components/modules/master-data/MaterialSynonymManager';
+import { UnitManager } from '@/Components/modules/master-data/UnitManager';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
-import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption } from '@/types';
+import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption, MaterialCategory, MaterialSynonym, UnitRow } from '@/types';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import { Database } from 'lucide-react';
@@ -17,6 +20,9 @@ const MASTER_TAB_LABEL: Record<string, string> = {
     'lead-sources': 'Sumber Lead',
     'lead-categories': 'Kategori Customer',
     'bank-accounts': 'Rekening Bank',
+    units: 'Satuan',
+    'material-categories': 'Kategori Material',
+    'material-synonyms': 'Sinonim Barang',
 };
 
 interface MasterDataIndexProps {
@@ -24,6 +30,9 @@ interface MasterDataIndexProps {
     leadSources: LeadSourceOption[];
     leadCategories: LeadCategoryOption[];
     bankAccounts: BankAccount[];
+    units: UnitRow[];
+    materialCategories: MaterialCategory[];
+    materialSynonyms: MaterialSynonym[];
 }
 
 export default function MasterDataIndex({
@@ -31,6 +40,9 @@ export default function MasterDataIndex({
     leadSources,
     leadCategories,
     bankAccounts,
+    units,
+    materialCategories,
+    materialSynonyms,
 }: MasterDataIndexProps) {
     const [tab, setTab] = useState('branches');
 
@@ -52,6 +64,9 @@ export default function MasterDataIndex({
                             <TabsTrigger value="lead-sources">Sumber Lead</TabsTrigger>
                             <TabsTrigger value="lead-categories">Kategori Customer</TabsTrigger>
                             <TabsTrigger value="bank-accounts">Rekening Bank</TabsTrigger>
+                            <TabsTrigger value="units">Satuan</TabsTrigger>
+                            <TabsTrigger value="material-categories">Kategori Material</TabsTrigger>
+                            <TabsTrigger value="material-synonyms">Sinonim Barang</TabsTrigger>
                         </UnderlineTabsList>
 
                         <TabsContent value="branches" className="pt-4">
@@ -88,6 +103,18 @@ export default function MasterDataIndex({
 
                         <TabsContent value="bank-accounts" className="pt-4">
                             <BankAccountManager bankAccounts={bankAccounts} />
+                        </TabsContent>
+
+                        <TabsContent value="units" className="pt-4">
+                            <UnitManager units={units} />
+                        </TabsContent>
+
+                        <TabsContent value="material-categories" className="pt-4">
+                            <MaterialCategoryManager categories={materialCategories} />
+                        </TabsContent>
+
+                        <TabsContent value="material-synonyms" className="pt-4">
+                            <MaterialSynonymManager synonyms={materialSynonyms} />
                         </TabsContent>
                     </Tabs>
                 </CardContent>

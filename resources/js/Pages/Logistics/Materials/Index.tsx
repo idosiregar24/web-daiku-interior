@@ -16,13 +16,15 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import AppLayout from '@/Layouts/AppLayout';
-import { formatRupiah, formatRupiahCompact } from '@/lib/format';
+import { formatQty, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { Material, PaginatedData, Project, StockMovementType } from '@/types';
+import { StatusChip } from '@/Components/shared/StatusChip';
+import type { Material, MaterialCategory, PaginatedData, Project, StockMovementType, UnitOption } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
     AlertTriangle,
+    CopyX,
     ArrowDownToLine,
     ArrowUpFromLine,
     Boxes,
@@ -39,11 +41,14 @@ import { useEffect, useState } from 'react';
 
 interface MaterialIndexProps {
     materials: PaginatedData<Material>;
-    filters: { search: string; category: string; low_stock: boolean };
-    categories: string[];
-    summary: { totalItems: number; lowStockCount: number; stockValue: number; potentialMargin: number };
+    filters: { search: string; category_id: number | null; low_stock: boolean; show_merged: boolean };
+    /** Data Master → Kategori Material (Sprint 11 Sub 5). */
+    categories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix' | 'is_active'>[];
+    summary: { totalItems: number; lowStockCount: number; stockValue: number; potentialMargin: number; possibleDuplicates: number };
     canManage: boolean;
     projects: Pick<Project, 'id' | 'name'>[];
+    /** Active Master Satuan units — for the create/edit form. */
+    units: UnitOption[];
 }
 
 /**
@@ -51,7 +56,7 @@ interface MaterialIndexProps {
  * "tabel + margin profit + alert stok minimum — badge merah jika <
  * min_stock"). Read for CEO/EST/PM, Logistics manages.
  */
-export default function MaterialIndex({ materials, filters, categories, summary, canManage, projects }: MaterialIndexProps) {
+export default function MaterialIndex({ materials, filters, categories, summary, canManage, projects, units }: MaterialIndexProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Material | null>(null);
     const [movement, setMovement] = useState<{ material: Material; type: StockMovementType } | null>(null);
@@ -64,8 +69,9 @@ export default function MaterialIndex({ materials, filters, categories, summary,
             route('logistics.materials.index'),
             {
                 search: merged.search || undefined,
-                category: merged.category || undefined,
+                category_id: merged.category_id || undefined,
                 low_stock: merged.low_stock ? 1 : undefined,
+                show_merged: merged.show_merged ? 1 : undefined,
             },
             { preserveState: true, preserveScroll: true, replace: true },
         );
@@ -99,7 +105,13 @@ export default function MaterialIndex({ materials, filters, categories, summary,
             cell: ({ row }) => (
                 <div>
                     <p className="font-medium text-daiku-dark">{row.original.name}</p>
-                    <p className="text-xs text-daiku-muted">{row.original.category ?? 'Tanpa kategori'}</p>
+                    <p className="text-xs text-daiku-muted">
+                        {row.original.code} · {row.original.category?.name ?? 'Tanpa kategori'}
+                        {!row.original.is_active && ' · digabung (nonaktif)'}
+                    </p>
+                    {row.original.possible_duplicate && (
+                        <StatusChip status="WARNING" tone="warning" label="Kemungkinan dobel" className="mt-1" />
+                    )}
                 </div>
             ),
         },
@@ -136,16 +148,16 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                 return (
                     <div className="flex items-center gap-2 tabular-nums">
                         <span className={cn('font-medium', material.is_low_stock && 'text-error-ink')}>
-                            {material.stock} {material.unit}
+                            {formatQty(material.stock)} {material.unit?.code}
                         </span>
                         {material.is_low_stock && (
                             <Badge
                                 variant="secondary"
                                 className="border-transparent bg-error/10 text-error-ink"
-                                title={`Di bawah stok minimum (${material.min_stock} ${material.unit})`}
+                                title={`Di bawah stok minimum (${formatQty(material.min_stock)} ${material.unit?.code ?? ''})`}
                             >
                                 <AlertTriangle className="size-3" />
-                                Min {material.min_stock}
+                                Min {formatQty(material.min_stock)}
                             </Badge>
                         )}
                     </div>
@@ -159,6 +171,11 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                       header: '',
                       cell: ({ row }) => {
                           const material = row.original;
+
+                          // A merged item is an inactive record — nothing to do with it any more.
+                          if (!material.is_active) {
+                              return null;
+                          }
 
                           return (
                               <DropdownMenu>
@@ -256,7 +273,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                 columns={columns}
                 data={materials.data}
                 emptyMessage={
-                    filters.search || filters.category || filters.low_stock
+                    filters.search || filters.category_id || filters.low_stock
                         ? 'Tidak ada material yang cocok dengan filter.'
                         : 'Belum ada material.'
                 }
@@ -266,13 +283,13 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                         <SearchInput
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Cari nama material…"
+                            placeholder="Cari nama atau kode…"
                             className="w-full sm:w-64"
                             aria-label="Cari material"
                         />
                         <Select
-                            value={filters.category || 'all'}
-                            onValueChange={(value) => applyFilter({ category: value === 'all' ? '' : value })}
+                            value={filters.category_id ? String(filters.category_id) : 'all'}
+                            onValueChange={(value) => applyFilter({ category_id: value === 'all' ? null : Number(value) })}
                         >
                             <SelectTrigger className="w-44" aria-label="Filter kategori">
                                 <SelectValue placeholder="Semua kategori" />
@@ -280,8 +297,8 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                             <SelectContent>
                                 <SelectItem value="all">Semua kategori</SelectItem>
                                 {categories.map((category) => (
-                                    <SelectItem key={category} value={category}>
-                                        {category}
+                                    <SelectItem key={category.id} value={String(category.id)}>
+                                        {category.name}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -293,7 +310,22 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                             />
                             Hanya stok menipis
                         </label>
-                        <Button variant="ghost" size="sm" asChild className="ml-auto">
+                        <label className="flex h-8 items-center gap-2 rounded-lg border border-border px-2.5 text-sm text-foreground">
+                            <Switch
+                                checked={filters.show_merged}
+                                onCheckedChange={(checked) => applyFilter({ show_merged: checked })}
+                            />
+                            Tampilkan yang digabung
+                        </label>
+                        {canManage && (
+                            <Button variant="outline" size="sm" asChild className="ml-auto">
+                                <Link href={route('logistics.materials.duplicates')}>
+                                    <CopyX className="size-4" />
+                                    Cek Duplikat{summary.possibleDuplicates > 0 && ` (${summary.possibleDuplicates})`}
+                                </Link>
+                            </Button>
+                        )}
+                        <Button variant="ghost" size="sm" asChild className={canManage ? undefined : 'ml-auto'}>
                             <Link href={route('logistics.stock-movements.index')}>
                                 <History className="size-4" />
                                 Riwayat Stok
@@ -310,6 +342,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                         onOpenChange={setFormOpen}
                         material={editing}
                         categories={categories}
+                        units={units}
                     />
                     <StockMovementDialog
                         open={movement !== null}
