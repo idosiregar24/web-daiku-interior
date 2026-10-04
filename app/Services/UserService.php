@@ -26,7 +26,8 @@ class UserService
                 'password' => Hash::make($data['password']),
             ]);
 
-            $user->assignRole($data['role']);
+            // A stacked role (Kepala Desain) brings its base role along.
+            $user->assignRole(User::rolesFor($data['role']));
 
             // Granting a role is granting access — audited like the other
             // sensitive actions (PRD §9.4).
@@ -64,7 +65,7 @@ class UserService
                 'name' => $user->name,
                 'email' => $user->email,
                 'is_active' => $user->is_active,
-                'role' => $user->getRoleNames()->first(),
+                'role' => $user->assignableRoleName(),
             ];
 
             $user->update([
@@ -79,7 +80,7 @@ class UserService
                 $user->update(['password' => Hash::make($data['password'])]);
             }
 
-            $user->syncRoles([$data['role']]);
+            $user->syncRoles(User::rolesFor($data['role']));
 
             $after = [
                 'name' => $user->name,

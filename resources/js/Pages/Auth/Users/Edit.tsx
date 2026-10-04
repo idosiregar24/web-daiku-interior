@@ -37,7 +37,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 interface EditUserProps {
-    user: User & { roles: { id: number; name: Role }[] };
+    user: Omit<User, 'roles'> & { roles: { id: number; name: Role }[]; assignable_role: Role | null };
     roles: Role[];
 }
 
@@ -48,7 +48,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
             name: user.name,
             email: user.email,
             password: '',
-            role: user.roles[0]?.name ?? '',
+            role: user.assignable_role ?? '',
             is_active: user.is_active ?? true,
         },
     });

@@ -159,7 +159,7 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
 // its state machine, see that class's docblock).
 Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(function () {
     Route::get('/', [QuotationController::class, 'index'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('index');
 
     // Dashboard Quotation (Estimator's "Analytics – Per Divisi", §7.1 `P`)
@@ -169,11 +169,11 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->name('dashboard');
 
     Route::get('{quotation}', [QuotationController::class, 'show'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('show');
 
     Route::get('{quotation}/pdf', [QuotationController::class, 'exportPdf'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|FINANCE')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('pdf');
 
     Route::put('{quotation}/items', [QuotationController::class, 'updateItems'])
@@ -206,18 +206,19 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
 // their own assigned tasks inside ProjectController@index (matrix's R*).
 Route::middleware('auth')->prefix('projects')->name('projects.')->group(function () {
     Route::get('/', [ProjectController::class, 'index'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('index');
 
     // Monitor Proyek — PRD §4.4 "Overdue Monitor: Dashboard khusus PM".
-    // CEO (all PMs) + PM (own projects, scoped in DivisionDashboardService).
+    // CEO (all PMs) + PM (own projects, scoped in DivisionDashboardService)
+    // + ASISTEN_PM (Sprint 12 — read-only, its landing page).
     // Before `/{project}` (wildcard).
     Route::get('/dashboard', [ProjectDashboardController::class, 'index'])
-        ->middleware('role:CEO|PM')
+        ->middleware('role:CEO|PM|ASISTEN_PM')
         ->name('dashboard');
 
     Route::get('/{project}', [ProjectController::class, 'show'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('show');
 
     Route::post('/', [ProjectController::class, 'store'])

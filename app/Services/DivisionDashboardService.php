@@ -488,10 +488,14 @@ class DivisionDashboardService
 
     // ── Monitor Proyek (Overdue Monitor) — PRD §4.4 ───────────────────────
 
-    /** CEO (and the SUPERADMIN technical role) watch every PM's projects; a PM only their own. */
+    /**
+     * CEO (and the SUPERADMIN technical role) watch every PM's projects; a
+     * PM only their own. ASISTEN_PM (Sprint 12 Sub 1) reads every project
+     * for now — Sub 11 narrows it to the projects they're assigned to.
+     */
     public function seesAllProjects(User $viewer): bool
     {
-        return $viewer->hasAnyRole(['CEO', 'SUPERADMIN']);
+        return $viewer->hasAnyRole(['CEO', 'SUPERADMIN', 'ASISTEN_PM']);
     }
 
     /** @return EloquentCollection<int, User> PMs for the CEO's filter */

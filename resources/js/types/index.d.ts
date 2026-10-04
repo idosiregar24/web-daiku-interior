@@ -18,14 +18,22 @@ export type Role =
     | 'LOGISTICS'
     | 'FIELD_STAFF'
     | 'SUPERADMIN'
-    | 'HR';
+    | 'HR'
+    // Sprint 12 (outside the PRD): the PM's assistant; Kepala Desain is stacked on DESIGNER.
+    | 'ASISTEN_PM'
+    | 'KEPALA_DESAIN';
 
 export interface User {
     id: number;
     name: string;
     email: string;
     email_verified_at?: string;
+    /** Primary role — what nav gating and role checks read (never a stacked role). */
     role?: Role;
+    /** Every role held (shared auth user only). */
+    roles?: Role[];
+    /** The role to label the user with — Kepala Desain over Desainer (shared auth user only). */
+    display_role?: Role | null;
     is_active?: boolean;
     /** SDM: linked to an active employee row — the "Milik Saya" menu shows only then. */
     has_employee?: boolean;

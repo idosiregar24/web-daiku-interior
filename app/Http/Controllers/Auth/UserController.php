@@ -23,7 +23,9 @@ class UserController extends Controller
         $users = User::query()
             ->with('roles:id,name')
             ->latest()
-            ->paginate(15);
+            ->paginate(15)
+            // A stacked role (Kepala Desain) is what's shown and edited, not its base role.
+            ->through(fn (User $user) => [...$user->toArray(), 'assignable_role' => $user->assignableRoleName()]);
 
         return Inertia::render('Auth/Users/Index', [
             'users' => $users,
@@ -47,7 +49,7 @@ class UserController extends Controller
     public function edit(User $user): Response
     {
         return Inertia::render('Auth/Users/Edit', [
-            'user' => $user->load('roles:id,name'),
+            'user' => [...$user->load('roles:id,name')->toArray(), 'assignable_role' => $user->assignableRoleName()],
             'roles' => Role::query()->orderBy('name')->pluck('name'),
         ]);
     }

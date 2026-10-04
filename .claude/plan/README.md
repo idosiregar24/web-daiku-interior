@@ -36,7 +36,7 @@ email) to browse it.
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
 | Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
-| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 0 selesai / 0 sebagian / 66 belum (66) | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
+| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 3 selesai / 0 sebagian / 63 belum (66) — Sub 1 selesai 2026-10-04 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -485,6 +485,14 @@ clean. Decisions and deviations:
   → Task list).
 - **Not done (needs humans/infra):** UAT sessions, staging deploy, CI
   deploy jobs, end-to-end Soketi test.
+
+## Sprint 12 — revisi alur bisnis (in progress)
+
+### Sub 1 — Fondasi role (done 2026-10-04)
+
+- Roles `ASISTEN_PM` and `KEPALA_DESAIN` (RoleSeeder, so ProductionSeeder gets them too); demo users `asistenpm@` and `kepaladesain.com`.
+- **Stacked role:** `User::STACKED_ROLES` (`KEPALA_DESAIN` → `DESIGNER`). User Management still picks one role; `User::rolesFor()` gives a Kepala Desain both Spatie roles, so every `role:DESIGNER` route/check keeps working. `primaryRoleName()` (shared as `auth.user.role`, landing page) is never the stacked role; `assignableRoleName()` (shared as `display_role`, User Management) is. The shared auth user now also carries `roles` — nav shows a menu if *any* held role may see it.
+- `ASISTEN_PM` reads what the PM reads: Proyek (index, detail tabs incl. milestones/tasks/progress/termin/material), Monitor Proyek (its landing page), Quotation (index/detail/PDF). **No write action yet** — ACC RAB arrives in Sub 4, project actions + ACC pengajuan barang in Sub 11. Until Sub 11 adds `assistant_pm_id`, the Monitor shows the Asisten PM every PM's projects (read-only, with the PM filter).
 
 ## ⚠️ Schema discovery: `daiku_schema.sql` (found 2026-08-15, not yet reconciled)
 

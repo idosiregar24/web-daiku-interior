@@ -16,7 +16,7 @@ class ProjectPolicy
 {
     public function view(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS'])) {
+        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'LOGISTICS'])) {
             return true;
         }
 
@@ -81,7 +81,8 @@ class ProjectPolicy
      */
     public function taskVisibility(User $user): string
     {
-        if ($user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN'])) {
+        // ASISTEN_PM reads what the PM reads (Sprint 12 Sub 1).
+        if ($user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'SUPERADMIN'])) {
             return 'all';
         }
 

@@ -66,7 +66,9 @@ class ProjectController extends Controller
 
         $user = $request->user();
         $taskVisibility = $policy->taskVisibility($user);
-        $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'QA', 'SUPERADMIN']);
+        // ASISTEN_PM (Sprint 12 Sub 1) reads every tab the PM reads; its write
+        // actions arrive in Sub 4 (RAB) and Sub 11 (its assigned projects).
+        $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
         $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         // Sprint 9 "Edit Proyek": CEO any project, PM their own
@@ -75,12 +77,12 @@ class ProjectController extends Controller
         $canEditProject = $user->can('update', $project) && ! $project->isClosed();
         $canChangePm = $canEditProject && $user->hasAnyRole(['CEO', 'SUPERADMIN']);
         // PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read, PM CRUD.
-        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'DESIGNER', 'PM', 'QA', 'FINANCE', 'SUPERADMIN']);
+        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'SUPERADMIN']);
         $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         // PRD §7.1 "Finance – Termin" row: CEO/FIN read, PM create-only —
         // PM sees what they scheduled through this project-scoped prop
         // rather than the Finance-only global list (finance.termins.index).
-        $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']);
+        $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
         $canCreateTermins = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         $canMarkTerminPaid = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
         // Budget allocation + outstanding supplier debts (PRD §4.7) follow the
@@ -90,7 +92,7 @@ class ProjectController extends Controller
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
         // planned would just produce duplicate requests.
-        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'LOGISTICS', 'SUPERADMIN']);
+        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN']);
         // Sprint 11 §5.6: a PM plans/records only on their own project.
         $isRunning = in_array($project->status, [ProjectStatus::Active, ProjectStatus::OnHold], true);
         $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);

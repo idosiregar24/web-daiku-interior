@@ -3,14 +3,16 @@ import { Button } from '@/Components/ui/button';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
-import AppLayout from '@/Layouts/AppLayout';
+import AppLayout, { ROLE_LABEL } from '@/Layouts/AppLayout';
 import type { PaginatedData, Role, User } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, UserCog } from 'lucide-react';
 
-interface UserWithRoles extends User {
+interface UserWithRoles extends Omit<User, 'roles'> {
     roles: { id: number; name: Role }[];
+    /** Stacked role (Kepala Desain) over its base role — see User::assignableRoleName(). */
+    assignable_role: Role | null;
 }
 
 interface UsersIndexProps {
@@ -41,7 +43,7 @@ const columns: ColumnDef<UserWithRoles>[] = [
         header: 'Role',
         cell: ({ row }) => (
             <Badge variant="outline" className="rounded-md font-mono text-[11px]">
-                {row.original.roles[0]?.name ?? '—'}
+                {row.original.assignable_role ? ROLE_LABEL[row.original.assignable_role] : '—'}
             </Badge>
         ),
     },

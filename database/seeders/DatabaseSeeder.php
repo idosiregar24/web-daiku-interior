@@ -26,6 +26,9 @@ class DatabaseSeeder extends Seeder
         'FIELD_STAFF' => ['name' => 'Field Staff Daiku Interior', 'email' => 'fieldstaff@daikuinterior.com'],
         'SUPERADMIN' => ['name' => 'Super Admin Daiku Interior', 'email' => 'superadmin@daikuinterior.com'],
         'HR' => ['name' => 'HR Daiku Interior', 'email' => 'hr@daikuinterior.com'],
+        // Sprint 12 — Kepala Desain is stacked on DESIGNER (User::rolesFor()).
+        'ASISTEN_PM' => ['name' => 'Asisten PM Daiku Interior', 'email' => 'asistenpm@daikuinterior.com'],
+        'KEPALA_DESAIN' => ['name' => 'Kepala Desain Daiku Interior', 'email' => 'kepaladesain@daikuinterior.com'],
     ];
 
     /**
@@ -51,7 +54,7 @@ class DatabaseSeeder extends Seeder
 
         foreach (self::DEMO_USERS as $role => $attributes) {
             $user = User::factory()->create($attributes);
-            $user->assignRole($role);
+            $user->assignRole(User::rolesFor($role));
         }
 
         // Walks the full presales→execution→payroll business process

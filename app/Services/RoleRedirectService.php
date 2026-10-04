@@ -39,6 +39,11 @@ class RoleRedirectService
         'SUPERADMIN' => 'master-data.index',
         // SDM (Sprint 10, outside the PRD) — the HR dashboard.
         'HR' => 'hr.dashboard',
+        // Sprint 12 (outside the PRD): the PM's assistant lands where the PM
+        // does. KEPALA_DESAIN is stacked on DESIGNER, whose primary role
+        // decides (User::primaryRoleName()) — mapped anyway for a lone one.
+        'ASISTEN_PM' => 'projects.dashboard',
+        'KEPALA_DESAIN' => 'design.dashboard',
     ];
 
     /**
@@ -47,7 +52,7 @@ class RoleRedirectService
      */
     public function routeNameFor(User $user): string
     {
-        $role = $user->getRoleNames()->first();
+        $role = $user->primaryRoleName();
         $routeName = self::ROLE_ROUTES[$role] ?? 'dashboard';
 
         return Route::has($routeName) ? $routeName : 'dashboard';

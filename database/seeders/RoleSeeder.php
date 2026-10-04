@@ -21,6 +21,11 @@ class RoleSeeder extends Seeder
      * `HR` (SDM) is also outside the PRD — added in Sprint 10 for the SDM
      * module (employees, discipline, salary changes, KPI, reviews; see
      * .claude/plan/sprint-10-sdm.md decision #2).
+     *
+     * Sprint 12 (revisi alur, outside the PRD) adds `ASISTEN_PM` (decision
+     * #22 — ACC RAB and material requests, never budget allocation or
+     * realisation) and `KEPALA_DESAIN` (decision #15 — stacked on top of
+     * DESIGNER, see User::STACKED_ROLES).
      */
     private const ROLES = [
         'CEO',
@@ -34,6 +39,8 @@ class RoleSeeder extends Seeder
         'FIELD_STAFF',
         'SUPERADMIN',
         'HR',
+        'ASISTEN_PM',
+        'KEPALA_DESAIN',
     ];
 
     /**

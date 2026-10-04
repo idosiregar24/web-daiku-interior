@@ -81,7 +81,7 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
                 title="Proyek"
                 icon={FolderKanban}
                 description="Daftar proyek eksekusi — dibuat otomatis saat lead dikonfirmasi Deal dari CRM."
-                actions={<DashboardLinkButton routeName="projects.dashboard" label="Monitor Proyek" icon={AlertTriangle} roles={['CEO', 'PM']} />}
+                actions={<DashboardLinkButton routeName="projects.dashboard" label="Monitor Proyek" icon={AlertTriangle} roles={['CEO', 'PM', 'ASISTEN_PM']} />}
             />
 
             <DataTable

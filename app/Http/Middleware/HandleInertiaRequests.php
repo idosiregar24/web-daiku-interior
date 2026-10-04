@@ -40,10 +40,14 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $user ? [
                     ...$user->only(['id', 'name', 'email', 'email_verified_at', 'is_active']),
-                    // Single primary role per PRD 7 (RBAC) — a user may hold more
-                    // than one Spatie role, but the UI only needs the first for
-                    // nav gating today.
-                    'role' => $user->getRoleNames()->first(),
+                    // Primary role per PRD 7 (RBAC) — what nav gating and role
+                    // checks read. A stacked role (Kepala Desain, Sprint 12) is
+                    // never primary: its base role (DESIGNER) is.
+                    'role' => $user->primaryRoleName(),
+                    // Every role held — nav shows a menu if any of them may see it.
+                    'roles' => $user->getRoleNames()->values(),
+                    // The role to label the user with (Kepala Desain over Desainer).
+                    'display_role' => $user->assignableRoleName(),
                     // SDM "Milik Saya" menu — same rule as the `employee.self`
                     // middleware (field staff are never linked, decision #11).
                     'has_employee' => ! $user->hasRole('FIELD_STAFF')

@@ -22,6 +22,7 @@ test('resolves each role to its PRD §8.4 landing page', function (string $role,
     ['PM', 'projects.dashboard'],
     ['QA', 'qa-forms.dashboard'],
     ['SUPERADMIN', 'master-data.index'],
+    ['ASISTEN_PM', 'projects.dashboard'],
 ]);
 
 test('every mapped landing route is actually reachable by that role', function (string $role) {
@@ -29,7 +30,7 @@ test('every mapped landing route is actually reachable by that role', function (
     $user->assignRole($role);
 
     $this->actingAs($user)->get(route((new RoleRedirectService)->routeNameFor($user)))->assertOk();
-})->with(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF', 'SUPERADMIN']);
+})->with(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF', 'SUPERADMIN', 'ASISTEN_PM']);
 
 test('falls back to dashboard for a user with no role assigned', function () {
     $user = User::factory()->create();

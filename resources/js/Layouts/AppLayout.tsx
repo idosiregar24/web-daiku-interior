@@ -155,7 +155,7 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Quotation',
                 icon: FileText,
                 routeName: 'quotations.index',
-                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'FINANCE'],
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'FINANCE'],
             },
         ],
     },
@@ -166,7 +166,7 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Proyek',
                 icon: FolderKanban,
                 routeName: 'projects.index',
-                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF'],
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF'],
             },
             {
                 label: 'Task',
@@ -389,6 +389,8 @@ export const ROLE_LABEL: Record<Role, string> = {
     FIELD_STAFF: 'Field Staff',
     SUPERADMIN: 'Super Admin',
     HR: 'SDM',
+    ASISTEN_PM: 'Asisten PM',
+    KEPALA_DESAIN: 'Kepala Desain',
 };
 
 /**
@@ -399,6 +401,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 export function useNavGroups(): NavGroup[] {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
+    // Every role held — a stacked role (Kepala Desain) sees its base role's menus too.
+    const roles = auth.user?.roles ?? (role ? [role] : []);
+    const rolesKey = roles.join(',');
     const hasEmployee = Boolean(auth.user?.has_employee);
 
     return useMemo(
@@ -410,10 +415,10 @@ export function useNavGroups(): NavGroup[] {
                 items: group.items.filter(
                     (item) =>
                         (!item.requiresEmployee || hasEmployee) &&
-                        (!item.roles || role === 'SUPERADMIN' || (role && item.roles.includes(role))),
+                        (!item.roles || roles.includes('SUPERADMIN') || roles.some((held) => item.roles?.includes(held))),
                 ),
             })).filter((group) => group.items.length > 0),
-        [role, hasEmployee],
+        [rolesKey, hasEmployee],
     );
 }
 
@@ -627,7 +632,7 @@ function SidebarUser() {
                                 {user.name}
                             </span>
                             <span className="block truncate text-[11px] text-muted-foreground">
-                                {user.role ? ROLE_LABEL[user.role] : user.email}
+                                {(user.display_role ?? user.role) ? ROLE_LABEL[(user.display_role ?? user.role) as Role] : user.email}
                             </span>
                         </span>
                         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
