@@ -36,7 +36,7 @@ email) to browse it.
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
 | Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
-| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 58 selesai / 0 sebagian / 8 belum (66) — Sub 1–2 selesai 2026-10-04, Sub 3–12 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
+| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 61 selesai / 0 sebagian / 5 belum (66) — Sub 1–2 selesai 2026-10-04, Sub 3–13 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -612,6 +612,15 @@ clean. Decisions and deviations:
 - Alokasi Dana: `sourceItems()` = RAB Fix + approved addenda (items marked "RAB Tambahan"); the summary's items / discount / RAB totals add them up.
 - UI: Dokumen tab "RAB Tambahan" card (list with status, "Minta RAB Tambahan" dialog, contract value = RAB Fix + approved addenda); termins of an addendum marked "Tambahan" on the Finance tab; the quotation page / client link call it "RAB Tambahan" with a banner linking the project.
 - Demo: Proyek Budi Santoso has an approved RAB Tambahan (Plafon Membran 8,84 m² + Plafon Topian Meja Bar) → termin #4 TAMBAHAN, contract value up by its total, two more items to allocate.
+
+### Sub 13 — KPI otomatis Estimator & PM (done 2026-10-05)
+
+- Three AUTO metrics in `KpiMetricRegistry` (per user, per KPI month, by the review decision's date):
+  - `estimator_first_pass_rate` (Estimator, higher better) — Σ ✔ ÷ Σ items of the PM / Asisten PM review of **version 1** of the quotations the user built (`created_by`, set to the Estimator at "Mulai Susun"), from `quotation_item_reviews`.
+  - `estimator_returned_count` (Estimator, lower better) — "kembalikan" decisions (PM stage or CEO) on those quotations, from `quotation_approvals`.
+  - `pm_review_escaped_count` (PM **and Asisten PM**, lower better) — of the versions the user approved at the PM stage that the CEO decided this month, how many the CEO sent back (matched on quotation + version), so a CEO return also counts against the reviewer who let it through.
+- No review data in the month → null ("Tidak ada data", weight redistributed by KpiService); a month with reviews but no returns is a real 0.
+- Default templates (`KpiDemoSeeder::TEMPLATES`): Estimator gains "Item RAB lolos review pertama" (target 90 %, 25) and "RAB dikembalikan" (target 1, 15, lower better) — the manual "Akurasi RAB" stays at 15; Project Manager gains "RAB di-ACC lalu dikembalikan CEO" (target 1, 15, lower better). Weights still sum to 100; HR can change them. There is no Asisten PM position in the org structure — HR can add the metric to one when it exists.
 
 ## ⚠️ Schema discovery: `daiku_schema.sql` (found 2026-08-15, not yet reconciled)
 

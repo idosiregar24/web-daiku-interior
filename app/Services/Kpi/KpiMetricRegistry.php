@@ -15,6 +15,8 @@ use App\Models\PipelineLog;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
+use App\Models\QuotationApproval;
+use App\Models\QuotationItemReview;
 use App\Models\Termin;
 use App\Models\User;
 use App\Services\DivisionDashboardService;
@@ -89,6 +91,31 @@ class KpiMetricRegistry
             'roles' => ['ESTIMATOR'],
             'positionHints' => ['estimator'],
             'description' => 'Quotation buatan sendiri yang pertama kali dikirim ke klien pada bulan ini.',
+        ],
+        // Sprint 12 #9 — from the per-item RAB review of sub-plan 04.
+        'estimator_first_pass_rate' => [
+            'label' => '% item RAB lolos review pertama',
+            'unit' => '%',
+            'direction' => KpiDirection::HigherBetter,
+            'roles' => ['ESTIMATOR'],
+            'positionHints' => ['estimator'],
+            'description' => 'Dari item RAB buatan sendiri yang direview PM di versi pertama bulan ini, persentase yang langsung ✔.',
+        ],
+        'estimator_returned_count' => [
+            'label' => 'Jumlah RAB dikembalikan',
+            'unit' => 'jumlah',
+            'direction' => KpiDirection::LowerBetter,
+            'roles' => ['ESTIMATOR'],
+            'positionHints' => ['estimator'],
+            'description' => 'Keputusan "kembalikan" PM / Asisten PM atau CEO atas RAB buatan sendiri bulan ini (tanpa review bulan ini → tidak ada data).',
+        ],
+        'pm_review_escaped_count' => [
+            'label' => 'RAB di-ACC lalu dikembalikan CEO',
+            'unit' => 'jumlah',
+            'direction' => KpiDirection::LowerBetter,
+            'roles' => ['PM', 'ASISTEN_PM'],
+            'positionHints' => ['project manager', 'pm', 'asisten'],
+            'description' => 'Dari RAB yang di-ACC sendiri di tahap PM dan diputuskan CEO bulan ini, jumlah yang dikembalikan CEO.',
         ],
         'lead_new_count' => [
             'label' => 'Jumlah lead baru',
@@ -218,6 +245,9 @@ class KpiMetricRegistry
             'design_client_acc_count' => $this->designClientAccCount($user, $from, $to),
             'quotation_turnaround_days' => $this->quotationTurnaround($user, $from, $to),
             'quotation_sent_count' => (float) $this->quotationsFirstSent($user, $from, $to)->count(),
+            'estimator_first_pass_rate' => $this->estimatorFirstPassRate($user, $from, $to),
+            'estimator_returned_count' => $this->estimatorReturnedCount($user, $from, $to),
+            'pm_review_escaped_count' => $this->pmReviewEscapedCount($user, $from, $to),
             'lead_new_count' => $this->leadNewCount($user, $from, $to),
             'lead_conversion_rate' => $this->leadConversionRate($user, $from, $to),
             'lead_overdue_followup_count' => $this->leadOverdueFollowUps($user, $from, $asOf),
@@ -307,6 +337,78 @@ class KpiMetricRegistry
             ->map(fn (Carbon $sentAt, int $id) => max(0.0, Carbon::parse($createdAt[$id])->diffInHours($sentAt)));
 
         return $hours->isEmpty() ? null : (float) $hours->avg() / 24;
+    }
+
+    // ── RAB review (Sprint 12 #9) ─────────────────────────────────────────
+
+    /**
+     * Σ ✔ ÷ Σ items in the PM / Asisten PM review of VERSION 1 of the
+     * user's quotations (`created_by` = the Estimator who built it), by the
+     * review's date. Later versions — fixes after a return — don't count.
+     */
+    private function estimatorFirstPassRate(User $user, CarbonInterface $from, CarbonInterface $to): ?float
+    {
+        $verdicts = QuotationItemReview::query()
+            ->whereIn('quotation_id', Quotation::where('created_by', $user->id)->select('id'))
+            ->where('version', 1)
+            ->where('stage', QuotationItemReview::STAGE_PM)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->pluck('verdict');
+
+        if ($verdicts->isEmpty()) {
+            return null;
+        }
+
+        return $verdicts->filter(fn (string $verdict) => $verdict === QuotationItemReview::VERDICT_OK)->count() / $verdicts->count() * 100;
+    }
+
+    /**
+     * "Kembalikan" decisions (PM / Asisten PM or CEO) on the user's
+     * quotations this month. No review decision at all this month → no
+     * data (null), not 0.
+     */
+    private function estimatorReturnedCount(User $user, CarbonInterface $from, CarbonInterface $to): ?float
+    {
+        $decisions = QuotationApproval::query()
+            ->whereIn('quotation_id', Quotation::where('created_by', $user->id)->select('id'))
+            ->whereIn('approver_role', [QuotationItemReview::STAGE_PM, QuotationItemReview::STAGE_CEO])
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->pluck('status');
+
+        return $decisions->isEmpty() ? null : (float) $decisions->filter(fn (string $status) => $status === 'REJECTED')->count();
+    }
+
+    /**
+     * The quotation versions the user approved at the PM stage that the
+     * CEO decided this month; how many the CEO sent back — the review
+     * "escaped" the PM. The CEO's return counts against the PM who
+     * approved, not only the Estimator. Nothing decided → null.
+     */
+    private function pmReviewEscapedCount(User $user, CarbonInterface $from, CarbonInterface $to): ?float
+    {
+        $approved = QuotationApproval::query()
+            ->where('approver_id', $user->id)
+            ->where('approver_role', QuotationItemReview::STAGE_PM)
+            ->where('status', 'APPROVED')
+            ->get(['quotation_id', 'version']);
+
+        if ($approved->isEmpty()) {
+            return null;
+        }
+
+        $ceoDecisions = QuotationApproval::query()
+            ->whereIn('quotation_id', $approved->pluck('quotation_id')->unique())
+            ->where('approver_role', QuotationItemReview::STAGE_CEO)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->get(['quotation_id', 'version', 'status'])
+            ->filter(fn (QuotationApproval $ceo) => $approved->contains(
+                fn (QuotationApproval $pm) => $pm->quotation_id === $ceo->quotation_id && (int) $pm->version === (int) $ceo->version,
+            ));
+
+        return $ceoDecisions->isEmpty() ? null : (float) $ceoDecisions->where('status', 'REJECTED')->count();
     }
 
     // ── Lead (Marketing) ──────────────────────────────────────────────────

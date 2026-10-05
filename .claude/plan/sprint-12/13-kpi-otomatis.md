@@ -1,7 +1,7 @@
 # Sprint 12 · 13 — KPI Otomatis Estimator & PM
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 04, Sprint 10 (KPI) · Keputusan: #9
+> Status: **selesai 2026-10-05** · Prasyarat: 04, Sprint 10 (KPI) · Keputusan: #9
 
 ## Tujuan
 Data review RAB (sub-plan 04) menjadi indikator KPI otomatis di modul KPI
@@ -31,6 +31,6 @@ tanggal keputusan review):
   (HR tetap bisa mengubah bobot).
 
 ## Checklist
-- [ ] **[HR]** Tiga metrik di registry + query dari `quotation_item_reviews` / `quotation_approvals`
-- [ ] **[HR]** Seed indikator default di template Estimator & PM
-- [ ] **[Test]** Perhitungan per periode (versi pertama saja untuk first-pass; pengembalian CEO dihitung ke PM yang ACC, bukan ke Estimator saja)
+- [x] **[HR]** Tiga metrik di registry + query dari `quotation_item_reviews` / `quotation_approvals`
+- [x] **[HR]** Seed indikator default di template Estimator & PM
+- [x] **[Test]** Perhitungan per periode (versi pertama saja untuk first-pass; pengembalian CEO dihitung ke PM yang ACC, bukan ke Estimator saja)

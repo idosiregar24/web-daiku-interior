@@ -34,9 +34,12 @@ class KpiDemoSeeder extends Seeder
             ['Follow-up terlambat', 'lead_overdue_followup_count', 2, 25, 'LOWER_BETTER'],
         ],
         'Estimator' => [
-            ['Turnaround quotation', 'quotation_turnaround_days', 3, 40, 'LOWER_BETTER'],
-            ['Quotation terkirim', 'quotation_sent_count', 6, 30],
-            ['Akurasi RAB', null, 95, 30],
+            ['Turnaround quotation', 'quotation_turnaround_days', 3, 25, 'LOWER_BETTER'],
+            ['Quotation terkirim', 'quotation_sent_count', 6, 20],
+            // Sprint 12 #9 — from the per-item RAB review.
+            ['Item RAB lolos review pertama', 'estimator_first_pass_rate', 90, 25],
+            ['RAB dikembalikan', 'estimator_returned_count', 1, 15, 'LOWER_BETTER'],
+            ['Akurasi RAB', null, 95, 15],
         ],
         'Desainer Interior' => [
             ['Desain tepat jadwal', 'design_on_schedule_rate', 90, 30],
@@ -55,10 +58,12 @@ class KpiDemoSeeder extends Seeder
             ['Kerapian dokumen', null, 90, 40],
         ],
         'Project Manager' => [
-            ['Milestone tepat waktu', 'milestone_on_time_rate', 90, 30],
-            ['QA lolos pertama kali', 'qa_first_pass_rate', 80, 25],
+            ['Milestone tepat waktu', 'milestone_on_time_rate', 90, 25],
+            ['QA lolos pertama kali', 'qa_first_pass_rate', 80, 20],
             ['Proyek delay', 'project_delay_count', 1, 20, 'LOWER_BETTER'],
-            ['Koordinasi tim', null, 90, 25],
+            // Sprint 12 #9 — RAB the PM approved that the CEO sent back.
+            ['RAB di-ACC lalu dikembalikan CEO', 'pm_review_escaped_count', 1, 15, 'LOWER_BETTER'],
+            ['Koordinasi tim', null, 90, 20],
         ],
         'Quality Assurance' => [
             ['Form QA diproses', 'qa_forms_processed_count', 10, 60],
