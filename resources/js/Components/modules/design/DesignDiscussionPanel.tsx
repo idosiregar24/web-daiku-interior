@@ -121,7 +121,7 @@ export function DesignDiscussionPanel({ thread, quotationId, className }: Design
                                 )}
                             />
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Kirim
+                                Kirim Pesan
                             </Button>
                         </div>
                     </form>

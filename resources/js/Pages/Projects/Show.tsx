@@ -328,7 +328,7 @@ function TaskAssigneeTable({
                                 {canManage && (
                                     <div className="flex items-center justify-end gap-1">
                                         <Button variant="outline" size="sm" onClick={() => onStatusClick(task)}>
-                                            Update Status
+                                            Ubah Status Task
                                         </Button>
                                         {canEdit && (
                                             <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} />
@@ -643,7 +643,7 @@ function FinanceTab({
                                                 )}
                                                 {canMarkPaid && !termin.invoice_id && termin.status !== 'PAID' && termin.bank_account_id !== null && (
                                                     <Button variant="outline" size="sm" onClick={() => onMarkPaid(termin)}>
-                                                        Tandai Dibayar
+                                                        Konfirmasi Pembayaran
                                                     </Button>
                                                 )}
                                             </div>
@@ -755,13 +755,13 @@ function DocumentsTab({
                             <Button variant="outline" size="sm" asChild>
                                 <a href={route('quotations.pdf', { quotation: quotation.id })} target="_blank" rel="noopener noreferrer">
                                     <FileDown className="size-4" />
-                                    PDF
+                                    Unduh PDF
                                 </a>
                             </Button>
                             <Button variant="outline" size="sm" asChild>
                                 <a href={route('quotations.excel', { quotation: quotation.id })}>
                                     <FileDown className="size-4" />
-                                    Excel
+                                    Unduh Excel
                                 </a>
                             </Button>
                         </div>
@@ -792,7 +792,7 @@ function DocumentsTab({
                                         rel="noopener noreferrer"
                                         className="text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
                                     >
-                                        PDF
+                                        Unduh PDF
                                     </a>
                                 </span>
                             </li>
@@ -980,7 +980,7 @@ export default function ProjectShow({
                         {canEditProject && (
                             <Button variant="outline" onClick={() => setEditOpen(true)}>
                                 <PenLine className="size-4" />
-                                Edit Proyek
+                                Ubah Proyek
                             </Button>
                         )}
                     </>

@@ -238,7 +238,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Bayar {formatRupiah(Math.max(net, 0))}
+                                Bayar Gaji {formatRupiah(Math.max(net, 0))}
                             </Button>
                         </DialogFooter>
                     </form>

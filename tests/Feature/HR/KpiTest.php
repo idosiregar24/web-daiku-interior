@@ -313,7 +313,7 @@ test('estimator AUTO metrics measure quotations first sent to the client in the 
     $employee = Employee::factory()->create(['position_id' => $position->id, 'user_id' => $estimator->id]);
     $month = kpiPreviousMonth();
 
-    // Sprint 12: the first "Kirim ke Client" (QuotationService::sendToClient()) stamps first_sent_at.
+    // Sprint 12: the first "Kirim ke Klien" (QuotationService::sendToClient()) stamps first_sent_at.
     $send = fn (Quotation $quotation, Carbon $at) => $quotation->update(['first_sent_at' => $at]);
 
     $this->travelTo($month->copy()->addDays(1)->setTime(9, 0));

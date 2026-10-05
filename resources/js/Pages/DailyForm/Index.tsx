@@ -146,7 +146,7 @@ function SubmitFormDialog({ task, open, onOpenChange }: { task: Task | null; ope
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Submit
+                                Kirim Form Harian
                             </Button>
                         </DialogFooter>
                     </form>
@@ -223,7 +223,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                                         <p className="text-xs text-daiku-muted">{task.project?.name}</p>
                                     </div>
                                     <Button size="sm" onClick={() => setActiveTask(task)}>
-                                        Isi Form
+                                        Isi Form Harian
                                     </Button>
                                 </div>
                             ))}

@@ -120,7 +120,7 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
                     <Button variant="ghost" size="sm" asChild>
                         <Link href={route('finance.supplierDebts.show', { supplierDebt: row.original.id })}>
                             <Eye className="size-4" />
-                            Detail
+                            Lihat Detail
                         </Link>
                     </Button>
                 </div>

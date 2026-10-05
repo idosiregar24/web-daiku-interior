@@ -197,7 +197,7 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                         <Button variant="outline" asChild>
                             <a href={route('hr.reviews.pdf', routeParams)} target="_blank" rel="noreferrer">
                                 <FileDown className="size-4" />
-                                PDF
+                                Unduh PDF
                             </a>
                         </Button>
                         {canRequestSalary && (
@@ -212,11 +212,11 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                             <>
                                 <Button variant="outline" onClick={() => setDecision('return')}>
                                     <Undo2 className="size-4" />
-                                    Kembalikan
+                                    Kembalikan Evaluasi
                                 </Button>
                                 <Button onClick={() => setDecision('approve')}>
                                     <Check className="size-4" />
-                                    Setujui
+                                    Setujui Evaluasi
                                 </Button>
                             </>
                         )}

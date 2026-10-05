@@ -233,7 +233,7 @@ export function PenaltyPaymentDialog({ staff, penalties, bankAccounts, onOpenCha
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={processing || selected.length === 0}>
-                                Simpan {selected.length > 0 && `(${formatRupiah(total)})`}
+                                Catat Pembayaran Penalti {selected.length > 0 && `(${formatRupiah(total)})`}
                             </Button>
                         </DialogFooter>
                     </form>

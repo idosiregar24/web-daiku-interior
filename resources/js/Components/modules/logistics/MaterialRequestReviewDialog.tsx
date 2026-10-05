@@ -490,7 +490,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                 </Button>
                             </DialogClose>
                             <Button type="submit" variant={decision === 'TOLAK' ? 'destructive' : 'default'} disabled={form.formState.isSubmitting}>
-                                {decision === 'TOLAK' ? 'Tolak Pengajuan' : 'Setujui'}
+                                {decision === 'TOLAK' ? 'Tolak Pengajuan' : 'Setujui Pengajuan'}
                             </Button>
                         </DialogFooter>
                     </form>

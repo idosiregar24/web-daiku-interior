@@ -7,6 +7,7 @@ use App\Http\Requests\Projects\AllocateBudgetItemsRequest;
 use App\Http\Requests\Projects\DecideOverrunRequest;
 use App\Http\Requests\Projects\RecordRealizationRequest;
 use App\Http\Requests\Projects\ReorderBudgetPostsRequest;
+use App\Http\Requests\Projects\ReverseRealizationRequest;
 use App\Http\Requests\Projects\SaveBudgetPostRequest;
 use App\Models\BudgetLine;
 use App\Models\BudgetOverrunRequest;
@@ -83,11 +84,10 @@ class ProjectBudgetController extends Controller
     }
 
     /** Append-only correction of a realisation. */
-    public function reverseRealization(Request $request, Project $project, BudgetRealization $realization, BudgetRealizationService $service): RedirectResponse
+    public function reverseRealization(ReverseRealizationRequest $request, Project $project, BudgetRealization $realization, BudgetRealizationService $service): RedirectResponse
     {
-        $this->authorize('manageBudget', $project);
         $this->ensureLineOf($project, $realization->line);
-        $service->reverse($realization, $request->string('note')->limit(1000, '')->value() ?: null, $request->user());
+        $service->reverse($realization, $request->validated('note'), $request->user());
 
         return back()->with('success', 'Realisasi dibatalkan dengan baris koreksi.');
     }

@@ -270,14 +270,14 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                             {canDecideOverrun && (
                                                 <span className="mt-2 flex gap-2">
                                                     <Button size="sm" onClick={() => setDeciding({ request: { ...post.pendingOverrun!, post: post.name }, decision: 'approve' })}>
-                                                        Setujui
+                                                        Setujui Overrun
                                                     </Button>
                                                     <Button
                                                         size="sm"
                                                         variant="destructive"
                                                         onClick={() => setDeciding({ request: { ...post.pendingOverrun!, post: post.name }, decision: 'reject' })}
                                                     >
-                                                        Tolak
+                                                        Tolak Overrun
                                                     </Button>
                                                 </span>
                                             )}

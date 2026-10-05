@@ -128,11 +128,11 @@ export function EmployeeSalaryTab({ employee, data, canManage, selfView = false,
                             <span className="flex shrink-0 gap-1.5">
                                 <Button size="sm" onClick={() => setDeciding({ change: pending, decision: 'approve' })}>
                                     <Check className="size-4" />
-                                    Setujui
+                                    Setujui Perubahan Gaji
                                 </Button>
                                 <Button size="sm" variant="outline" onClick={() => setDeciding({ change: pending, decision: 'reject' })}>
                                     <X className="size-4" />
-                                    Tolak
+                                    Tolak Perubahan Gaji
                                 </Button>
                             </span>
                         )}
@@ -159,7 +159,7 @@ export function EmployeeSalaryTab({ employee, data, canManage, selfView = false,
                     !data.scheduled && (
                         <Button size="sm" onClick={() => setRequestOpen(true)}>
                             <Plus className="size-4" />
-                            Ajukan Perubahan
+                            Ajukan Perubahan Gaji
                         </Button>
                     )
                 }

@@ -233,7 +233,7 @@ export default function KpiIndex({ periods, selected, board, trend, filters, str
                             <div className="flex gap-2 sm:ml-auto">
                                 <Button variant="outline" disabled={busy} onClick={() => post('hr.kpi.periods.compute')}>
                                     <Calculator className="size-4" />
-                                    Hitung
+                                    Hitung KPI
                                 </Button>
                                 <Button disabled={busy || !selected.progress.computed} onClick={() => setConfirmClose(true)}>
                                     <Lock className="size-4" />

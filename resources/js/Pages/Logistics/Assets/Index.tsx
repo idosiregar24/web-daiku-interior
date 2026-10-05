@@ -154,7 +154,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
                         <Button variant="outline" size="sm" asChild>
                             <a href={route('logistics.assets.export')}>
                                 <Download className="size-4" />
-                                Export Excel
+                                Unduh Excel
                             </a>
                         </Button>
                         {canManage && (

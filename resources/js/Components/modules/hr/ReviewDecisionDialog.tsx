@@ -98,7 +98,7 @@ export function ReviewDecisionDialog({ open, onOpenChange, reviewId, employeeNam
                                 </Button>
                             </DialogClose>
                             <Button type="submit" variant={isReturn ? 'destructive' : 'default'} disabled={processing}>
-                                {isReturn ? 'Kembalikan' : 'Setujui'}
+                                {isReturn ? 'Kembalikan Evaluasi' : 'Setujui Evaluasi'}
                             </Button>
                         </DialogFooter>
                     </form>

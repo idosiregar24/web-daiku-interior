@@ -87,7 +87,7 @@ export function EmployeeDisciplineTab({ employee, data, canManage, selfView = fa
                               <div className="flex justify-end">
                                   <Button variant="ghost" size="sm" onClick={() => setVoiding(row.original)}>
                                       <Ban className="size-4" />
-                                      Batalkan
+                                      Batalkan Catatan
                                   </Button>
                               </div>
                           ) : null,
@@ -128,7 +128,7 @@ export function EmployeeDisciplineTab({ employee, data, canManage, selfView = fa
                     employee.is_active && (
                         <Button size="sm" onClick={() => setIssueOpen(true)}>
                             <Plus className="size-4" />
-                            Catat
+                            Catat Kedisiplinan
                         </Button>
                     )
                 }

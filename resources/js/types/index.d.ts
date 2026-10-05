@@ -472,7 +472,7 @@ export interface Quotation {
     request_note: string | null;
     /** Set when Marketing sends the offer (+14 days), cleared when it returns to DRAFT. */
     valid_until: string | null;
-    /** Sprint 12 — Marketing's first / latest "Kirim ke Client". */
+    /** Sprint 12 — Marketing's first / latest "Kirim ke Klien". */
     first_sent_at: string | null;
     sent_at: string | null;
     /** Sprint 12 #13 — the client's approval on the public link. */

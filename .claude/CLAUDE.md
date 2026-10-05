@@ -103,6 +103,23 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     `MaterialRequestService`. A project reaches COMPLETED only via
     `ProjectService::completeIfFinished()` (all milestones QA'd, no
     leftover, no undecided request).
+11. **Revisi alur (Sprint 12 — `plan/sprint-12-revisi-alur.md`, outside the
+    PRD).** Roles `ASISTEN_PM` and `KEPALA_DESAIN` (stacked on DESIGNER —
+    `User::STACKED_ROLES`; the UI calls DESIGNER "Arsitek"). Quotations have
+    3 types (SURVEY / DESAIN / PROYEK), are asked for by Marketing
+    (DIMINTA), reviewed per item **PM / Asisten PM → CEO** (CEO only for
+    PROYEK) and approved by the **client on a public link**
+    (`penawaran/{token}`) — never by a staff button. A project is born only
+    from the CEO's "Buka Proyek" on an approved RAB Proyek; its termins come
+    from the approved payment scheme; a RAB Tambahan (`parent_quotation_id`)
+    adds to the project instead. Marketing issues every invoice, Finance
+    alone verifies it (`InvoiceService` books the income once). Designs are
+    locked until their Jasa Desain invoice is verified, then assigned by a
+    Kepala Desain. "Alokasi Dana Proyek" (`ProjectBudgetService`) and
+    realisations (`BudgetRealizationService`, over-budget → CEO) are the
+    project PM's alone (`ProjectPolicy::manageBudget`) and never sent to
+    Marketing or the Asisten PM; an Asisten PM works only on the projects
+    it is assigned to (`Project::isManagedBy()`).
 
 ## Local environment
 

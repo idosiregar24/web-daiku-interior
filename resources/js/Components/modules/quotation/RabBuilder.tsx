@@ -414,7 +414,7 @@ export function RabBuilder({
                                 onClick={onSubmitForReview}
                                 disabled={(quotation.items ?? []).length === 0}
                             >
-                                Submit ke CEO
+                                Kirim ke PM
                             </Button>
                         )}
                     </div>

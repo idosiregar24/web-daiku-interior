@@ -182,21 +182,21 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                                             <Button variant="outline" size="sm" asChild>
                                                 <a href={route('finance.invoices.pdf', { invoice: invoice.id })} target="_blank" rel="noopener noreferrer">
                                                     <FileDown className="size-4" />
-                                                    PDF
+                                                    Unduh PDF
                                                 </a>
                                             </Button>
                                             {canSubmitProof && invoice.status === 'DITERBITKAN' && (
                                                 <Button size="sm" variant="outline" onClick={() => setAction({ kind: 'proof', invoice })}>
-                                                    Bukti Bayar
+                                                    Kirim Bukti Bayar
                                                 </Button>
                                             )}
                                             {canVerify && invoice.status === 'MENUNGGU_VERIFIKASI' && (
                                                 <>
                                                     <Button size="sm" variant="outline" onClick={() => setAction({ kind: 'reject', invoice })}>
-                                                        Tolak
+                                                        Tolak Pembayaran
                                                     </Button>
                                                     <Button size="sm" onClick={() => setAction({ kind: 'verify', invoice })}>
-                                                        Verifikasi
+                                                        Verifikasi Pembayaran
                                                     </Button>
                                                 </>
                                             )}

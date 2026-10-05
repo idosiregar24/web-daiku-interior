@@ -149,7 +149,7 @@ export default function TasksIndex({ tasks, filters, fieldStaff, milestones, can
                     <div className="flex items-center justify-end gap-1">
                         {canUpdateStatus && (
                             <Button variant="outline" size="sm" onClick={() => openStatus(task)}>
-                                Update Status
+                                Ubah Status Task
                             </Button>
                         )}
                         {canAssign && !projectClosed && <TaskRowMenu task={task} onEdit={openEdit} onDelete={openDelete} />}

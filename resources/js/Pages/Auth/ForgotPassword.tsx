@@ -46,7 +46,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
                 </div>
 
                 <Button type="submit" className="h-11 w-full shadow-md shadow-daiku-yellow-dark/20" disabled={processing}>
-                    Email Password Reset Link
+                    Kirim Link Reset Password
                 </Button>
 
                 <p className="text-center text-sm text-muted-foreground">

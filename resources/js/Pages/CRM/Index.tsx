@@ -168,7 +168,7 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
                             </DropdownMenuItem>
                             {canManage && (
                                 <>
-                                    <DropdownMenuItem onSelect={() => openEdit(lead)}>Edit Lead</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => openEdit(lead)}>Ubah Lead</DropdownMenuItem>
                                     <DropdownMenuItem
                                         disabled={lead.status === 'LOST' || lead.status === 'CLOSING'}
                                         onSelect={() => openStatus(lead)}
@@ -177,7 +177,7 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
                                     </DropdownMenuItem>
                                     {lead.quotation?.status === 'SENT_TO_CLIENT' && (
                                         <DropdownMenuItem onSelect={() => openClientReject(lead)}>
-                                            Klien Menolak Penawaran
+                                            Catat Penolakan Klien
                                         </DropdownMenuItem>
                                     )}
                                 </>

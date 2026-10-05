@@ -170,7 +170,7 @@ export default function MaterialRequestIndex({
                 if (permissions.review && line.request_status === 'DIAJUKAN') {
                     return (
                         <Button size="sm" onClick={() => setReviewing(line)}>
-                            Tinjau
+                            Tinjau Pengajuan
                         </Button>
                     );
                 }
@@ -180,11 +180,11 @@ export default function MaterialRequestIndex({
                         <div className="flex justify-end gap-1">
                             <Button size="sm" onClick={() => setPmDecision({ line, decision: 'approve' })}>
                                 <Check className="size-4" />
-                                Setujui
+                                Setujui Pengajuan
                             </Button>
                             <Button size="sm" variant="outline" onClick={() => setPmDecision({ line, decision: 'reject' })}>
                                 <X className="size-4" />
-                                Tolak
+                                Tolak Pengajuan
                             </Button>
                         </div>
                     );

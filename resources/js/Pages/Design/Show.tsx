@@ -265,7 +265,7 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                     <div className="flex flex-wrap items-center gap-2">
                         <StatusChip status={design.status} />
                         {canOpenClientAcc && (
-                            <Button onClick={() => setAccOpen(true)}>Client ACC</Button>
+                            <Button onClick={() => setAccOpen(true)}>Konfirmasi ACC Klien</Button>
                         )}
                         {canAssign && (
                             <Button variant={design.pic_id ? 'outline' : 'default'} onClick={() => setAssignOpen(true)}>
@@ -385,7 +385,7 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                                             onClick={() => appendStaff({ user_id: '', role_note: '' })}
                                         >
                                             <UserPlus className="size-4" />
-                                            Tambah Sub-Staff
+                                            Tambah Asisten
                                         </Button>
                                     )}
                                 </div>

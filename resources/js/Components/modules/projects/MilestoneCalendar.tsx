@@ -364,7 +364,7 @@ function MilestonePhaseBar({
                         )}
                         <Button variant="outline" size="sm" onClick={() => onEdit(milestone)}>
                             <Pencil className="size-4" />
-                            Edit
+                            Ubah Milestone
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => onDelete(milestone)}>
                             <Trash2 className="size-4 text-error-ink" />

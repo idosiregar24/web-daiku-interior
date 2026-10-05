@@ -163,13 +163,13 @@ export default function QuotationShow({
                         <Button variant="outline" size="sm" asChild>
                             <a href={route('quotations.pdf', { quotation: quotation.id })} target="_blank" rel="noopener noreferrer">
                                 <FileDown className="size-4" />
-                                Export PDF
+                                Unduh PDF
                             </a>
                         </Button>
                         <Button variant="outline" size="sm" asChild>
                             <a href={route('quotations.excel', { quotation: quotation.id })}>
                                 <FileSpreadsheet className="size-4" />
-                                Export Excel
+                                Unduh Excel
                             </a>
                         </Button>
                         {canCancel && (
@@ -210,7 +210,7 @@ export default function QuotationShow({
                         </span>
                         {isRequested && canManage && (
                             <Button size="sm" className="shrink-0" onClick={() => post('quotations.start')} disabled={processing}>
-                                Mulai Susun
+                                Mulai Susun RAB
                             </Button>
                         )}
                     </span>
@@ -306,12 +306,12 @@ export default function QuotationShow({
 
             {status === 'READY_TO_SEND' && (
                 <NextStep
-                    text={`RAB final sudah di Marketing. "Kirim ke Client" membuat link penawaran untuk klien dan memulai masa berlaku ${validityDays} hari.`}
+                    text={`RAB final sudah di Marketing. "Kirim ke Klien" membuat link penawaran untuk klien dan memulai masa berlaku ${validityDays} hari.`}
                     action={
                         canClientDecide && (
                             <Button size="sm" onClick={() => post('quotations.sendToClient')} disabled={processing}>
                                 <Send className="size-4" />
-                                Kirim ke Client
+                                Kirim ke Klien
                             </Button>
                         )
                     }
@@ -335,7 +335,7 @@ export default function QuotationShow({
                             </p>
                             {canClientDecide && (
                                 <Button variant="outline" size="sm" className="shrink-0" onClick={() => setClientRejectOpen(true)}>
-                                    Klien Menolak
+                                    Catat Penolakan Klien
                                 </Button>
                             )}
                         </div>
@@ -391,7 +391,7 @@ export default function QuotationShow({
                                         rel="noopener noreferrer"
                                         className="inline-flex items-center gap-1 text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
                                     >
-                                        PDF
+                                        Unduh PDF
                                     </a>
                                 </div>
                             ))}

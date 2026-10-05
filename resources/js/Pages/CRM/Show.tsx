@@ -117,7 +117,7 @@ export default function LeadShow({
                         <>
                             <Button variant="outline" onClick={() => setFormOpen(true)}>
                                 <PenLine className="size-4" />
-                                Edit Lead
+                                Ubah Lead
                             </Button>
                             <Button variant="outline" disabled={isClosed} onClick={() => setStatusOpen(true)}>
                                 Ubah Status
@@ -147,7 +147,7 @@ export default function LeadShow({
                             )}
                             {lead.quotation?.status === 'SENT_TO_CLIENT' && (
                                 <Button variant="outline" onClick={() => setClientRejectOpen(true)}>
-                                    Klien Menolak
+                                    Catat Penolakan Klien
                                 </Button>
                             )}
                         </>

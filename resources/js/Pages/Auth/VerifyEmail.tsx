@@ -42,7 +42,7 @@ export default function VerifyEmail({ status }: { status?: string }) {
                         as="button"
                         className="rounded-md text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
-                        Log Out
+                        Keluar
                     </Link>
                 </div>
             </form>

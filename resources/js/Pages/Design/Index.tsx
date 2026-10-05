@@ -107,7 +107,7 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
     },
     {
         id: 'client_acc',
-        header: 'Client ACC',
+        header: 'ACC Klien',
         cell: ({ row }) => (row.original.client_acc ? 'Sudah' : 'Belum'),
     },
 ];
@@ -168,7 +168,7 @@ export default function DesignIndex({ designs, filters, queue, architects }: Des
                                         <StatusChip status={queued.status} />
                                         {queued.status === 'MENUNGGU_PENUGASAN' && (
                                             <Button size="sm" onClick={() => setAssigning({ id: queued.id, client_name: queued.lead.client_name })}>
-                                                Tugaskan
+                                                Tugaskan Desain
                                             </Button>
                                         )}
                                     </span>

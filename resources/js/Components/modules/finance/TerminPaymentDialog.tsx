@@ -214,7 +214,7 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={processing}>
-                                Simpan Pembayaran
+                                Catat Pembayaran
                             </Button>
                         </DialogFooter>
                     </form>

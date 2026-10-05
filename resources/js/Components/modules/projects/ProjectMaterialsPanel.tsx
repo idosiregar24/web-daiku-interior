@@ -321,10 +321,10 @@ export function ProjectMaterialsPanel({
                                                     <>
                                                         <Button size="sm" onClick={() => setPmDecision({ line, decision: 'approve' })}>
                                                             <Check className="size-4" />
-                                                            Setujui
+                                                            Setujui Pengajuan
                                                         </Button>
                                                         <Button size="sm" variant="outline" onClick={() => setPmDecision({ line, decision: 'reject' })}>
-                                                            Tolak
+                                                            Tolak Pengajuan
                                                         </Button>
                                                     </>
                                                 )}

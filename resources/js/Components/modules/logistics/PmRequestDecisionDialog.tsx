@@ -87,7 +87,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
                         </Button>
                     </DialogClose>
                     <Button type="button" variant={approve ? 'default' : 'destructive'} onClick={submit} disabled={processing}>
-                        {approve ? 'Setujui & Teruskan' : 'Tolak'}
+                        {approve ? 'Setujui & Teruskan' : 'Tolak Pengajuan'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

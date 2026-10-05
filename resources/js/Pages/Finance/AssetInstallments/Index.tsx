@@ -161,13 +161,13 @@ export default function AssetInstallmentIndex({ assets, filters, summary, canPay
                     {canPay && row.original.installment_status !== 'LUNAS' && (
                         <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>
                             <Wallet className="size-4" />
-                            Bayar
+                            Bayar Cicilan
                         </Button>
                     )}
                     <Button variant="ghost" size="sm" asChild>
                         <Link href={route('finance.assetInstallments.show', { asset: row.original.id })}>
                             <Eye className="size-4" />
-                            Detail
+                            Lihat Detail
                         </Link>
                     </Button>
                 </div>

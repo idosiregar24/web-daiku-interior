@@ -612,7 +612,7 @@ function UserMenuContent({ user, align }: { user: User; align: 'start' | 'end' }
             <DropdownMenuItem asChild variant="destructive">
                 <Link href={route('logout')} method="post" as="button" className="w-full">
                     <LogOut className="size-4" />
-                    Log Out
+                    Keluar
                 </Link>
             </DropdownMenuItem>
         </DropdownMenuContent>

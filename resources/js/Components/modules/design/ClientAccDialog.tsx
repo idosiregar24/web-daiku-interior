@@ -45,7 +45,7 @@ export function ClientAccDialog({ open, onOpenChange, design, clientName }: Clie
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Konfirmasi Client ACC</DialogTitle>
+                    <DialogTitle>Konfirmasi ACC Klien</DialogTitle>
                     <DialogDescription>
                         Konfirmasi bahwa klien <span className="font-medium text-daiku-dark">{clientName}</span>{' '}
                         telah menyetujui desain ini. Status akan pindah ke <span className="font-medium">GAMBAR_RAB</span> dan

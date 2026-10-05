@@ -93,7 +93,7 @@ export default function TransactionIndex({
                                 title="Mengikuti filter di halaman ini. Tanpa filter tanggal, export mencakup 6 bulan terakhir."
                             >
                                 <Download className="size-4" />
-                                Export Excel
+                                Unduh Excel
                             </a>
                         </Button>
                         {canManage && (

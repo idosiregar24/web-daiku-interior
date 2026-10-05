@@ -82,7 +82,7 @@ export default function EmployeeShow({
                     canManage && (
                         <Button variant="outline" onClick={() => setEditOpen(true)}>
                             <Pencil className="size-4" />
-                            Edit Data
+                            Ubah Data Karyawan
                         </Button>
                     )
                 }

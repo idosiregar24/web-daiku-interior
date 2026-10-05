@@ -180,7 +180,7 @@ export default function SalaryIndex({ changes, filters, summary, recap, structur
                     canManage && (
                         <Button onClick={openRequest} disabled={employees.length === 0}>
                             <Plus className="size-4" />
-                            Ajukan Perubahan
+                            Ajukan Perubahan Gaji
                         </Button>
                     )
                 }

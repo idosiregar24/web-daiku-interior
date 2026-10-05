@@ -280,7 +280,7 @@ function TerminEventChip({ termin, canPay, onPay }: { termin: Termin; canPay: bo
                     <Button variant="outline" size="sm" asChild>
                         <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
                             <FileDown className="size-4" />
-                            PDF
+                            Unduh PDF
                         </a>
                     </Button>
                     {canPay && termin.status !== 'PAID' && (

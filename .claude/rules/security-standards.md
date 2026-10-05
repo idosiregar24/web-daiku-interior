@@ -63,11 +63,25 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
   SUBMITTED hanya bisa diputuskan PM/Asisten PM, WAITING_CEO hanya CEO —
   keputusan CEO ditolak selama PM belum ACC. Route `quotations.review`
   cukup `role:PM|ASISTEN_PM|CEO`; giliran siapa diputuskan di Service.
-- `Finance – Termin`: PM cuma `Create`, Finance `Read+Update` (mark paid),
-  bukan sebaliknya.
+- `Finance – Termin`: termin tidak lagi dibuat manual (Sprint 12 Sub 7 —
+  dari skema bayar saat Buka Proyek). Invoice diterbitkan **Marketing**,
+  pembayaran diverifikasi **hanya Finance**; termin yang sudah ber-invoice
+  tidak bisa "Tandai Dibayar" langsung (supaya pemasukan tidak tercatat
+  dua kali).
 - `Analytics – Executive`: **hanya CEO**, full. Role lain dapat "Analytics
   – Per Divisi" (partial dashboard sesuai divisi mereka sendiri) — jangan
   reuse query yang sama tanpa scoping per divisi.
+- **Link persetujuan klien** (`penawaran/{token}`, Sprint 12 Sub 5) adalah
+  satu-satunya route publik yang menulis data: token acak 48 karakter per
+  versi, `throttle:30,1`, `noindex` + `no-referrer`, respons lewat
+  `PublicQuotationResource` (whitelist — jangan kirim model mentah), link
+  versi lama hanya menampilkan "sudah diperbarui".
+- **Alokasi Dana & Realisasi** (Sprint 12 Sub 9–10): tulis = PM proyek itu
+  saja (`ProjectPolicy::manageBudget`), overrun diputuskan CEO; baca = CEO,
+  Finance, PM. Marketing dan Asisten PM **tidak menerima props-nya sama
+  sekali** — filter di controller, bukan hanya disembunyikan di UI.
+- **Asisten PM** (Sprint 12 Sub 11) hanya pada proyek yang ditugaskan
+  (`Project::isManagedBy()` di Policy) — role check saja tidak cukup.
 
 Setiap route ber-role wajib feature test RBAC (PRD §10.3 DoD: "RBAC sudah
 diuji untuk semua role yang relevan") — minimal: 1 test role yang berhak

@@ -150,7 +150,7 @@ export function EmployeeReviewsTab({ employee, data, canManage, selfView = false
                                                         rel="noreferrer"
                                                     >
                                                         <FileDown className="size-4" />
-                                                        PDF
+                                                        Unduh PDF
                                                     </a>
                                                 </Button>
                                                 {canManage &&

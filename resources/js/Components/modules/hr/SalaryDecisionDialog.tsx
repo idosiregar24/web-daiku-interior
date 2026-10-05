@@ -118,7 +118,7 @@ export function SalaryDecisionDialog({ change, decision, employeeName, onOpenCha
                             </Button>
                         </DialogClose>
                         <Button onClick={approve} disabled={processing}>
-                            Setujui
+                            Setujui Perubahan Gaji
                         </Button>
                     </DialogFooter>
                 ) : (
@@ -144,7 +144,7 @@ export function SalaryDecisionDialog({ change, decision, employeeName, onOpenCha
                                     </Button>
                                 </DialogClose>
                                 <Button type="submit" variant="destructive" disabled={processing}>
-                                    Tolak
+                                    Tolak Perubahan Gaji
                                 </Button>
                             </DialogFooter>
                         </form>

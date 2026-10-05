@@ -194,7 +194,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                                           onClick={() => setMovement({ material, type: 'OUT' })}
                                       >
                                           <ArrowUpFromLine className="size-4" />
-                                          Pemakaian Proyek
+                                          Catat Pemakaian Proyek
                                       </DropdownMenuItem>
                                       <DropdownMenuItem asChild>
                                           <Link href={route('logistics.stock-movements.index', { material_id: material.id })}>
@@ -210,7 +210,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                                           }}
                                       >
                                           <Pencil className="size-4" />
-                                          Edit
+                                          Ubah Material
                                       </DropdownMenuItem>
                                       <DropdownMenuItem variant="destructive" onClick={() => destroy(material)}>
                                           <Trash2 className="size-4" />
@@ -238,7 +238,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                         <Button variant="outline" size="sm" asChild>
                             <a href={route('logistics.materials.export')}>
                                 <Download className="size-4" />
-                                Export Excel
+                                Unduh Excel
                             </a>
                         </Button>
                         {canManage && (

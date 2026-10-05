@@ -103,7 +103,7 @@ export default function StaffPaymentsIndex({ tasks, bankAccounts }: StaffPayment
                                     <td className="px-4 py-3 text-right">
                                         {canPay && (
                                             <Button variant="outline" size="sm" onClick={() => setPaying(task)}>
-                                                Bayar
+                                                Bayar Upah
                                             </Button>
                                         )}
                                     </td>

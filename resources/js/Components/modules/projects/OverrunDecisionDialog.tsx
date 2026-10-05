@@ -91,7 +91,7 @@ export function OverrunDecisionDialog({ open, onOpenChange, decision, request }:
                                 </Button>
                             </DialogClose>
                             <Button type="submit" variant={approve ? 'default' : 'destructive'} disabled={form.formState.isSubmitting}>
-                                {approve ? 'Setujui' : 'Tolak'}
+                                {approve ? 'Setujui Overrun' : 'Tolak Overrun'}
                             </Button>
                         </DialogFooter>
                     </form>

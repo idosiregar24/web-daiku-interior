@@ -160,7 +160,7 @@ export function ProjectFormDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Edit Proyek</DialogTitle>
+                    <DialogTitle>Ubah Proyek</DialogTitle>
                     <DialogDescription>{project.name}</DialogDescription>
                 </DialogHeader>
                 <Form {...form}>

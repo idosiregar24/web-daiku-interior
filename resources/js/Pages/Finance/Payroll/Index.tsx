@@ -157,7 +157,7 @@ export default function PayrollIndex({
                               <div className="flex justify-end">
                                   <Button variant="outline" size="sm" onClick={() => setPaying(row.original)}>
                                       <Wallet className="size-4" />
-                                      Bayar
+                                      Bayar Gaji
                                   </Button>
                               </div>
                           ) : null,

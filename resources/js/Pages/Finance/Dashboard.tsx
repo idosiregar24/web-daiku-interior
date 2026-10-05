@@ -95,7 +95,7 @@ export default function FinanceDashboard({ cashFlow, accountSummary }: FinanceDa
                     <Button variant="outline" size="sm" asChild>
                         <a href={route('finance.transactions.export')} title="Laporan 6 bulan terakhir: transaksi, per bulan, per proyek, per rekening.">
                             <Download className="size-4" />
-                            Export Excel
+                            Unduh Excel
                         </a>
                     </Button>
                 }

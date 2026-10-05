@@ -181,7 +181,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Ajukan
+                                Ajukan Lembur
                             </Button>
                         </DialogFooter>
                     </form>
@@ -300,7 +300,7 @@ function DecisionDialog({
                                 </Button>
                             </DialogClose>
                             <Button type="submit" variant={isReject ? 'destructive' : 'default'} disabled={form.formState.isSubmitting}>
-                                {isReject ? 'Tolak' : 'Setujui'}
+                                {isReject ? 'Tolak Lembur' : 'Setujui Lembur'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -417,20 +417,20 @@ export default function OvertimeIndex({
                                             {canPmDecide && overtime.status === 'PENDING' && (
                                                 <>
                                                     <Button variant="outline" size="sm" onClick={() => setDecision({ overtime, stage: 'pm', decision: 'reject' })}>
-                                                        Tolak
+                                                        Tolak Lembur
                                                     </Button>
                                                     <Button size="sm" onClick={() => setDecision({ overtime, stage: 'pm', decision: 'approve' })}>
-                                                        Setujui
+                                                        Setujui Lembur
                                                     </Button>
                                                 </>
                                             )}
                                             {canFinanceDecide && overtime.status === 'PENDING_FINANCE' && (
                                                 <>
                                                     <Button variant="outline" size="sm" onClick={() => setDecision({ overtime, stage: 'finance', decision: 'reject' })}>
-                                                        Tolak
+                                                        Tolak Lembur
                                                     </Button>
                                                     <Button size="sm" onClick={() => setDecision({ overtime, stage: 'finance', decision: 'approve' })}>
-                                                        Setujui
+                                                        Setujui Lembur
                                                     </Button>
                                                 </>
                                             )}

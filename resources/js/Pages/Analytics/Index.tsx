@@ -124,10 +124,10 @@ function OverrunQueue({ requests }: { requests: OverrunQueueItem[] }) {
                         </div>
                         <div className="flex shrink-0 gap-2">
                             <Button size="sm" onClick={() => setDeciding({ request, decision: 'approve' })}>
-                                Setujui
+                                Setujui Overrun
                             </Button>
                             <Button size="sm" variant="destructive" onClick={() => setDeciding({ request, decision: 'reject' })}>
-                                Tolak
+                                Tolak Overrun
                             </Button>
                         </div>
                     </li>

@@ -167,11 +167,11 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                             <div className="flex justify-end gap-2 border-t border-border pt-4">
                                 <Button type="button" variant="destructive" onClick={submitDecision('reject')}>
                                     <XCircle className="size-4" />
-                                    Reject
+                                    Tolak QA
                                 </Button>
                                 <Button type="button" onClick={submitDecision('approve')}>
                                     <CheckCircle2 className="size-4" />
-                                    Approve
+                                    Setujui QA
                                 </Button>
                             </div>
                         ) : (

@@ -325,7 +325,8 @@ class DemoDataSeeder extends Seeder
 
     /**
      * Sprint 12 Sub 8 — designs born from a RAB Jasa Desain the client
-     * approved: one still waiting for its payment, one paid and assigned
+     * approved: one still waiting for its payment, one paid and waiting
+     * for the Kepala Desain, one paid and assigned
      * (PIC + assistant) and being worked on, one sent to the client, sent
      * back for a revision, resent and waiting for the client's answer —
      * with an Arsitek ↔ Estimator thread.
@@ -343,6 +344,8 @@ class DemoDataSeeder extends Seeder
             ['name' => 'Bambang Sutrisno', 'source' => 'Referral/Rekomendasi', 'jenis' => 'RUANG_TAMU_TV', 'fee' => 3_500_000, 'stage' => 'unpaid'],
             ['name' => 'Dewi Anggraini', 'source' => 'TikTok', 'jenis' => 'KAMAR_SET', 'fee' => 4_000_000, 'stage' => 'designing'],
             ['name' => 'Hendra Gunawan', 'source' => 'Marketplace', 'jenis' => 'KANTOR', 'fee' => 6_000_000, 'stage' => 'waiting_client'],
+            // Paid, waiting for the Kepala Desain to assign it (MENUNGGU_PENUGASAN).
+            ['name' => 'Fajar Nugroho', 'source' => 'Instagram', 'jenis' => 'CAFE', 'fee' => 5_000_000, 'stage' => 'paid'],
         ];
 
         foreach ($specs as $i => $spec) {
@@ -356,7 +359,7 @@ class DemoDataSeeder extends Seeder
 
             $design = $this->approvedDesignRab($leadService, $lead, $spec['fee'], paid: $spec['stage'] !== 'unpaid');
 
-            if ($spec['stage'] === 'unpaid') {
+            if (in_array($spec['stage'], ['unpaid', 'paid'], true)) {
                 continue;
             }
 

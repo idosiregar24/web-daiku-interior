@@ -159,7 +159,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Edit Lead' : 'Tambah Lead'}</DialogTitle>
+                    <DialogTitle>{editing ? 'Ubah Lead' : 'Tambah Lead'}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

@@ -116,11 +116,11 @@ export function salaryChangeColumns({ showEmployee = false, selfView = false, on
                               <div className="flex justify-end gap-1.5">
                                   <Button size="sm" onClick={() => onDecide(row.original, 'approve')}>
                                       <Check className="size-4" />
-                                      Setujui
+                                      Setujui Perubahan Gaji
                                   </Button>
                                   <Button size="sm" variant="outline" onClick={() => onDecide(row.original, 'reject')}>
                                       <X className="size-4" />
-                                      Tolak
+                                      Tolak Perubahan Gaji
                                   </Button>
                               </div>
                           ) : null,

@@ -1,8 +1,9 @@
 # Sprint 12 — Revisi Alur Bisnis: Survey · Desain · RAB · Pembayaran · Alokasi Dana
 
-> Status: **keputusan dikunci 2026-10-04 lewat diskusi bertahap dengan user
+> Status: **selesai 2026-10-05 — ke-14 sub-plan sudah dikerjakan (lihat `plan/README.md`).**
+> Keputusan dikunci 2026-10-04 lewat diskusi bertahap dengan user
 > (hasil rapat internal Daiku + foto papan tulis alur + contoh Excel
-> "RAB_KOPI OZ ARIFIN"), belum ada kode.** Beberapa default kecil masih
+> "RAB_KOPI OZ ARIFIN"). Beberapa default kecil masih
 > menunggu konfirmasi — lihat §5. Rancangan detail & checklist per sesi kerja: §6.
 >
 > Aturan kerja tetap: `.claude/CLAUDE.md` + `.claude/rules/*`.

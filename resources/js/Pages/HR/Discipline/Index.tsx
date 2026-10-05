@@ -139,7 +139,7 @@ export default function DisciplineIndex({ records, filters, stats, structure, ca
                               <div className="flex justify-end">
                                   <Button variant="ghost" size="sm" onClick={() => setVoiding(row.original)}>
                                       <Ban className="size-4" />
-                                      Batalkan
+                                      Batalkan Catatan
                                   </Button>
                               </div>
                           ) : null,
@@ -219,13 +219,13 @@ export default function DisciplineIndex({ records, filters, stats, structure, ca
                         <Button variant="outline" asChild>
                             <a href={route('hr.discipline.export', query(filters))}>
                                 <Download className="size-4" />
-                                Export Excel
+                                Unduh Excel
                             </a>
                         </Button>
                         {canManage && (
                             <Button onClick={() => setIssueOpen(true)} disabled={employees.length === 0}>
                                 <Plus className="size-4" />
-                                Catat
+                                Catat Kedisiplinan
                             </Button>
                         )}
                     </>

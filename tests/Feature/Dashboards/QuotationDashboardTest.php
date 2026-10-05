@@ -110,7 +110,7 @@ test('a draft whose latest decision was an approval shows no stale rejection not
 // ── RAB value per month & turnaround ─────────────────────────────────────
 
 test('RAB value is bucketed by the last send month and the deal month', function () {
-    // Sprint 12: Marketing's "Kirim ke Client" stamps first_sent_at / sent_at.
+    // Sprint 12: Marketing's "Kirim ke Klien" stamps first_sent_at / sent_at.
     $sentTwice = Quotation::factory()->sentToClient()->create(['total_amount' => 150_000_000, 'first_sent_at' => '2026-08-10 09:00:00', 'sent_at' => '2026-09-05 09:00:00']);
     quotationDecision($sentTwice, 'CLIENT', 'REJECTED', '2026-08-20 09:00:00', 'Revisi');
 

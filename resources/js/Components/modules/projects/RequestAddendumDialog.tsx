@@ -82,7 +82,7 @@ export function RequestAddendumDialog({ open, onOpenChange, projectId, projectNa
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Minta RAB
+                                Minta RAB Tambahan
                             </Button>
                         </DialogFooter>
                     </form>
