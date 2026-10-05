@@ -1,7 +1,7 @@
 # Sprint 12 · 10 — Realisasi per Item & Persetujuan Overrun CEO
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: Sprint 11 Sub 2 (Vendor), 09 · Keputusan: #27, #28
+> Status: **selesai 2026-10-05** · Prasyarat: Sprint 11 Sub 2 (Vendor), 09 · Keputusan: #27, #28
 
 ## Tujuan
 PM mencatat biaya riil tiap item (qty riil × harga modal, vendor opsional);
@@ -36,7 +36,7 @@ budget_overrun_requests  budget_post_id, budget_realization_payload (JSON — is
   CEO, Finance, PM. Marketing & Asisten PM tidak.
 
 ## Checklist
-- [ ] **[Database]** `budget_realizations`, `budget_overrun_requests`
-- [ ] **[Projects]** Catat realisasi (lock pos, cek overrun), ajukan/putuskan overrun, ringkasan anggaran vs realisasi
-- [ ] **[UI]** Kolom realisasi di tab, dialog catat (qty, harga modal, vendor, catatan), banner overrun + pengajuan, antrean persetujuan CEO (dashboard CEO)
-- [ ] **[Test]** Overrun diblokir lalu tersimpan setelah CEO setuju; ditolak tidak tersimpan; hanya CEO memutuskan; append-only; Asisten PM/Marketing 403
+- [x] **[Database]** `budget_realizations`, `budget_overrun_requests`
+- [x] **[Projects]** Catat realisasi (lock pos, cek overrun), ajukan/putuskan overrun, ringkasan anggaran vs realisasi
+- [x] **[UI]** Kolom realisasi di tab, dialog catat (qty, harga modal, vendor, catatan), banner overrun + pengajuan, antrean persetujuan CEO (dashboard CEO)
+- [x] **[Test]** Overrun diblokir lalu tersimpan setelah CEO setuju; ditolak tidak tersimpan; hanya CEO memutuskan; append-only; Asisten PM/Marketing 403

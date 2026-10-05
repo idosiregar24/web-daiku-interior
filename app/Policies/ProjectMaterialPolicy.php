@@ -27,7 +27,8 @@ class ProjectMaterialPolicy
             return true;
         }
 
-        if ($user->hasRole('PM') && (int) $project->pm_id === (int) $user->id) {
+        // The project's PM, or its Asisten PM (Sprint 12 #22).
+        if ($project->isManagedBy($user)) {
             return true;
         }
 
@@ -35,11 +36,10 @@ class ProjectMaterialPolicy
             && $project->tasks()->where('assignee_id', $user->id)->exists();
     }
 
-    /** A Tukang's request is approved first by the PM of that project (`pm_id`). */
+    /** A Tukang's request is approved first by the PM of that project — or its Asisten PM (Sprint 12 #22, #31). */
     public function pmDecide(User $user, ProjectMaterial $line): bool
     {
-        return $user->hasRole('PM')
-            && (int) $line->project?->pm_id === (int) $user->id;
+        return (bool) $line->project?->isManagedBy($user);
     }
 
     /** Logistics decides every request that reached it (decision #13 "satu pintu"). */

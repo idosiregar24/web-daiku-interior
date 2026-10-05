@@ -14,17 +14,24 @@ import {
 } from '@/Components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatRupiah } from '@/lib/format';
-import type { BudgetLogEntry, BudgetPost, ProjectBudget } from '@/types';
+import { cn } from '@/lib/utils';
+import type { BudgetLine, BudgetLogEntry, BudgetPost, PendingOverrun, ProjectBudget, VendorOption } from '@/types';
 import { router } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, FolderPlus, History, Layers, ListTodo, MoreHorizontal, PenLine, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { BudgetPostDialog } from './BudgetPostDialog';
+import { OverrunDecisionDialog, type OverrunDecision } from './OverrunDecisionDialog';
+import { RealizationDialog } from './RealizationDialog';
 
 interface BudgetAllocationTabProps {
     projectId: number;
     budget: ProjectBudget;
     /** The project's own PM, project not closed (ProjectPolicy::manageBudget()). */
     canManage: boolean;
+    /** Sprint 12 #28 — CEO: approve / reject a held realisation. */
+    canDecideOverrun: boolean;
+    /** Master Vendor for the realisation form (PM only). */
+    vendors: VendorOption[];
 }
 
 function quantity(qty: number, unit: string | null) {
@@ -59,8 +66,10 @@ function describeLog(log: BudgetLogEntry): string {
  * deduction in the summary. CEO / Finance read it, only the project's PM
  * changes it, every change lands in the history.
  */
-export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllocationTabProps) {
+export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOverrun, vendors }: BudgetAllocationTabProps) {
     const [selected, setSelected] = useState<number[]>([]);
+    const [realizing, setRealizing] = useState<{ line: BudgetLine; postName: string } | null>(null);
+    const [deciding, setDeciding] = useState<{ request: PendingOverrun & { post: string }; decision: OverrunDecision } | null>(null);
     const [targetPost, setTargetPost] = useState('');
     const [postDialog, setPostDialog] = useState<{ open: boolean; post: Pick<BudgetPost, 'id' | 'name'> | null }>({ open: false, post: null });
     const { summary, posts } = budget;
@@ -91,6 +100,10 @@ export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllo
         router.delete(route('projects.budget.posts.destroy', { project: projectId, post: post.id }), { preserveScroll: true });
     }
 
+    function reverse(realizationId: number) {
+        router.post(route('projects.budget.realizations.reverse', { project: projectId, realization: realizationId }), {}, { preserveScroll: true });
+    }
+
     const allSelected = budget.unallocatedItems.length > 0 && selected.length === budget.unallocatedItems.length;
 
     return (
@@ -109,6 +122,8 @@ export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllo
                         {formatRupiah(summary.postsTotal)}
                     </DetailItem>
                     <DetailItem label="Belum dialokasikan">{formatRupiah(summary.unallocatedTotal)}</DetailItem>
+                    <DetailItem label="Total realisasi (harga modal)">{formatRupiah(summary.realizedTotal)}</DetailItem>
+                    <DetailItem label="Selisih anggaran − realisasi">{formatRupiah(summary.postsTotal - summary.realizedTotal)}</DetailItem>
                 </DetailList>
                 {summary.overRab && (
                     <Notice tone="warning" className="mt-4">
@@ -211,7 +226,7 @@ export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllo
                             <SectionCard
                                 key={post.id}
                                 title={post.name}
-                                description={`${post.lines.length} item · ${formatRupiah(post.total)}`}
+                                description={`${post.lines.length} item · Anggaran ${formatRupiah(post.total)} · Realisasi ${formatRupiah(post.realized)} · Selisih ${formatRupiah(post.difference)}${post.margin !== null ? ` (${post.margin.toLocaleString('id-ID')}%)` : ''}`}
                                 flush
                                 action={
                                     canManage ? (
@@ -245,44 +260,123 @@ export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllo
                                     ) : undefined
                                 }
                             >
+                                {post.pendingOverrun && (
+                                    <div className="border-b border-border px-4 py-3 sm:px-5">
+                                        <Notice tone="warning">
+                                            Menunggu persetujuan CEO: realisasi "{post.pendingOverrun.item}" melebihi anggaran pos{' '}
+                                            {formatRupiah(post.pendingOverrun.amount_over)} ({post.pendingOverrun.requested_by ?? '—'}). Alasan:{' '}
+                                            {post.pendingOverrun.reason}
+                                            {canDecideOverrun && (
+                                                <span className="mt-2 flex gap-2">
+                                                    <Button size="sm" onClick={() => setDeciding({ request: { ...post.pendingOverrun!, post: post.name }, decision: 'approve' })}>
+                                                        Setujui
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="destructive"
+                                                        onClick={() => setDeciding({ request: { ...post.pendingOverrun!, post: post.name }, decision: 'reject' })}
+                                                    >
+                                                        Tolak
+                                                    </Button>
+                                                </span>
+                                            )}
+                                        </Notice>
+                                    </div>
+                                )}
                                 {post.lines.length === 0 ? (
                                     <p className="px-4 py-3 text-sm text-daiku-muted sm:px-5">Pos ini masih kosong.</p>
                                 ) : (
                                     <ul className="divide-y divide-border">
-                                        {post.lines.map((line) => (
-                                            <li key={line.id} className="flex items-start gap-3 px-4 py-3 text-sm sm:px-5">
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="font-medium text-daiku-dark">{line.description}</p>
-                                                    <p className="text-xs text-daiku-muted">
-                                                        {quantity(line.qty, line.unit)} × {formatRupiah(line.unit_price)}
-                                                    </p>
-                                                </div>
-                                                <span className="shrink-0 tabular-nums">{formatRupiah(line.sell_price)}</span>
-                                                {canManage && line.quotation_item_id !== null && (
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild>
-                                                            <Button size="icon-sm" variant="ghost" aria-label={`Aksi ${line.description}`}>
-                                                                <MoreHorizontal className="size-4" />
-                                                            </Button>
-                                                        </DropdownMenuTrigger>
-                                                        <DropdownMenuContent align="end">
-                                                            {posts.length > 1 && <DropdownMenuLabel>Pindah ke pos</DropdownMenuLabel>}
-                                                            {posts
-                                                                .filter((other) => other.id !== post.id)
-                                                                .map((other) => (
-                                                                    <DropdownMenuItem key={other.id} onSelect={() => allocate([line.quotation_item_id!], other.id)}>
-                                                                        {other.name}
+                                        {post.lines.map((line) => {
+                                            // An item with realisations stays in its post (ProjectBudgetService::ensureMovable()).
+                                            const movable = line.quotation_item_id !== null && line.realizations.length === 0;
+
+                                            return (
+                                                <li key={line.id} className="px-4 py-3 text-sm sm:px-5">
+                                                    <div className="flex items-start gap-3">
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="font-medium text-daiku-dark">{line.description}</p>
+                                                            <p className="text-xs text-daiku-muted">
+                                                                {quantity(line.qty, line.unit)} × {formatRupiah(line.unit_price)}
+                                                            </p>
+                                                        </div>
+                                                        <div className="shrink-0 text-right">
+                                                            <p className="tabular-nums">{formatRupiah(line.sell_price)}</p>
+                                                            {line.realizations.length > 0 && (
+                                                                <p
+                                                                    className={cn(
+                                                                        'text-xs tabular-nums',
+                                                                        line.realized > Number(line.sell_price) ? 'text-error-ink' : 'text-daiku-muted',
+                                                                    )}
+                                                                >
+                                                                    Realisasi {formatRupiah(line.realized)}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        {canManage && (
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button size="icon-sm" variant="ghost" aria-label={`Aksi ${line.description}`}>
+                                                                        <MoreHorizontal className="size-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end">
+                                                                    <DropdownMenuItem onSelect={() => setRealizing({ line, postName: post.name })}>
+                                                                        Catat Realisasi
                                                                     </DropdownMenuItem>
-                                                                ))}
-                                                            {posts.length > 1 && <DropdownMenuSeparator />}
-                                                            <DropdownMenuItem onSelect={() => allocate([line.quotation_item_id!], null)}>
-                                                                Keluarkan dari pos
-                                                            </DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                )}
-                                            </li>
-                                        ))}
+                                                                    {movable && (
+                                                                        <>
+                                                                            <DropdownMenuSeparator />
+                                                                            {posts.length > 1 && <DropdownMenuLabel>Pindah ke pos</DropdownMenuLabel>}
+                                                                            {posts
+                                                                                .filter((other) => other.id !== post.id)
+                                                                                .map((other) => (
+                                                                                    <DropdownMenuItem key={other.id} onSelect={() => allocate([line.quotation_item_id!], other.id)}>
+                                                                                        {other.name}
+                                                                                    </DropdownMenuItem>
+                                                                                ))}
+                                                                            <DropdownMenuItem onSelect={() => allocate([line.quotation_item_id!], null)}>
+                                                                                Keluarkan dari pos
+                                                                            </DropdownMenuItem>
+                                                                        </>
+                                                                    )}
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        )}
+                                                    </div>
+                                                    {line.realizations.length > 0 && (
+                                                        <ul className="mt-2 space-y-1 rounded-lg bg-daiku-gray/60 px-3 py-2 text-xs">
+                                                            {line.realizations.map((row) => (
+                                                                <li
+                                                                    key={row.id}
+                                                                    className={cn('flex flex-wrap items-baseline gap-x-2', (row.is_reversed || row.reverses_id) && 'text-daiku-muted')}
+                                                                >
+                                                                    <span className={cn('tabular-nums', row.is_reversed && 'line-through')}>
+                                                                        {quantity(row.qty_actual, line.unit)} × {formatRupiah(row.unit_cost)} = {formatRupiah(row.total_cost)}
+                                                                    </span>
+                                                                    {row.vendor && <span>· {row.vendor}</span>}
+                                                                    {row.via_overrun && <span>· disetujui CEO</span>}
+                                                                    {row.reverses_id && <span>· koreksi</span>}
+                                                                    {row.note && <span>· {row.note}</span>}
+                                                                    <span className="text-daiku-muted">
+                                                                        · {row.recorded_by ?? '—'}, {new Date(row.recorded_at).toLocaleDateString('id-ID')}
+                                                                    </span>
+                                                                    {canManage && !row.is_reversed && !row.reverses_id && (
+                                                                        <button
+                                                                            type="button"
+                                                                            className="text-error-ink underline underline-offset-2"
+                                                                            onClick={() => reverse(row.id)}
+                                                                        >
+                                                                            Batalkan
+                                                                        </button>
+                                                                    )}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </SectionCard>
@@ -308,6 +402,24 @@ export function BudgetAllocationTab({ projectId, budget, canManage }: BudgetAllo
                 )}
             </SectionCard>
 
+            {canManage && realizing && (
+                <RealizationDialog
+                    open
+                    onOpenChange={(open) => !open && setRealizing(null)}
+                    projectId={projectId}
+                    postName={realizing.postName}
+                    line={realizing.line}
+                    vendors={vendors}
+                />
+            )}
+            {canDecideOverrun && deciding && (
+                <OverrunDecisionDialog
+                    open
+                    onOpenChange={(open) => !open && setDeciding(null)}
+                    decision={deciding.decision}
+                    request={deciding.request}
+                />
+            )}
             {canManage && (
                 <BudgetPostDialog
                     open={postDialog.open}

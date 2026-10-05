@@ -12,13 +12,15 @@ import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { TaskStatus } from '@/types';
+import { OverrunDecisionDialog, type OverrunDecision } from '@/Components/modules/projects/OverrunDecisionDialog';
+import type { OverrunQueueItem, TaskStatus } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import {
     AlertTriangle,
     ArrowRight,
     BarChart3,
     CalendarX2,
+    CircleAlert,
     Filter,
     FolderKanban,
     ListChecks,
@@ -88,6 +90,59 @@ interface AnalyticsProps {
     overdueHeatmap: HeatmapData;
     taskStatus: Record<TaskStatus, number>;
     generatedAt: string;
+    /** Sprint 12 #28 — realisations over a post budget waiting for the CEO. */
+    overrunRequests: OverrunQueueItem[];
+}
+
+/** Sprint 12 decision #28 — the CEO's queue of held realisations ("Persetujuan Overrun Anggaran"). */
+function OverrunQueue({ requests }: { requests: OverrunQueueItem[] }) {
+    const [deciding, setDeciding] = useState<{ request: OverrunQueueItem; decision: OverrunDecision } | null>(null);
+
+    return (
+        <SectionCard
+            title="Persetujuan Overrun Anggaran"
+            icon={CircleAlert}
+            description="Realisasi PM yang melebihi anggaran pos — tertahan sampai Anda memutuskan."
+            className="mb-6"
+            flush
+        >
+            <ul className="divide-y divide-border">
+                {requests.map((request) => (
+                    <li key={request.id} className="flex flex-col gap-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                        <div className="min-w-0">
+                            <p>
+                                <Link href={route('projects.show', { project: request.project.id })} className="font-medium text-daiku-dark hover:underline">
+                                    {request.project.name}
+                                </Link>{' '}
+                                <span className="text-daiku-muted">
+                                    · pos {request.post} · {request.item}
+                                </span>
+                            </p>
+                            <p className="text-xs text-daiku-muted">
+                                Lebih {formatRupiah(request.amount_over)} · {request.requested_by ?? '—'}, {formatDateTime(request.created_at)} — {request.reason}
+                            </p>
+                        </div>
+                        <div className="flex shrink-0 gap-2">
+                            <Button size="sm" onClick={() => setDeciding({ request, decision: 'approve' })}>
+                                Setujui
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => setDeciding({ request, decision: 'reject' })}>
+                                Tolak
+                            </Button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            {deciding && (
+                <OverrunDecisionDialog
+                    open
+                    onOpenChange={(open) => !open && setDeciding(null)}
+                    decision={deciding.decision}
+                    request={deciding.request}
+                />
+            )}
+        </SectionCard>
+    );
 }
 
 /** Small inline "Detail →" link used in widget headers. */
@@ -129,6 +184,7 @@ export default function AnalyticsIndex({
     overdueHeatmap,
     taskStatus,
     generatedAt,
+    overrunRequests,
 }: AnalyticsProps) {
     const [targetOpen, setTargetOpen] = useState(false);
 
@@ -152,6 +208,8 @@ export default function AnalyticsIndex({
                 icon={BarChart3}
                 description={`Ringkasan seluruh divisi · diperbarui ${formatDateTime(generatedAt)}`}
             />
+
+            {overrunRequests.length > 0 && <OverrunQueue requests={overrunRequests} />}
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard

@@ -70,6 +70,8 @@ interface ProjectShowProps {
     /** CEO only — PRD §4.4 "PM di-assign oleh CEO". */
     canChangePm: boolean;
     projectManagers: Pick<User, 'id' | 'name'>[];
+    /** Sprint 12 D2 — Asisten PM choices for Edit Proyek. */
+    assistantPms: Pick<User, 'id' | 'name'>[];
     hasTerminPayments: boolean;
     statusNote: ProjectStatusNote | null;
     milestones: Milestone[];
@@ -93,6 +95,9 @@ interface ProjectShowProps {
     budget: ProjectBudget | null;
     /** The project's own PM, project not closed. */
     canManageBudget: boolean;
+    /** Sprint 12 #28 — CEO decides held realisations. */
+    canDecideOverrun: boolean;
+    budgetVendors: VendorOption[];
     allocationBreakdown: FinanceAllocationLine[];
     supplierDebts: SupplierDebt[];
     projectMaterials: ProjectMaterial[];
@@ -846,6 +851,7 @@ export default function ProjectShow({
     canEditProject,
     canChangePm,
     projectManagers,
+    assistantPms,
     hasTerminPayments,
     statusNote,
     milestones,
@@ -866,6 +872,8 @@ export default function ProjectShow({
     documents,
     budget,
     canManageBudget,
+    canDecideOverrun,
+    budgetVendors,
     allocationBreakdown,
     supplierDebts,
     projectMaterials,
@@ -913,6 +921,7 @@ export default function ProjectShow({
                     project={project}
                     canChangePm={canChangePm}
                     projectManagers={projectManagers}
+                    assistantPms={assistantPms}
                     hasTerminPayments={hasTerminPayments}
                 />
             )}
@@ -1003,7 +1012,13 @@ export default function ProjectShow({
                 </TabsContent>
                 {budget && (
                     <TabsContent value="budget" className="mt-6">
-                        <BudgetAllocationTab projectId={project.id} budget={budget} canManage={canManageBudget} />
+                        <BudgetAllocationTab
+                            projectId={project.id}
+                            budget={budget}
+                            canManage={canManageBudget}
+                            canDecideOverrun={canDecideOverrun}
+                            vendors={budgetVendors}
+                        />
                     </TabsContent>
                 )}
                 {documents && (

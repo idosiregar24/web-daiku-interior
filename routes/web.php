@@ -303,14 +303,23 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         Route::put('posts/{post}', [ProjectBudgetController::class, 'updatePost'])->name('posts.update');
         Route::delete('posts/{post}', [ProjectBudgetController::class, 'destroyPost'])->name('posts.destroy');
         Route::post('allocate', [ProjectBudgetController::class, 'allocate'])->name('allocate');
+        // Sprint 12 #27–#28 — realisations (append-only) and the overrun request to the CEO.
+        Route::post('lines/{line}/realizations', [ProjectBudgetController::class, 'recordRealization'])->name('realizations.store');
+        Route::post('realizations/{realization}/reverse', [ProjectBudgetController::class, 'reverseRealization'])->name('realizations.reverse');
+        Route::post('lines/{line}/overruns', [ProjectBudgetController::class, 'requestOverrun'])->name('overruns.store');
     });
+
+    // Sprint 12 #28 — only the CEO decides a held realisation.
+    Route::post('budget-overruns/{overrun}/decide', [ProjectBudgetController::class, 'decideOverrun'])
+        ->middleware('role:CEO')
+        ->name('budget.overruns.decide');
 });
 
 // Milestones — PRD §7.1 "Milestone" row: PM has CRUD (+ CEO oversight,
 // matching the Project store precedent above). Nested under project for
 // store, flat for update/destroy since Milestone already carries its
 // project_id.
-Route::middleware(['auth', 'role:CEO|PM'])->group(function () {
+Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM'])->group(function () {
     Route::post('projects/{project}/milestones', [MilestoneController::class, 'store'])
         ->name('milestones.store');
 
@@ -328,7 +337,7 @@ Route::middleware(['auth', 'role:CEO|PM'])->group(function () {
 // ProjectController::show()'s `progressLogs` prop, no separate index
 // route), PM CRUD (create only implemented — logs are append-only).
 Route::post('projects/{project}/progress-logs', [ProgressLogController::class, 'store'])
-    ->middleware(['auth', 'role:PM'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM'])
     ->name('progress-logs.store');
 
 // Dashboard QA (QA's "Analytics – Per Divisi", §7.1 `P`) — CEO + QA, no
@@ -356,16 +365,17 @@ Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('tasks')->name('t
 });
 
 Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
-    ->middleware(['auth', 'role:PM'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM'])
     ->name('tasks.store');
 
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
-    ->middleware(['auth', 'role:PM|FIELD_STAFF', 'throttle:60,1'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|FIELD_STAFF', 'throttle:60,1'])
     ->name('tasks.updateStatus');
 
 // Sprint 9 — full edit / delete: PM only ("Task – Create/Edit" CRUD).
 // Field Staff get 403 (task immutability, CLAUDE.md golden rule #6).
-Route::middleware(['auth', 'role:PM'])->group(function () {
+// Sprint 12 #22 — the Asisten PM on the projects assigned to them (TaskPolicy).
+Route::middleware(['auth', 'role:PM|ASISTEN_PM'])->group(function () {
     Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 });
@@ -659,15 +669,15 @@ Route::delete('project-materials/{project_material}', [ProjectMaterialController
 // Logistics decides. CEO reads the queue.
 Route::middleware('auth')->group(function () {
     Route::get('logistics/material-requests', [MaterialRequestController::class, 'index'])
-        ->middleware('role:CEO|PM|LOGISTICS|ESTIMATOR|FIELD_STAFF')
+        ->middleware('role:CEO|PM|ASISTEN_PM|LOGISTICS|ESTIMATOR|FIELD_STAFF')
         ->name('logistics.material-requests.index');
 
     Route::middleware('throttle:60,1')->group(function () {
         Route::post('projects/{project}/material-requests', [MaterialRequestController::class, 'store'])
-            ->middleware('role:ESTIMATOR|PM|FIELD_STAFF')
+            ->middleware('role:ESTIMATOR|PM|ASISTEN_PM|FIELD_STAFF')
             ->name('projects.material-requests.store');
         Route::post('project-materials/{project_material}/pm-decision', [MaterialRequestController::class, 'pmDecision'])
-            ->middleware('role:PM')
+            ->middleware('role:PM|ASISTEN_PM')
             ->name('project-materials.pmDecision');
         Route::post('logistics/material-requests/{project_material}/review', [MaterialRequestController::class, 'review'])
             ->middleware('role:LOGISTICS')

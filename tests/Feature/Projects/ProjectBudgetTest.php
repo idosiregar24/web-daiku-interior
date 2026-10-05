@@ -119,8 +119,11 @@ test('only the PM of the project changes the allocation', function (string $role
 
 test('CEO, Finance and PMs read the allocation; Marketing and the Asisten PM never get it', function (string $role, bool $sees) {
     verifiedPayment($this->project);
+    $user = budgetUser($role);
+    // An Asisten PM opens only the project it is assigned to (Sub 11) — and still gets no allocation.
+    $this->project->update(['assistant_pm_id' => $role === 'ASISTEN_PM' ? $user->id : null]);
 
-    $this->actingAs(budgetUser($role))->get(route('projects.show', $this->project))
+    $this->actingAs($user)->get(route('projects.show', $this->project))
         ->assertInertia(fn (Assert $page) => $sees
             ? $page->has('budget.posts')->where('canManageBudget', false)
             : $page->where('budget', null)->where('canManageBudget', false));

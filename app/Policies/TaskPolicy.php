@@ -18,7 +18,7 @@ class TaskPolicy
     /** Full edit (title/description/due_date/priority/milestone/assignee/rate) — PM only, no ownership scoping (matches Project/Milestone's non-scoped PM CRUD). */
     public function update(User $user, Task $task): bool
     {
-        return $user->hasRole('PM');
+        return $user->hasRole('PM') || $this->assists($user, $task);
     }
 
     /**
@@ -28,16 +28,22 @@ class TaskPolicy
      */
     public function delete(User $user, Task $task): bool
     {
-        return $user->hasRole('PM');
+        return $user->hasRole('PM') || $this->assists($user, $task);
     }
 
     /** Status/kendala/note — PM (any task) or the task's own assignee. */
     public function updateStatus(User $user, Task $task): bool
     {
-        if ($user->hasRole('PM')) {
+        if ($user->hasRole('PM') || $this->assists($user, $task)) {
             return true;
         }
 
         return $user->hasRole('FIELD_STAFF') && $task->assignee_id === $user->id;
+    }
+
+    /** Sprint 12 #22 — the Asisten PM of the task's project does what the PM does there. */
+    private function assists(User $user, Task $task): bool
+    {
+        return $user->hasRole('ASISTEN_PM') && (bool) $task->project?->isManagedBy($user);
     }
 }

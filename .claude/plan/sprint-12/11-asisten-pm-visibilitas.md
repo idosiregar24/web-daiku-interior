@@ -1,7 +1,7 @@
 # Sprint 12 · 11 — Asisten PM per Proyek & Visibilitas Marketing
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 07, 09, 10 · Keputusan: #22, #30 · Default: D2
+> Status: **selesai 2026-10-05** · Prasyarat: 07, 09, 10 · Keputusan: #22, #30 · Default: D2
 
 ## Tujuan
 Asisten PM bekerja di proyek yang ditugaskan padanya (tanpa alokasi/
@@ -28,11 +28,11 @@ realisasi), dan Marketing melihat progres proyek tanpa data finance internal.
   controller (props), bukan hanya UI.
 
 ## Checklist
-- [ ] **[Projects]** `isManagedBy()` + Policy proyek/task/milestone mengenali Asisten PM; `manageBudget` tetap PM saja
-- [ ] **[Projects]** Route gate menambah ASISTEN_PM pada aksi proyek; ganti Asisten PM di Edit Proyek
-- [ ] **[Logistics]** ACC pengajuan barang Tukang (Sprint 11 Sub 4) juga boleh Asisten PM proyek itu — Policy pakai `isManagedBy()`, notifikasi ke PM + Asisten PM
-- [ ] **[Projects]** `ProjectController::show` memfilter props untuk Marketing
-- [ ] **[Test]** Asisten PM: bisa task/milestone di proyeknya, 403 di proyek lain & alokasi/realisasi; Marketing: props finance absen, termin/invoice ada
+- [x] **[Projects]** `isManagedBy()` + Policy proyek/task/milestone mengenali Asisten PM; `manageBudget` tetap PM saja
+- [x] **[Projects]** Route gate menambah ASISTEN_PM pada aksi proyek; ganti Asisten PM di Edit Proyek
+- [x] **[Logistics]** ACC pengajuan barang Tukang (Sprint 11 Sub 4) juga boleh Asisten PM proyek itu — Policy pakai `isManagedBy()`, notifikasi ke PM + Asisten PM
+- [x] **[Projects]** `ProjectController::show` memfilter props untuk Marketing
+- [x] **[Test]** Asisten PM: bisa task/milestone di proyeknya, 403 di proyek lain & alokasi/realisasi; Marketing: props finance absen, termin/invoice ada
 
 ## Catatan
 ACC pengajuan barang oleh Asisten PM memperluas Sprint 11 Sub 4

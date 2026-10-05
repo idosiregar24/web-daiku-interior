@@ -196,6 +196,10 @@ class ProjectService
 
             $previousPm = $locked->pm()->first(['id', 'name']);
             $before = $this->snapshot($locked);
+            // Sprint 12 D2 — the Asisten PM, when the form sends it (own audit entry).
+            $assistantChanges = array_key_exists('assistant_pm_id', $data)
+                && (int) ($data['assistant_pm_id'] ?? 0) !== (int) ($locked->assistant_pm_id ?? 0);
+            $previousAssistant = $assistantChanges ? $locked->assistantPm()->first(['id', 'name']) : null;
 
             $locked->update([
                 'name' => $data['name'],
@@ -204,7 +208,12 @@ class ProjectService
                 'contract_value' => $data['contract_value'],
                 'status' => $newStatus->value,
                 'pm_id' => $newPmId,
+                ...($assistantChanges ? ['assistant_pm_id' => $data['assistant_pm_id'] ?: null] : []),
             ]);
+
+            if ($assistantChanges) {
+                $this->recordAssistantChange($locked, $previousAssistant, $actor);
+            }
 
             $after = $this->snapshot($locked);
             $changed = array_keys(array_diff_assoc($after, $before));
@@ -415,6 +424,40 @@ class ProjectService
     }
 
     /** PRD §4.9-style heads-up to both sides of a PM hand-over. */
+    /** Sprint 12 D2 — audit `project.assistant_pm_changed`, tell the new and the previous Asisten PM. */
+    private function recordAssistantChange(Project $project, ?User $previous, User $actor): void
+    {
+        $new = $project->assistantPm()->first(['id', 'name']);
+
+        $this->auditLogService->record('project.assistant_pm_changed', $project, [
+            'assistant_pm_id' => $previous?->id,
+            'assistant_pm' => $previous?->name,
+        ], [
+            'assistant_pm_id' => $new?->id,
+            'assistant_pm' => $new?->name,
+        ], $actor);
+
+        if ($new) {
+            $this->notificationService->notify(
+                $new,
+                'project_assistant_assigned',
+                'Ditunjuk sebagai Asisten PM',
+                "Anda ditunjuk sebagai Asisten PM proyek \"{$project->name}\" oleh {$actor->name}.",
+                ['project_id' => $project->id],
+            );
+        }
+
+        if ($previous) {
+            $this->notificationService->notify(
+                $previous,
+                'project_assistant_unassigned',
+                'Pergantian Asisten PM',
+                "Anda bukan lagi Asisten PM proyek \"{$project->name}\".",
+                ['project_id' => $project->id],
+            );
+        }
+    }
+
     private function notifyPmChange(Project $project, User $newPm, ?User $previousPm, User $actor): void
     {
         $this->notificationService->notify(

@@ -43,6 +43,11 @@ class ProjectController extends Controller
                 $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'SUPERADMIN']),
                 fn ($query) => $query->whereHas('tasks', fn ($q) => $q->where('assignee_id', $user->id)),
             )
+            // Sprint 12 #22 — an Asisten PM lists the projects assigned to them.
+            ->when(
+                $user->hasRole('ASISTEN_PM') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']),
+                fn ($query) => $query->assistedBy($user),
+            )
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -80,17 +85,21 @@ class ProjectController extends Controller
         $taskVisibility = $policy->taskVisibility($user);
         // ASISTEN_PM (Sprint 12 Sub 1) reads every tab the PM reads; its write
         // actions arrive in Sub 4 (RAB) and Sub 11 (its assigned projects).
-        $canViewMilestones = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
-        $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
-        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        // Sprint 12 #30: Marketing follows milestones and progress too.
+        $canViewMilestones = $user->hasAnyRole(['CEO', 'MARKETING', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
+        // Sprint 12 #22: the Asisten PM of this project works like its PM
+        // (milestones, tasks, progress) — not on allocation / realisation.
+        $assists = $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
+        $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']) || $assists;
+        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists;
         // Sprint 9 "Edit Proyek": CEO any project, PM their own
         // (ProjectPolicy::update()); COMPLETED/CANCELLED are read-only for
         // everyone, so the action isn't offered at all there.
         $canEditProject = $user->can('update', $project) && ! $project->isClosed();
         $canChangePm = $canEditProject && $user->hasAnyRole(['CEO', 'SUPERADMIN']);
         // PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read, PM CRUD.
-        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'SUPERADMIN']);
-        $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'SUPERADMIN']);
+        $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists;
         // PRD §7.1 "Finance – Termin" row: CEO/FIN read, PM create-only —
         // PM sees what they scheduled through this project-scoped prop
         // rather than the Finance-only global list (finance.termins.index).
@@ -127,6 +136,10 @@ class ProjectController extends Controller
             'canChangePm' => $canChangePm,
             'projectManagers' => $canChangePm
                 ? User::role('PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : [],
+            // D2 — the CEO or the project's PM may change the Asisten PM in Edit Proyek.
+            'assistantPms' => $canEditProject
+                ? User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             // Once any termin received money the contract value is fixed (ProjectService::update()).
             'hasTerminPayments' => $canEditProject && $project->hasTerminPayments(),
@@ -173,6 +186,9 @@ class ProjectController extends Controller
             ] : null,
             'budget' => $canViewBudget ? $budgetService->overview($project) : null,
             'canManageBudget' => $canViewBudget && $user->can('manageBudget', $project) && ! $project->isClosed(),
+            // Sprint 12 #28 — the CEO decides held realisations from the tab too.
+            'canDecideOverrun' => $canViewBudget && $user->hasAnyRole(['CEO', 'SUPERADMIN']),
+            'budgetVendors' => $canViewBudget && $user->can('manageBudget', $project) ? Vendor::options() : [],
             'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
             'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => $canViewMaterials
@@ -194,7 +210,7 @@ class ProjectController extends Controller
                 'return' => $isLogistics && $project->status !== ProjectStatus::Completed,
                 // Sub 4 — out-of-catalog requests; Logistics decides on its own queue page.
                 'request' => $isRunning && $user->can('request', [ProjectMaterial::class, $project]),
-                'pmDecide' => $user->hasRole('SUPERADMIN') || ($user->hasRole('PM') && (int) $project->pm_id === (int) $user->id),
+                'pmDecide' => $user->hasRole('SUPERADMIN') || $project->isManagedBy($user),
                 'review' => $isLogistics,
             ],
             'units' => $isRunning && $canViewMaterials ? Unit::options() : [],

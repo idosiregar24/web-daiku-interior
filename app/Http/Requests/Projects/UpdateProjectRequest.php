@@ -36,6 +36,18 @@ class UpdateProjectRequest extends FormRequest
                 ProjectStatus::Cancelled->value,
             ])],
             'note' => ['nullable', 'string', 'max:1000', 'required_if:status,'.ProjectStatus::Cancelled->value],
+            // Sprint 12 D2 — the CEO or the project's PM changes the
+            // Asisten PM here; null = none. Omitted = left as it is.
+            'assistant_pm_id' => [
+                'sometimes',
+                'nullable',
+                'integer',
+                function (string $attribute, mixed $value, Closure $fail) {
+                    if (! User::role('ASISTEN_PM')->where('is_active', true)->whereKey($value)->exists()) {
+                        $fail('Asisten PM harus user aktif dengan role Asisten PM.');
+                    }
+                },
+            ],
             // Optional: a PM's form never sends it. PRD §4.4 "PM di-assign
             // oleh CEO" — enforced in ProjectService::update().
             'pm_id' => [

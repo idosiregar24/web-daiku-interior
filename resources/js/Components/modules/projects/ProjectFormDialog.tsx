@@ -55,6 +55,7 @@ const schema = z
     .object({
         name: z.string().trim().min(1, 'Nama proyek wajib diisi').max(255, 'Nama proyek maksimal 255 karakter'),
         pm_id: z.string(),
+        assistant_pm_id: z.string(),
         start_date: z.date({ message: 'Tanggal mulai proyek wajib diisi' }),
         end_date: z.date().optional(),
         contract_value: z
@@ -76,7 +77,9 @@ const schema = z
 
 type FormValues = z.infer<typeof schema>;
 
-const FIELDS: string[] = ['name', 'pm_id', 'start_date', 'end_date', 'contract_value', 'status', 'note'];
+const NO_ASSISTANT = 'none';
+
+const FIELDS: string[] = ['name', 'pm_id', 'assistant_pm_id', 'start_date', 'end_date', 'contract_value', 'status', 'note'];
 
 interface ProjectFormDialogProps {
     open: boolean;
@@ -85,6 +88,8 @@ interface ProjectFormDialogProps {
     /** CEO only (PRD §4.4 "PM di-assign oleh CEO") — a PM's form never sends `pm_id`. */
     canChangePm: boolean;
     projectManagers: Pick<User, 'id' | 'name'>[];
+    /** Sprint 12 D2 — the CEO or the project's PM picks the Asisten PM. */
+    assistantPms: Pick<User, 'id' | 'name'>[];
     /** Any DP/pelunasan on a termin fixes the contract value (ProjectService::update()). */
     hasTerminPayments: boolean;
 }
@@ -96,11 +101,12 @@ export function ProjectFormDialog({
     project,
     canChangePm,
     projectManagers,
+    assistantPms,
     hasTerminPayments,
 }: ProjectFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { name: '', pm_id: '', start_date: undefined, end_date: undefined, contract_value: '', status: 'ACTIVE', note: '' },
+        defaultValues: { name: '', pm_id: '', assistant_pm_id: NO_ASSISTANT, start_date: undefined, end_date: undefined, contract_value: '', status: 'ACTIVE', note: '' },
     });
 
     const status = form.watch('status');
@@ -112,6 +118,7 @@ export function ProjectFormDialog({
         form.reset({
             name: project.name,
             pm_id: String(project.pm_id),
+            assistant_pm_id: project.assistant_pm_id ? String(project.assistant_pm_id) : NO_ASSISTANT,
             start_date: project.start_date ? new Date(project.start_date) : undefined,
             end_date: project.end_date ? new Date(project.end_date) : undefined,
             contract_value: String(Number(project.contract_value)),
@@ -141,6 +148,7 @@ export function ProjectFormDialog({
                 status: values.status,
                 note: statusChanged && values.note?.trim() ? values.note.trim() : null,
                 ...(canChangePm ? { pm_id: Number(values.pm_id) } : {}),
+                assistant_pm_id: values.assistant_pm_id === NO_ASSISTANT ? null : Number(values.assistant_pm_id),
             },
             { preserveScroll: true, onError, onSuccess: () => onOpenChange(false) },
         );
@@ -200,6 +208,36 @@ export function ProjectFormDialog({
                                             <FormDescription>Project Manager hanya bisa diganti oleh CEO.</FormDescription>
                                         </>
                                     )}
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="assistant_pm_id"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Asisten PM</FormLabel>
+                                    <Select value={field.value} onValueChange={field.onChange}>
+                                        <FormControl>
+                                            <SelectTrigger className="w-full">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value={NO_ASSISTANT}>Tanpa asisten</SelectItem>
+                                            {project.assistant_pm &&
+                                                !assistantPms.some((assistant) => assistant.id === project.assistant_pm?.id) && (
+                                                    <SelectItem value={String(project.assistant_pm.id)}>{project.assistant_pm.name} (nonaktif)</SelectItem>
+                                                )}
+                                            {assistantPms.map((assistant) => (
+                                                <SelectItem key={assistant.id} value={String(assistant.id)}>
+                                                    {assistant.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>Mengerjakan milestone, task, progress & ACC pengajuan barang — tanpa alokasi dana.</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}

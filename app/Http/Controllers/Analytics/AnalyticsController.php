@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Analytics;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Analytics\StoreRevenueTargetRequest;
+use App\Models\BudgetOverrunRequest;
 use App\Models\RevenueTarget;
 use App\Services\AnalyticsService;
 use App\Services\AuditLogService;
@@ -32,6 +33,22 @@ class AnalyticsController extends Controller
             'overdueHeatmap' => $analytics->overdueHeatmap(),
             'taskStatus' => $analytics->taskStatusBreakdown(),
             'generatedAt' => now()->toIso8601String(),
+            // Sprint 12 #28 — realisations over a post budget waiting for the CEO.
+            'overrunRequests' => BudgetOverrunRequest::query()
+                ->waiting()
+                ->with(['post.project:id,name', 'line:id,description', 'requester:id,name'])
+                ->oldest()
+                ->get()
+                ->map(fn (BudgetOverrunRequest $request) => [
+                    'id' => $request->id,
+                    'project' => ['id' => $request->post->project->id, 'name' => $request->post->project->name],
+                    'post' => $request->post->name,
+                    'item' => $request->line->description,
+                    'amount_over' => (float) $request->amount_over,
+                    'reason' => $request->reason,
+                    'requested_by' => $request->requester?->name,
+                    'created_at' => $request->created_at,
+                ]),
         ]);
     }
 

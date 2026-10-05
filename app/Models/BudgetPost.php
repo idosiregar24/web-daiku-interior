@@ -36,6 +36,12 @@ class BudgetPost extends Model
         return $this->hasMany(BudgetLine::class)->orderBy('sort_order')->orderBy('id');
     }
 
+    /** Sprint 12 #28 — realisations held for the CEO. */
+    public function overrunRequests(): HasMany
+    {
+        return $this->hasMany(BudgetOverrunRequest::class);
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

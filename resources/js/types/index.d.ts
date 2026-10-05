@@ -729,12 +729,62 @@ export interface BudgetLine {
     unit_price: string;
     /** The line's budget — the RAB item's total. */
     sell_price: string;
+    /** Sprint 12 #27 — Σ realisations (corrections included). */
+    realized: number;
+    realized_qty: number;
+    realizations: BudgetRealizationEntry[];
+}
+
+/** Sprint 12 #27 — one append-only realisation row (a correction has negative amounts). */
+export interface BudgetRealizationEntry {
+    id: number;
+    qty_actual: number;
+    unit_cost: string;
+    total_cost: string;
+    vendor: string | null;
+    note: string | null;
+    recorded_by: string | null;
+    recorded_at: string;
+    /** Set on a correction row: the row it cancels. */
+    reverses_id: number | null;
+    /** Cancelled by a later correction. */
+    is_reversed: boolean;
+    /** Recorded through a CEO-approved overrun (#28). */
+    via_overrun: boolean;
+}
+
+/** Sprint 12 #28 — a realisation held for the CEO. */
+export interface PendingOverrun {
+    id: number;
+    item: string | null;
+    amount_over: number;
+    reason: string;
+    payload: { qty_actual: number; unit_cost: number; vendor_id: number | null; note: string | null };
+    requested_by: string | null;
+    created_at: string;
+}
+
+/** Executive Dashboard queue row (AnalyticsController). */
+export interface OverrunQueueItem {
+    id: number;
+    project: { id: number; name: string };
+    post: string;
+    item: string;
+    amount_over: number;
+    reason: string;
+    requested_by: string | null;
+    created_at: string;
 }
 
 export interface BudgetPost {
     id: number;
     name: string;
     total: number;
+    realized: number;
+    difference: number;
+    /** (budget − realisation) / budget, %; null for an empty post. */
+    margin: number | null;
+    pendingOverrun: PendingOverrun | null;
     lines: BudgetLine[];
 }
 
@@ -773,6 +823,7 @@ export interface ProjectBudget {
         unallocatedTotal: number;
         /** Σ posts > RAB total — warns, never blocks (#24). */
         overRab: boolean;
+        realizedTotal: number;
     };
     logs: BudgetLogEntry[];
 }

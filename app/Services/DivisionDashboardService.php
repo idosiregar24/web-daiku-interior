@@ -480,12 +480,12 @@ class DivisionDashboardService
 
     /**
      * CEO (and the SUPERADMIN technical role) watch every PM's projects; a
-     * PM only their own. ASISTEN_PM (Sprint 12 Sub 1) reads every project
-     * for now — Sub 11 narrows it to the projects they're assigned to.
+     * PM only their own; an ASISTEN_PM the projects assigned to them
+     * (Sprint 12 #22, `assistant_pm_id`).
      */
     public function seesAllProjects(User $viewer): bool
     {
-        return $viewer->hasAnyRole(['CEO', 'SUPERADMIN', 'ASISTEN_PM']);
+        return $viewer->hasAnyRole(['CEO', 'SUPERADMIN']);
     }
 
     /** @return EloquentCollection<int, User> PMs for the CEO's filter */
@@ -512,7 +512,11 @@ class DivisionDashboardService
 
         return Project::query()
             ->whereIn('status', [ProjectStatus::Active->value, ProjectStatus::OnHold->value])
-            ->when(! $seesAll, fn (Builder $query) => $query->where('pm_id', $viewer->id))
+            // A PM their own; an Asisten PM the projects assigned to them (Sprint 12 #22).
+            ->when(! $seesAll, fn (Builder $query) => $query->where(fn (Builder $q) => $q
+                ->when($viewer->hasRole('PM'), fn (Builder $q) => $q->orWhere('pm_id', $viewer->id))
+                ->when($viewer->hasRole('ASISTEN_PM'), fn (Builder $q) => $q->orWhere('assistant_pm_id', $viewer->id))
+                ->when(! $viewer->hasAnyRole(['PM', 'ASISTEN_PM']), fn (Builder $q) => $q->whereRaw('1 = 0'))))
             ->when($seesAll && $pmId, fn (Builder $query) => $query->where('pm_id', $pmId))
             ->with(['pm:id,name', 'lead:id,client_name'])
             ->withCount([

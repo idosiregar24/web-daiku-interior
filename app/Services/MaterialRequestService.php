@@ -96,8 +96,9 @@ class MaterialRequestService
             $what = "{$actor->name} mengajukan {$snapshot['name']} ({$this->qtyText($line)}) untuk proyek \"{$project->name}\"";
 
             if ($fromTukang) {
+                // Sprint 12 #22/#31 — the PM and the Asisten PM of the project may approve.
                 $this->notificationService->notifyMany(
-                    [$project->pm],
+                    [$project->pm, $project->assistantPm],
                     'material_request_pm_pending',
                     'Pengajuan Barang dari Tukang',
                     "{$what}. Setujui atau tolak sebelum diteruskan ke Logistik.",
@@ -265,7 +266,7 @@ class MaterialRequestService
         }
 
         $due = ProjectMaterial::query()
-            ->with(['project:id,name,pm_id', 'project.pm:id,name,is_active', 'requester:id,name'])
+            ->with(['project:id,name,pm_id,assistant_pm_id', 'project.pm:id,name,is_active', 'project.assistantPm:id,name,is_active', 'requester:id,name'])
             ->pendingRequest()
             ->where(fn ($q) => $q
                 ->where(fn ($q) => $q->where('request_status', MaterialRequestStatus::Diajukan->value)->where('submitted_at', '<=', $cutoff))
@@ -290,9 +291,9 @@ class MaterialRequestService
             );
         }
 
-        $atPm->groupBy(fn (ProjectMaterial $line) => $line->project->pm_id)->each(function (Collection $lines) {
+        $atPm->groupBy(fn (ProjectMaterial $line) => $line->project->pm_id.'-'.$line->project->assistant_pm_id)->each(function (Collection $lines) {
             $this->notificationService->notifyMany(
-                [$lines->first()->project->pm],
+                [$lines->first()->project->pm, $lines->first()->project->assistantPm],
                 'material_request_reminder',
                 'Pengajuan Tukang Menunggu Anda',
                 $lines->count().' pengajuan barang dari Tukang menunggu persetujuan Anda lebih dari 1 hari kerja: '.$this->listText($lines).'.',

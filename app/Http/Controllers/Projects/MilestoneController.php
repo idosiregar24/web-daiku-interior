@@ -12,8 +12,10 @@ use Illuminate\Http\RedirectResponse;
 
 class MilestoneController extends Controller
 {
+    // Sprint 12 #22 — CEO / PM, or the Asisten PM of this project (ProjectPolicy::manageWork()).
     public function store(StoreMilestoneRequest $request, Project $project, MilestoneService $service): RedirectResponse
     {
+        $this->authorize('manageWork', $project);
         $service->create($project, $request->validated());
 
         return back()->with('success', 'Milestone berhasil ditambahkan.');
@@ -21,6 +23,7 @@ class MilestoneController extends Controller
 
     public function update(UpdateMilestoneRequest $request, Milestone $milestone, MilestoneService $service): RedirectResponse
     {
+        $this->authorize('manageWork', $milestone->project);
         $service->update($milestone, $request->validated());
 
         return back()->with('success', 'Milestone berhasil diperbarui.');
@@ -28,6 +31,7 @@ class MilestoneController extends Controller
 
     public function destroy(Milestone $milestone): RedirectResponse
     {
+        $this->authorize('manageWork', $milestone->project);
         $milestone->delete();
 
         return back()->with('success', 'Milestone berhasil dihapus.');
@@ -40,6 +44,7 @@ class MilestoneController extends Controller
      */
     public function markDone(Milestone $milestone, MilestoneService $service): RedirectResponse
     {
+        $this->authorize('manageWork', $milestone->project);
         $service->markDone($milestone);
 
         return back()->with('success', 'Milestone diajukan untuk review QA.');

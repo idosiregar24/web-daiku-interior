@@ -79,6 +79,23 @@ class Project extends Model
         return $this->hasMany(Termin::class)->orderBy('termin_number');
     }
 
+    /**
+     * Sprint 12 #22 / D2 — the project's PM or its Asisten PM ("proyek
+     * yang dikelola"). Allocation & realisation stay with the PM alone
+     * (ProjectPolicy::manageBudget()).
+     */
+    public function isManagedBy(User $user): bool
+    {
+        return ((int) $this->pm_id === (int) $user->id && $user->hasRole('PM'))
+            || ($this->assistant_pm_id !== null && (int) $this->assistant_pm_id === (int) $user->id && $user->hasRole('ASISTEN_PM'));
+    }
+
+    /** Sprint 12 #22 — an Asisten PM's projects are the ones they're assigned to. */
+    public function scopeAssistedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('assistant_pm_id', $user->id);
+    }
+
     /** Sprint 12 #24 — "Alokasi Dana Proyek" (ProjectBudgetService). */
     public function budgetPosts(): HasMany
     {

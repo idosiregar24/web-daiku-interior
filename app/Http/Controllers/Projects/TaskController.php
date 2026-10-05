@@ -77,6 +77,8 @@ class TaskController extends Controller
 
     public function store(StoreTaskRequest $request, Project $project, TaskService $service): RedirectResponse
     {
+        // Sprint 12 #22 — also the Asisten PM of this project.
+        $this->authorize('manageWork', $project);
         $service->create($project, $request->validated(), $request->user());
 
         return back()->with('success', 'Task berhasil ditambahkan.');

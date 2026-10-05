@@ -4,10 +4,16 @@ namespace App\Http\Controllers\Projects;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\AllocateBudgetItemsRequest;
+use App\Http\Requests\Projects\DecideOverrunRequest;
+use App\Http\Requests\Projects\RecordRealizationRequest;
 use App\Http\Requests\Projects\ReorderBudgetPostsRequest;
 use App\Http\Requests\Projects\SaveBudgetPostRequest;
+use App\Models\BudgetLine;
+use App\Models\BudgetOverrunRequest;
 use App\Models\BudgetPost;
+use App\Models\BudgetRealization;
 use App\Models\Project;
+use App\Services\BudgetRealizationService;
 use App\Services\ProjectBudgetService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -65,6 +71,48 @@ class ProjectBudgetController extends Controller
         $service->unallocate($project, $itemIds, $request->user());
 
         return back()->with('success', 'Item dikembalikan ke daftar belum dialokasikan.');
+    }
+
+    /** Sprint 12 #27 — an item's real cost; over the post budget it is refused (#28). */
+    public function recordRealization(RecordRealizationRequest $request, Project $project, BudgetLine $line, BudgetRealizationService $service): RedirectResponse
+    {
+        $this->ensureLineOf($project, $line);
+        $service->record($line, $request->validated(), $request->user());
+
+        return back()->with('success', "Realisasi \"{$line->description}\" dicatat.");
+    }
+
+    /** Append-only correction of a realisation. */
+    public function reverseRealization(Request $request, Project $project, BudgetRealization $realization, BudgetRealizationService $service): RedirectResponse
+    {
+        $this->authorize('manageBudget', $project);
+        $this->ensureLineOf($project, $realization->line);
+        $service->reverse($realization, $request->string('note')->limit(1000, '')->value() ?: null, $request->user());
+
+        return back()->with('success', 'Realisasi dibatalkan dengan baris koreksi.');
+    }
+
+    /** Decision #28 — "Ajukan ke CEO" for the realisation that was refused. */
+    public function requestOverrun(RecordRealizationRequest $request, Project $project, BudgetLine $line, BudgetRealizationService $service): RedirectResponse
+    {
+        $this->ensureLineOf($project, $line);
+        $service->requestOverrun($line, $request->validated(), $request->user());
+
+        return back()->with('success', 'Pengajuan overrun dikirim ke CEO.');
+    }
+
+    /** Decision #28 — CEO only (route `role:CEO`). */
+    public function decideOverrun(DecideOverrunRequest $request, BudgetOverrunRequest $overrun, BudgetRealizationService $service): RedirectResponse
+    {
+        $approve = $request->validated('decision') === 'approve';
+        $service->decide($overrun, $approve, $request->validated('note'), $request->user());
+
+        return back()->with('success', $approve ? 'Overrun disetujui — realisasi tercatat.' : 'Overrun ditolak.');
+    }
+
+    private function ensureLineOf(Project $project, BudgetLine $line): void
+    {
+        abort_unless((int) $line->post?->project_id === (int) $project->id, 404);
     }
 
     private function ensurePostOf(Project $project, BudgetPost $post): void

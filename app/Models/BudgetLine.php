@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Sprint 12 decision #24 — a RAB item allocated to a budget post, with
@@ -43,6 +44,12 @@ class BudgetLine extends Model
     public function quotationItem(): BelongsTo
     {
         return $this->belongsTo(QuotationItem::class);
+    }
+
+    /** Sprint 12 #27 — what the item really cost (append-only, corrections included). */
+    public function realizations(): HasMany
+    {
+        return $this->hasMany(BudgetRealization::class)->orderBy('recorded_at')->orderBy('id');
     }
 
     public function unit(): BelongsTo

@@ -136,8 +136,11 @@ class MaterialRequestController extends Controller
             return $query;
         }
 
-        if ($user->hasRole('PM')) {
-            return $query->whereHas('project', fn (Builder $q) => $q->where('pm_id', $user->id));
+        if ($user->hasAnyRole(['PM', 'ASISTEN_PM'])) {
+            // The projects they manage — as PM or as its Asisten PM (Sprint 12 #22).
+            return $query->whereHas('project', fn (Builder $q) => $q->where(fn (Builder $q) => $q
+                ->when($user->hasRole('PM'), fn (Builder $q) => $q->orWhere('pm_id', $user->id))
+                ->when($user->hasRole('ASISTEN_PM'), fn (Builder $q) => $q->orWhere('assistant_pm_id', $user->id))));
         }
 
         return $query->where('requested_by', $user->id);
@@ -146,7 +149,7 @@ class MaterialRequestController extends Controller
     /** Running projects this user may raise a request on (mirrors ProjectMaterialPolicy::request()). */
     private function requestableProjects(User $user): array
     {
-        if (! $user->hasAnyRole(['ESTIMATOR', 'PM', 'FIELD_STAFF', 'SUPERADMIN'])) {
+        if (! $user->hasAnyRole(['ESTIMATOR', 'PM', 'ASISTEN_PM', 'FIELD_STAFF', 'SUPERADMIN'])) {
             return [];
         }
 
@@ -154,6 +157,7 @@ class MaterialRequestController extends Controller
             ->whereIn('status', [ProjectStatus::Active->value, ProjectStatus::OnHold->value])
             ->when(! $user->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']), fn (Builder $q) => $q->where(fn (Builder $q) => $q
                 ->when($user->hasRole('PM'), fn (Builder $q) => $q->orWhere('pm_id', $user->id))
+                ->when($user->hasRole('ASISTEN_PM'), fn (Builder $q) => $q->orWhere('assistant_pm_id', $user->id))
                 ->when($user->hasRole('FIELD_STAFF'), fn (Builder $q) => $q->orWhereHas('tasks', fn (Builder $t) => $t->where('assignee_id', $user->id)))))
             ->orderBy('name')
             ->get(['id', 'name'])

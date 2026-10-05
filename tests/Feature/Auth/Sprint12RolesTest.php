@@ -76,10 +76,11 @@ test('User Management assigns Kepala Desain together with Designer, and shows it
     expect($user->fresh()->getRoleNames()->all())->toBe(['DESIGNER']);
 });
 
-// ── Asisten PM: read what the PM reads, write nothing yet ───────────────
+// ── Asisten PM: its own projects only (Sprint 12 Sub 11) ────────────────
 
-test('an Asisten PM can open the project and quotation pages a PM reads', function (string $routeName) {
-    $project = Project::factory()->create();
+test('an Asisten PM can open the pages a PM reads — the project pages of its own projects', function (string $routeName) {
+    $assistant = sprint12User('ASISTEN_PM');
+    $project = Project::factory()->create(['assistant_pm_id' => $assistant->id]);
     $quotation = Quotation::factory()->create();
     $params = match ($routeName) {
         'projects.show' => $project,
@@ -87,31 +88,28 @@ test('an Asisten PM can open the project and quotation pages a PM reads', functi
         default => [],
     };
 
-    $this->actingAs(sprint12User('ASISTEN_PM'))->get(route($routeName, $params))->assertOk();
+    $this->actingAs($assistant)->get(route($routeName, $params))->assertOk();
 })->with(['projects.index', 'projects.dashboard', 'projects.show', 'quotations.index', 'quotations.show']);
 
-test('the Asisten PM sees the project tabs the PM reads, without any write action', function () {
-    $project = Project::factory()->create();
+test('the Asisten PM works on its project like the PM, but never edits the project or its allocation', function () {
+    $assistant = sprint12User('ASISTEN_PM');
+    $project = Project::factory()->create(['assistant_pm_id' => $assistant->id]);
 
-    $this->actingAs(sprint12User('ASISTEN_PM'))->get(route('projects.show', $project))
+    $this->actingAs($assistant)->get(route('projects.show', $project))
         ->assertInertia(fn (Assert $page) => $page
             ->where('canViewMilestones', true)
             ->where('canViewTasks', true)
             ->where('canViewProgressLogs', true)
             ->where('canViewTermins', true)
             ->where('canViewMaterials', true)
-            ->where('canManageMilestones', false)
-            ->where('canManageTasks', false)
+            ->where('canManageMilestones', true)
+            ->where('canManageTasks', true)
+            ->where('canManageProgressLogs', true)
+            ->where('budget', null)
             ->where('canIssueTerminInvoices', false)
             ->where('canEditProject', false));
-});
-
-test('an Asisten PM is refused every PM write action for now', function () {
-    $assistant = sprint12User('ASISTEN_PM');
-    $project = Project::factory()->create(['pm_id' => $assistant->id]);
 
     $this->actingAs($assistant)->put(route('projects.update', $project), [])->assertForbidden();
-    $this->actingAs($assistant)->post(route('milestones.store', $project), [])->assertForbidden();
-    $this->actingAs($assistant)->post(route('tasks.store', $project), [])->assertForbidden();
     $this->actingAs($assistant)->post(route('projects.materials.store', $project), [])->assertForbidden();
+    $this->actingAs($assistant)->post(route('projects.budget.posts.store', $project), ['name' => 'Interior'])->assertForbidden();
 });

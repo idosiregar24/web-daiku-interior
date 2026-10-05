@@ -26,6 +26,7 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\AssetInstallmentService;
+use App\Services\BudgetRealizationService;
 use App\Services\DesignService;
 use App\Services\EmployeeService;
 use App\Services\FamilyGatheringFundService;
@@ -766,6 +767,24 @@ class DemoDataSeeder extends Seeder
         $interior = $budget->createPost($project, 'Interior', $this->pm);
         $budget->createPost($project, 'Finishing', $this->pm);
         $budget->allocate($interior, $items->whereIn('description', ['Kitchen Set Custom', 'Partisi Ruangan'])->pluck('id')->all(), $this->pm);
+
+        // Sprint 12 #27–#28 — the kitchen set came in under budget; the
+        // partitions' real cost would push "Interior" over, so it waits
+        // for the CEO.
+        $realizations = app(BudgetRealizationService::class);
+        $lines = $interior->lines()->get()->keyBy('description');
+        $realizations->record($lines['Kitchen Set Custom'], [
+            'qty_actual' => 1,
+            'unit_cost' => 18_000_000,
+            'vendor_id' => $this->vendor('Toko Sumber Kayu'),
+            'note' => 'Multiplek + HPL, termasuk ongkos rakit.',
+        ], $this->pm);
+        $realizations->requestOverrun($lines['Partisi Ruangan'], [
+            'qty_actual' => 3,
+            'unit_cost' => 3_500_000,
+            'note' => 'Rangka aluminium naik harga.',
+            'reason' => 'Harga aluminium naik sejak RAB dibuat; klien minta kaca 10 mm.',
+        ], $this->pm);
     }
 
     private function seedProgressLogsAndTermins(Project $project): void

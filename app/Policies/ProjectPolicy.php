@@ -16,8 +16,13 @@ class ProjectPolicy
 {
     public function view(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'LOGISTICS'])) {
+        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS'])) {
             return true;
+        }
+
+        // Sprint 12 #22 — an Asisten PM works on (and sees) the projects assigned to them.
+        if ($user->hasRole('ASISTEN_PM')) {
+            return $project->isManagedBy($user);
         }
 
         return $user->hasRole('FIELD_STAFF')
@@ -64,6 +69,20 @@ class ProjectPolicy
     public function manageMaterials(User $user, Project $project): bool
     {
         return $user->hasRole('LOGISTICS') || $this->ownsAsPm($user, $project);
+    }
+
+    /**
+     * The project's day-to-day work — milestones, tasks, progress logs.
+     * CEO / any PM as before (PRD §7.1 unscoped PM CRUD; route roles narrow
+     * further), and since Sprint 12 #22 the Asisten PM of this project.
+     */
+    public function manageWork(User $user, Project $project): bool
+    {
+        if ($user->hasAnyRole(['CEO', 'PM'])) {
+            return true;
+        }
+
+        return $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
     }
 
     /**
