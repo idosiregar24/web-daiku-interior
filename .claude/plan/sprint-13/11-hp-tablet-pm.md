@@ -1,29 +1,41 @@
-# Sprint 13 · 11 — HP/Tablet untuk PM & Asisten PM
+# Sprint 13 · 11 — HP/Tablet untuk PM, Asisten PM, QA & Logistik
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
 > Status: **belum dikerjakan** · Prasyarat: 04, 05 · Keputusan: P1–P3
 
 ## Tujuan
-Pekerjaan PM di lapangan (ACC, cek progres, QA) nyaman dari HP atau tablet.
+Pekerjaan di lapangan dan gudang (ACC, cek progres, QA, tinjau pengajuan,
+stok) nyaman dari HP atau tablet, dan tetap nyaman di laptop — QA &
+Logistik berganti-ganti perangkat (dijawab user 2026-10-05).
 
 ## File yang disentuh
 - `resources/js/Components/shared/DataTable.tsx` (prop `mobileCard?: (row) => ReactNode`)
-- `resources/js/Pages/{Inbox/Index,Overtime/Index,Logistics/MaterialRequests/Index,QA/Show,Projects/Show}.tsx`
-- Dialog keputusan (setujui/tolak lembur & pengajuan) → panel bawah di layar kecil
+- PM/Asisten PM: `resources/js/Pages/{Inbox/Index,Overtime/Index,Projects/Show}.tsx`
+- QA: `resources/js/Pages/QA/{Index,Show}.tsx` (+ form isian QA)
+- Logistik: `resources/js/Pages/Logistics/{MaterialRequests,Materials,StockMovements}/Index.tsx`
+- Dialog keputusan (setujui/tolak lembur, pengajuan barang, QA) → panel bawah di layar kecil
 - `.claude/rules/frontend-standards.md` §4 (kapan memakai `mobileCard`)
 
 ## Rancangan
 - `DataTable` dengan `mobileCard` merender daftar kartu di bawah `md`
-  (toolbar & paginasi tetap); tanpa prop = perilaku sekarang.
-- ACC dari kartu: tombol **Setujui Lembur / Tolak Lembur** langsung di
-  kartu, alasan tolak di panel bawah.
+  (toolbar & paginasi tetap); tanpa prop = perilaku sekarang. Satu halaman,
+  dua tampilan — tidak ada halaman "versi HP" terpisah, karena QA &
+  Logistik membuka halaman yang sama dari HP maupun laptop.
+- ACC dari kartu: tombol **Setujui Lembur / Tolak Lembur**, **Setujui
+  Pengajuan / Tinjau Pengajuan** langsung di kartu; alasan tolak di panel bawah.
+- **QA**: daftar form QA sebagai kartu (proyek, milestone, status); form
+  isian satu kolom dengan tombol keputusan **Setujui QA / Tolak QA** lebar
+  penuh di bawah. QA tetap tidak melihat detail task (security-standards §2).
+- **Logistik**: tinjauan pengajuan barang & daftar material sebagai kartu;
+  angka stok terlihat tanpa geser ke samping.
 - Detail Proyek di HP: `UnderlineTabsList` bisa digeser horizontal,
   Overview & Progress satu kolom, Gantt/Kalender diganti daftar milestone
   di bawah `md`.
-- Uji di 390px (HP) dan 820px (tablet potret).
+- Uji di 390px (HP), 820px (tablet potret), dan 1366px (laptop).
 
 ## Checklist
 - [ ] **[UI]** `DataTable` `mobileCard` + dokumentasi
-- [ ] **[UI]** Lembur, Pengajuan Barang, Perlu Tindakan: kartu + ACC dari kartu
-- [ ] **[UI]** Detail Proyek & Form QA nyaman di 390px / 820px
-- [ ] **[Test]** Cek manual sebagai PM & Asisten PM di 390px dan 820px; `npm run build`
+- [ ] **[UI]** PM/Asisten PM: Lembur, Pengajuan Barang, Perlu Tindakan — kartu + ACC dari kartu; Detail Proyek nyaman di 390px / 820px
+- [ ] **[QA]** Daftar & form QA nyaman di HP, keputusan dari panel bawah
+- [ ] **[Logistics]** Tinjauan pengajuan, Material, Riwayat Stok sebagai kartu di HP
+- [ ] **[Test]** Cek manual sebagai PM, Asisten PM, QA, Logistik di 390px / 820px / 1366px; `npm run build`

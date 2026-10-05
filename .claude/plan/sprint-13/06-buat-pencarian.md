@@ -1,7 +1,7 @@
-# Sprint 13 · 06 — Tombol "+ Buat" Global & Pencarian
+# Sprint 13 · 06 — Tombol "+ Buat" Global, Pencarian & Terakhir Dibuka
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 03 · Keputusan: #6, #12 · Default: D5
+> Status: **belum dikerjakan** · Prasyarat: 03 · Keputusan: #6, #11 (sisa), #12 · Default: D3, D5
 
 ## Tujuan
 Menambah data dan mencari sesuatu tidak perlu mencari menunya dulu.
@@ -25,10 +25,15 @@ Menambah data dan mencari sesuatu tidak perlu mencari menunya dulu.
   (CEO/HR) — maks. 5 per jenis, query memakai scope/Policy daftar
   masing-masing (Asisten PM hanya proyeknya, Marketing tanpa angka finance).
 - Respons hanya `id`, `label`, `sublabel`, `url` — tidak ada model mentah.
+- **Terakhir dibuka** (dari Sub 07 yang dibatalkan): 5 menu terakhir
+  disimpan di `localStorage` (try/catch, aman bila kosong/diblokir), tampil
+  sebagai grup pertama `CommandMenu` saat kolom cari masih kosong. Menu
+  yang tidak lagi boleh dilihat role itu diabaikan.
 
 ## Checklist
 - [ ] **[UI]** `QuickCreateMenu` per role + dukungan `?create=1` di 6 halaman
 - [ ] **[UI]** Kolom cari yang terlihat di topbar desktop
 - [ ] **[Backend]** Endpoint `search` (scope per role, whitelist field, throttle)
 - [ ] **[UI]** Hasil data di `CommandMenu` dengan grup per jenis
+- [ ] **[UI]** "Terakhir dibuka" di `CommandMenu` (`localStorage`)
 - [ ] **[Test]** `search`: tiap role hanya mendapat yang boleh dilihat (Asisten PM proyek lain absen, Tukang hanya proyeknya), tamu 302; `/security-review` untuk endpoint ini

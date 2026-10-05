@@ -9,10 +9,9 @@ urutan grup mengikuti cara kerja tiap role.
 
 ## File yang disentuh
 - Migrasi `add_nav_preferences_to_users_table` (JSON nullable) + cast `array` di `User`
-- `app/Http/Controllers/Profile/NavPreferenceController.php` + Form Request (`collapsed_groups: string[]`, `favorites: string[]` — whitelist label grup / routeName yang ada)
+- `app/Http/Controllers/Profile/NavPreferenceController.php` + Form Request (`collapsed_groups: string[]` — whitelist label grup yang ada; favorit tidak dibuat, lihat induk #11)
 - `routes/web.php` (`PATCH profile/nav-preferences`, `auth`, `throttle:60,1`)
 - `app/Http/Middleware/HandleInertiaRequests.php` (`auth.user.nav_preferences`)
-- `app/Services/RoleRedirectService.php` (CEO → Perlu Tindakan baru diaktifkan di Sub 04; di sini cukup siapkan)
 - `resources/js/Layouts/AppLayout.tsx`, `resources/js/types/index.d.ts`
 - Test: `tests/Feature/Profile/NavPreferenceTest.php`
 

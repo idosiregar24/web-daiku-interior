@@ -50,12 +50,11 @@ dialog di tengah layar.
 | 8 | ~~Sidebar dua tingkat (rail)~~ | **Tidak dipakai** — user memilih #7 saja (perubahan terkecil, tanpa belajar ulang). |
 | 9 | **Navigasi bawah tukang** | Lihat bagian HP. |
 | 10 | **Per role** | **Satu struktur menu** (mudah dirawat), tapi **urutan grup** dan **halaman pertama setelah login** disesuaikan per role. CEO mulai dari Perlu Tindakan. |
-| 11 | **Favorit + terakhir dibuka** | User menyematkan menu ke bagian "Favorit" di atas sidebar; daftar "Terakhir dibuka" di command menu. |
+| 11 | ~~Favorit~~ + terakhir dibuka | **Favorit tidak dibuat** (dijawab user 2026-10-05: "tidak usah"). Yang tersisa hanya daftar "Terakhir dibuka" di command menu — digabung ke Sub 06. |
 | 12 | **Pencarian menonjol** | `CommandMenu` jadi kolom cari yang terlihat ("Cari menu, proyek, klien…") dan ikut mencari data: proyek, lead, quotation (dibatasi Policy). |
 
 ### 2.1 Struktur menu baru (tampilan CEO — role lain melihat subsetnya)
 ```
-Favorit       (hanya jika ada yang disematkan)
 Utama         Dashboard · Perlu Tindakan (n) · Kinerja Saya
 Presales      CRM · Desain · Quotation
 Eksekusi      Proyek · Task · Form Harian · Lembur · QA
@@ -90,13 +89,14 @@ Jabatan | Template KPI].
 | H7 | **PWA**: bisa dipasang di layar utama, layar penuh, ikon Daiku. Tanpa offline cache. |
 | H8 | **Ringan untuk Android kelas bawah–menengah** (dijawab user): halaman tukang tanpa Recharts/TanStack, tanpa animasi berat, chunk per halaman dicek di output `vite build`. |
 | H9 | Bahasa membumi di layar tukang: "Tugas", bukan "Task". |
-| H10 | Transparansi penalti: total bulan ini di "Lainnya". |
+| H10 | Transparansi penalti: total bulan ini tampil terang di "Lainnya" (dikonfirmasi user: boleh dilihat). |
+| H11 | **Hari Minggu** (tidak ada penalti): layar Hari Ini menampilkan **daftar tugas minggu depan**, tanpa peringatan form harian (dijawab user). |
 
-### HP / tablet — PM & Asisten PM
+### HP / tablet — PM, Asisten PM, QA, Logistik
 | # | Keputusan |
 |---|---|
-| P1 | PM/Asisten PM membuka aplikasi dari **HP atau tablet** (dijawab user). Mereka tetap memakai sidebar (hamburger + grup dilipat), bukan navigasi bawah. |
-| P2 | Halaman yang dipakai di lapangan wajib nyaman di layar kecil: Perlu Tindakan, ACC Lembur, ACC Pengajuan Barang, Detail Proyek (Overview/Progress/Task), Form QA. |
+| P1 | PM/Asisten PM membuka aplikasi dari **HP atau tablet**; **QA dan Logistik berganti-ganti** antara HP dan laptop (dijawab user). Semuanya tetap memakai sidebar (hamburger + grup dilipat), bukan navigasi bawah — halaman yang sama harus nyaman di kedua ukuran. |
+| P2 | Halaman yang dipakai di lapangan/gudang wajib nyaman di layar kecil: Perlu Tindakan, ACC Lembur, ACC Pengajuan Barang, Detail Proyek (Overview/Progress/Task), daftar & Form QA, tinjauan Pengajuan Barang (Logistik), Material & Riwayat Stok. |
 | P3 | `DataTable` mendapat **mode kartu** di layar kecil (opt-in per halaman), dipakai halaman-halaman P2. |
 
 ## 3. Kondisi sekarang (dari kode)
@@ -123,11 +123,11 @@ Jabatan | Template KPI].
 | # | Pertanyaan | Default yang dipakai |
 |---|---|---|
 | D1 | Nama hub Keuangan | Cash Flow · Penagihan · Pembayaran Staf · Kewajiban |
-| D2 | Letak Perlu Tindakan | Menu di grup Utama (dengan angka) + tombol berangka di topbar + ringkasan di Dashboard; tidak menggantikan lonceng notifikasi (notifikasi = kejadian, Perlu Tindakan = antrean saat ini) |
-| D3 | Penyimpanan preferensi | Kolom JSON `users.nav_preferences` (grup terlipat, favorit) — ikut ke HP/tablet; "Terakhir dibuka" di `localStorage` per perangkat |
+| D2 | Letak Perlu Tindakan | Menu di grup Utama (dengan angka) + tombol berangka di topbar + ringkasan di Dashboard; tidak menggantikan lonceng notifikasi (notifikasi = kejadian, Perlu Tindakan = antrean saat ini). **Dijawab 2026-10-05: CEO mendarat di Perlu Tindakan setelah login (yang harus disetujui dulu, bukan angka).** |
+| D3 | Penyimpanan preferensi | Kolom JSON `users.nav_preferences` (grup terlipat) — ikut ke HP/tablet; "Terakhir dibuka" di `localStorage` per perangkat |
 | D4 | Kesegaran badge | Dihitung saat kunjungan halaman (Inertia lazy prop), cache 60 detik per user, dibuang saat user sendiri memproses item |
 | D5 | Cakupan pencarian | Menu + Proyek + Lead + Quotation (+ Karyawan untuk CEO/HR), maks. 5 per jenis, disaring Policy yang sama dengan halaman daftarnya |
-| D6 | Login di HP | "Ingat saya" tercentang secara default (bisa dihapus centangnya) supaya tukang tidak login ulang tiap hari |
+| D6 | Login di HP | "Ingat saya" tercentang secara default (bisa dihapus centangnya) supaya tukang tidak login ulang tiap hari. **Dijawab 2026-10-05: centang otomatis.** |
 | D7 | Panel bawah | `Sheet side="bottom"` yang sudah ada — tidak menambah dependency `vaul` (H8) |
 | D8 | Batas navigasi bawah | Di bawah `lg` (1024px) untuk FIELD_STAFF — tablet ikut |
 
@@ -146,13 +146,13 @@ Detail rancangan, file yang disentuh, dan checklist ada di folder
 | 03 | [Hub lanjutan + ⚙ Pengaturan](sprint-13/03-hub-logistik-sdm-pengaturan.md) | #1, #2 — Logistik, SDM, Pengaturan | 02 | 4 |
 | 04 | [Perlu Tindakan + badge](sprint-13/04-perlu-tindakan-badge.md) | #4, #5 — `ActionInboxService` | 01 | 6 |
 | 05 | [Detail Proyek sebagai pusat](sprint-13/05-proyek-pusat.md) | #3 — tab QA/Lembur/Pengajuan, tautan ke tab | — | 4 |
-| 06 | [Tombol "+ Buat" & pencarian](sprint-13/06-buat-pencarian.md) | #6, #12 | 03 | 5 |
-| 07 | [Favorit & terakhir dibuka](sprint-13/07-favorit-terakhir.md) | #11 | 01, 03 | 3 |
+| 06 | [Tombol "+ Buat", pencarian & terakhir dibuka](sprint-13/06-buat-pencarian.md) | #6, #11 (sisa), #12 | 03 | 6 |
+| ~~07~~ | ~~[Favorit](sprint-13/07-favorit-terakhir.md)~~ | **Dibatalkan** — favorit tidak dibuat; "Terakhir dibuka" pindah ke 06 | — | 0 |
 | 08 | [HP tukang: navigasi bawah & Lainnya](sprint-13/08-hp-tukang-navigasi.md) | H1, H9, H10 | 03 | 4 |
 | 09 | [HP tukang: Hari Ini, Tugas + Form Harian](sprint-13/09-hp-tukang-hari-ini.md) | H2, H3, H4 | 08 | 5 |
 | 10 | [PWA & ringan](sprint-13/10-pwa-ringan.md) | H7, H8, D6 | 09 | 4 |
-| 11 | [HP/tablet PM & Asisten PM](sprint-13/11-hp-tablet-pm.md) | P1–P3, `DataTable` mode kartu | 04, 05 | 4 |
+| 11 | [HP/tablet PM, Asisten PM, QA, Logistik](sprint-13/11-hp-tablet-pm.md) | P1–P3, `DataTable` mode kartu | 04, 05 | 5 |
 | 12 | [Penutup](sprint-13/12-penutup.md) | Docs, seeder, test menyeluruh, uji di HP | 01–11 | 4 |
 
-Kerjakan berurutan **Sub 01 → Sub 12**. Sub 05 tidak bergantung pada yang
-lain dan boleh dikerjakan kapan saja.
+Kerjakan berurutan **Sub 01 → Sub 12**, **lewati Sub 07** (dibatalkan).
+Sub 05 tidak bergantung pada yang lain dan boleh dikerjakan kapan saja.

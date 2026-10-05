@@ -1,26 +1,13 @@
-# Sprint 13 · 07 — Favorit & Terakhir Dibuka
+# Sprint 13 · 07 — Favorit (DIBATALKAN)
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 01, 03 · Keputusan: #11 · Default: D3
+> Status: **dibatalkan 2026-10-05** — dijawab user: favorit "tidak usah".
 
-## Tujuan
-Menu yang paling sering dipakai seseorang selalu ada di atas.
+Menu sudah cukup ringkas setelah grup dilipat (Sub 01) dan hub bertab
+(Sub 02–03), jadi menyematkan menu tidak dibuat untuk role mana pun.
 
-## File yang disentuh
-- `resources/js/Layouts/AppLayout.tsx`, `resources/js/Components/shared/CommandMenu.tsx`
-- Validasi `favorites` di Form Request Sub 01 (routeName harus ada di menu yang boleh dilihat user)
+Bagian **"Terakhir dibuka"** (5 menu terakhir di `CommandMenu`,
+`localStorage`) yang semula ada di sub ini dipindah ke
+[Sub 06](06-buat-pencarian.md).
 
-## Rancangan
-- Ikon pin muncul saat hover pada item menu (dan di menu konteks HP:
-  tekan lama → "Sematkan"). Disimpan di `nav_preferences.favorites`
-  (urutan = urutan menyematkan, maks. 6).
-- Grup **Favorit** di paling atas sidebar, hanya jika ada isinya. Item
-  favorit yang tidak lagi boleh dilihat (role berubah) diabaikan diam-diam.
-- **Terakhir dibuka**: 5 menu terakhir di `localStorage` (try/catch, aman
-  bila kosong), tampil sebagai grup pertama `CommandMenu` saat kolom cari
-  masih kosong.
-
-## Checklist
-- [ ] **[UI]** Sematkan / lepas sematan menu; grup Favorit di atas sidebar
-- [ ] **[UI]** "Terakhir dibuka" di `CommandMenu`
-- [ ] **[Test]** Favorit dengan routeName asing/tidak berhak ditolak; `npm run build`
+Lewati sub ini saat "lanjut" — langsung ke Sub 08.

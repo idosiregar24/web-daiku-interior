@@ -1,7 +1,7 @@
 # Sprint 13 · 09 — HP Tukang: Hari Ini, Tugas + Form Harian
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 08 · Keputusan: H2, H3, H4 · Default: D7
+> Status: **belum dikerjakan** · Prasyarat: 08 · Keputusan: H2, H3, H4, H11 · Default: D7
 
 ## Tujuan
 Tukang menyelesaikan urusan hariannya dari satu layar, 2–3 ketukan per tugas.
@@ -10,7 +10,7 @@ Tukang menyelesaikan urusan hariannya dari satu layar, 2–3 ketukan per tugas.
 - `app/Http/Controllers/Tasks/TodayController.php` (baru) + route `today.index` (`role:FIELD_STAFF`)
 - `app/Services/ActionInboxService.php` (sumber tukang dari Sub 04)
 - `app/Services/RoleRedirectService.php` (FIELD_STAFF → `today.index`)
-- Konstanta jam penalti (mis. `config/daiku.php` `daily_form.penalty_at`) dipakai `routes/console.php` **dan** layar Hari Ini
+- Konstanta jam & hari kerja penalti (mis. `config/daiku.php` `daily_form.penalty_at`, `daily_form.work_days`) dipakai `routes/console.php` **dan** layar Hari Ini
 - `resources/js/Pages/Today/Index.tsx`, `resources/js/Components/modules/tasks/{TaskCard,TaskActionSheet}.tsx`
 - `resources/js/Pages/Tasks/Index.tsx` (mode kartu untuk tukang)
 - Test: `tests/Feature/Tasks/TodayTest.php`
@@ -20,6 +20,9 @@ Tukang menyelesaikan urusan hariannya dari satu layar, 2–3 ketukan per tugas.
   batas sebelum penalti 21:00" (hilang bila semua terisi / hari libur),
   lalu `TaskCard` untuk task aktif hari ini: judul, proyek, status
   (`StatusChip`), tanda form harian ✔/✖.
+- **Hari Minggu** (H11 — hari tanpa penalti, ikut `days([1..6])` dari
+  konstanta yang sama): tanpa peringatan form harian; isi layar = **daftar
+  tugas minggu depan** (Senin–Sabtu berikutnya), dikelompokkan per hari.
 - **Ketuk kartu → `TaskActionSheet`** (`Sheet side="bottom"`):
   1. Status sebagai tombol besar bergrid (hanya transisi yang diizinkan
      `TaskPolicy`/`TaskService`), 2. kendala & catatan, 3. tombol
@@ -34,7 +37,7 @@ Tukang menyelesaikan urusan hariannya dari satu layar, 2–3 ketukan per tugas.
 
 ## Checklist
 - [ ] **[Backend]** `today.index` + data dari `ActionInboxService`; tukang mendarat di Hari Ini
-- [ ] **[Backend]** Jam penalti jadi satu konstanta dipakai scheduler & UI
+- [ ] **[Backend]** Jam & hari kerja penalti jadi satu konstanta dipakai scheduler & UI; hari Minggu → daftar tugas minggu depan
 - [ ] **[UI]** `TaskCard` + `TaskActionSheet` (status tombol besar, simpan sekali)
 - [ ] **[UI]** Daftar Tugas mode kartu di HP
 - [ ] **[Test]** Simpan dari sheet: status + form harian tercatat sekali; judul/tenggat tidak bisa diubah (Policy); task milik tukang lain 403
