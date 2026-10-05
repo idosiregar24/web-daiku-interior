@@ -1,7 +1,7 @@
 # Sprint 12 · 09 — Alokasi Dana Proyek (pos anggaran, Model A)
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 07 · Keputusan: #23–#26
+> Status: **selesai 2026-10-05** · Prasyarat: 07 · Keputusan: #23–#26
 
 ## Tujuan
 Setelah pembayaran pertama terverifikasi, PM mengelompokkan item RAB ke pos
@@ -44,7 +44,7 @@ budget_allocation_logs  project_id, user_id, action, before (JSON), after (JSON)
   baca = PM, CEO, Finance. **Marketing tidak** (props tidak dikirim).
 
 ## Checklist
-- [ ] **[Database]** Tiga tabel di atas
-- [ ] **[Projects]** `ProjectBudgetService`: syarat terbuka, CRUD pos, pindah item, ringkasan, peringatan, log
-- [ ] **[UI]** Tab Alokasi Dana (item ↔ pos, ringkasan, riwayat)
-- [ ] **[Test]** Terkunci sebelum verifikasi; PM lain/Asisten PM/Marketing 403; item tidak bisa di dua pos; log tercatat; diskon tidak masuk pos
+- [x] **[Database]** Tiga tabel di atas
+- [x] **[Projects]** `ProjectBudgetService`: syarat terbuka, CRUD pos, pindah item, ringkasan, peringatan, log
+- [x] **[UI]** Tab Alokasi Dana (item ↔ pos, ringkasan, riwayat)
+- [x] **[Test]** Terkunci sebelum verifikasi; PM lain/Asisten PM/Marketing 403; item tidak bisa di dua pos; log tercatat; diskon tidak masuk pos

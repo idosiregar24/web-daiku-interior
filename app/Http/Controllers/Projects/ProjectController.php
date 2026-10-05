@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Policies\ProjectPolicy;
 use App\Services\FinanceAllocationService;
+use App\Services\ProjectBudgetService;
 use App\Services\ProjectService;
 use App\Services\SupplierDebtService;
 use Illuminate\Http\RedirectResponse;
@@ -71,6 +72,7 @@ class ProjectController extends Controller
         FinanceAllocationService $allocationService,
         SupplierDebtService $supplierDebtService,
         ProjectService $projectService,
+        ProjectBudgetService $budgetService,
     ): Response {
         $this->authorize('view', $project);
 
@@ -103,6 +105,9 @@ class ProjectController extends Controller
         $canViewFinanceSummary = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
         // Tab Dokumen — RAB Fix + invoices (Sprint 12 #21).
         $canViewDocuments = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'MARKETING', 'SUPERADMIN']);
+        // Sprint 12 #23–#26 — Alokasi Dana Proyek: CEO / Finance / PMs read,
+        // the project's own PM writes; never sent to Marketing or the Asisten PM.
+        $canViewBudget = $user->can('viewBudget', $project);
         // PRD §7.1 "Project Material": CEO/PM/LOG read, EST/PM/LOG create
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
@@ -166,6 +171,8 @@ class ProjectController extends Controller
                     ->orderBy('issued_at')
                     ->get(['id', 'number', 'type', 'amount', 'due_date', 'status', 'issued_at', 'paid_date']),
             ] : null,
+            'budget' => $canViewBudget ? $budgetService->overview($project) : null,
+            'canManageBudget' => $canViewBudget && $user->can('manageBudget', $project) && ! $project->isClosed(),
             'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
             'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => $canViewMaterials

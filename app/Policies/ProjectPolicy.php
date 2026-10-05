@@ -66,6 +66,21 @@ class ProjectPolicy
         return $user->hasRole('LOGISTICS') || $this->ownsAsPm($user, $project);
     }
 
+    /**
+     * Sprint 12 #23–#26 — "Alokasi Dana Proyek": read by CEO, Finance and
+     * the PMs; never Marketing (#30) nor the Asisten PM (#22).
+     */
+    public function viewBudget(User $user, Project $project): bool
+    {
+        return $user->hasAnyRole(['CEO', 'FINANCE', 'PM']);
+    }
+
+    /** Written only by the PM of this project (#22: not the Asisten PM, not the Estimator). */
+    public function manageBudget(User $user, Project $project): bool
+    {
+        return $this->ownsAsPm($user, $project);
+    }
+
     private function ownsAsPm(User $user, Project $project): bool
     {
         return $user->hasRole('PM') && (int) $project->pm_id === (int) $user->id;

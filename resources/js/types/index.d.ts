@@ -709,6 +709,74 @@ export interface FamilyFundSummary {
 /** PRD 4.4/4.7/6.4 — Termin (Finance – Termin) */
 export type TerminStatus = 'SCHEDULED' | 'INVOICED' | 'PAID' | 'OVERDUE';
 
+/** Sprint 12 #24 — a RAB Fix item not in any budget post yet (ProjectBudgetService::overview()). */
+export interface BudgetSourceItem {
+    id: number;
+    section: string | null;
+    description: string;
+    qty: number;
+    unit: string | null;
+    unit_price: string;
+    total_price: string;
+}
+
+export interface BudgetLine {
+    id: number;
+    quotation_item_id: number | null;
+    description: string;
+    qty: number;
+    unit: string | null;
+    unit_price: string;
+    /** The line's budget — the RAB item's total. */
+    sell_price: string;
+}
+
+export interface BudgetPost {
+    id: number;
+    name: string;
+    total: number;
+    lines: BudgetLine[];
+}
+
+/** BudgetAllocationLog::ACTION_* */
+export type BudgetLogAction =
+    | 'post_created'
+    | 'post_renamed'
+    | 'posts_reordered'
+    | 'post_deleted'
+    | 'items_allocated'
+    | 'items_unallocated';
+
+export interface BudgetLogEntry {
+    id: number;
+    action: BudgetLogAction;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
+    user_name: string | null;
+    created_at: string;
+}
+
+/** Sprint 12 #23–#26 — "Alokasi Dana Proyek" tab (CEO / Finance / PM only). */
+export interface ProjectBudget {
+    /** Decision #23 — after the first verified payment. */
+    isOpen: boolean;
+    /** The project has a RAB Fix (pre-Sprint-12 projects don't). */
+    hasRab: boolean;
+    unallocatedItems: BudgetSourceItem[];
+    posts: BudgetPost[];
+    summary: {
+        itemsTotal: number;
+        discount: number;
+        rounding: number;
+        rabTotal: number;
+        postsTotal: number;
+        unallocatedTotal: number;
+        /** Σ posts > RAB total — warns, never blocks (#24). */
+        overRab: boolean;
+    };
+    logs: BudgetLogEntry[];
+}
+
 export interface Termin {
     id: number;
     project_id: number;

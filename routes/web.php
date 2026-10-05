@@ -41,6 +41,7 @@ use App\Http\Controllers\Overtime\OvertimeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
+use App\Http\Controllers\Projects\ProjectBudgetController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\ProjectOpeningController;
@@ -292,6 +293,17 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
     Route::put('/{project}', [ProjectController::class, 'update'])
         ->middleware('role:CEO|PM')
         ->name('update');
+
+    // Sprint 12 #23–#26 — "Alokasi Dana Proyek": only the project's own PM
+    // writes (ProjectPolicy::manageBudget()); CEO / Finance / PMs read it on
+    // the project page. A `{post}` of another project is a 404 (controller).
+    Route::middleware('role:PM')->prefix('{project}/budget')->name('budget.')->group(function () {
+        Route::post('posts', [ProjectBudgetController::class, 'storePost'])->name('posts.store');
+        Route::put('posts/reorder', [ProjectBudgetController::class, 'reorderPosts'])->name('posts.reorder');
+        Route::put('posts/{post}', [ProjectBudgetController::class, 'updatePost'])->name('posts.update');
+        Route::delete('posts/{post}', [ProjectBudgetController::class, 'destroyPost'])->name('posts.destroy');
+        Route::post('allocate', [ProjectBudgetController::class, 'allocate'])->name('allocate');
+    });
 });
 
 // Milestones — PRD §7.1 "Milestone" row: PM has CRUD (+ CEO oversight,

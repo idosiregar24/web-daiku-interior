@@ -41,6 +41,7 @@ use App\Services\PayrollService;
 use App\Services\PenaltyCollectionService;
 use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
+use App\Services\ProjectBudgetService;
 use App\Services\ProjectMaterialService;
 use App\Services\ProjectService;
 use App\Services\QaFormService;
@@ -703,6 +704,7 @@ class DemoDataSeeder extends Seeder
 
         $this->seedOvertimeRequests($projects);
         $this->seedProgressLogsAndTermins($projects[0]['project']);
+        $this->seedBudgetAllocation($projects[0]['project']);
         $this->seedFinanceTransactions($projects[0]['project']);
     }
 
@@ -748,6 +750,24 @@ class DemoDataSeeder extends Seeder
      * (milestone 2 is IN_PROGRESS, not QA_WAITING) since ProgressLogService
      * blocks new entries while any milestone is waiting on QA.
      */
+    /**
+     * Sprint 12 #23–#26 — the DP is verified, so the PM allocates part of
+     * the RAB Fix to free-named posts (the rest stays "belum dialokasikan").
+     */
+    private function seedBudgetAllocation(Project $project): void
+    {
+        $budget = app(ProjectBudgetService::class);
+        $items = $budget->sourceItems($project);
+
+        if (! $budget->isOpen($project) || $items->isEmpty()) {
+            return;
+        }
+
+        $interior = $budget->createPost($project, 'Interior', $this->pm);
+        $budget->createPost($project, 'Finishing', $this->pm);
+        $budget->allocate($interior, $items->whereIn('description', ['Kitchen Set Custom', 'Partisi Ruangan'])->pluck('id')->all(), $this->pm);
+    }
+
     private function seedProgressLogsAndTermins(Project $project): void
     {
         $progressLogService = app(ProgressLogService::class);

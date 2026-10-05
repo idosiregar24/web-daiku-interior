@@ -10,6 +10,7 @@ import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Button } from '@/Components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
+import { BudgetAllocationTab } from '@/Components/modules/projects/BudgetAllocationTab';
 import { MilestoneCalendar } from '@/Components/modules/projects/MilestoneCalendar';
 import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
 import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneGanttCalendar';
@@ -32,6 +33,7 @@ import type {
     Milestone,
     ProgressLog,
     Project,
+    ProjectBudget,
     ProjectMaterial,
     ProjectStatusNote,
     SupplierDebt,
@@ -57,6 +59,7 @@ import {
     Receipt,
     FileText,
     Wallet,
+    Layers,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -86,6 +89,10 @@ interface ProjectShowProps {
     canMarkTerminPaid: boolean;
     /** Sprint 12 #21 — RAB Fix + invoices (null without access). */
     documents: ProjectDocuments | null;
+    /** Sprint 12 #23–#26 — Alokasi Dana Proyek (CEO / Finance / PM; null otherwise). */
+    budget: ProjectBudget | null;
+    /** The project's own PM, project not closed. */
+    canManageBudget: boolean;
     allocationBreakdown: FinanceAllocationLine[];
     supplierDebts: SupplierDebt[];
     projectMaterials: ProjectMaterial[];
@@ -788,6 +795,7 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
 
 /** Top-level tab → breadcrumb label. */
 const PROJECT_TAB_LABEL: Record<string, string> = {
+    budget: 'Alokasi Dana',
     documents: 'Dokumen',
     overview: 'Overview',
     milestone: 'Milestone',
@@ -856,6 +864,8 @@ export default function ProjectShow({
     canIssueTerminInvoices,
     canMarkTerminPaid,
     documents,
+    budget,
+    canManageBudget,
     allocationBreakdown,
     supplierDebts,
     projectMaterials,
@@ -931,6 +941,12 @@ export default function ProjectShow({
                         <Wallet />
                         Finance
                     </TabsTrigger>
+                    {budget && (
+                        <TabsTrigger value="budget">
+                            <Layers />
+                            Alokasi Dana
+                        </TabsTrigger>
+                    )}
                     {documents && (
                         <TabsTrigger value="documents">
                             <FileText />
@@ -985,6 +1001,11 @@ export default function ProjectShow({
                         supplierDebts={supplierDebts}
                     />
                 </TabsContent>
+                {budget && (
+                    <TabsContent value="budget" className="mt-6">
+                        <BudgetAllocationTab projectId={project.id} budget={budget} canManage={canManageBudget} />
+                    </TabsContent>
+                )}
                 {documents && (
                     <TabsContent value="documents" className="mt-6">
                         <DocumentsTab documents={documents} />

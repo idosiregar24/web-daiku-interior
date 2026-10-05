@@ -79,6 +79,12 @@ class Project extends Model
         return $this->hasMany(Termin::class)->orderBy('termin_number');
     }
 
+    /** Sprint 12 #24 — "Alokasi Dana Proyek" (ProjectBudgetService). */
+    public function budgetPosts(): HasMany
+    {
+        return $this->hasMany(BudgetPost::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function projectMaterials(): HasMany
     {
         return $this->hasMany(ProjectMaterial::class);
