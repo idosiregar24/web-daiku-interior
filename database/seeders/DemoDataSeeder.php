@@ -16,6 +16,7 @@ use App\Models\MaterialCategory;
 use App\Models\MaterialSynonym;
 use App\Models\Penalty;
 use App\Models\Project;
+use App\Models\ProjectOpening;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\RevenueTarget;
@@ -29,6 +30,7 @@ use App\Services\EmployeeService;
 use App\Services\FamilyGatheringFundService;
 use App\Services\FinanceTransactionService;
 use App\Services\FundTransferService;
+use App\Services\InvoiceService;
 use App\Services\LeadService;
 use App\Services\MaterialCatalogService;
 use App\Services\MaterialRequestService;
@@ -47,7 +49,6 @@ use App\Services\StaffPaymentService;
 use App\Services\StockService;
 use App\Services\SupplierDebtService;
 use App\Services\TaskService;
-use App\Services\TerminService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
@@ -448,8 +449,8 @@ class DemoDataSeeder extends Seeder
         $results = [];
 
         foreach ([
-            ['name' => 'Budi Santoso', 'source' => 'Instagram', 'value' => 42_000_000],
-            ['name' => 'Citra Lestari', 'source' => 'Website', 'value' => 28_000_000],
+            ['name' => 'Budi Santoso', 'source' => 'Instagram'],
+            ['name' => 'Citra Lestari', 'source' => 'Website'],
         ] as $i => $spec) {
             [$lead, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '0812-4444-000'.($i + 1));
 
@@ -458,21 +459,28 @@ class DemoDataSeeder extends Seeder
                 ['description' => 'Partisi Ruangan', 'qty' => 3, 'unit_id' => $this->unit('unit'), 'unit_price' => 2_500_000],
                 ['description' => 'Pengecatan Interior', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => 8_000_000],
             ]);
+            // Sprint 12 #12 — DP, a milestone termin and the pelunasan at completion.
+            $quotationService->savePaymentTerms($quotation, [
+                ['label' => 'DP', 'percentage' => 30, 'trigger' => 'DI_MUKA'],
+                ['label' => 'Termin 2', 'percentage' => 40, 'trigger' => 'MILESTONE', 'milestone_name' => 'Produksi'],
+                ['label' => 'Pelunasan', 'percentage' => 30, 'trigger' => 'PROYEK_SELESAI'],
+            ]);
             $quotationService->submit($quotation);
             $this->reviewRab($quotationService, $quotation, $this->pm);
             $this->reviewRab($quotationService, $quotation, $this->ceo);
             $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
             $quotationService->sendToClient($quotation->fresh(), $this->marketing);
 
-            // Sprint 12 Sub 5: the client approves on the link (the deal — lead
-            // CLOSING), then the project is opened from the lead page.
+            // Sprint 12 Sub 5/7: the client approves on the link (the deal —
+            // lead CLOSING), then the CEO opens the project: termins come
+            // from the scheme above.
             $quotationService->clientApprove($quotation->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
-            $project = app(ProjectService::class)->createFromLead($lead->fresh(), [
+            $project = app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
                 'name' => 'Proyek '.$spec['name'],
                 'pm_id' => $this->pm->id,
+                'assistant_pm_id' => $i === 0 ? User::role('ASISTEN_PM')->value('id') : null,
                 'start_date' => now()->subDays(7)->toDateString(),
-                'contract_value' => $spec['value'],
-            ]);
+            ], $this->ceo);
 
             $results[] = ['lead' => $lead->fresh(), 'project' => $project];
         }
@@ -717,37 +725,17 @@ class DemoDataSeeder extends Seeder
             'log_date' => now()->toDateString(),
         ], $this->pm);
 
-        $terminService = app(TerminService::class);
+        // Sprint 12 #20–#21 — Marketing invoices the DP termin, the client
+        // pays, Finance verifies (the termin becomes PAID). Termin 2 waits
+        // for the "Produksi" milestone, the pelunasan for completion.
         $bankAccount = BankAccount::first();
-        $milestones = $project->milestones()->orderBy('order')->get();
+        $dpTermin = $project->termins()->orderBy('termin_number')->first();
 
-        $dpTermin = $terminService->create($project, [
-            'milestone_id' => $milestones[0]->id, // '3D Design' — already COMPLETED, so unlocked.
-            'percentage' => 30,
-            'bank_account_id' => $bankAccount?->id,
-        ]);
-        $terminService->markPaid($dpTermin, $this->finance);
-
-        // Still locked — milestones[1] ('Produksi') is IN_PROGRESS, not
-        // COMPLETED, per TerminService::markPaid()'s docblock.
-        $terminService->create($project, [
-            'milestone_id' => $milestones[1]->id,
-            'percentage' => 40,
-            'bank_account_id' => $bankAccount?->id,
-        ]);
-
-        // Unlinked termin with only a DP received — the "Dibayar Sebagian" state.
-        if ($bankAccount) {
-            $partialTermin = $terminService->create($project, [
-                'percentage' => 10,
-                'bank_account_id' => $bankAccount->id,
-            ]);
-            $terminService->recordPayment($partialTermin, [
-                'type' => TerminService::PAYMENT_DP,
-                'amount' => round((float) $partialTermin->amount / 2, 2),
-                'bank_account_id' => $bankAccount->id,
-                'paid_date' => now()->toDateString(),
-            ], $this->finance);
+        if ($bankAccount && $dpTermin) {
+            $invoices = app(InvoiceService::class);
+            $invoice = $invoices->issueForTermin($dpTermin, ['due_date' => now()->subDays(5)->toDateString()], $this->marketing);
+            $invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-dp', $this->marketing);
+            $invoices->verify($invoice, ['bank_account_id' => $bankAccount->id, 'paid_date' => now()->subDays(4)->toDateString()], $this->finance);
         }
     }
 

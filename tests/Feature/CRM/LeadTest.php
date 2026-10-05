@@ -6,9 +6,11 @@ use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\Notification;
 use App\Models\Project;
+use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Services\LeadService;
+use App\Services\ProjectService;
 use Database\Seeders\LeadSourceSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\Route;
@@ -215,40 +217,40 @@ test('the client approving the RAB Proyek on its link closes the lead; the CEO t
     $this->post(route('public.quotation.approve', $link->token), ['agree' => true])->assertSessionHasNoErrors();
 
     $lead->refresh();
-    $log = $lead->pipelineLogs()->sole();
+    $opening = ProjectOpening::sole();
     expect($lead->status)->toBe(LeadStatus::Closing)
-        ->and($log->changed_by)->toBe($marketing->id)
+        ->and($lead->pipelineLogs()->sole()->changed_by)->toBe($marketing->id)
         ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved)
+        ->and($opening->status)->toBe(ProjectOpening::STATUS_WAITING)
         ->and(Project::where('lead_id', $lead->id)->exists())->toBeFalse()
-        ->and(Notification::where('user_id', $ceo->id)->where('type', 'deal_confirmed')->exists())->toBeTrue();
+        ->and(Notification::where('user_id', $ceo->id)->where('type', 'project_opening_pending')->exists())->toBeTrue()
+        ->and(Notification::where('user_id', $pm->id)->where('type', 'deal_confirmed')->exists())->toBeTrue();
 
-    $this->actingAs($ceo)->post(route('projects.store'), [
-        'lead_id' => $lead->id,
+    $this->actingAs($ceo)->post(route('projects.openings.open', $opening), [
         'name' => 'Proyek Budi Santoso',
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
-        'contract_value' => 200_000_000,
     ])->assertSessionHasNoErrors();
 
-    expect(Project::where('lead_id', $lead->id)->sole()->status->value)->toBe('ACTIVE');
+    $project = Project::where('lead_id', $lead->id)->sole();
+    expect($project->status->value)->toBe('ACTIVE')
+        ->and($project->quotation_id)->toBe($quotation->id)
+        ->and((float) $project->contract_value)->toBe((float) $quotation->total_amount);
 });
 
-test('a project can only be opened after the client approved the RAB Proyek', function (?string $quotationStatus) {
-    $ceo = User::factory()->create();
-    $ceo->assignRole('CEO');
+test('a project is never created before the client approved the RAB Proyek', function (?string $quotationStatus) {
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
 
     if ($quotationStatus) {
         Quotation::factory()->create(['lead_id' => $lead->id, 'status' => $quotationStatus]);
     }
 
-    $this->actingAs($ceo)->post(route('projects.store'), [
-        'lead_id' => $lead->id,
+    expect(fn () => app(ProjectService::class)->createFromLead($lead, [
         'name' => 'Proyek Test',
         'pm_id' => User::factory()->create()->id,
         'start_date' => now()->toDateString(),
         'contract_value' => 200_000_000,
-    ])->assertSessionHasErrors('lead_id');
+    ]))->toThrow(ValidationException::class);
 
     expect(Project::where('lead_id', $lead->id)->exists())->toBeFalse();
 })->with([
@@ -261,7 +263,7 @@ test('a project can only be opened after the client approved the RAB Proyek', fu
     'sent, not approved by the client yet' => ['SENT_TO_CLIENT'],
 ]);
 
-test('opening a project notifies the project PM, CEO, Finance and Logistics', function () {
+test('opening a project notifies the PM, CEO, Finance, Logistics and the lead Marketing', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
     $pm = User::factory()->create();
@@ -271,27 +273,24 @@ test('opening a project notifies the project PM, CEO, Finance and Logistics', fu
         $user->assignRole($role);
 
         return $user;
-    })->push($pm);
-    $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value]);
-    Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
+    })->push($pm, $marketing);
+    $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value, 'assigned_to' => $marketing->id]);
+    $quotation = Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
 
-    $this->actingAs($recipients[0])->post(route('projects.store'), [
-        'lead_id' => $lead->id,
+    $this->actingAs($recipients[0])->post(route('projects.openings.open', openingFor($quotation)), [
         'name' => 'Proyek Notif',
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
-        'contract_value' => 200_000_000,
     ])->assertSessionHasNoErrors();
 
     foreach ($recipients as $user) {
         expect(Notification::where('user_id', $user->id)->where('type', 'project_opened')->count())->toBe(1);
     }
-
-    expect(Notification::where('user_id', $marketing->id)->exists())->toBeFalse();
 });
 
-test('Marketing can no longer confirm a deal by hand (Sprint 12 Sub 5)', function () {
-    expect(Route::has('crm.leads.confirmDeal'))->toBeFalse();
+test('Marketing can no longer confirm a deal by hand, nor anyone create a project directly', function () {
+    expect(Route::has('crm.leads.confirmDeal'))->toBeFalse()
+        ->and(Route::has('projects.store'))->toBeFalse();
 });
 
 test('follow-up reminders go to the assigned marketing once per day', function () {

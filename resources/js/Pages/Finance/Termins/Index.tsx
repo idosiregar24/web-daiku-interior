@@ -31,8 +31,9 @@ interface TerminIndexProps {
     bankAccounts: BankAccountOption[];
 }
 
-function formatDate(value: string) {
-    return new Date(value).toLocaleDateString('id-ID');
+function formatDate(value: string | null) {
+    // Null = a Sprint 12 scheme termin waiting for its milestone / the project's completion.
+    return value ? new Date(value).toLocaleDateString('id-ID') : 'Menunggu pemicu';
 }
 
 /**
@@ -123,7 +124,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                         <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                             <td className="px-4 py-3 font-medium whitespace-nowrap">{termin.project?.name ?? '—'}</td>
                                             <td className="px-4 py-3 text-daiku-muted">
-                                                #{termin.termin_number} ({termin.percentage}%)
+                                                #{termin.termin_number} ({Number(termin.percentage).toLocaleString('id-ID')}%)
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">{termin.bank_account?.label ?? '—'}</td>
                                             <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>

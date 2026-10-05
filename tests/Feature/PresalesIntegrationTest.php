@@ -7,6 +7,7 @@ use App\Models\Design;
 use App\Models\Lead;
 use App\Models\LeadSource;
 use App\Models\Project;
+use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
@@ -43,13 +44,14 @@ function presalesClientApprovesAndProjectOpens(TestCase $test, Quotation $quotat
     $test->get(route('public.quotation.show', $token))->assertOk();
     $test->post(route('public.quotation.approve', $token), ['agree' => true])->assertSessionHasNoErrors();
 
-    $test->actingAs($ceo)->post(route('projects.store'), [
-        'lead_id' => $lead->id,
+    $opening = ProjectOpening::where('quotation_id', $quotation->id)->sole();
+    $test->actingAs($ceo)->post(route('projects.openings.open', $opening), [
         'name' => "Proyek {$lead->client_name}",
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
-        'contract_value' => $value,
     ])->assertSessionHasNoErrors();
+
+    expect((float) Project::where('lead_id', $lead->id)->sole()->contract_value)->toBe((float) $value);
 }
 
 /**

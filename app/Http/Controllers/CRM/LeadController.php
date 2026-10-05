@@ -79,8 +79,6 @@ class LeadController extends Controller
         $canManage = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
         $canViewPipelineLog = $user->hasAnyRole(['CEO', 'MARKETING', 'PM', 'SUPERADMIN']);
         $canOpenDesign = $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']);
-        // Sprint 12 Sub 5 — "Buka Proyek" after the client approved the RAB Proyek (`projects.store` roles; Sub 7: CEO pop-up).
-        $canOpenProject = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
 
         $lead->load([
             'assignee:id,name',
@@ -120,13 +118,11 @@ class LeadController extends Controller
                 : null,
             'canManage' => $canManage,
             'canOpenDesign' => $canOpenDesign,
-            'canOpenProject' => $canOpenProject,
             // Decision #2: from this FU number on, suggest marking the lead Lost.
             'suggestLostFrom' => LeadFollowUp::SUGGEST_LOST_FROM,
             // Option lists for the edit/deal/design dialogs — only sent to
             // roles that can open them.
             'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
-            'projectManagers' => $canOpenProject ? User::role('PM')->orderBy('name')->get(['id', 'name']) : [],
             'designers' => $canOpenDesign ? User::role('DESIGNER')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canManage ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
             'leadCategories' => $canManage ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],

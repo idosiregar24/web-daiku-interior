@@ -436,7 +436,7 @@ export default function QuotationShow({
                 <IssueInvoiceDialog
                     open={issueOpen}
                     onOpenChange={setIssueOpen}
-                    quotationId={quotation.id}
+                    action={route('quotations.invoices.store', { quotation: quotation.id })}
                     label={quotation.type === 'SURVEY' ? 'Jasa Survey' : 'Jasa Desain'}
                     amount={quotation.total_amount}
                 />

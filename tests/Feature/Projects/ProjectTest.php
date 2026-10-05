@@ -47,37 +47,23 @@ test('field staff project index is scoped to projects with their own assigned ta
         );
 });
 
-test('only PM and CEO can create a project', function () {
-    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
-    Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
+test('only the CEO opens a project (Sprint 12 #19)', function (string $role, bool $allowed) {
+    $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value]);
+    $opening = openingFor(Quotation::factory()->approved()->create(['lead_id' => $lead->id]));
     $pm = User::factory()->create();
     $pm->assignRole('PM');
+    $user = User::factory()->create();
+    $user->assignRole($role);
 
-    $response = $this->actingAs($pm)->post(route('projects.store'), [
-        'lead_id' => $lead->id,
+    $response = $this->actingAs($user)->post(route('projects.openings.open', $opening), [
         'name' => 'Proyek Rumah Budi',
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
-        'contract_value' => 150_000_000,
     ]);
 
-    $response->assertRedirect();
-    expect(Project::where('lead_id', $lead->id)->exists())->toBeTrue();
-});
-
-test('roles without write access cannot create a project', function () {
-    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
-    $marketing = User::factory()->create();
-    $marketing->assignRole('MARKETING');
-
-    $this->actingAs($marketing)->post(route('projects.store'), [
-        'lead_id' => $lead->id,
-        'name' => 'Proyek Rumah Budi',
-        'pm_id' => $marketing->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 150_000_000,
-    ])->assertForbidden();
-});
+    $allowed ? $response->assertRedirect() : $response->assertForbidden();
+    expect(Project::where('lead_id', $lead->id)->exists())->toBe($allowed);
+})->with([['CEO', true], ['PM', false], ['MARKETING', false], ['FINANCE', false]]);
 
 test('project service refuses to create a project from a lead that is not DEAL_DESAIN or CLOSING', function () {
     $lead = Lead::factory()->create(['status' => LeadStatus::FollowUp->value]);

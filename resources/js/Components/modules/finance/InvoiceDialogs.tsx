@@ -91,20 +91,21 @@ function describe(invoice: InvoiceRef) {
     );
 }
 
-// ── Terbitkan (Marketing, from an approved service RAB) ──────────────────
+// ── Terbitkan (Marketing — approved service RAB or project termin) ───────
 
 const issueSchema = z.object({ due_date: z.date({ message: 'Tanggal jatuh tempo wajib diisi' }) });
 
 export function IssueInvoiceDialog({
     open,
     onOpenChange,
-    quotationId,
+    action,
     label,
     amount,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    quotationId: number;
+    /** `quotations.invoices.store` (service RAB) or `finance.termins.invoices.store` (project termin). */
+    action: string;
     label: string;
     amount: string;
 }) {
@@ -119,12 +120,10 @@ export function IssueInvoiceDialog({
             open={open}
             onOpenChange={onOpenChange}
             title={`Terbitkan Invoice ${label}`}
-            description={`Tagihan 100% sebesar ${formatRupiah(amount)}. PDF-nya bisa dikirim ke klien setelah terbit.`}
+            description={`Tagihan sebesar ${formatRupiah(amount)}. PDF-nya bisa dikirim ke klien setelah terbit.`}
             form={form}
             onSubmit={(values) =>
-                post(route('quotations.invoices.store', { quotation: quotationId }), { due_date: format(values.due_date, 'yyyy-MM-dd') }, form, () =>
-                    onOpenChange(false),
-                )
+                post(action, { due_date: format(values.due_date, 'yyyy-MM-dd') }, form, () => onOpenChange(false))
             }
             submitLabel="Terbitkan Invoice"
         >

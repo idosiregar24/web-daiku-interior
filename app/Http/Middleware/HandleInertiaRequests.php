@@ -4,7 +4,9 @@ namespace App\Http\Middleware;
 
 use App\Models\Employee;
 use App\Models\Notification;
+use App\Models\ProjectOpening;
 use App\Models\SiteSetting;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -76,9 +78,29 @@ class HandleInertiaRequests extends Middleware
             'notifications' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->latest('created_at')->limit(10)->get()
                 : [],
+            // Sprint 12 #19 — the CEO's "Buka Proyek" pop-up, on every page.
+            'pendingProjectOpenings' => fn () => $user?->hasAnyRole(['CEO', 'SUPERADMIN'])
+                ? $this->pendingOpenings()
+                : null,
             'unreadNotificationsCount' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->count()
                 : 0,
+        ];
+    }
+
+    /** @return array{openings: mixed, projectManagers: mixed, assistantPms: mixed}|null */
+    private function pendingOpenings(): ?array
+    {
+        $openings = ProjectOpening::query()
+            ->waiting()
+            ->with(['lead:id,client_name', 'quotation:id,total_amount,version,client_approved_at'])
+            ->oldest()
+            ->get();
+
+        return $openings->isEmpty() ? null : [
+            'openings' => $openings,
+            'projectManagers' => User::role('PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'assistantPms' => User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
         ];
     }
 }

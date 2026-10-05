@@ -5,7 +5,6 @@ import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { OpenProjectDialog } from '@/Components/modules/crm/OpenProjectDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
@@ -61,12 +60,9 @@ interface LeadShowProps {
     pipelineLogs: PipelineLogEntry[] | null;
     canManage: boolean;
     canOpenDesign: boolean;
-    /** CEO / PM — "Buka Proyek" once the client approved the RAB Proyek (Sprint 12 Sub 5). */
-    canOpenProject: boolean;
     /** LeadFollowUp::SUGGEST_LOST_FROM (Sprint 12 #2). */
     suggestLostFrom: number;
     marketers: Pick<User, 'id' | 'name'>[];
-    projectManagers: Pick<User, 'id' | 'name'>[];
     designers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
@@ -82,17 +78,14 @@ export default function LeadShow({
     pipelineLogs,
     canManage,
     canOpenDesign,
-    canOpenProject,
     suggestLostFrom,
     marketers,
-    projectManagers,
     designers,
     leadSources,
     leadCategories,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [projectOpen, setProjectOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [requestOpen, setRequestOpen] = useState(false);
@@ -310,12 +303,8 @@ export default function LeadShow({
                                 </>
                             ) : lead.quotation?.status === 'CLIENT_APPROVED' ? (
                                 <>
-                                    RAB Proyek disetujui klien {formatDateTime(lead.quotation.client_approved_at)} — proyek belum dibuka.
-                                    {canOpenProject && (
-                                        <Button size="sm" className="mt-1.5 flex" onClick={() => setProjectOpen(true)}>
-                                            Buka Proyek
-                                        </Button>
-                                    )}
+                                    RAB Proyek disetujui klien {formatDateTime(lead.quotation.client_approved_at)} — menunggu CEO membuka
+                                    proyeknya (Proyek → Menunggu Dibuka).
                                 </>
                             ) : (
                                 'Dibuka setelah klien menyetujui RAB Proyek lewat link penawaran.'
@@ -389,15 +378,6 @@ export default function LeadShow({
                         />
                     )}
                 </>
-            )}
-            {canOpenProject && lead.quotation && (
-                <OpenProjectDialog
-                    open={projectOpen}
-                    onOpenChange={setProjectOpen}
-                    lead={lead}
-                    quotation={lead.quotation}
-                    projectManagers={projectManagers}
-                />
             )}
             {canOpenDesign && (
                 <OpenDesignDialog open={designOpen} onOpenChange={setDesignOpen} lead={lead} designers={designers} />

@@ -1,5 +1,6 @@
 import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import { CommandMenu } from '@/Components/shared/CommandMenu';
+import { ProjectOpeningPrompt } from '@/Components/modules/projects/ProjectOpeningPrompt';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
 import {
@@ -964,6 +965,8 @@ export default function AppLayout({
     return (
         <div className="flex h-screen overflow-hidden bg-daiku-gray">
             <Toaster position="top-right" richColors closeButton />
+            {/* Sprint 12 #19 — CEO only; renders nothing when no RAB Proyek waits. */}
+            <ProjectOpeningPrompt />
             <aside className="hidden h-full w-64 shrink-0 flex-col lg:flex">
                 <SidebarContents />
             </aside>

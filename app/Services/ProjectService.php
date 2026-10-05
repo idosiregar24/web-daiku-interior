@@ -12,6 +12,7 @@ use App\Models\Lead;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
+use App\Models\ProjectOpening;
 use App\Models\Termin;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -34,15 +35,67 @@ class ProjectService
     public function __construct(
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
+        private TerminService $terminService,
     ) {}
 
     /**
-     * PRD §4.4: "Project hanya bisa dibuat dari Lead yang berstatus DEAL".
-     * Called by `ProjectController::store()` — since Sprint 12 Sub 5 the
-     * "Buka Proyek" dialog on the lead page, once the client approved the
-     * RAB Proyek on its link (the lead is CLOSING by then). Sub 7 replaces
-     * it with the CEO's pop-up. The "one project per lead" /
-     * status-eligibility rules live here.
+     * Sprint 12 decision #19 — the CEO's "Buka Proyek": in one transaction
+     * the project (RAB Fix = the approved quotation, contract value = its
+     * total, PM, optional Asisten PM, start date) and its termins copied
+     * from the payment scheme the client approved. The only way a project
+     * is created since Sprint 12 Sub 7 (no manual project or termin route).
+     *
+     * @param  array{name: string, pm_id: int|string, assistant_pm_id?: int|string|null, start_date: string}  $data
+     */
+    public function openFromQuotation(ProjectOpening $opening, array $data, User $actor): Project
+    {
+        return DB::transaction(function () use ($opening, $data, $actor) {
+            $opening = ProjectOpening::whereKey($opening->getKey())->lockForUpdate()->firstOrFail();
+
+            if ($opening->status !== ProjectOpening::STATUS_WAITING) {
+                throw ValidationException::withMessages(['opening' => 'Proyek ini sudah dibuka.']);
+            }
+
+            $quotation = $opening->quotation()->with('paymentTerms')->firstOrFail();
+            $lead = $opening->lead()->firstOrFail();
+
+            $project = $this->createFromLead($lead->setRelation('quotation', $quotation), [
+                'name' => $data['name'],
+                'pm_id' => $data['pm_id'],
+                'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
+                'start_date' => $data['start_date'],
+                'contract_value' => $quotation->total_amount,
+                'quotation_id' => $quotation->id,
+            ]);
+
+            $termins = $this->terminService->createFromPaymentTerms($project, $quotation);
+
+            $opening->update([
+                'status' => ProjectOpening::STATUS_OPENED,
+                'opened_by' => $actor->id,
+                'opened_at' => now(),
+                'project_id' => $project->id,
+            ]);
+
+            $this->auditLogService->record('project.opened', $project, null, [
+                'quotation_id' => $quotation->id,
+                'quotation_version' => $quotation->version,
+                'pm_id' => $project->pm_id,
+                'assistant_pm_id' => $project->assistant_pm_id,
+                'start_date' => $data['start_date'],
+                'contract_value' => $project->contract_value,
+                'termins' => $termins->map(fn ($termin) => $termin->only(['termin_number', 'percentage', 'amount', 'trigger', 'scheduled_date']))->all(),
+            ], $actor);
+
+            return $project;
+        });
+    }
+
+    /**
+     * PRD §4.4: "Project hanya bisa dibuat dari Lead yang berstatus DEAL"
+     * — the building block of openFromQuotation() (Sprint 12: no route of
+     * its own any more). The "one project per lead" / status-eligibility
+     * rules live here.
      */
     public function createFromLead(Lead $lead, array $data): Project
     {
@@ -68,17 +121,23 @@ class ProjectService
 
         $project = Project::create([
             'lead_id' => $lead->id,
+            'quotation_id' => $data['quotation_id'] ?? null,
             'name' => $data['name'],
             'pm_id' => $data['pm_id'],
+            'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
             'start_date' => $data['start_date'],
             'contract_value' => $data['contract_value'],
         ]);
 
         // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" — the
-        // project's own PM plus the divisions that act on a new project
-        // (termin scheduling, material planning).
+        // project's own PM (and Asisten PM) plus the divisions that act on
+        // a new project (termins, material planning) and the lead's
+        // Marketing, who invoices the termins (Sprint 12 #20).
         $this->notificationService->notifyMany(
-            User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()->push($project->pm),
+            User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()
+                ->push($project->pm, $project->assistantPm, $lead->assignee)
+                ->filter()
+                ->unique('id'),
             'project_opened',
             'Proyek Dibuka',
             "Proyek \"{$project->name}\" untuk \"{$lead->client_name}\" dibuka dengan PM {$project->pm->name}.",

@@ -21,12 +21,12 @@ import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
 import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
-import { TerminFormDialog } from '@/Components/modules/projects/TerminFormDialog';
+import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import AppLayout from '@/Layouts/AppLayout';
 import type {
-    BankAccount,
     FinanceAllocationLine,
+    Invoice,
     Material,
     MaterialCategory,
     Milestone,
@@ -55,6 +55,7 @@ import {
     PieChart,
     Plus,
     Receipt,
+    FileText,
     Wallet,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -80,9 +81,11 @@ interface ProjectShowProps {
     canManageProgressLogs: boolean;
     termins: Termin[];
     canViewTermins: boolean;
-    canCreateTermins: boolean;
+    canViewFinanceSummary: boolean;
+    canIssueTerminInvoices: boolean;
     canMarkTerminPaid: boolean;
-    bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
+    /** Sprint 12 #21 — RAB Fix + invoices (null without access). */
+    documents: ProjectDocuments | null;
     allocationBreakdown: FinanceAllocationLine[];
     supplierDebts: SupplierDebt[];
     projectMaterials: ProjectMaterial[];
@@ -93,6 +96,11 @@ interface ProjectShowProps {
     vendors: VendorOption[];
     units: UnitOption[];
     materialCategories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
+}
+
+interface ProjectDocuments {
+    quotation: { id: number; version: number; total_amount: string; client_approved_at: string | null } | null;
+    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status' | 'paid_date'>[];
 }
 
 function formatDate(value: string | null) {
@@ -482,28 +490,45 @@ function ProgressTab({
     );
 }
 
+/** Sprint 12 #12 — when a scheme termin falls due (App\Enums\PaymentTermTrigger). */
+function terminTrigger(termin: Termin): string {
+    switch (termin.trigger) {
+        case 'DI_MUKA':
+            return 'Di muka';
+        case 'TANGGAL':
+            return `Tanggal ${formatDate(termin.scheduled_date)}`;
+        case 'MILESTONE':
+            return `Milestone: ${termin.milestone_name ?? termin.milestone?.name ?? '—'}`;
+        case 'PROYEK_SELESAI':
+            return 'Proyek selesai';
+        default:
+            // Pre-Sprint-12 manual termin — always a Saturday (PRD §6.4).
+            return `${termin.milestone?.name ? `${termin.milestone.name} · ` : ''}Sabtu ${formatDate(termin.scheduled_date)}`;
+    }
+}
+
 function FinanceTab({
     project,
-    milestones,
     termins,
     canView,
-    canCreate,
+    canViewSummary,
+    canIssueInvoices,
     canMarkPaid,
-    bankAccounts,
     allocationBreakdown,
     supplierDebts,
 }: {
     project: Project;
-    milestones: Milestone[];
     termins: Termin[];
     canView: boolean;
-    canCreate: boolean;
+    /** Allocation / supplier debts — never Marketing (Sprint 12 #30). */
+    canViewSummary: boolean;
+    /** Marketing — "Terbitkan Invoice" per termin (Sprint 12 #20). */
+    canIssueInvoices: boolean;
     canMarkPaid: boolean;
-    bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
     allocationBreakdown: FinanceAllocationLine[];
     supplierDebts: SupplierDebt[];
 }) {
-    const [dialogOpen, setDialogOpen] = useState(false);
+    const [invoicing, setInvoicing] = useState<Termin | null>(null);
 
     if (!canView) {
         return (
@@ -518,96 +543,177 @@ function FinanceTab({
 
     return (
         <div className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-                <AllocationCard project={project} lines={allocationBreakdown} />
-                <SupplierDebtCard debts={supplierDebts} />
-            </div>
+            {canViewSummary && (
+                <div className="grid gap-6 lg:grid-cols-2">
+                    <AllocationCard project={project} lines={allocationBreakdown} />
+                    <SupplierDebtCard debts={supplierDebts} />
+                </div>
+            )}
 
             <div>
-            <div className="mb-3 flex items-center justify-between gap-4">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Wallet className="size-4 text-muted-foreground" />
-                    Termin
-                </h2>
-                {canCreate && (
-                    <Button size="sm" onClick={() => setDialogOpen(true)}>
-                        <Plus className="size-4" />
-                        Jadwalkan Termin
-                    </Button>
+                <div className="mb-3 flex items-center justify-between gap-4">
+                    <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Wallet className="size-4 text-muted-foreground" />
+                        Termin
+                    </h2>
+                    {project.quotation_id && <p className="text-xs text-daiku-muted">Dari skema pembayaran RAB yang disetujui klien.</p>}
+                </div>
+
+                {termins.length === 0 ? (
+                    <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada termin." />
+                ) : (
+                    <TableCard>
+                        <table className="w-full min-w-[56rem] text-sm">
+                            <thead className={TABLE_HEAD_CLASS}>
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Termin</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Pemicu</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Persentase</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Nominal</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Sisa</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                    <th className="w-52 px-4 py-2.5" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {termins.map((termin) => (
+                                    <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
+                                        <td className="px-4 py-3 font-medium">#{termin.termin_number}</td>
+                                        <td className="px-4 py-3 text-daiku-muted">{terminTrigger(termin)}</td>
+                                        <td className="px-4 py-3 text-right text-daiku-muted">{Number(termin.percentage).toLocaleString('id-ID')}%</td>
+                                        <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
+                                        <td className="px-4 py-3 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-wrap gap-1">
+                                                <StatusChip status={termin.status} />
+                                                {Number(termin.dp_amount) + Number(termin.pelunasan) > 0 && Number(termin.sisa_piutang) > 0 && (
+                                                    <StatusChip status="PARTIAL" label="Dibayar Sebagian" />
+                                                )}
+                                            </div>
+                                            {termin.invoice && (
+                                                <p className="mt-1 text-xs text-daiku-muted">
+                                                    {termin.invoice.number} · <StatusChip status={termin.invoice.status} className="align-middle" />
+                                                </p>
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex flex-wrap items-center justify-end gap-2">
+                                                {termin.invoice_id ? (
+                                                    <Button variant="outline" size="icon-sm" asChild>
+                                                        <a href={route('finance.invoices.pdf', { invoice: termin.invoice_id })} target="_blank" rel="noopener noreferrer" aria-label="PDF invoice">
+                                                            <FileDown className="size-4" />
+                                                        </a>
+                                                    </Button>
+                                                ) : (
+                                                    <Button variant="outline" size="icon-sm" asChild>
+                                                        <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer" aria-label="PDF termin">
+                                                            <FileDown className="size-4" />
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {canIssueInvoices && !termin.invoice_id && termin.status !== 'PAID' && (
+                                                    <Button size="sm" onClick={() => setInvoicing(termin)}>
+                                                        <Receipt className="size-4" />
+                                                        Terbitkan Invoice
+                                                    </Button>
+                                                )}
+                                                {canMarkPaid && !termin.invoice_id && termin.status !== 'PAID' && termin.bank_account_id !== null && (
+                                                    <Button variant="outline" size="sm" onClick={() => onMarkPaid(termin)}>
+                                                        Tandai Dibayar
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </TableCard>
                 )}
             </div>
 
-            {termins.length === 0 ? (
-                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada termin dijadwalkan." />
-            ) : (
-                <TableCard>
-                    <table className="w-full text-sm">
-                        <thead className={TABLE_HEAD_CLASS}>
-                            <tr>
-                                <th className="px-4 py-2.5 text-left font-semibold">Termin</th>
-                                <th className="px-4 py-2.5 text-left font-semibold">Milestone</th>
-                                <th className="px-4 py-2.5 text-left font-semibold">Jadwal (Sabtu)</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">Persentase</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">Nominal</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">DP</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">Pelunasan</th>
-                                <th className="px-4 py-2.5 text-right font-semibold">Sisa Piutang</th>
-                                <th className="px-4 py-2.5 text-left font-semibold">Status</th>
-                                <th className="w-40 px-4 py-2.5" />
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {termins.map((termin) => (
-                                <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
-                                    <td className="px-4 py-3 font-medium">#{termin.termin_number}</td>
-                                    <td className="px-4 py-3 text-daiku-muted">{termin.milestone?.name ?? '—'}</td>
-                                    <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
-                                    <td className="px-4 py-3 text-right text-daiku-muted">{termin.percentage}%</td>
-                                    <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
-                                    <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
-                                    <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>
-                                    <td className="px-4 py-3 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-wrap gap-1">
-                                            <StatusChip status={termin.status} />
-                                            {Number(termin.dp_amount) + Number(termin.pelunasan) > 0 &&
-                                                Number(termin.sisa_piutang) > 0 && (
-                                                    <StatusChip status="PARTIAL" label="Dibayar Sebagian" />
-                                                )}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <Button variant="outline" size="icon-sm" asChild>
-                                                <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
-                                                    <FileDown className="size-4" />
-                                                </a>
-                                            </Button>
-                                            {canMarkPaid && termin.status !== 'PAID' && termin.bank_account_id !== null && (
-                                                <Button variant="outline" size="sm" onClick={() => onMarkPaid(termin)}>
-                                                    Tandai Dibayar
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </TableCard>
-            )}
-
-            </div>
-
-            {canCreate && (
-                <TerminFormDialog
-                    open={dialogOpen}
-                    onOpenChange={setDialogOpen}
-                    projectId={project.id}
-                    milestones={milestones}
-                    bankAccounts={bankAccounts}
+            {invoicing && (
+                <IssueInvoiceDialog
+                    open
+                    onOpenChange={(open) => !open && setInvoicing(null)}
+                    action={route('finance.termins.invoices.store', { termin: invoicing.id })}
+                    label={`Termin ${invoicing.termin_number}`}
+                    amount={invoicing.sisa_piutang}
                 />
             )}
+        </div>
+    );
+}
+
+/** Sprint 12 #21 — "Finance menerima RAB Fix + invoice final": the approved RAB and every invoice of the deal. */
+function DocumentsTab({ documents }: { documents: ProjectDocuments | null }) {
+    if (!documents) {
+        return <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses ke dokumen proyek ini." />;
+    }
+
+    const { quotation, invoices } = documents;
+
+    return (
+        <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard title="RAB Fix" icon={FileText} description="Versi RAB Proyek yang disetujui klien.">
+                {quotation ? (
+                    <div className="space-y-3 text-sm">
+                        <p>
+                            <span className="font-medium text-daiku-dark">QUO-{String(quotation.id).padStart(5, '0')}</span> versi {quotation.version} ·{' '}
+                            {formatRupiah(quotation.total_amount)}
+                        </p>
+                        {quotation.client_approved_at && (
+                            <p className="text-daiku-muted">Disetujui klien {formatDateTime(quotation.client_approved_at)}.</p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={route('quotations.pdf', { quotation: quotation.id })} target="_blank" rel="noopener noreferrer">
+                                    <FileDown className="size-4" />
+                                    PDF
+                                </a>
+                            </Button>
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={route('quotations.excel', { quotation: quotation.id })}>
+                                    <FileDown className="size-4" />
+                                    Excel
+                                </a>
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-sm text-daiku-muted">RAB Fix belum tertaut — proyek ini dibuat sebelum Buka Proyek dari RAB.</p>
+                )}
+            </SectionCard>
+
+            <SectionCard title="Invoice" icon={Receipt} description="Semua invoice klien ini — jasa, DP, dan termin." flush>
+                {invoices.length === 0 ? (
+                    <EmptyState title="Belum ada invoice." />
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {invoices.map((invoice) => (
+                            <li key={invoice.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm sm:px-5">
+                                <span>
+                                    <span className="font-medium text-daiku-dark">{invoice.number}</span>{' '}
+                                    <span className="text-daiku-muted">
+                                        {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)}
+                                    </span>
+                                </span>
+                                <span className="flex items-center gap-2">
+                                    <StatusChip status={invoice.status} />
+                                    <a
+                                        href={route('finance.invoices.pdf', { invoice: invoice.id })}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
+                                    >
+                                        PDF
+                                    </a>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </SectionCard>
         </div>
     );
 }
@@ -682,6 +788,7 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
 
 /** Top-level tab → breadcrumb label. */
 const PROJECT_TAB_LABEL: Record<string, string> = {
+    documents: 'Dokumen',
     overview: 'Overview',
     milestone: 'Milestone',
     task: 'Task',
@@ -745,9 +852,10 @@ export default function ProjectShow({
     canManageProgressLogs,
     termins,
     canViewTermins,
-    canCreateTermins,
+    canViewFinanceSummary,
+    canIssueTerminInvoices,
     canMarkTerminPaid,
-    bankAccounts,
+    documents,
     allocationBreakdown,
     supplierDebts,
     projectMaterials,
@@ -823,6 +931,12 @@ export default function ProjectShow({
                         <Wallet />
                         Finance
                     </TabsTrigger>
+                    {documents && (
+                        <TabsTrigger value="documents">
+                            <FileText />
+                            Dokumen
+                        </TabsTrigger>
+                    )}
                     {canViewMaterials && (
                         <TabsTrigger value="material">
                             <Package />
@@ -862,16 +976,20 @@ export default function ProjectShow({
                 <TabsContent value="finance" className="mt-6">
                     <FinanceTab
                         project={project}
-                        milestones={milestones}
                         termins={termins}
                         canView={canViewTermins}
-                        canCreate={canCreateTermins}
+                        canViewSummary={canViewFinanceSummary}
+                        canIssueInvoices={canIssueTerminInvoices}
                         canMarkPaid={canMarkTerminPaid}
-                        bankAccounts={bankAccounts}
                         allocationBreakdown={allocationBreakdown}
                         supplierDebts={supplierDebts}
                     />
                 </TabsContent>
+                {documents && (
+                    <TabsContent value="documents" className="mt-6">
+                        <DocumentsTab documents={documents} />
+                    </TabsContent>
+                )}
                 {canViewMaterials && (
                     <TabsContent value="material" className="mt-6">
                         <ProjectMaterialsPanel

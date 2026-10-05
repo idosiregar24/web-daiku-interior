@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentTermTrigger;
 use App\Enums\TerminStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,6 +17,9 @@ class Termin extends Model
     protected $fillable = [
         'project_id',
         'milestone_id',
+        'payment_term_id',
+        'trigger',
+        'milestone_name',
         'termin_number',
         'percentage',
         'amount',
@@ -25,6 +29,8 @@ class Termin extends Model
         'status',
         'bank_account_id',
         'invoice_url',
+        'invoice_id',
+        'invoice_reminded_at',
         'paid_at',
     ];
 
@@ -32,6 +38,9 @@ class Termin extends Model
     {
         return [
             'status' => TerminStatus::class,
+            'trigger' => PaymentTermTrigger::class,
+            'percentage' => 'decimal:2',
+            'invoice_reminded_at' => 'datetime',
             'amount' => 'decimal:2',
             'dp_amount' => 'decimal:2',
             'pelunasan' => 'decimal:2',
@@ -50,6 +59,12 @@ class Termin extends Model
     public function milestone(): BelongsTo
     {
         return $this->belongsTo(Milestone::class);
+    }
+
+    /** Sprint 12 #20 — the invoice Marketing issued for this termin. */
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class);
     }
 
     public function bankAccount(): BelongsTo

@@ -104,6 +104,8 @@ export function TerminCalendar({ termins, month, canMarkPaid, bankAccounts }: Te
         const map = new Map<string, Termin[]>();
 
         for (const termin of termins) {
+            // A milestone- / completion-triggered termin has no date yet (Sprint 12) — not on the calendar.
+            if (!termin.scheduled_date) continue;
             const key = termin.scheduled_date.slice(0, 10);
             if (!map.has(key)) map.set(key, []);
             map.get(key)!.push(termin);
@@ -112,7 +114,7 @@ export function TerminCalendar({ termins, month, canMarkPaid, bankAccounts }: Te
         return map;
     }, [termins]);
 
-    const monthTermins = termins.filter((termin) => isSameMonth(new Date(termin.scheduled_date), monthDate));
+    const monthTermins = termins.filter((termin) => termin.scheduled_date !== null && isSameMonth(new Date(termin.scheduled_date), monthDate));
     const monthTotal = monthTermins.reduce((sum, termin) => sum + Number(termin.amount), 0);
     const monthOutstanding = monthTermins.reduce((sum, termin) => sum + Number(termin.sisa_piutang), 0);
 

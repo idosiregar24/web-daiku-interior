@@ -12,6 +12,7 @@ use App\Models\BankAccount;
 use App\Models\Invoice;
 use App\Models\Quotation;
 use App\Models\SiteSetting;
+use App\Models\Termin;
 use App\Services\InvoiceService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -43,6 +44,13 @@ class InvoiceController extends Controller
         $invoice = $service->issueForQuotation($quotation, $request->validated(), $request->user());
 
         return back()->with('success', "Invoice {$invoice->number} diterbitkan — kirim ke klien bersama PDF-nya.");
+    }
+
+    public function storeForTermin(IssueInvoiceRequest $request, Termin $termin, InvoiceService $service): RedirectResponse
+    {
+        $invoice = $service->issueForTermin($termin, $request->validated(), $request->user());
+
+        return back()->with('success', "Invoice {$invoice->number} diterbitkan untuk termin {$termin->termin_number}.");
     }
 
     public function submitProof(SubmitInvoiceProofRequest $request, Invoice $invoice, InvoiceService $service): RedirectResponse

@@ -4,14 +4,13 @@ namespace App\Http\Controllers\Projects;
 
 use App\Enums\ProjectStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Projects\StoreProjectRequest;
 use App\Http\Requests\Projects\UpdateProjectRequest;
-use App\Models\BankAccount;
-use App\Models\Lead;
+use App\Models\Invoice;
 use App\Models\Material;
 use App\Models\MaterialCategory;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
+use App\Models\ProjectOpening;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
@@ -47,8 +46,19 @@ class ProjectController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // Sprint 12 #19 — approved RAB Proyek waiting for the CEO's "Buka Proyek".
+        $seesOpenings = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
+        $canOpen = $user->hasAnyRole(['CEO', 'SUPERADMIN']);
+
         return Inertia::render('Projects/Index', [
             'projects' => $projects,
+            'pendingOpenings' => $seesOpenings ? ProjectOpening::query()
+                ->waiting()
+                ->with(['lead:id,client_name', 'quotation:id,total_amount,version,client_approved_at'])
+                ->oldest()
+                ->get() : [],
+            'canOpenProjects' => $canOpen,
+            'assistantPms' => $canOpen ? User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
             'filters' => $request->only(['status', 'pm_id']),
             'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
         ]);
@@ -82,12 +92,17 @@ class ProjectController extends Controller
         // PRD §7.1 "Finance – Termin" row: CEO/FIN read, PM create-only —
         // PM sees what they scheduled through this project-scoped prop
         // rather than the Finance-only global list (finance.termins.index).
-        $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
-        $canCreateTermins = $user->hasAnyRole(['PM', 'SUPERADMIN']);
+        // Sprint 12 #30: Marketing sees termins / invoices / payment status
+        // and #20 issues the termin invoices; termins are no longer created
+        // by hand (they come from the approved scheme, Sub 7).
+        $canViewTermins = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'MARKETING', 'SUPERADMIN']);
+        $canIssueTerminInvoices = $user->hasAnyRole(['MARKETING', 'SUPERADMIN']);
         $canMarkTerminPaid = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
         // Budget allocation + outstanding supplier debts (PRD §4.7) follow the
-        // "Finance – Transaction" row: CEO/PM/FIN read — same set as termins.
-        $canViewFinanceSummary = $canViewTermins;
+        // "Finance – Transaction" row: CEO/PM/FIN read — never Marketing (#30).
+        $canViewFinanceSummary = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
+        // Tab Dokumen — RAB Fix + invoices (Sprint 12 #21).
+        $canViewDocuments = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'MARKETING', 'SUPERADMIN']);
         // PRD §7.1 "Project Material": CEO/PM/LOG read, EST/PM/LOG create
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
@@ -99,7 +114,7 @@ class ProjectController extends Controller
         $canManageMaterials = $user->can('manageMaterials', $project) && $project->status !== ProjectStatus::Completed;
         $isLogistics = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
 
-        $project->load(['pm:id,name', 'lead:id,client_name']);
+        $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name']);
 
         return Inertia::render('Projects/Show', [
             'project' => $project,
@@ -138,12 +153,19 @@ class ProjectController extends Controller
             'canViewProgressLogs' => $canViewProgressLogs,
             'canManageProgressLogs' => $canManageProgressLogs,
             'termins' => $canViewTermins
-                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label'])->get()
+                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status'])->orderBy('termin_number')->get()
                 : [],
             'canViewTermins' => $canViewTermins,
-            'canCreateTermins' => $canCreateTermins,
+            'canIssueTerminInvoices' => $canIssueTerminInvoices,
+            'canViewFinanceSummary' => $canViewFinanceSummary,
             'canMarkTerminPaid' => $canMarkTerminPaid,
-            'bankAccounts' => $canCreateTermins ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']) : [],
+            'documents' => $canViewDocuments ? [
+                'quotation' => $project->quotation()->first(['id', 'type', 'version', 'total_amount', 'client_approved_at', 'status']),
+                'invoices' => Invoice::query()
+                    ->where(fn ($query) => $query->where('project_id', $project->id)->orWhere('lead_id', $project->lead_id))
+                    ->orderBy('issued_at')
+                    ->get(['id', 'number', 'type', 'amount', 'due_date', 'status', 'issued_at', 'paid_date']),
+            ] : null,
             'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
             'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => $canViewMaterials
@@ -176,15 +198,6 @@ class ProjectController extends Controller
             // Registering a custom leftover as a catalog item on return (Logistics, §5.5).
             'materialCategories' => $isLogistics && $canViewMaterials ? MaterialCategory::options() : [],
         ]);
-    }
-
-    public function store(StoreProjectRequest $request, ProjectService $service): RedirectResponse
-    {
-        $lead = Lead::findOrFail($request->validated('lead_id'));
-
-        $project = $service->createFromLead($lead, $request->validated());
-
-        return redirect()->route('projects.show', $project)->with('success', 'Proyek berhasil dibuat.');
     }
 
     /** Sprint 9 "Edit Proyek" — rules in ProjectService::update(), ownership in ProjectPolicy::update(). */

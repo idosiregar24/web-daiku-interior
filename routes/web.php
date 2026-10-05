@@ -43,6 +43,7 @@ use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\ProjectDashboardController;
+use App\Http\Controllers\Projects\ProjectOpeningController;
 use App\Http\Controllers\Projects\TaskController;
 use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\QA\QaDashboardController;
@@ -263,9 +264,11 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('show');
 
-    Route::post('/', [ProjectController::class, 'store'])
-        ->middleware('role:CEO|PM')
-        ->name('store');
+    // Sprint 12 #19 — the CEO's "Buka Proyek" (the only way a project is
+    // created since Sub 7; project + termins from the approved RAB).
+    Route::post('openings/{opening}/open', [ProjectOpeningController::class, 'open'])
+        ->middleware('role:CEO')
+        ->name('openings.open');
 
     // Sprint 9 "Edit Proyek": CEO any project, PM only their own
     // (ProjectPolicy::update()); PM re-assignment CEO-only (PRD §4.4).
@@ -373,11 +376,8 @@ Route::post('penalties/payments', [PenaltyController::class, 'recordPayment'])
     ->name('penalties.recordPayment');
 
 // Termin — PRD §4.4/§4.7/§6.4 / §7.1 "Finance – Termin" row: CEO/FIN read,
-// PM create-only (nested under project — see ProjectController::show()'s
-// `termins` prop), Finance read+update (mark paid).
-Route::post('projects/{project}/termins', [TerminController::class, 'store'])
-    ->middleware(['auth', 'role:PM'])
-    ->name('projects.termins.store');
+// Finance read+update (payments). Sprint 12 Sub 7: termins are created by
+// "Buka Proyek" from the approved scheme — no manual creation route.
 
 Route::middleware('auth')->prefix('finance')->name('finance.')->group(function () {
     // Sprint 12 decisions #20–#21 — Marketing issues every invoice and
@@ -405,6 +405,11 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
     Route::get('termins', [TerminController::class, 'index'])
         ->middleware('role:CEO|FINANCE')
         ->name('termins.index');
+
+    // Sprint 12 #20 — Marketing bills a project termin.
+    Route::post('termins/{termin}/invoices', [InvoiceController::class, 'storeForTermin'])
+        ->middleware('role:MARKETING')
+        ->name('termins.invoices.store');
 
     Route::get('termins/{termin}/pdf', [TerminController::class, 'exportPdf'])
         ->middleware('role:CEO|PM|FINANCE')

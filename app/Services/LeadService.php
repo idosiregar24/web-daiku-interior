@@ -233,8 +233,8 @@ class LeadService
      * approved the RAB Proyek on its public link — that is the deal. The
      * lead closes (CLOSING; the pipeline log is written in the name of the
      * Marketing user who sent the link) and its design goes into
-     * production (Sprint 9 decision #4). The project itself is opened
-     * afterwards from the lead page (Sub 7: CEO's "Buka Proyek" pop-up).
+     * production (Sprint 9 decision #4). The project itself is opened by
+     * the CEO (QueueProjectOpening → "Buka Proyek" pop-up, Sub 7).
      * A lead that is already closed or lost is left alone.
      */
     public function closeOnProjectRabApproval(Lead $lead, Quotation $quotation, User $sender): Lead
@@ -250,10 +250,10 @@ class LeadService
         $this->designService->syncWithPipeline($lead->id, DesignService::EVENT_DEAL_CONFIRMED);
 
         $this->notificationService->notifyMany(
-            User::role(['CEO', 'PM'])->where('is_active', true)->get(),
+            User::role('PM')->where('is_active', true)->get(),
             'deal_confirmed',
             'Deal — RAB Proyek Disetujui Klien',
-            "Klien \"{$lead->client_name}\" menyetujui RAB Proyek (".'Rp '.number_format((float) $quotation->total_amount, 0, ',', '.').') — buka proyeknya dari halaman lead.',
+            "Klien \"{$lead->client_name}\" menyetujui RAB Proyek (".'Rp '.number_format((float) $quotation->total_amount, 0, ',', '.').') — proyeknya menunggu dibuka CEO.',
             ['lead_id' => $lead->id, 'quotation_id' => $quotation->id],
         );
 

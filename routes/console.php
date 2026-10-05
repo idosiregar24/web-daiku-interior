@@ -10,6 +10,7 @@ use App\Jobs\MilestoneOverdueJob;
 use App\Jobs\OpenKpiPeriodJob;
 use App\Jobs\PruneNotificationsJob;
 use App\Jobs\TaskOverdueJob;
+use App\Jobs\TerminInvoiceReminderJob;
 use App\Jobs\TerminOverdueJob;
 use App\Jobs\TerminReminderJob;
 use Illuminate\Foundation\Inspiring;
@@ -48,6 +49,11 @@ Schedule::job(new DesignDelayJob)
 // Finance" — checked once each morning.
 Schedule::job(new TerminReminderJob)
     ->dailyAt('08:00')
+    ->timezone('Asia/Jakarta');
+
+// Sprint 12 #20 — Marketing is told when a scheme termin is due for invoicing.
+Schedule::job(new TerminInvoiceReminderJob)
+    ->dailyAt('07:30')
     ->timezone('Asia/Jakarta');
 
 // PRD §4.9 "Termin overdue → Finance, CEO".

@@ -10,16 +10,24 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
-import type { PaginatedData, Project, User } from '@/types';
+import type { PaginatedData, Project, ProjectOpening, User } from '@/types';
+import { OpenProjectDialog } from '@/Components/modules/projects/OpenProjectDialog';
+import { SectionCard } from '@/Components/shared/SectionCard';
+import { Button } from '@/Components/ui/button';
+import { useState } from 'react';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { AlertTriangle, FolderKanban } from 'lucide-react';
+import { AlertTriangle, FolderKanban, Hourglass } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
     filters: { status?: string; pm_id?: string };
     projectManagers: Pick<User, 'id' | 'name'>[];
+    /** Sprint 12 #19 — approved RAB Proyek waiting for "Buka Proyek" (CEO / PM see it, CEO opens). */
+    pendingOpenings: ProjectOpening[];
+    canOpenProjects: boolean;
+    assistantPms: Pick<User, 'id' | 'name'>[];
 }
 
 const STATUS_OPTIONS = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
@@ -64,7 +72,9 @@ const columns: ColumnDef<Project>[] = [
     },
 ];
 
-export default function ProjectIndex({ projects, filters, projectManagers }: ProjectIndexProps) {
+export default function ProjectIndex({ projects, filters, projectManagers, pendingOpenings, canOpenProjects, assistantPms }: ProjectIndexProps) {
+    const [opening, setOpening] = useState<ProjectOpening | null>(null);
+
     function applyFilter(next: Partial<typeof filters>) {
         router.get(
             route('projects.index'),
@@ -80,14 +90,56 @@ export default function ProjectIndex({ projects, filters, projectManagers }: Pro
             <PageHeader
                 title="Proyek"
                 icon={FolderKanban}
-                description="Daftar proyek eksekusi — dibuat otomatis saat lead dikonfirmasi Deal dari CRM."
+                description="Daftar proyek eksekusi — dibuka CEO setelah klien menyetujui RAB Proyek."
                 actions={<DashboardLinkButton routeName="projects.dashboard" label="Monitor Proyek" icon={AlertTriangle} roles={['CEO', 'PM', 'ASISTEN_PM']} />}
             />
+
+            {pendingOpenings.length > 0 && (
+                <SectionCard
+                    title="Menunggu Dibuka"
+                    icon={Hourglass}
+                    description="RAB Proyek yang sudah disetujui klien — CEO menentukan PM dan membuka proyeknya."
+                    className="mb-6"
+                    flush
+                >
+                    <ul className="divide-y divide-border">
+                        {pendingOpenings.map((pending) => (
+                            <li key={pending.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm sm:px-5">
+                                <span>
+                                    <span className="font-medium text-daiku-dark">{pending.lead.client_name}</span>{' '}
+                                    <span className="text-daiku-muted">
+                                        · {formatRupiah(pending.quotation.total_amount)}
+                                        {pending.quotation.client_approved_at &&
+                                            ` · disetujui ${new Date(pending.quotation.client_approved_at).toLocaleDateString('id-ID')}`}
+                                    </span>
+                                </span>
+                                {canOpenProjects ? (
+                                    <Button size="sm" onClick={() => setOpening(pending)}>
+                                        Buka Proyek
+                                    </Button>
+                                ) : (
+                                    <span className="text-xs text-daiku-muted">Menunggu CEO</span>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                </SectionCard>
+            )}
+
+            {opening && (
+                <OpenProjectDialog
+                    open
+                    onOpenChange={(open) => !open && setOpening(null)}
+                    opening={opening}
+                    projectManagers={projectManagers}
+                    assistantPms={assistantPms}
+                />
+            )}
 
             <DataTable
                 columns={columns}
                 data={projects.data}
-                emptyMessage="Belum ada proyek. Proyek baru muncul saat lead dikonfirmasi Deal dari CRM."
+                emptyMessage="Belum ada proyek. Proyek dibuka CEO setelah klien menyetujui RAB Proyek."
                 pagination={projects}
                 toolbar={
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

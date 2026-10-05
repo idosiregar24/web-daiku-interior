@@ -4,15 +4,22 @@ namespace App\Services;
 
 use App\Enums\FinanceCategory;
 use App\Enums\FinanceTransactionType;
+use App\Enums\InvoiceType;
 use App\Enums\MilestoneStatus;
+use App\Enums\PaymentTermTrigger;
+use App\Enums\ProjectStatus;
 use App\Enums\TerminStatus;
 use App\Models\BankAccount;
 use App\Models\FinanceTransaction;
+use App\Models\Invoice;
 use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\Quotation;
+use App\Models\QuotationPaymentTerm;
 use App\Models\Termin;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -30,6 +37,10 @@ class TerminService
     ) {}
 
     /**
+     * Legacy (pre-Sprint-12) manual scheduling — no route since Sprint 12
+     * Sub 7 (termins come from the approved scheme, createFromPaymentTerms());
+     * kept for projects created before and the demo data.
+     *
      * PRD §6.4: "PM membuat termin: bebas tentukan persentase. Validasi:
      * total semua persentase termin = 100%. scheduledDate otomatis =
      * Sabtu terdekat setelah milestone.targetDate" — enforced as a
@@ -38,9 +49,9 @@ class TerminService
      */
     public function create(Project $project, array $data): Termin
     {
-        $existingTotal = (int) $project->termins()->sum('percentage');
+        $existingTotal = (float) $project->termins()->sum('percentage');
 
-        if ($existingTotal + (int) $data['percentage'] > 100) {
+        if (round(($existingTotal + (float) $data['percentage']) * 100) > 10000) {
             throw ValidationException::withMessages([
                 'percentage' => "Total persentase termin proyek ini sudah {$existingTotal}% — tidak boleh melebihi 100%.",
             ]);
@@ -60,6 +71,36 @@ class TerminService
             'status' => TerminStatus::Scheduled->value,
             'bank_account_id' => $data['bank_account_id'] ?? null,
         ]);
+    }
+
+    /**
+     * Sprint 12 decision #12 — a project opened from an approved RAB gets
+     * one termin per row of the payment scheme the client approved: same
+     * percentage and amount (they already add up to the contract value),
+     * trigger copied. Dates: DI_MUKA → the project's start date, TANGGAL →
+     * its due date, MILESTONE / PROYEK_SELESAI → none until the work gets
+     * there (TerminInvoiceReminderJob tells Marketing when to invoice).
+     * The PRD's "always Saturday" rule stays with the legacy manual
+     * termins (create()).
+     *
+     * @return Collection<int, Termin>
+     */
+    public function createFromPaymentTerms(Project $project, Quotation $quotation): Collection
+    {
+        return $quotation->paymentTerms->values()->map(fn (QuotationPaymentTerm $term) => $project->termins()->create([
+            'payment_term_id' => $term->id,
+            'trigger' => $term->trigger->value,
+            'milestone_name' => $term->milestone_name,
+            'termin_number' => $term->sequence,
+            'percentage' => $term->percentage,
+            'amount' => $term->amount,
+            'scheduled_date' => match ($term->trigger) {
+                PaymentTermTrigger::DiMuka => $project->start_date?->toDateString(),
+                PaymentTermTrigger::Tanggal => $term->due_date?->toDateString(),
+                default => null,
+            },
+            'status' => TerminStatus::Scheduled->value,
+        ]));
     }
 
     /**
@@ -173,6 +214,15 @@ class TerminService
                 ]);
             }
 
+            // Sprint 12 #21 — an invoiced termin is paid by verifying its
+            // invoice (InvoiceService::verify() books the income), never
+            // directly — that would count the money twice.
+            if ($locked->invoice_id !== null) {
+                throw ValidationException::withMessages([
+                    'status' => 'Termin ini ditagih lewat invoice — verifikasi pembayarannya di menu Verifikasi Pembayaran.',
+                ]);
+            }
+
             $type = $data['type'];
             $sisaCents = $this->toCents($locked->sisa_piutang);
             $amountCents = $data['amount'] === null ? $sisaCents : $this->toCents($data['amount']);
@@ -263,6 +313,104 @@ class TerminService
 
             return $locked->fresh();
         });
+    }
+
+    /**
+     * Sprint 12 #21 — Finance verified the termin's invoice
+     * (SettleTerminOnInvoiceVerified): the amount goes onto the termin (a
+     * DP invoice as DP, any other as pelunasan) and it becomes PAID when
+     * nothing is left. No FinanceTransaction here — InvoiceService::verify()
+     * already booked the income.
+     */
+    public function settleFromInvoice(Termin $termin, Invoice $invoice, User $actor): Termin
+    {
+        return DB::transaction(function () use ($termin, $invoice, $actor) {
+            /** @var Termin $locked */
+            $locked = Termin::query()->lockForUpdate()->findOrFail($termin->id);
+            $amountCents = min($this->toCents($invoice->amount), $this->toCents($locked->sisa_piutang));
+
+            if ($amountCents <= 0) {
+                return $locked;
+            }
+
+            $old = $locked->only(['status', 'dp_amount', 'pelunasan', 'sisa_piutang']);
+            $column = $invoice->type === InvoiceType::Dp ? 'dp_amount' : 'pelunasan';
+            $locked->update([$column => ($this->toCents($locked->{$column}) + $amountCents) / 100]);
+            $locked->refresh();
+
+            if ($this->toCents($locked->sisa_piutang) === 0) {
+                $locked->update(['status' => TerminStatus::Paid->value, 'paid_at' => now()]);
+            }
+
+            $this->auditLogService->record('finance.termin_payment', $locked, $old, [
+                'invoice' => $invoice->number,
+                'amount' => $amountCents / 100,
+                'status' => $locked->status,
+                'dp_amount' => $locked->dp_amount,
+                'pelunasan' => $locked->pelunasan,
+                'sisa_piutang' => $locked->sisa_piutang,
+            ], $actor);
+
+            return $locked->fresh();
+        });
+    }
+
+    /**
+     * Sprint 12 #20 — TerminInvoiceReminderJob, daily: a scheme termin
+     * whose trigger has been reached and that has no invoice yet → the
+     * lead's Marketing is told "Terbitkan invoice termin N". Reached =
+     * DI_MUKA right away, TANGGAL on/after its date, MILESTONE once the
+     * project's milestone of that name is COMPLETED (it gets linked then),
+     * PROYEK_SELESAI once the project is COMPLETED. Once per termin
+     * (`invoice_reminded_at`), so re-runs never notify twice.
+     */
+    public function remindInvoices(): int
+    {
+        $today = now('Asia/Jakarta')->toDateString();
+        $sent = 0;
+
+        $termins = Termin::query()
+            ->with(['project.lead.assignee', 'project.milestones:id,project_id,name,status'])
+            ->whereNotNull('trigger')
+            ->whereNull('invoice_id')
+            ->whereNull('invoice_reminded_at')
+            ->where('status', '!=', TerminStatus::Paid->value)
+            ->get();
+
+        foreach ($termins as $termin) {
+            $project = $termin->project;
+            $milestone = $termin->trigger === PaymentTermTrigger::Milestone
+                ? $project->milestones->first(fn (Milestone $m) => mb_strtolower(trim($m->name)) === mb_strtolower(trim((string) $termin->milestone_name)))
+                : null;
+
+            $due = match ($termin->trigger) {
+                PaymentTermTrigger::DiMuka => true,
+                PaymentTermTrigger::Tanggal => $termin->scheduled_date !== null && $termin->scheduled_date->toDateString() <= $today,
+                PaymentTermTrigger::Milestone => $milestone?->status === MilestoneStatus::Completed,
+                PaymentTermTrigger::ProyekSelesai => $project->status === ProjectStatus::Completed,
+            };
+
+            if (! $due) {
+                continue;
+            }
+
+            $termin->update(array_filter([
+                'invoice_reminded_at' => now(),
+                'milestone_id' => $milestone?->id,
+            ]));
+
+            $marketing = $project->lead?->assignee;
+            $title = "Terbitkan Invoice Termin {$termin->termin_number}";
+            $message = "Termin {$termin->termin_number} proyek \"{$project->name}\" (".'Rp '.number_format((float) $termin->amount, 0, ',', '.').') sudah waktunya ditagih — '.$termin->trigger->label().'.';
+            $metadata = ['termin_id' => $termin->id, 'project_id' => $project->id];
+
+            $marketing
+                ? $this->notificationService->notifyMany([$marketing], 'termin_invoice_due', $title, $message, $metadata)
+                : $this->notificationService->notifyRoles(['MARKETING'], 'termin_invoice_due', $title, $message, $metadata);
+            $sent++;
+        }
+
+        return $sent;
     }
 
     /** Money math in integer cents — avoids float drift on decimal(15,2) sums/comparisons. */

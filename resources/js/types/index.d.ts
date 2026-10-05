@@ -52,7 +52,26 @@ export type PageProps<
     flash: { success: string | null; error: string | null; key: string } | null;
     /** Web customization from Pengaturan Situs (name, logo, login page…). */
     site: SiteBranding;
+    /** Sprint 12 #19 — CEO only: approved RAB Proyek waiting for "Buka Proyek" (null when none / not CEO). */
+    pendingProjectOpenings?: PendingProjectOpenings | null;
 };
+
+/** Sprint 12 #19 — App\Models\ProjectOpening. */
+export interface ProjectOpening {
+    id: number;
+    quotation_id: number;
+    lead_id: number;
+    status: 'MENUNGGU_CEO' | 'DIBUKA';
+    lead: { id: number; client_name: string };
+    quotation: { id: number; total_amount: string; version: number; client_approved_at: string | null };
+    created_at: string;
+}
+
+export interface PendingProjectOpenings {
+    openings: ProjectOpening[];
+    projectManagers: { id: number; name: string }[];
+    assistantPms: { id: number; name: string }[];
+}
 
 /** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
 export interface PaginatedData<T> {
@@ -437,6 +456,11 @@ export type MilestoneStatus =
 export interface Project {
     id: number;
     lead_id: number;
+    /** Sprint 12 #19 — the RAB Fix (null on pre-Sprint-12 projects). */
+    quotation_id?: number | null;
+    /** Sprint 12 D2. */
+    assistant_pm_id?: number | null;
+    assistant_pm?: Pick<User, 'id' | 'name'> | null;
     name: string;
     pm_id: number;
     /** Loaded via `with('pm:id,name')` — see Project::pm() for why it isn't named `projectManager`. */
@@ -649,14 +673,23 @@ export interface Termin {
     project?: Pick<Project, 'id' | 'name'>;
     milestone_id: number | null;
     milestone?: Pick<Milestone, 'id' | 'name'>;
+    /** Sprint 12 #12 — copied from the approved payment scheme (null on pre-Sprint-12 termins). */
+    payment_term_id?: number | null;
+    trigger?: PaymentTermTrigger | null;
+    milestone_name?: string | null;
+    /** Sprint 12 #20 — the invoice Marketing issued for it. */
+    invoice_id?: number | null;
+    invoice?: Pick<Invoice, 'id' | 'number' | 'status'> | null;
     termin_number: number;
-    percentage: number;
+    /** DECIMAL(5,2) since Sprint 12 — a scheme row may be 33,33 %. */
+    percentage: string | number;
     amount: string;
     /** daiku_schema.sql — partial payments; sisa_piutang = amount - dp_amount - pelunasan (DB-generated). */
     dp_amount: string;
     pelunasan: string;
     sisa_piutang: string;
-    scheduled_date: string;
+    /** Null for a milestone- / completion-triggered scheme termin until the work gets there. */
+    scheduled_date: string | null;
     status: TerminStatus;
     bank_account_id: number | null;
     bank_account?: Pick<BankAccount, 'id' | 'label'>;

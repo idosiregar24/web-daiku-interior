@@ -16,8 +16,10 @@ class Project extends Model
 
     protected $fillable = [
         'lead_id',
+        'quotation_id',
         'name',
         'pm_id',
+        'assistant_pm_id',
         'status',
         'start_date',
         'end_date',
@@ -43,6 +45,18 @@ class Project extends Model
     public function pm(): BelongsTo
     {
         return $this->belongsTo(User::class, 'pm_id');
+    }
+
+    /** Sprint 12 D2 — optional, chosen by the CEO at "Buka Proyek". */
+    public function assistantPm(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assistant_pm_id');
+    }
+
+    /** Sprint 12 #19 — the "RAB Fix" the client approved (null on pre-Sprint-12 projects). */
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class);
     }
 
     public function milestones(): HasMany

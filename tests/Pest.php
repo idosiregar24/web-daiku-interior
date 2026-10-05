@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\MaterialCategory;
+use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\QuotationShareLink;
 use App\Models\Unit;
@@ -103,4 +104,13 @@ function shareLinkFor(Quotation $quotation, ?User $sender = null): QuotationShar
         'token' => Str::random(QuotationShareLink::TOKEN_LENGTH),
         'sent_by' => ($sender ?? User::factory()->create())->id,
     ]);
+}
+
+/** Sprint 12 #19 — the "Buka Proyek" waiting for the CEO for an approved RAB Proyek (as QueueProjectOpening makes it). */
+function openingFor(Quotation $quotation): ProjectOpening
+{
+    return ProjectOpening::firstOrCreate(
+        ['quotation_id' => $quotation->id],
+        ['lead_id' => $quotation->lead_id, 'status' => ProjectOpening::STATUS_WAITING],
+    );
 }

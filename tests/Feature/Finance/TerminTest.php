@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\TerminService;
 use Carbon\Carbon;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -27,19 +28,14 @@ test('roles with read access can view the Finance termin index', function (strin
     $this->actingAs($user)->get(route('finance.termins.index'))->assertOk();
 })->with(['CEO', 'FINANCE']);
 
-test('PM cannot view the global Finance termin index but can schedule one on their project', function () {
+test('PM cannot view the global Finance termin index, and termins are no longer scheduled by hand', function () {
     $pm = User::factory()->create();
     $pm->assignRole('PM');
 
     $this->actingAs($pm)->get(route('finance.termins.index'))->assertForbidden();
 
-    $project = Project::factory()->create(['pm_id' => $pm->id, 'contract_value' => 100_000_000]);
-
-    $this->actingAs($pm)->post(route('projects.termins.store', ['project' => $project->id]), [
-        'percentage' => 30,
-    ])->assertRedirect();
-
-    expect(Termin::where('project_id', $project->id)->exists())->toBeTrue();
+    // Sprint 12 Sub 7 — termins come from the approved payment scheme at "Buka Proyek".
+    expect(Route::has('projects.termins.store'))->toBeFalse();
 });
 
 test('the termin index sends a calendar-month slice alongside the paginated list', function () {

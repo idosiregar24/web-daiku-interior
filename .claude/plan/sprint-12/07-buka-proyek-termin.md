@@ -1,7 +1,7 @@
 # Sprint 12 · 07 — Buka Proyek oleh CEO & Termin dari Skema
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 06 · Keputusan: #12, #19–#21
+> Status: **selesai 2026-10-05** · Prasyarat: 06 · Keputusan: #12, #19–#21
 
 ## Tujuan
 Client menyetujui RAB Proyek → CEO mendapat pop-up "Buka Proyek" → proyek +
@@ -44,12 +44,12 @@ termins            + payment_term_id, + trigger (TANGGAL | MILESTONE | PROYEK_SE
   (versi CLIENT_APPROVED + PDF) + daftar invoice.
 
 ## Checklist
-- [ ] **[Database]** `project_openings`; kolom baru `projects` & `termins`
-- [ ] **[Projects]** Listener → `project_openings`; `ProjectService::openFromQuotation()`; hapus jalur manual proyek & termin
-- [ ] **[UI]** Modal Buka Proyek (CEO) + daftar "Menunggu Dibuka"; tab Dokumen
-- [ ] **[Finance]** Terbitkan invoice dari termin; listener verifikasi → termin PAID
-- [ ] **[Finance]** `TerminInvoiceReminderJob` + jadwal di `routes/console.php`
-- [ ] **[Test]** Setuju client → opening → proyek + termin sesuai skema (nilai, pemicu); hanya CEO membuka; job tidak dobel; route manual lama hilang
+- [x] **[Database]** `project_openings`; kolom baru `projects` & `termins`
+- [x] **[Projects]** Listener → `project_openings`; `ProjectService::openFromQuotation()`; hapus jalur manual proyek & termin
+- [x] **[UI]** Modal Buka Proyek (CEO) + daftar "Menunggu Dibuka"; tab Dokumen
+- [x] **[Finance]** Terbitkan invoice dari termin; listener verifikasi → termin PAID
+- [x] **[Finance]** `TerminInvoiceReminderJob` + jadwal di `routes/console.php`
+- [x] **[Test]** Setuju client → opening → proyek + termin sesuai skema (nilai, pemicu); hanya CEO membuka; job tidak dobel; route manual lama hilang
 
 ## Catatan
 Sistem lama punya proyek tanpa `quotation_id` — biarkan nullable, tab

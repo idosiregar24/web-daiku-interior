@@ -4,9 +4,7 @@ namespace App\Http\Controllers\Finance;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\RecordTerminPaymentRequest;
-use App\Http\Requests\Finance\StoreTerminRequest;
 use App\Models\BankAccount;
-use App\Models\Project;
 use App\Models\SiteSetting;
 use App\Models\Termin;
 use App\Services\TerminService;
@@ -72,13 +70,6 @@ class TerminController extends Controller
                 ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label'])
                 : [],
         ]);
-    }
-
-    public function store(StoreTerminRequest $request, Project $project, TerminService $service): RedirectResponse
-    {
-        $service->create($project, $request->validated());
-
-        return back()->with('success', 'Termin berhasil dijadwalkan.');
     }
 
     public function markPaid(Termin $termin, TerminService $service): RedirectResponse
