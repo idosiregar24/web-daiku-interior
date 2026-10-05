@@ -8,6 +8,7 @@ import { CancelQuotationDialog } from '@/Components/modules/quotation/CancelQuot
 import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
 import { PaymentTermsEditor } from '@/Components/modules/quotation/PaymentTermsEditor';
 import { RabBuilder } from '@/Components/modules/quotation/RabBuilder';
+import { ShareLinkPanel } from '@/Components/modules/quotation/ShareLinkPanel';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { QuotationReviewPanel } from '@/Components/modules/quotation/QuotationReviewPanel';
@@ -39,7 +40,7 @@ import {
 import { type ReactNode, useState } from 'react';
 
 interface QuotationShowProps {
-    quotation: Quotation & { lead: { id: number; client_name: string } };
+    quotation: Quotation & { lead: { id: number; client_name: string; contact?: string | null } };
     /** ESTIMATOR — drafts, submits and sends the final RAB to Marketing. */
     canManage: boolean;
     /** Whose item review it is for this viewer right now (QuotationService::reviewStage()), if theirs. */
@@ -54,6 +55,8 @@ interface QuotationShowProps {
     units: UnitOption[];
     /** QuotationService::MAX_PAYMENT_TERMS */
     maxPaymentTerms: number;
+    /** Sprint 12 #13 — this version's public link (CEO / Marketing only), once sent. */
+    shareUrl: string | null;
 }
 
 const REVISION_REASON_TEXT: Record<QuotationRevisionReason, string> = {
@@ -94,6 +97,7 @@ export default function QuotationShow({
     validityDays,
     units,
     maxPaymentTerms,
+    shareUrl,
 }: QuotationShowProps) {
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
@@ -275,7 +279,7 @@ export default function QuotationShow({
 
             {status === 'READY_TO_SEND' && (
                 <NextStep
-                    text={`RAB final sudah di Marketing. Mengirim ke klien memulai masa berlaku ${validityDays} hari.`}
+                    text={`RAB final sudah di Marketing. "Kirim ke Client" membuat link penawaran untuk klien dan memulai masa berlaku ${validityDays} hari.`}
                     action={
                         canClientDecide && (
                             <Button size="sm" onClick={() => post('quotations.sendToClient')} disabled={processing}>
@@ -294,32 +298,55 @@ export default function QuotationShow({
                     description={`Penawaran berlaku ${validityDays} hari sejak dikirim ke klien.`}
                     className="mt-6"
                 >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <p className="flex-1 text-sm text-daiku-muted">
-                            Dikirim ke klien — berlaku sampai{' '}
-                            <span className="font-medium text-foreground">{formatDate(quotation.valid_until)}</span>.{' '}
-                            {canClientDecide
-                                ? quotation.type === 'PROYEK'
-                                    ? 'Klien setuju? Konfirmasi deal dari halaman lead. Klien minta revisi? Catat penolakannya.'
-                                    : 'Klien minta revisi? Catat penolakannya.'
-                                : 'Menunggu keputusan klien.'}
-                        </p>
-                        {canClientDecide && (
-                            <div className="flex shrink-0 gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setClientRejectOpen(true)}>
+                    <div className="space-y-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                            <p className="flex-1 text-sm text-daiku-muted">
+                                Dikirim ke klien — berlaku sampai{' '}
+                                <span className="font-medium text-foreground">{formatDate(quotation.valid_until)}</span>. Klien
+                                menyetujui sendiri lewat link di bawah; permintaan revisi lewat WhatsApp dicatat dengan "Klien
+                                Menolak".
+                            </p>
+                            {canClientDecide && (
+                                <Button variant="outline" size="sm" className="shrink-0" onClick={() => setClientRejectOpen(true)}>
                                     Klien Menolak
                                 </Button>
-                                {quotation.type === 'PROYEK' && (
-                                    <Button size="sm" asChild>
-                                        <Link href={route('crm.leads.show', { lead: quotation.lead.id })}>
-                                            Konfirmasi Deal
-                                            <ArrowRight className="size-3.5" aria-hidden />
-                                        </Link>
-                                    </Button>
-                                )}
-                            </div>
+                            )}
+                        </div>
+                        {shareUrl && (
+                            <ShareLinkPanel
+                                url={shareUrl}
+                                clientName={quotation.lead.client_name}
+                                contact={quotation.lead.contact ?? null}
+                                typeLabel={typeLabel}
+                                validUntil={quotation.valid_until ? formatDate(quotation.valid_until) : null}
+                            />
                         )}
                     </div>
+                </SectionCard>
+            )}
+
+            {status === 'CLIENT_APPROVED' && (
+                <SectionCard title="Disetujui Klien" icon={Handshake} className="mt-6">
+                    <p className="text-sm text-daiku-muted">
+                        {quotation.client_approved_at ? (
+                            <>
+                                Klien menyetujui versi {quotation.version} lewat link penawaran pada{' '}
+                                <span className="font-medium text-foreground">{formatDateTime(quotation.client_approved_at)}</span>
+                                {quotation.client_approved_ip && ` (IP ${quotation.client_approved_ip})`}.
+                            </>
+                        ) : (
+                            'Disetujui klien (dikonfirmasi Marketing sebelum link persetujuan tersedia).'
+                        )}{' '}
+                        {quotation.type === 'PROYEK' && (
+                            <Link
+                                href={route('crm.leads.show', { lead: quotation.lead.id })}
+                                className="inline-flex items-center gap-1 font-medium text-foreground underline decoration-daiku-yellow underline-offset-4"
+                            >
+                                Buka proyek dari halaman lead
+                                <ArrowRight className="size-3" aria-hidden />
+                            </Link>
+                        )}
+                    </p>
                 </SectionCard>
             )}
 

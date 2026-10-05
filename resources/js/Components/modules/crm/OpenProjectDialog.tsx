@@ -3,30 +3,16 @@ import {
     Dialog,
     DialogClose,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { DatePicker } from '@/Components/shared/DatePicker';
-import { Notice } from '@/Components/shared/Notice';
-import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
-import {
-    Form,
-    FormControl,
-    FormField,
-    FormItem,
-    FormLabel,
-    FormMessage,
-} from '@/Components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/Components/ui/select';
-import type { Lead, User } from '@/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import type { Lead, Quotation, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
@@ -34,8 +20,9 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
+// Mirrors StoreProjectRequest.
 const schema = z.object({
-    name: z.string().min(1, 'Nama proyek wajib diisi'),
+    name: z.string().trim().min(1, 'Nama proyek wajib diisi').max(255),
     pm_id: z.string().min(1, 'Project Manager wajib dipilih'),
     start_date: z.date({ message: 'Tanggal mulai wajib diisi' }),
     contract_value: z
@@ -46,85 +33,69 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-interface ConfirmDealDialogProps {
+interface OpenProjectDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    lead: Lead | null;
+    lead: Pick<Lead, 'id' | 'client_name'>;
+    quotation: Pick<Quotation, 'total_amount'>;
     projectManagers: Pick<User, 'id' | 'name'>[];
 }
 
 /**
- * Lead → Deal confirmation (.claude/plan/sprint-02.md Week 3, Ido task 4).
- * Only reachable for DEAL_DESAIN leads — closes the pipeline (CLOSING) and
- * creates the execution Project in one backend transaction
- * (LeadService::confirmDeal()).
+ * Sprint 12 Sub 5 — "Buka Proyek" once the client approved the RAB Proyek
+ * on its link (the lead is CLOSING by then). Posts to `projects.store`
+ * (ProjectService::createFromLead()). Sub 7 replaces it with the CEO's
+ * pop-up, which also copies the payment scheme into termins.
  */
-export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }: ConfirmDealDialogProps) {
-    // LeadService::confirmDeal() refuses anything but a SENT_TO_CLIENT
-    // quotation — say so up front. `undefined` = not loaded by this page,
-    // leave the decision to the server.
-    const quotationNotReady = lead?.quotation !== undefined && lead.quotation?.status !== 'SENT_TO_CLIENT';
-
+export function OpenProjectDialog({ open, onOpenChange, lead, quotation, projectManagers }: OpenProjectDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { name: '', pm_id: '', start_date: undefined, contract_value: '' },
     });
 
     useEffect(() => {
-        if (open && lead) {
+        if (open) {
             form.reset({
                 name: `Proyek ${lead.client_name}`,
                 pm_id: '',
                 start_date: new Date(),
-                contract_value: '',
+                contract_value: String(Number(quotation.total_amount)),
             });
         }
-    }, [open, lead]);
+    }, [open]);
 
     function onSubmit(values: FormValues) {
-        if (!lead) return;
-
-        const onError = (errors: Record<string, string>) => {
-            Object.entries(errors).forEach(([field, message]) => {
-                form.setError(field as keyof FormValues, { message });
-            });
-        };
-
-        const payload = {
-            name: values.name,
-            pm_id: Number(values.pm_id),
-            start_date: format(values.start_date, 'yyyy-MM-dd'),
-            contract_value: Number(values.contract_value),
-        };
-
-        router.post(route('crm.leads.confirmDeal', { lead: lead.id }), payload, {
-            onError,
-            onSuccess: () => onOpenChange(false),
-        });
+        router.post(
+            route('projects.store'),
+            {
+                lead_id: lead.id,
+                name: values.name,
+                pm_id: Number(values.pm_id),
+                start_date: format(values.start_date, 'yyyy-MM-dd'),
+                contract_value: Number(values.contract_value),
+            },
+            {
+                onError: (errors) =>
+                    Object.entries(errors).forEach(([field, message]) =>
+                        form.setError(field === 'lead_id' ? 'name' : (field as keyof FormValues), { message }),
+                    ),
+                onSuccess: () => onOpenChange(false),
+            },
+        );
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Konfirmasi Deal</DialogTitle>
+                    <DialogTitle>Buka Proyek</DialogTitle>
+                    <DialogDescription>
+                        Klien <span className="font-medium text-foreground">{lead.client_name}</span> sudah menyetujui RAB Proyek.
+                        Tentukan PM dan tanggal mulai proyek eksekusinya.
+                    </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <p className="text-sm text-daiku-muted">
-                            Lead <span className="font-medium text-daiku-dark">{lead?.client_name}</span> akan
-                            ditutup sebagai <span className="font-medium text-success-ink">CLOSING</span> dan proyek
-                            eksekusi baru akan dibuat.
-                        </p>
-                        {quotationNotReady && (
-                            <Notice tone="error">
-                                {lead?.quotation
-                                    ? `Quotation masih berstatus ${lead.quotation.status.replace(/_/g, ' ')} — deal baru bisa dikonfirmasi setelah disetujui CEO & PM (SENT TO CLIENT).`
-                                    : 'Lead ini belum punya quotation — deal baru bisa dikonfirmasi setelah quotation disetujui CEO & PM.'}
-                            </Notice>
-                        )}
-                        {/* Warning only — an expired offer can still be accepted (Sprint 9 decision #3). */}
-                        <QuotationExpiryNotice quotation={lead?.quotation} />
                         <FormField
                             control={form.control}
                             name="name"
@@ -190,17 +161,14 @@ export function ConfirmDealDialog({ open, onOpenChange, lead, projectManagers }:
                                 )}
                             />
                         </div>
-                        <p className="text-sm text-daiku-muted">
-                            PM yang dipilih akan bertanggung jawab atas proyek ini hingga selesai.
-                        </p>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting || quotationNotReady}>
-                                Konfirmasi &amp; Buat Proyek
+                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                                Buka Proyek
                             </Button>
                         </DialogFooter>
                     </form>

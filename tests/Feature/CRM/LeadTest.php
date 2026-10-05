@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\LeadService;
 use Database\Seeders\LeadSourceSeeder;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -139,7 +140,7 @@ test('lead service blocks further status changes once a lead is LOST', function 
         ->toThrow(ValidationException::class);
 });
 
-test('lead service blocks a direct transition to CLOSING outside confirmDeal', function () {
+test('lead service blocks a direct transition to CLOSING outside the client approving the RAB', function () {
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
     $actor = User::factory()->create();
 
@@ -200,49 +201,56 @@ test('roles without write access cannot change a lead status', function () {
     ])->assertForbidden();
 });
 
-test('confirming a deal closes the lead and creates a project in one transaction', function () {
+test('the client approving the RAB Proyek on its link closes the lead; the CEO then opens the project', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
+    $ceo = User::factory()->create();
+    $ceo->assignRole('CEO');
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value, 'client_name' => 'Budi Santoso']);
-    $quotation = Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id]);
+    $quotation = Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id, 'valid_until' => now()->addDays(5)->toDateString()]);
+    $link = shareLinkFor($quotation, $marketing);
 
-    $response = $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
+    $this->post(route('public.quotation.approve', $link->token), ['agree' => true])->assertSessionHasNoErrors();
+
+    $lead->refresh();
+    $log = $lead->pipelineLogs()->sole();
+    expect($lead->status)->toBe(LeadStatus::Closing)
+        ->and($log->changed_by)->toBe($marketing->id)
+        ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved)
+        ->and(Project::where('lead_id', $lead->id)->exists())->toBeFalse()
+        ->and(Notification::where('user_id', $ceo->id)->where('type', 'deal_confirmed')->exists())->toBeTrue();
+
+    $this->actingAs($ceo)->post(route('projects.store'), [
+        'lead_id' => $lead->id,
         'name' => 'Proyek Budi Santoso',
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
         'contract_value' => 200_000_000,
-    ]);
+    ])->assertSessionHasNoErrors();
 
-    $response->assertRedirect(route('crm.leads.index'));
-
-    $lead->refresh();
-    expect($lead->status)->toBe(LeadStatus::Closing)
-        ->and($lead->pipelineLogs()->count())->toBe(1)
-        ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue()
-        // Marketing's confirmation records the client's acceptance.
-        ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved);
+    expect(Project::where('lead_id', $lead->id)->sole()->status->value)->toBe('ACTIVE');
 });
 
-test('confirming a deal is rejected until the quotation clears CEO and PM approval', function (?string $quotationStatus) {
-    $marketing = User::factory()->create();
-    $marketing->assignRole('MARKETING');
+test('a project can only be opened after the client approved the RAB Proyek', function (?string $quotationStatus) {
+    $ceo = User::factory()->create();
+    $ceo->assignRole('CEO');
     $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
 
     if ($quotationStatus) {
         Quotation::factory()->create(['lead_id' => $lead->id, 'status' => $quotationStatus]);
     }
 
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
+    $this->actingAs($ceo)->post(route('projects.store'), [
+        'lead_id' => $lead->id,
         'name' => 'Proyek Test',
         'pm_id' => User::factory()->create()->id,
         'start_date' => now()->toDateString(),
         'contract_value' => 200_000_000,
-    ])->assertSessionHasErrors('status');
+    ])->assertSessionHasErrors('lead_id');
 
-    expect(Project::where('lead_id', $lead->id)->exists())->toBeFalse()
-        ->and($lead->fresh()->status)->toBe(LeadStatus::DealDesain);
+    expect(Project::where('lead_id', $lead->id)->exists())->toBeFalse();
 })->with([
     'no quotation' => [null],
     'draft' => ['DRAFT'],
@@ -250,9 +258,10 @@ test('confirming a deal is rejected until the quotation clears CEO and PM approv
     'waiting for the CEO' => ['WAITING_CEO'],
     'approved internally, still with the Estimator' => ['APPROVED_INTERNAL'],
     'with Marketing, not sent yet' => ['READY_TO_SEND'],
+    'sent, not approved by the client yet' => ['SENT_TO_CLIENT'],
 ]);
 
-test('confirming a deal notifies the project PM, CEO, Finance and Logistics', function () {
+test('opening a project notifies the project PM, CEO, Finance and Logistics', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
     $pm = User::factory()->create();
@@ -263,21 +272,26 @@ test('confirming a deal notifies the project PM, CEO, Finance and Logistics', fu
 
         return $user;
     })->push($pm);
-    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
-    Quotation::factory()->sentToClient()->create(['lead_id' => $lead->id]);
+    $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value]);
+    Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
 
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
+    $this->actingAs($recipients[0])->post(route('projects.store'), [
+        'lead_id' => $lead->id,
         'name' => 'Proyek Notif',
         'pm_id' => $pm->id,
         'start_date' => now()->toDateString(),
         'contract_value' => 200_000_000,
-    ]);
+    ])->assertSessionHasNoErrors();
 
     foreach ($recipients as $user) {
-        expect(Notification::where('user_id', $user->id)->where('type', 'deal_confirmed')->count())->toBe(1);
+        expect(Notification::where('user_id', $user->id)->where('type', 'project_opened')->count())->toBe(1);
     }
 
     expect(Notification::where('user_id', $marketing->id)->exists())->toBeFalse();
+});
+
+test('Marketing can no longer confirm a deal by hand (Sprint 12 Sub 5)', function () {
+    expect(Route::has('crm.leads.confirmDeal'))->toBeFalse();
 });
 
 test('follow-up reminders go to the assigned marketing once per day', function () {
@@ -295,20 +309,4 @@ test('follow-up reminders go to the assigned marketing once per day', function (
     $notification = Notification::where('user_id', $marketing->id)->sole();
     expect($notification->type)->toBe('lead_follow_up_due')
         ->and($notification->metadata['lead_id'])->toBe($due->id);
-});
-
-test('confirming a deal is rejected unless the lead is DEAL_DESAIN', function () {
-    $marketing = User::factory()->create();
-    $marketing->assignRole('MARKETING');
-    $pm = User::factory()->create();
-    $lead = Lead::factory()->create(['status' => LeadStatus::FollowUp->value]);
-
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
-        'name' => 'Proyek Test',
-        'pm_id' => $pm->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 200_000_000,
-    ])->assertSessionHasErrors('status');
-
-    expect(Project::where('lead_id', $lead->id)->exists())->toBeFalse();
 });

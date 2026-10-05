@@ -1,7 +1,7 @@
 # Sprint 12 · 05 — Halaman RAB untuk Client (link persetujuan)
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 04 · Keputusan: #13, #14
+> Status: **selesai 2026-10-05** · Prasyarat: 04 · Keputusan: #13, #14
 
 ## Tujuan
 Marketing mengirim link; client membuka tanpa login dan menyetujui dengan
@@ -45,12 +45,12 @@ konfirmasi centang. Menggantikan jalur lama `crm.leads.confirmDeal`.
   listener persetujuan RAB PROYEK.
 
 ## Checklist
-- [ ] **[Database]** Kolom token & persetujuan di `quotations`
-- [ ] **[Quotation]** Controller publik + whitelist data + aturan tolak + event `QuotationClientApproved`
-- [ ] **[UI]** `PublicLayout` + halaman penawaran (desktop & HP) + dialog konfirmasi centang; tombol Salin Link / WhatsApp di `Quotation/Show.tsx`
-- [ ] **[CRM]** Hapus `confirmDeal` lama; lead → CLOSING lewat listener PROYEK
-- [ ] **[Test]** Token acak tidak bisa ditebak/diulang; versi lama/kedaluwarsa/sudah disetujui ditolak; respons tidak mengandung field internal; throttle; tanpa centang ditolak; event ter-dispatch
-- [ ] **[Security]** `/security-review` untuk route publik
+- [x] **[Database]** Kolom token & persetujuan di `quotations`
+- [x] **[Quotation]** Controller publik + whitelist data + aturan tolak + event `QuotationClientApproved`
+- [x] **[UI]** `PublicLayout` + halaman penawaran (desktop & HP) + dialog konfirmasi centang; tombol Salin Link / WhatsApp di `Quotation/Show.tsx`
+- [x] **[CRM]** Hapus `confirmDeal` lama; lead → CLOSING lewat listener PROYEK
+- [x] **[Test]** Token acak tidak bisa ditebak/diulang; versi lama/kedaluwarsa/sudah disetujui ditolak; respons tidak mengandung field internal; throttle; tanpa centang ditolak; event ter-dispatch
+- [x] **[Security]** `/security-review` untuk route publik
 
 ## Selesai bila
 Halaman terbuka tanpa login di HP, tampil sama dengan PDF, dan tidak ada

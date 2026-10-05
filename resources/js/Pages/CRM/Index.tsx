@@ -16,7 +16,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/Components/ui/select';
-import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
@@ -38,7 +37,6 @@ interface LeadIndexProps {
         lead_category_id?: string;
     };
     marketers: Pick<User, 'id' | 'name'>[];
-    projectManagers: Pick<User, 'id' | 'name'>[];
     designers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
@@ -47,7 +45,7 @@ interface LeadIndexProps {
 const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'CLOSING', 'LOST'];
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 
-export default function LeadIndex({ leads, filters, marketers, projectManagers, designers, leadSources, leadCategories }: LeadIndexProps) {
+export default function LeadIndex({ leads, filters, marketers, designers, leadSources, leadCategories }: LeadIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     // PRD §4.1: only Marketing and CEO create/edit leads — mirrors the
@@ -60,7 +58,6 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
 
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [dealOpen, setDealOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [activeLead, setActiveLead] = useState<Lead | null>(null);
@@ -86,11 +83,6 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
     function openStatus(lead: Lead) {
         setActiveLead(lead);
         setStatusOpen(true);
-    }
-
-    function openDeal(lead: Lead) {
-        setActiveLead(lead);
-        setDealOpen(true);
     }
 
     function openDesign(lead: Lead) {
@@ -191,12 +183,6 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                                         onSelect={() => openStatus(lead)}
                                     >
                                         Ubah Status
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        disabled={lead.status !== 'DEAL_DESAIN'}
-                                        onSelect={() => openDeal(lead)}
-                                    >
-                                        Konfirmasi Deal
                                     </DropdownMenuItem>
                                     {lead.quotation?.status === 'SENT_TO_CLIENT' && (
                                         <DropdownMenuItem onSelect={() => openClientReject(lead)}>
@@ -359,12 +345,6 @@ export default function LeadIndex({ leads, filters, marketers, projectManagers, 
                 leadCategories={leadCategories}
             />
             <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={activeLead} />
-            <ConfirmDealDialog
-                open={dealOpen}
-                onOpenChange={setDealOpen}
-                lead={activeLead}
-                projectManagers={projectManagers}
-            />
             {canManage && activeLead?.quotation && (
                 <QuotationDecisionDialog
                     open={clientRejectOpen}

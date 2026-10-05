@@ -5,7 +5,7 @@ import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { ConfirmDealDialog } from '@/Components/modules/crm/ConfirmDealDialog';
+import { OpenProjectDialog } from '@/Components/modules/crm/OpenProjectDialog';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
@@ -49,7 +49,7 @@ type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> 
     follow_ups: LeadFollowUp[];
     surveys: LeadSurvey[];
     design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
-    quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until'> | null;
+    quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until' | 'client_approved_at'> | null;
     /** Sprint 12 #6 — every RAB of the lead (Jasa Survey / Jasa Desain / Proyek), newest first. */
     quotations: Pick<Quotation, 'id' | 'type' | 'status' | 'total_amount' | 'version' | 'created_at'>[];
     project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
@@ -61,6 +61,8 @@ interface LeadShowProps {
     pipelineLogs: PipelineLogEntry[] | null;
     canManage: boolean;
     canOpenDesign: boolean;
+    /** CEO / PM — "Buka Proyek" once the client approved the RAB Proyek (Sprint 12 Sub 5). */
+    canOpenProject: boolean;
     /** LeadFollowUp::SUGGEST_LOST_FROM (Sprint 12 #2). */
     suggestLostFrom: number;
     marketers: Pick<User, 'id' | 'name'>[];
@@ -80,6 +82,7 @@ export default function LeadShow({
     pipelineLogs,
     canManage,
     canOpenDesign,
+    canOpenProject,
     suggestLostFrom,
     marketers,
     projectManagers,
@@ -89,7 +92,7 @@ export default function LeadShow({
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [dealOpen, setDealOpen] = useState(false);
+    const [projectOpen, setProjectOpen] = useState(false);
     const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [requestOpen, setRequestOpen] = useState(false);
@@ -159,9 +162,6 @@ export default function LeadShow({
                                 <Button variant="outline" onClick={() => setClientRejectOpen(true)}>
                                     Klien Menolak
                                 </Button>
-                            )}
-                            {lead.status === 'DEAL_DESAIN' && (
-                                <Button onClick={() => setDealOpen(true)}>Konfirmasi Deal</Button>
                             )}
                         </>
                     )
@@ -308,8 +308,17 @@ export default function LeadShow({
                                     {lead.project.name} · PM {lead.project.pm?.name ?? '—'} · Nilai kontrak{' '}
                                     {formatRupiah(lead.project.contract_value)}
                                 </>
+                            ) : lead.quotation?.status === 'CLIENT_APPROVED' ? (
+                                <>
+                                    RAB Proyek disetujui klien {formatDateTime(lead.quotation.client_approved_at)} — proyek belum dibuka.
+                                    {canOpenProject && (
+                                        <Button size="sm" className="mt-1.5 flex" onClick={() => setProjectOpen(true)}>
+                                            Buka Proyek
+                                        </Button>
+                                    )}
+                                </>
                             ) : (
-                                'Dibuat saat deal dikonfirmasi.'
+                                'Dibuka setelah klien menyetujui RAB Proyek lewat link penawaran.'
                             )}
                         </StageRow>
                     </ul>
@@ -369,12 +378,6 @@ export default function LeadShow({
                     />
                     <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={lead} />
                     <SubmitLeadRequestDialog open={requestOpen} onOpenChange={setRequestOpen} lead={lead} rabOnly={rabOnly} />
-                    <ConfirmDealDialog
-                        open={dealOpen}
-                        onOpenChange={setDealOpen}
-                        lead={lead}
-                        projectManagers={projectManagers}
-                    />
                     {lead.quotation && (
                         <QuotationDecisionDialog
                             open={clientRejectOpen}
@@ -386,6 +389,15 @@ export default function LeadShow({
                         />
                     )}
                 </>
+            )}
+            {canOpenProject && lead.quotation && (
+                <OpenProjectDialog
+                    open={projectOpen}
+                    onOpenChange={setProjectOpen}
+                    lead={lead}
+                    quotation={lead.quotation}
+                    projectManagers={projectManagers}
+                />
             )}
             {canOpenDesign && (
                 <OpenDesignDialog open={designOpen} onOpenChange={setDesignOpen} lead={lead} designers={designers} />

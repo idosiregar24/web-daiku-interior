@@ -4,7 +4,6 @@ namespace App\Http\Controllers\CRM;
 
 use App\Enums\LeadStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\CRM\ConfirmLeadDealRequest;
 use App\Http\Requests\CRM\StoreLeadRequest;
 use App\Http\Requests\CRM\SubmitLeadRequestRequest;
 use App\Http\Requests\CRM\UpdateLeadRequest;
@@ -31,8 +30,8 @@ class LeadController extends Controller
                 'assignee:id,name',
                 'creator:id,name',
                 'design:id,lead_id',
-                // Row actions "Konfirmasi Deal" / "Klien Menolak Penawaran"
-                // need the offer's state and validity.
+                // Row action "Klien Menolak Penawaran" needs the offer's
+                // state and validity.
                 'quotation:id,lead_id,status,valid_until,version',
                 'leadSource:id,name',
                 'leadCategory:id,name',
@@ -56,7 +55,6 @@ class LeadController extends Controller
             'leads' => $leads,
             'filters' => $request->only(['status', 'priority', 'search', 'lead_source_id', 'lead_category_id']),
             'marketers' => User::role('MARKETING')->orderBy('name')->get(['id', 'name']),
-            'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
             'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name']),
             // Sumber Lead / Kategori Customer — Data Master lists
             // (SuperAdmin-editable, see MasterData\LeadSourceController /
@@ -81,6 +79,8 @@ class LeadController extends Controller
         $canManage = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
         $canViewPipelineLog = $user->hasAnyRole(['CEO', 'MARKETING', 'PM', 'SUPERADMIN']);
         $canOpenDesign = $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']);
+        // Sprint 12 Sub 5 — "Buka Proyek" after the client approved the RAB Proyek (`projects.store` roles; Sub 7: CEO pop-up).
+        $canOpenProject = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
 
         $lead->load([
             'assignee:id,name',
@@ -89,7 +89,7 @@ class LeadController extends Controller
             'leadCategory:id,name',
             'design:id,lead_id,pic_id,status,deadline,client_acc',
             'design.pic:id,name',
-            'quotation:id,lead_id,status,total_amount,version,valid_until',
+            'quotation:id,lead_id,status,total_amount,version,valid_until,client_approved_at',
             // Sprint 12 #6 — RAB Jasa Survey / Jasa Desain / Proyek, all versions' current rows.
             'quotations:id,lead_id,type,status,total_amount,version,created_at',
             'project:id,lead_id,name,pm_id,status,contract_value',
@@ -120,12 +120,13 @@ class LeadController extends Controller
                 : null,
             'canManage' => $canManage,
             'canOpenDesign' => $canOpenDesign,
+            'canOpenProject' => $canOpenProject,
             // Decision #2: from this FU number on, suggest marking the lead Lost.
             'suggestLostFrom' => LeadFollowUp::SUGGEST_LOST_FROM,
             // Option lists for the edit/deal/design dialogs — only sent to
             // roles that can open them.
             'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
-            'projectManagers' => $canManage ? User::role('PM')->orderBy('name')->get(['id', 'name']) : [],
+            'projectManagers' => $canOpenProject ? User::role('PM')->orderBy('name')->get(['id', 'name']) : [],
             'designers' => $canOpenDesign ? User::role('DESIGNER')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canManage ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
             'leadCategories' => $canManage ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
@@ -208,17 +209,5 @@ class LeadController extends Controller
             'DESAIN' => 'Lead masuk tahap Pengajuan Desain/Survey.',
             default => LeadService::RAB_REQUEST_TYPES[$request->validated('type')]->label().' diminta — Estimator mendapat notifikasi.',
         });
-    }
-
-    /**
-     * PRD §4.1/§4.4 — Marketing confirms a deal; this closes the lead's
-     * pipeline (CLOSING) and creates the execution Project in one step.
-     * See LeadService::confirmDeal().
-     */
-    public function confirmDeal(ConfirmLeadDealRequest $request, Lead $lead, LeadService $service): RedirectResponse
-    {
-        $service->confirmDeal($lead, $request->validated(), $request->user());
-
-        return redirect()->route('crm.leads.index')->with('success', 'Deal dikonfirmasi, proyek baru telah dibuat.');
     }
 }

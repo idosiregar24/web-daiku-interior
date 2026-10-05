@@ -39,6 +39,7 @@ use App\Services\PenaltyCollectionService;
 use App\Services\PenaltyService;
 use App\Services\ProgressLogService;
 use App\Services\ProjectMaterialService;
+use App\Services\ProjectService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
 use App\Services\StaffLoanService;
@@ -463,14 +464,15 @@ class DemoDataSeeder extends Seeder
             $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
             $quotationService->sendToClient($quotation->fresh(), $this->marketing);
 
-            $leadService->confirmDeal($lead, [
+            // Sprint 12 Sub 5: the client approves on the link (the deal — lead
+            // CLOSING), then the project is opened from the lead page.
+            $quotationService->clientApprove($quotation->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
+            $project = app(ProjectService::class)->createFromLead($lead->fresh(), [
                 'name' => 'Proyek '.$spec['name'],
                 'pm_id' => $this->pm->id,
                 'start_date' => now()->subDays(7)->toDateString(),
                 'contract_value' => $spec['value'],
-            ], $this->marketing);
-
-            $project = Project::where('lead_id', $lead->id)->firstOrFail();
+            ]);
 
             $results[] = ['lead' => $lead->fresh(), 'project' => $project];
         }

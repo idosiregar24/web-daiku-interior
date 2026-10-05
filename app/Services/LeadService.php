@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
-use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Models\Lead;
 use App\Models\LeadCategory;
@@ -12,6 +11,7 @@ use App\Models\LeadFollowUp;
 use App\Models\LeadSource;
 use App\Models\LeadSurvey;
 use App\Models\PipelineLog;
+use App\Models\Quotation;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -26,7 +26,6 @@ class LeadService
     ];
 
     public function __construct(
-        private ProjectService $projectService,
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
         private DesignService $designService,
@@ -230,74 +229,35 @@ class LeadService
     }
 
     /**
-     * PRD §4.4 "Project hanya bisa dibuat dari Lead yang berstatus DEAL" +
-     * §4.1's DEAL_DESAIN→CLOSING pipeline: confirming a deal closes the
-     * lead's pipeline (CLOSING) and creates the execution Project in one
-     * transaction. `$projectData` needs `name`, `pm_id`, `start_date`,
-     * `contract_value` — see ConfirmLeadDealRequest.
-     *
-     * PRD §4.3 "Konversi ke Project hanya bisa dilakukan setelah status
-     * APPROVED dan konfirmasi Deal dari Marketing": the quotation must
-     * have cleared both internal gates (CEO→PM, which leaves it
-     * SENT_TO_CLIENT). Marketing confirming the deal *is* the client's
-     * acceptance of that offer — the SENT_TO_CLIENT→APPROVED transition
-     * QuotationStatus reserved but no action produced until now — so it
-     * is recorded here, in the same transaction as the Project.
+     * Sprint 12 Sub 5 (replaces Marketing's "Konfirmasi Deal"): the client
+     * approved the RAB Proyek on its public link — that is the deal. The
+     * lead closes (CLOSING; the pipeline log is written in the name of the
+     * Marketing user who sent the link) and its design goes into
+     * production (Sprint 9 decision #4). The project itself is opened
+     * afterwards from the lead page (Sub 7: CEO's "Buka Proyek" pop-up).
+     * A lead that is already closed or lost is left alone.
      */
-    public function confirmDeal(Lead $lead, array $projectData, User $actor): Lead
+    public function closeOnProjectRabApproval(Lead $lead, Quotation $quotation, User $sender): Lead
     {
-        if ($lead->status !== LeadStatus::DealDesain) {
-            throw ValidationException::withMessages([
-                'status' => 'Deal hanya bisa dikonfirmasi dari lead berstatus DEAL_DESAIN.',
-            ]);
-        }
-
-        $quotation = $lead->quotation;
-
-        if (! $quotation || ! in_array($quotation->status, [QuotationStatus::SentToClient, QuotationStatus::ClientApproved], true)) {
-            throw ValidationException::withMessages([
-                'status' => 'Deal hanya bisa dikonfirmasi setelah RAB Proyek dikirim ke klien (status SENT_TO_CLIENT).',
-            ]);
-        }
-
-        return DB::transaction(function () use ($lead, $quotation, $projectData, $actor) {
-            $oldQuotationStatus = $quotation->status;
-            $quotation->update(['status' => QuotationStatus::ClientApproved->value]);
-
-            // PRD §9.4 — the client's acceptance is the final quotation approval.
-            $this->auditLogService->record(
-                'quotation.client_approved',
-                $quotation,
-                ['status' => $oldQuotationStatus],
-                ['status' => $quotation->status, 'total_amount' => $quotation->total_amount],
-                $actor,
-            );
-
-            $lead = $this->applyStatusChange(
-                $lead,
-                LeadStatus::Closing->value,
-                ['note' => 'Deal dikonfirmasi, proyek dibuat.'],
-                $actor,
-            );
-
-            $project = $this->projectService->createFromLead($lead->setRelation('quotation', $quotation), $projectData);
-
-            // The design goes into production with the project (Sprint 9 decision #4).
-            $this->designService->syncWithPipeline($lead->id, DesignService::EVENT_DEAL_CONFIRMED);
-
-            // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" —
-            // the project's own PM plus the divisions that act on a new
-            // project (termin scheduling, material planning).
-            $this->notificationService->notifyMany(
-                User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()->push($project->pm),
-                'deal_confirmed',
-                'Deal Dikonfirmasi',
-                "Deal \"{$lead->client_name}\" dikonfirmasi — proyek \"{$project->name}\" dibuat dengan PM {$project->pm->name}.",
-                ['project_id' => $project->id, 'lead_id' => $lead->id],
-            );
-
+        if (! in_array($lead->status, [LeadStatus::FollowUp, LeadStatus::DealDesain], true)) {
             return $lead;
-        });
+        }
+
+        $lead = $this->applyStatusChange($lead, LeadStatus::Closing->value, [
+            'note' => "RAB Proyek versi {$quotation->version} disetujui klien lewat link penawaran.",
+        ], $sender);
+
+        $this->designService->syncWithPipeline($lead->id, DesignService::EVENT_DEAL_CONFIRMED);
+
+        $this->notificationService->notifyMany(
+            User::role(['CEO', 'PM'])->where('is_active', true)->get(),
+            'deal_confirmed',
+            'Deal — RAB Proyek Disetujui Klien',
+            "Klien \"{$lead->client_name}\" menyetujui RAB Proyek (".'Rp '.number_format((float) $quotation->total_amount, 0, ',', '.').') — buka proyeknya dari halaman lead.',
+            ['lead_id' => $lead->id, 'quotation_id' => $quotation->id],
+        );
+
+        return $lead;
     }
 
     // ── Sprint 12 Sub 2: follow-up bertingkat & survey ───────────────────

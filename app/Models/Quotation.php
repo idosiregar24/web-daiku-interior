@@ -28,6 +28,10 @@ class Quotation extends Model
         'valid_until',
         'first_sent_at',
         'sent_at',
+        'client_approved_at',
+        'client_approved_ip',
+        'client_approved_user_agent',
+        'client_approved_link_id',
         'version',
         'created_by',
         'requested_by',
@@ -46,6 +50,7 @@ class Quotation extends Model
             'valid_until' => 'date',
             'first_sent_at' => 'datetime',
             'sent_at' => 'datetime',
+            'client_approved_at' => 'datetime',
             'version' => 'integer',
         ];
     }
@@ -72,6 +77,18 @@ class Quotation extends Model
     }
 
     /** Sprint 12 decision #12 — the DP/termin scheme the client approves with the RAB. */
+    /** Sprint 12 #13 — every link sent to the client, newest first. */
+    public function shareLinks(): HasMany
+    {
+        return $this->hasMany(QuotationShareLink::class)->latest('id');
+    }
+
+    /** The link of the version on offer now, if it was sent. */
+    public function currentShareLink(): ?QuotationShareLink
+    {
+        return $this->shareLinks()->where('version', $this->version)->first();
+    }
+
     /** Sprint 12 #8 — ✔/✘ per item by PM / Asisten PM / CEO, every version. */
     public function itemReviews(): HasMany
     {

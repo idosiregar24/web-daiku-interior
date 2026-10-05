@@ -38,11 +38,11 @@ class ProjectService
 
     /**
      * PRD §4.4: "Project hanya bisa dibuat dari Lead yang berstatus DEAL".
-     * Two callers: `LeadController::confirmDeal()` (Marketing closing a
-     * deal — bundles the Lead status change via `LeadService::confirmDeal()`)
-     * and `ProjectController::store()` (PM creating directly for a lead
-     * that's already DEAL_DESAIN/CLOSING). Both funnel through here so the
-     * "one project per lead" / status-eligibility rules live in one place.
+     * Called by `ProjectController::store()` — since Sprint 12 Sub 5 the
+     * "Buka Proyek" dialog on the lead page, once the client approved the
+     * RAB Proyek on its link (the lead is CLOSING by then). Sub 7 replaces
+     * it with the CEO's pop-up. The "one project per lead" /
+     * status-eligibility rules live here.
      */
     public function createFromLead(Lead $lead, array $data): Project
     {
@@ -59,21 +59,34 @@ class ProjectService
         }
 
         // PRD §4.3 "Konversi ke Project hanya bisa dilakukan setelah status
-        // APPROVED" — enforced here, not only in LeadService::confirmDeal(),
-        // so PM's direct projects.store path can't skip the quotation.
+        // APPROVED" — the client's approval on the link (Sprint 12 Sub 5).
         if ($lead->quotation?->status !== QuotationStatus::ClientApproved) {
             throw ValidationException::withMessages([
                 'lead_id' => 'Proyek hanya bisa dibuat setelah RAB Proyek lead ini disetujui klien.',
             ]);
         }
 
-        return Project::create([
+        $project = Project::create([
             'lead_id' => $lead->id,
             'name' => $data['name'],
             'pm_id' => $data['pm_id'],
             'start_date' => $data['start_date'],
             'contract_value' => $data['contract_value'],
         ]);
+
+        // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" — the
+        // project's own PM plus the divisions that act on a new project
+        // (termin scheduling, material planning).
+        $this->notificationService->notifyMany(
+            User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()->push($project->pm),
+            'project_opened',
+            'Proyek Dibuka',
+            "Proyek \"{$project->name}\" untuk \"{$lead->client_name}\" dibuka dengan PM {$project->pm->name}.",
+            ['project_id' => $project->id, 'lead_id' => $lead->id],
+        );
+
+        // Reloaded so DB defaults (status ACTIVE) are on the returned model.
+        return $project->fresh();
     }
 
     /**

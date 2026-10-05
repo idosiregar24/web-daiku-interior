@@ -14,7 +14,6 @@ use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\User;
 use App\Services\DesignService;
-use App\Services\LeadService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
 use Database\Seeders\RoleSeeder;
@@ -169,15 +168,11 @@ test('a client rejection only steps back from WAITING_ACC_PENAWARAN', function (
     'hold → kept' => [DesignStatus::HoldClient, DesignStatus::HoldClient],
 ]);
 
-test('confirming the deal moves the design to PRODUKSI', function () {
-    [$lead, $design] = accdDesignWithQuotation(DesignStatus::WaitingAccPenawaran, QuotationStatus::SentToClient);
+test('the client approving the RAB Proyek moves the design to PRODUKSI', function () {
+    [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::WaitingAccPenawaran, QuotationStatus::SentToClient);
+    $quotation->update(['valid_until' => now()->addDays(3)->toDateString()]);
 
-    app(LeadService::class)->confirmDeal($lead, [
-        'name' => 'Proyek Sync',
-        'pm_id' => syncUser('PM')->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 10_000_000,
-    ], syncUser('MARKETING'));
+    app(QuotationService::class)->clientApprove(shareLinkFor($quotation, syncUser('MARKETING')), true, '10.0.0.1', 'Test');
 
     expect($design->fresh()->status)->toBe(DesignStatus::Produksi);
 });

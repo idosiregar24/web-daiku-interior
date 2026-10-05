@@ -378,6 +378,10 @@ export interface Quotation {
     /** Sprint 12 — Marketing's first / latest "Kirim ke Client". */
     first_sent_at: string | null;
     sent_at: string | null;
+    /** Sprint 12 #13 — the client's approval on the public link. */
+    client_approved_at: string | null;
+    client_approved_ip: string | null;
+    client_approved_user_agent: string | null;
     version: number;
     created_by: number;
     items?: QuotationItem[];

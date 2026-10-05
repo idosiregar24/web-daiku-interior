@@ -11,6 +11,7 @@ use App\Models\Quotation;
 use App\Models\User;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
@@ -32,6 +33,23 @@ function presalesReview(Quotation $quotation, string $decision, ?string $note = 
             ? $quotation->items()->get()->map(fn ($item) => ['item_id' => $item->id, 'verdict' => 'OK'])->all()
             : [],
     ];
+}
+
+/** Sprint 12 Sub 5, over HTTP: the client ticks and approves on the current link, then the CEO opens the project. */
+function presalesClientApprovesAndProjectOpens(TestCase $test, Quotation $quotation, Lead $lead, User $ceo, User $pm, int $value): void
+{
+    $token = $quotation->fresh()->currentShareLink()->token;
+
+    $test->get(route('public.quotation.show', $token))->assertOk();
+    $test->post(route('public.quotation.approve', $token), ['agree' => true])->assertSessionHasNoErrors();
+
+    $test->actingAs($ceo)->post(route('projects.store'), [
+        'lead_id' => $lead->id,
+        'name' => "Proyek {$lead->client_name}",
+        'pm_id' => $pm->id,
+        'start_date' => now()->toDateString(),
+        'contract_value' => $value,
+    ])->assertSessionHasNoErrors();
 }
 
 /**
@@ -130,14 +148,9 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
 
     expect($quotation->fresh()->status)->toBe(QuotationStatus::SentToClient);
 
-    // 8. Marketing confirms the deal — closes the lead and creates the
-    // execution Project (LeadService::confirmDeal()).
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
-        'name' => 'Proyek Budi Santoso',
-        'pm_id' => $pm->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 21_000_000,
-    ])->assertRedirect(route('crm.leads.index'));
+    // 8. The client approves on the link (the deal — lead CLOSING), then
+    // the CEO opens the execution Project from the lead page.
+    presalesClientApprovesAndProjectOpens($this, $quotation, $lead, $ceo, $pm, 21_000_000);
 
     expect($lead->fresh()->status)->toBe(LeadStatus::Closing)
         ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue();
@@ -256,12 +269,11 @@ test('the presales flow survives rejections — CEO return, client reject, revis
         ->and($quotation->valid_until->toDateString())->toBe('2026-10-15')
         ->and($quotation->approvals()->where('approver_role', 'CLIENT')->pluck('version')->all())->toBe([2]);
 
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
-        'name' => 'Proyek Sari Wulandari',
-        'pm_id' => $pm->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 25_000_000,
-    ])->assertRedirect(route('crm.leads.index'));
+    // The link of version 2 now only says "sudah diperbarui"; version 3's is the one.
+    $this->get(route('public.quotation.show', $quotation->shareLinks()->where('version', 2)->value('token')))
+        ->assertInertia(fn (Assert $page) => $page->where('state', 'outdated'));
+
+    presalesClientApprovesAndProjectOpens($this, $quotation, $lead, $ceo, $pm, 25_000_000);
 
     expect($lead->fresh()->status)->toBe(LeadStatus::Closing)
         ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved)

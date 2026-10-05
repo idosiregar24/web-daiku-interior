@@ -30,7 +30,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * PM / Asisten PM, then CEO for a RAB Proyek; Estimator → Marketing →
  * client) and the client's rejection, revision history and validity
  * period (Sprint 9) — see QuotationService's docblock for the state
- * machine. The client's acceptance is LeadController::confirmDeal().
+ * machine. The client's acceptance is PublicQuotationController (Sprint 12 Sub 5).
  */
 class QuotationController extends Controller
 {
@@ -54,7 +54,7 @@ class QuotationController extends Controller
     public function show(Request $request, Quotation $quotation): Response
     {
         $quotation->load([
-            'lead:id,client_name',
+            'lead:id,client_name,contact',
             'items',
             // Sprint 12 #11–#12 — bagian pekerjaan, skema DP/termin, who asked for it.
             'sections:id,quotation_id,name,sort_order',
@@ -81,13 +81,17 @@ class QuotationController extends Controller
                 ->with('reviewer:id,name')
                 ->where('version', '>=', $quotation->version - 1)
                 ->get(),
-            // Recording the client's decision — same roles as the
-            // `quotations.clientReject` / `crm.leads.confirmDeal` routes.
+            // Send to the client, record their rejection, cancel — the
+            // `quotations.sendToClient` / `clientReject` / `cancel` roles.
             'canClientDecide' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']),
             'validityDays' => QuotationService::VALIDITY_DAYS,
             // Master Satuan dropdown for the RAB builder (only editable while DRAFT).
             'units' => $quotation->status === QuotationStatus::Draft ? Unit::options() : [],
             'maxPaymentTerms' => QuotationService::MAX_PAYMENT_TERMS,
+            // Sprint 12 #13 — the client's link of this version, for Marketing to copy / WhatsApp.
+            'shareUrl' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN'])
+                ? $quotation->currentShareLink()?->url()
+                : null,
         ]);
     }
 

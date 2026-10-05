@@ -7,6 +7,7 @@ use App\Enums\LeadSurveyStatus;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
+use App\Events\QuotationClientApproved;
 use App\Models\Design;
 use App\Models\Lead;
 use App\Models\LeadSurvey;
@@ -16,8 +17,10 @@ use App\Models\QuotationItem;
 use App\Models\QuotationItemReview;
 use App\Models\QuotationPaymentTerm;
 use App\Models\QuotationRevision;
+use App\Models\QuotationShareLink;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -30,9 +33,10 @@ use Illuminate\Validation\ValidationException;
  * then needs the CEO's review too, so the CEO can never decide before the
  * PM. The Estimator hands the final RAB to Marketing (sendToMarketing()),
  * Marketing sends it to the client (sendToClient(), starts the
- * VALIDITY_DAYS validity period). The client's acceptance is
- * LeadService::confirmDeal() (→ CLIENT_APPROVED), their rejection
- * clientReject(). Every return/rejection closes the version into
+ * VALIDITY_DAYS validity period and creates the public link). The client
+ * approves on that link (clientApprove() → CLIENT_APPROVED,
+ * QuotationClientApproved); a rejection is recorded by Marketing
+ * (clientReject()). Every return/rejection closes the version into
  * `quotation_revisions` and reopens the next version as DRAFT
  * (closeVersion()). The lead's design follows the project RAB via
  * DesignService::syncWithPipeline().
@@ -463,14 +467,22 @@ class QuotationService
 
     /**
      * Marketing sends the final RAB to the client — the offer's validity
-     * period starts here (PRD §4.3 "default 14 hari dari tanggal kirim").
-     * Sub 5 adds the client's approval link on top of this step.
+     * period starts here (PRD §4.3 "default 14 hari dari tanggal kirim")
+     * and the version gets its public link (decision #13), which Marketing
+     * copies or sends over WhatsApp.
      */
     public function sendToClient(Quotation $quotation, User $actor): Quotation
     {
         return $this->advance($quotation, QuotationStatus::ReadyToSend, QuotationStatus::SentToClient, $actor, 'quotation.sent_to_client',
             'RAB ini belum dikirim Estimator ke Marketing.',
-            function (Quotation $quotation) {
+            function (Quotation $quotation) use ($actor) {
+                // Sprint 12 #13 — the client's link, for this version only.
+                $quotation->shareLinks()->create([
+                    'version' => $quotation->version,
+                    'token' => Str::random(QuotationShareLink::TOKEN_LENGTH),
+                    'sent_by' => $actor->id,
+                ]);
+
                 $now = now();
                 $quotation->update([
                     'valid_until' => now('Asia/Jakarta')->startOfDay()->addDays(self::VALIDITY_DAYS)->toDateString(),
@@ -571,6 +583,90 @@ class QuotationService
                 "Klien menolak penawaran \"{$quotation->lead->client_name}\" versi {$oldVersion} — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi: {$note}",
                 ['quotation_id' => $quotation->id],
             );
+
+            return $quotation->fresh();
+        });
+    }
+
+    /**
+     * Sprint 12 decisions #13–#14 — what the public link shows:
+     * - `approved`: this version was approved by the client;
+     * - `outdated`: a newer version exists ("Penawaran ini sudah diperbarui");
+     * - `unavailable`: the offer is no longer on the table (cancelled, or
+     *   pulled back for a revision);
+     * - `expired`: past `valid_until` ("hubungi Marketing");
+     * - `open`: the client may approve.
+     */
+    public function publicState(QuotationShareLink $link): string
+    {
+        $quotation = $link->quotation;
+
+        return match (true) {
+            $link->version !== $quotation->version => 'outdated',
+            $quotation->status === QuotationStatus::ClientApproved => 'approved',
+            $quotation->status !== QuotationStatus::SentToClient => 'unavailable',
+            $quotation->valid_until !== null && $quotation->valid_until->lt(now('Asia/Jakarta')->startOfDay()) => 'expired',
+            default => 'open',
+        };
+    }
+
+    /**
+     * Sprint 12 decision #13 — the client approves the RAB (and its payment
+     * scheme) through the public link, after ticking "Saya telah membaca dan
+     * menyetujui penawaran ini". No internal user acts here: the audit row
+     * carries the client's IP and device, the approval is stamped on the
+     * quotation, and QuotationClientApproved hands over to the next step
+     * (lead closing for a RAB Proyek; survey payment / design / Buka Proyek
+     * in later sub-plans).
+     */
+    public function clientApprove(QuotationShareLink $link, bool $agreed, ?string $ip, ?string $userAgent): Quotation
+    {
+        if (! $agreed) {
+            throw ValidationException::withMessages(['agree' => 'Centang pernyataan persetujuan terlebih dahulu.']);
+        }
+
+        return DB::transaction(function () use ($link, $ip, $userAgent) {
+            $quotation = Quotation::whereKey($link->quotation_id)->lockForUpdate()->firstOrFail();
+            $link->setRelation('quotation', $quotation);
+
+            $state = $this->publicState($link);
+
+            if ($state !== 'open') {
+                throw ValidationException::withMessages(['agree' => match ($state) {
+                    'approved' => 'Penawaran ini sudah disetujui.',
+                    'outdated' => 'Penawaran ini sudah diperbarui — minta link terbaru ke Marketing kami.',
+                    'expired' => 'Masa berlaku penawaran ini sudah habis — silakan hubungi Marketing kami.',
+                    default => 'Penawaran ini sudah tidak berlaku.',
+                }]);
+            }
+
+            $quotation->update([
+                'status' => QuotationStatus::ClientApproved->value,
+                'client_approved_at' => now(),
+                'client_approved_ip' => $ip,
+                'client_approved_user_agent' => $userAgent === null ? null : mb_substr($userAgent, 0, 500),
+                'client_approved_link_id' => $link->id,
+            ]);
+
+            // PRD §9.4 — the client's acceptance is the final quotation approval.
+            $this->auditLogService->record('quotation.client_approved', $quotation, ['status' => QuotationStatus::SentToClient], [
+                'status' => $quotation->status,
+                'version' => $quotation->version,
+                'total_amount' => $quotation->total_amount,
+                'via' => 'link klien',
+                'user_agent' => $quotation->client_approved_user_agent,
+            ]);
+
+            $quotation->loadMissing(['creator', 'requester', 'lead.assignee', 'lead']);
+            $this->notificationService->notifyMany(
+                collect([$quotation->creator, $quotation->requester, $quotation->lead->assignee, $link->sender])->filter()->unique('id'),
+                'quotation_client_approved',
+                "{$this->typeLabel($quotation)} Disetujui Klien",
+                "Klien \"{$quotation->lead->client_name}\" menyetujui {$this->typeLabel($quotation)} versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') lewat link penawaran.',
+                ['quotation_id' => $quotation->id, 'lead_id' => $quotation->lead_id],
+            );
+
+            QuotationClientApproved::dispatch($quotation, $link);
 
             return $quotation->fresh();
         });

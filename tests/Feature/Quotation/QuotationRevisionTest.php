@@ -278,20 +278,14 @@ test('internal approvals do not start the validity period', function () {
         ->and($quotation->fresh()->valid_until)->toBeNull();
 });
 
-test('an expired offer can still be confirmed as a deal (warning only)', function () {
-    $marketing = revisionUser('MARKETING');
-    $pm = revisionUser('PM');
-    $lead = Lead::factory()->create(['status' => 'DEAL_DESAIN']);
-    $quotation = sentQuotation(['lead_id' => $lead->id, 'valid_until' => now()->subDays(3)->toDateString()]);
+test('an expired offer can no longer be approved on its link (Sprint 12 #14)', function () {
+    $quotation = sentQuotation(['valid_until' => now('Asia/Jakarta')->subDay()->toDateString()]);
+    $link = shareLinkFor($quotation);
 
-    $this->actingAs($marketing)->post(route('crm.leads.confirmDeal', ['lead' => $lead->id]), [
-        'name' => 'Proyek Kedaluwarsa',
-        'pm_id' => $pm->id,
-        'start_date' => now()->toDateString(),
-        'contract_value' => 7_000_000,
-    ])->assertSessionHasNoErrors();
+    $this->post(route('public.quotation.approve', $link->token), ['agree' => true])
+        ->assertSessionHasErrors(['agree' => 'Masa berlaku penawaran ini sudah habis — silakan hubungi Marketing kami.']);
 
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved);
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::SentToClient);
 });
 
 test('an expired offer can still be rejected by the client', function () {

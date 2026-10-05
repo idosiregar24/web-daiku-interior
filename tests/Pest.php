@@ -2,11 +2,13 @@
 
 use App\Models\MaterialCategory;
 use App\Models\Quotation;
+use App\Models\QuotationShareLink;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\QuotationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 /*
@@ -91,4 +93,14 @@ function reviewQuotation(Quotation $quotation, User $reviewer, array $wrong = []
             'note' => $wrong[$item->description] ?? null,
         ])->all(),
     ], $reviewer);
+}
+
+/** Sprint 12 #13 — a client link for the quotation's current version (as sendToClient() makes it). */
+function shareLinkFor(Quotation $quotation, ?User $sender = null): QuotationShareLink
+{
+    return $quotation->shareLinks()->create([
+        'version' => $quotation->version,
+        'token' => Str::random(QuotationShareLink::TOKEN_LENGTH),
+        'sent_by' => ($sender ?? User::factory()->create())->id,
+    ]);
 }

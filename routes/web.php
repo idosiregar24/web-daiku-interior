@@ -43,6 +43,7 @@ use App\Http\Controllers\Projects\ProgressLogController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\TaskController;
+use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\QA\QaDashboardController;
 use App\Http\Controllers\QA\QaFormController;
 use App\Http\Controllers\Quotation\QuotationController;
@@ -89,9 +90,10 @@ Route::middleware('auth')->group(function () {
 // row; write access follows §4.1's explicit "Marketing dan CEO" rule
 // (broader than the matrix's MARKETING-only CRUD cell — see
 // .claude/plan/README.md for why the more specific prose rule wins).
-// updateStatus/confirmDeal follow the same Marketing+CEO write rule —
-// status transitions and deal confirmation are part of "edit lead", not a
-// separately-scoped action.
+// updateStatus follows the same Marketing+CEO write rule — status
+// transitions are part of "edit lead", not a separately-scoped action.
+// The deal itself is the client approving the RAB Proyek on its public
+// link (Sprint 12 Sub 5, `public.quotation.*` below).
 Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
     Route::get('dashboard', [LeadController::class, 'dashboard'])
         ->middleware('role:CEO|MARKETING')
@@ -116,10 +118,6 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
     Route::patch('leads/{lead}/status', [LeadController::class, 'updateStatus'])
         ->middleware('role:CEO|MARKETING')
         ->name('leads.updateStatus');
-
-    Route::post('leads/{lead}/confirm-deal', [LeadController::class, 'confirmDeal'])
-        ->middleware('role:CEO|MARKETING')
-        ->name('leads.confirmDeal');
 
     // Sprint 12 Sub 2 — "Ajukan Desain/Survey", follow-ups FU-n and site
     // surveys (decisions #2–#5). Same Marketing + CEO write rule as above.
@@ -232,9 +230,8 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->name('cancel');
 
     // PRD §6.2 "SENT TO CLIENT → REJECTED (klien) → DRAFT (revisi)" — the
-    // client's decision is recorded by the people talking to the client:
-    // the same CEO/Marketing actors as `crm.leads.confirmDeal` (its
-    // acceptance counterpart).
+    // client asks for a revision over WhatsApp; the people talking to the
+    // client record it. The acceptance is the client's own, on the link.
     Route::post('{quotation}/client-reject', [QuotationController::class, 'clientReject'])
         ->middleware('role:CEO|MARKETING')
         ->name('clientReject');
@@ -751,5 +748,17 @@ Route::middleware(['auth', 'role:CEO|SUPERADMIN'])->prefix('settings')->name('se
 Route::get('branding/{asset}', [BrandingAssetController::class, 'show'])
     ->whereIn('asset', array_keys(SiteSetting::ASSETS))
     ->name('branding.show');
+
+// Sprint 12 decisions #13–#14 — the client's offer page, opened from the
+// link Marketing sends: no login (the 48-character token is the
+// credential), throttled, never indexed (X-Robots-Tag), CSRF still on.
+Route::middleware('throttle:30,1')->prefix('penawaran')->name('public.quotation.')->group(function () {
+    Route::get('{token}', [PublicQuotationController::class, 'show'])
+        ->where('token', '[A-Za-z0-9]{48}')
+        ->name('show');
+    Route::post('{token}/setujui', [PublicQuotationController::class, 'approve'])
+        ->where('token', '[A-Za-z0-9]{48}')
+        ->name('approve');
+});
 
 require __DIR__.'/auth.php';
