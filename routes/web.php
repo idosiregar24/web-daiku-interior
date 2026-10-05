@@ -41,6 +41,7 @@ use App\Http\Controllers\Overtime\OvertimeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
+use App\Http\Controllers\Projects\ProjectAddendumController;
 use App\Http\Controllers\Projects\ProjectBudgetController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\ProjectDashboardController;
@@ -308,6 +309,11 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         Route::post('realizations/{realization}/reverse', [ProjectBudgetController::class, 'reverseRealization'])->name('realizations.reverse');
         Route::post('lines/{line}/overruns', [ProjectBudgetController::class, 'requestOverrun'])->name('overruns.store');
     });
+
+    // Sprint 12 #29 — "Minta RAB Tambahan": Marketing or the project's PM (ProjectPolicy::requestAddendum()).
+    Route::post('{project}/addenda', [ProjectAddendumController::class, 'store'])
+        ->middleware('role:MARKETING|PM')
+        ->name('addenda.store');
 
     // Sprint 12 #28 — only the CEO decides a held realisation.
     Route::post('budget-overruns/{overrun}/decide', [ProjectBudgetController::class, 'decideOverrun'])

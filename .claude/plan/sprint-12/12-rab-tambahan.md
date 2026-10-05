@@ -1,7 +1,7 @@
 # Sprint 12 · 12 — RAB Tambahan (Pekerjaan Tambah / Addendum)
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 05, 07, 09 · Keputusan: #29 · Default: D7
+> Status: **selesai 2026-10-05** · Prasyarat: 05, 07, 09 · Keputusan: #29 · Default: D7
 
 ## Tujuan
 Pekerjaan tambah setelah deal (blok "Penambahan" di Excel Kopi OZ: plafon
@@ -27,7 +27,7 @@ alur yang sama, lalu itemnya bisa dialokasikan.
   ringkasan).
 
 ## Checklist
-- [ ] **[Quotation]** Permintaan RAB Tambahan dari proyek; listener membedakan addendum
-- [ ] **[Finance]** Termin TAMBAHAN dari skema addendum (sesuai D7)
-- [ ] **[UI]** Daftar addendum di Detail Proyek, nilai kontrak gabungan, item addendum di Alokasi Dana
-- [ ] **[Test]** Addendum melewati PM → CEO → client; tidak membuka proyek baru; item & termin bertambah
+- [x] **[Quotation]** Permintaan RAB Tambahan dari proyek; listener membedakan addendum
+- [x] **[Finance]** Termin TAMBAHAN dari skema addendum (sesuai D7)
+- [x] **[UI]** Daftar addendum di Detail Proyek, nilai kontrak gabungan, item addendum di Alokasi Dana
+- [x] **[Test]** Addendum melewati PM → CEO → client; tidak membuka proyek baru; item & termin bertambah

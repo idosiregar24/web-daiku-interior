@@ -20,6 +20,7 @@ class Quotation extends Model
         'type',
         'lead_survey_id',
         'parent_quotation_id',
+        'project_id',
         'items_total',
         'discount_amount',
         'rounded_total',
@@ -53,6 +54,24 @@ class Quotation extends Model
             'client_approved_at' => 'datetime',
             'version' => 'integer',
         ];
+    }
+
+    /** Sprint 12 #29 — an addendum's RAB Fix. */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_quotation_id');
+    }
+
+    /** Sprint 12 #29 — the running project an addendum adds work to (null for any other quotation). */
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    /** RAB Tambahan — a PROYEK quotation on top of a project's RAB Fix. */
+    public function isAddendum(): bool
+    {
+        return $this->parent_quotation_id !== null;
     }
 
     public function lead(): BelongsTo

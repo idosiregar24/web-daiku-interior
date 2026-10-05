@@ -123,7 +123,8 @@ export default function QuotationShow({
     const isDraft = status === 'DRAFT';
     const editable = canManage && isDraft;
     const revisions = quotation.revisions ?? [];
-    const typeLabel = QUOTATION_TYPE_LABEL[quotation.type];
+    // Sprint 12 #29 — an addendum is a PROYEK quotation on top of a project's RAB Fix.
+    const typeLabel = quotation.parent_quotation_id ? 'RAB Tambahan' : QUOTATION_TYPE_LABEL[quotation.type];
     const canCancel = canClientDecide && !CLOSED_STATUSES.includes(status);
     // The version the Estimator is revising right now, and the items the reviewer marked ✘ on it.
     const lastRevision = isDraft ? revisions.find((revision) => revision.version === quotation.version - 1) : undefined;
@@ -186,6 +187,17 @@ export default function QuotationShow({
             {status === 'CANCELLED' && (
                 <Notice tone="error" className="mb-6">
                     RAB ini dibatalkan — lihat alasannya di Log Audit. Minta RAB baru dari halaman lead bila perlu.
+                </Notice>
+            )}
+
+            {quotation.parent_quotation_id && quotation.project && (
+                <Notice tone="info" className="mb-6">
+                    RAB Tambahan untuk proyek{' '}
+                    <Link href={route('projects.show', { project: quotation.project.id })} className="font-medium underline decoration-daiku-yellow underline-offset-2">
+                        {quotation.project.name}
+                    </Link>
+                    {quotation.parent && ` (menambah RAB Fix versi ${quotation.parent.version})`}. Setelah disetujui klien, nilai, termin, dan
+                    itemnya ditambahkan ke proyek — tidak membuka proyek baru.
                 </Notice>
             )}
 

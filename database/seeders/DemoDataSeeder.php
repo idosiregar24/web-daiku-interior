@@ -706,6 +706,7 @@ class DemoDataSeeder extends Seeder
         $this->seedOvertimeRequests($projects);
         $this->seedProgressLogsAndTermins($projects[0]['project']);
         $this->seedBudgetAllocation($projects[0]['project']);
+        $this->seedAddendum($projects[0]['project']);
         $this->seedFinanceTransactions($projects[0]['project']);
     }
 
@@ -785,6 +786,30 @@ class DemoDataSeeder extends Seeder
             'note' => 'Rangka aluminium naik harga.',
             'reason' => 'Harga aluminium naik sejak RAB dibuat; klien minta kaca 10 mm.',
         ], $this->pm);
+    }
+
+    /**
+     * Sprint 12 #29 / D7 — pekerjaan tambah (like the Excel's "Penambahan"
+     * block): Marketing asks for a RAB Tambahan, it runs Estimator → PM →
+     * CEO → client link, and its approval adds a TAMBAHAN termin, the
+     * contract value and two allocatable items to the project.
+     */
+    private function seedAddendum(Project $project): void
+    {
+        $quotations = app(QuotationService::class);
+        $addendum = $quotations->requestAddendum($project->fresh(), 'Plafon membran 8,84 m² dan plafon topian meja bar.', $this->marketing);
+
+        $quotations->startDraft($addendum, $this->estimator);
+        $quotations->replaceItems($addendum, [
+            ['description' => 'Plafon Membran', 'qty' => 8.84, 'unit_id' => $this->unit('m2'), 'unit_price' => 350_000],
+            ['description' => 'Plafon Topian Meja Bar', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => 2_500_000],
+        ]);
+        $quotations->submit($addendum);
+        $this->reviewRab($quotations, $addendum->fresh(), $this->pm);
+        $this->reviewRab($quotations, $addendum->fresh(), $this->ceo);
+        $quotations->sendToMarketing($addendum->fresh(), $this->estimator);
+        $quotations->sendToClient($addendum->fresh(), $this->marketing);
+        $quotations->clientApprove($addendum->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
     }
 
     private function seedProgressLogsAndTermins(Project $project): void

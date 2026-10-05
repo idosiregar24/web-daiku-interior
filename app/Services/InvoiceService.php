@@ -103,8 +103,14 @@ class InvoiceService
                 throw ValidationException::withMessages(['termin' => 'Invoice termin ini sudah diterbitkan.']);
             }
 
-            $isLast = $termin->termin_number >= (int) Termin::where('project_id', $termin->project_id)->max('termin_number');
+            // "Last" within its own RAB — an addendum's termins come after the RAB Fix's.
+            $isLast = $termin->termin_number >= (int) Termin::where('project_id', $termin->project_id)
+                ->where('quotation_id', $termin->quotation_id)
+                ->max('termin_number');
+            $isAddendum = $termin->quotation_id !== null && $termin->quotation_id !== $termin->project->quotation_id;
             $type = match (true) {
+                // Sprint 12 #29 / D7 — every termin of a RAB Tambahan.
+                $isAddendum => InvoiceType::Tambahan,
                 $termin->trigger === PaymentTermTrigger::DiMuka => InvoiceType::Dp,
                 $termin->trigger === PaymentTermTrigger::ProyekSelesai, $isLast => InvoiceType::Pelunasan,
                 default => InvoiceType::Termin,
@@ -114,7 +120,7 @@ class InvoiceService
                 'number' => $this->nextNumber(),
                 'lead_id' => $termin->project->lead_id,
                 'project_id' => $termin->project_id,
-                'quotation_id' => $termin->project->quotation_id,
+                'quotation_id' => $termin->quotation_id ?? $termin->project->quotation_id,
                 'termin_id' => $termin->id,
                 'type' => $type->value,
                 'amount' => $termin->sisa_piutang,

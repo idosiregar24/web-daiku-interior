@@ -63,6 +63,9 @@ class QuotationController extends Controller
             'sections:id,quotation_id,name,sort_order',
             'paymentTerms',
             'requester:id,name',
+            // Sprint 12 #29 — an addendum's project and RAB Fix.
+            'project:id,name',
+            'parent:id,version,total_amount',
             'approvals.approver:id,name',
             'revisions.closer:id,name',
         ]);

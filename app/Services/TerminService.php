@@ -85,17 +85,22 @@ class TerminService
      *
      * @return Collection<int, Termin>
      */
-    public function createFromPaymentTerms(Project $project, Quotation $quotation): Collection
+    public function createFromPaymentTerms(Project $project, Quotation $quotation, ?string $upfrontDate = null): Collection
     {
+        // Sprint 12 #29 / D7 — an addendum's termins follow the project's
+        // existing ones (numbering), and its "di muka" is due when approved.
+        $offset = (int) $project->termins()->max('termin_number');
+
         return $quotation->paymentTerms->values()->map(fn (QuotationPaymentTerm $term) => $project->termins()->create([
             'payment_term_id' => $term->id,
+            'quotation_id' => $quotation->id,
             'trigger' => $term->trigger->value,
             'milestone_name' => $term->milestone_name,
-            'termin_number' => $term->sequence,
+            'termin_number' => $offset + $term->sequence,
             'percentage' => $term->percentage,
             'amount' => $term->amount,
             'scheduled_date' => match ($term->trigger) {
-                PaymentTermTrigger::DiMuka => $project->start_date?->toDateString(),
+                PaymentTermTrigger::DiMuka => $upfrontDate ?? $project->start_date?->toDateString(),
                 PaymentTermTrigger::Tanggal => $term->due_date?->toDateString(),
                 default => null,
             },

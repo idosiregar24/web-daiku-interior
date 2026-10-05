@@ -36,7 +36,7 @@ email) to browse it.
 | Sprint 9 | — (di luar CSV) | — | Gap PRD lanjutan: edit proyek/task, revisi & tolak klien quotation, saldo per rekening + Pindah Dana, dashboard divisi, cicilan aset, gaji karyawan, penagihan penalti, backup/HTTPS/deploy | 44 selesai / 0 sebagian / 1 belum (45) | [sprint-09.md](sprint-09.md) |
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
 | Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
-| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 54 selesai / 0 sebagian / 12 belum (66) — Sub 1–2 selesai 2026-10-04, Sub 3–11 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
+| Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | 58 selesai / 0 sebagian / 8 belum (66) — Sub 1–2 selesai 2026-10-04, Sub 3–12 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -600,6 +600,18 @@ clean. Decisions and deviations:
 - **Not** extended to the Asisten PM: Edit Proyek, allocation & realisation (`manageBudget` = PM), and the project-material lifecycle (plan/receive/settle — costs; still `ownsAsPm`) — the plan lists milestone/task/progress/ACC pengajuan only.
 - D2: Edit Proyek has an **Asisten PM** select (CEO or the project's PM; active ASISTEN_PM or none) → `ProjectService::update()` audits `project.assistant_pm_changed` (old/new id + name) and notifies the new and the previous assistant.
 - Marketing (#30) now gets milestones and progress logs on the project page (with termins, invoices, documents); finance props stay empty for Marketing — allocation/realisation (`budget`), `allocationBreakdown`, `supplierDebts`, materials & costs, tasks. Tested in `AssistantPmTest`.
+
+### Sub 12 — RAB Tambahan / addendum (done 2026-10-05)
+
+- Migration: `quotations.project_id` (set on an addendum, next to `parent_quotation_id` = the RAB Fix) and `termins.quotation_id` (the RAB a termin bills; Sub 7 scheme termins backfilled from their payment term; reversible).
+- `QuotationService::requestAddendum()` — "Minta RAB Tambahan" from the project's **Dokumen** tab (`projects.addenda.store`, `role:MARKETING|PM` + `ProjectPolicy::requestAddendum` = Marketing or the project's own PM; note required). Needs a RAB Fix and a running project; **one running addendum per project at a time** (not in the plan — keeps the flow and the totals readable). A PROYEK quotation, DIMINTA, Estimator notified → the normal flow: Estimator → PM / Asisten PM → CEO → Marketing → client link.
+- `Lead::quotation()` (the lead's project offer, read all over the app) now skips addenda.
+- Client approval: the existing listeners already skip addenda (no lead closing, no `project_openings`); new listener `AddAddendumToProject` → `ProjectService::addAddendum()`: contract value + addendum total; **D7**: its payment scheme becomes new termins numbered after the existing ones (`quotation_id` = the addendum; "di muka" due the approval day); audit `project.addendum_added`; PM, Asisten PM, Marketing, Finance notified. The 6-row limit stays per quotation.
+- Invoices: every termin of an addendum is invoice type **TAMBAHAN** (`quotation_id` = the addendum); "last termin → PELUNASAN" is now judged within the termin's own RAB, so the RAB Fix pelunasan stays PELUNASAN.
+- Edit Proyek: re-deriving termins from a changed contract value (before any payment) only touches the RAB Fix termins, with base = contract value − approved addenda.
+- Alokasi Dana: `sourceItems()` = RAB Fix + approved addenda (items marked "RAB Tambahan"); the summary's items / discount / RAB totals add them up.
+- UI: Dokumen tab "RAB Tambahan" card (list with status, "Minta RAB Tambahan" dialog, contract value = RAB Fix + approved addenda); termins of an addendum marked "Tambahan" on the Finance tab; the quotation page / client link call it "RAB Tambahan" with a banner linking the project.
+- Demo: Proyek Budi Santoso has an approved RAB Tambahan (Plafon Membran 8,84 m² + Plafon Topian Meja Bar) → termin #4 TAMBAHAN, contract value up by its total, two more items to allocate.
 
 ## ⚠️ Schema discovery: `daiku_schema.sql` (found 2026-08-15, not yet reconciled)
 

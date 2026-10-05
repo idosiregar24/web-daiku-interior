@@ -39,7 +39,8 @@ class PublicQuotationResource extends JsonResource
                 'address' => $quotation->lead->address,
             ],
             'type' => $quotation->type->value,
-            'typeLabel' => $quotation->type->label(),
+            // Sprint 12 #29 — an addendum shows as such to the client.
+            'typeLabel' => $quotation->isAddendum() ? 'RAB Tambahan' : $quotation->type->label(),
             'number' => 'QUO-'.str_pad((string) $quotation->id, 5, '0', STR_PAD_LEFT),
             'version' => $quotation->version,
             'sentAt' => $quotation->sent_at?->toIso8601String(),

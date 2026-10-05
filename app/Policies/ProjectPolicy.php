@@ -85,6 +85,12 @@ class ProjectPolicy
         return $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
     }
 
+    /** Sprint 12 #29 — "Minta RAB Tambahan": Marketing, or the PM of this project. */
+    public function requestAddendum(User $user, Project $project): bool
+    {
+        return $user->hasRole('MARKETING') || $this->ownsAsPm($user, $project);
+    }
+
     /**
      * Sprint 12 #23–#26 — "Alokasi Dana Proyek": read by CEO, Finance and
      * the PMs; never Marketing (#30) nor the Asisten PM (#22).

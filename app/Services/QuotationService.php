@@ -11,6 +11,7 @@ use App\Events\QuotationClientApproved;
 use App\Models\Design;
 use App\Models\Lead;
 use App\Models\LeadSurvey;
+use App\Models\Project;
 use App\Models\Quotation;
 use App\Models\QuotationApproval;
 use App\Models\QuotationItem;
@@ -135,6 +136,52 @@ class QuotationService
                 "Permintaan {$type->label()}",
                 "{$actor->name} meminta {$type->label()} untuk \"{$lead->client_name}\": ".trim($note),
                 ['quotation_id' => $quotation->id, 'lead_id' => $lead->id],
+            );
+
+            return $quotation;
+        });
+    }
+
+    /**
+     * Sprint 12 decision #29 — "Minta RAB Tambahan" on a running project
+     * (Marketing / its PM, note required): a PROYEK quotation on top of the
+     * RAB Fix (`parent_quotation_id`, `project_id`), DIMINTA, through the
+     * same flow — Estimator → PM / Asisten PM → CEO → client link. Its
+     * approval adds to the project (ProjectService::addAddendum()), never
+     * opens a new one. One running addendum per project at a time.
+     */
+    public function requestAddendum(Project $project, string $note, User $actor): Quotation
+    {
+        if ($project->quotation_id === null) {
+            throw ValidationException::withMessages(['note' => 'Proyek ini belum tertaut ke RAB Fix — RAB Tambahan tidak bisa diminta.']);
+        }
+
+        if ($project->isClosed()) {
+            throw ValidationException::withMessages(['note' => "Proyek ini sudah {$project->status->value} — tidak bisa menambah pekerjaan."]);
+        }
+
+        if ($project->addenda()->whereNotIn('status', QuotationStatus::closedValues())->exists()) {
+            throw ValidationException::withMessages(['note' => 'Masih ada RAB Tambahan proyek ini yang sedang berjalan.']);
+        }
+
+        return DB::transaction(function () use ($project, $note, $actor) {
+            $quotation = Quotation::create([
+                'lead_id' => $project->lead_id,
+                'type' => QuotationType::Proyek->value,
+                'parent_quotation_id' => $project->quotation_id,
+                'project_id' => $project->id,
+                'status' => QuotationStatus::Diminta->value,
+                'created_by' => $actor->id,
+                'requested_by' => $actor->id,
+                'request_note' => trim($note),
+            ]);
+
+            $this->notificationService->notifyRoles(
+                ['ESTIMATOR'],
+                'quotation_requested',
+                'Permintaan RAB Tambahan',
+                "{$actor->name} meminta RAB Tambahan untuk proyek \"{$project->name}\": ".trim($note),
+                ['quotation_id' => $quotation->id, 'project_id' => $project->id],
             );
 
             return $quotation;

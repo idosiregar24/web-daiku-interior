@@ -54,6 +54,12 @@ class Project extends Model
     }
 
     /** Sprint 12 #19 — the "RAB Fix" the client approved (null on pre-Sprint-12 projects). */
+    /** Sprint 12 #29 — RAB Tambahan requested on this project (any status). */
+    public function addenda(): HasMany
+    {
+        return $this->hasMany(Quotation::class)->whereNotNull('parent_quotation_id')->orderBy('id');
+    }
+
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);

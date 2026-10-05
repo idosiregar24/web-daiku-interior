@@ -115,8 +115,11 @@ class Lead extends Model
     public function quotation(): HasOne
     {
         // Newest first: a has-one keeps the first row per lead, eager-loaded or not.
+        // Sprint 12 #29: never an addendum (RAB Tambahan) — that adds to the
+        // project, it isn't "the" project offer.
         return $this->hasOne(Quotation::class)
             ->where('quotations.type', QuotationType::Proyek->value)
+            ->whereNull('quotations.parent_quotation_id')
             ->orderByDesc('quotations.id');
     }
 

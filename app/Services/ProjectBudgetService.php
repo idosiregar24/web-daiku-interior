@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\InvoiceStatus;
+use App\Enums\QuotationStatus;
 use App\Models\BudgetAllocationLog;
 use App\Models\BudgetLine;
 use App\Models\BudgetOverrunRequest;
@@ -10,6 +11,7 @@ use App\Models\BudgetPost;
 use App\Models\BudgetRealization;
 use App\Models\Invoice;
 use App\Models\Project;
+use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -38,23 +40,43 @@ class ProjectBudgetService
     }
 
     /**
-     * The RAB items that can be allocated: the project's RAB Fix. (Sub 12
-     * adds the approved addenda.)
+     * The RAB items that can be allocated: the project's RAB Fix and, since
+     * Sub 12 (#29), every RAB Tambahan the client approved.
      *
      * @return Collection<int, QuotationItem>
      */
     public function sourceItems(Project $project): Collection
     {
-        if ($project->quotation_id === null) {
+        $quotationIds = $this->sourceQuotations($project)->pluck('id');
+
+        if ($quotationIds->isEmpty()) {
             return collect();
         }
 
         return QuotationItem::query()
-            ->where('quotation_id', $project->quotation_id)
+            ->whereIn('quotation_id', $quotationIds)
             ->with('section:id,name,sort_order')
+            ->orderBy('quotation_id')
             ->orderBy('sort_order')
             ->orderBy('id')
             ->get();
+    }
+
+    /** @return Collection<int, Quotation> the RAB Fix + approved addenda */
+    private function sourceQuotations(Project $project): Collection
+    {
+        if ($project->quotation_id === null) {
+            return collect();
+        }
+
+        return Quotation::query()
+            ->whereKey($project->quotation_id)
+            ->orWhere(fn ($query) => $query
+                ->where('project_id', $project->id)
+                ->whereNotNull('parent_quotation_id')
+                ->where('status', QuotationStatus::ClientApproved->value))
+            ->orderBy('id')
+            ->get(['id', 'parent_quotation_id', 'items_total', 'discount_amount', 'total_amount']);
     }
 
     /**
@@ -71,20 +93,24 @@ class ProjectBudgetService
             'overrunRequests' => fn ($query) => $query->waiting()->with(['requester:id,name', 'line:id,description']),
         ])->get();
         $allocated = $posts->flatMap->lines->pluck('quotation_item_id')->filter()->all();
-        $quotation = $project->quotation;
+        // RAB Fix + approved RAB Tambahan (#29).
+        $quotations = $this->sourceQuotations($project);
+        $addendumIds = $quotations->whereNotNull('parent_quotation_id')->pluck('id')->all();
 
-        $itemsTotal = (float) ($quotation?->items_total ?? 0);
-        $discount = (float) ($quotation?->discount_amount ?? 0);
-        $rabTotal = (float) ($quotation?->total_amount ?? 0);
+        $itemsTotal = round((float) $quotations->sum(fn (Quotation $q) => (float) $q->items_total), 2);
+        $discount = round((float) $quotations->sum(fn (Quotation $q) => (float) $q->discount_amount), 2);
+        $rabTotal = round((float) $quotations->sum(fn (Quotation $q) => (float) $q->total_amount), 2);
         $postsTotal = round((float) $posts->flatMap->lines->sum(fn (BudgetLine $line) => (float) $line->sell_price), 2);
         $unallocated = $this->sourceItems($project)->reject(fn (QuotationItem $item) => in_array($item->id, $allocated, true))->values();
 
         return [
             'isOpen' => $this->isOpen($project),
-            'hasRab' => $quotation !== null,
+            'hasRab' => $project->quotation_id !== null,
             'unallocatedItems' => $unallocated->map(fn (QuotationItem $item) => [
                 'id' => $item->id,
                 'section' => $item->section?->name,
+                // Sprint 12 #29 — an item of a RAB Tambahan.
+                'addendum' => in_array($item->quotation_id, $addendumIds, true),
                 'description' => $item->description,
                 'qty' => (float) $item->qty,
                 'unit' => $item->unit?->code,

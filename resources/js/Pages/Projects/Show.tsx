@@ -11,6 +11,7 @@ import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Button } from '@/Components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { BudgetAllocationTab } from '@/Components/modules/projects/BudgetAllocationTab';
+import { RequestAddendumDialog } from '@/Components/modules/projects/RequestAddendumDialog';
 import { MilestoneCalendar } from '@/Components/modules/projects/MilestoneCalendar';
 import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
 import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneGanttCalendar';
@@ -36,6 +37,7 @@ import type {
     ProjectBudget,
     ProjectMaterial,
     ProjectStatusNote,
+    Quotation,
     SupplierDebt,
     Task,
     Termin,
@@ -60,6 +62,7 @@ import {
     FileText,
     Wallet,
     Layers,
+    FilePlus2,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -95,6 +98,8 @@ interface ProjectShowProps {
     budget: ProjectBudget | null;
     /** The project's own PM, project not closed. */
     canManageBudget: boolean;
+    /** Sprint 12 #29 — Marketing or the project's PM, project running with a RAB Fix. */
+    canRequestAddendum: boolean;
     /** Sprint 12 #28 — CEO decides held realisations. */
     canDecideOverrun: boolean;
     budgetVendors: VendorOption[];
@@ -112,6 +117,8 @@ interface ProjectShowProps {
 
 interface ProjectDocuments {
     quotation: { id: number; version: number; total_amount: string; client_approved_at: string | null } | null;
+    /** Sprint 12 #29 — RAB Tambahan of this project, any status. */
+    addenda: Pick<Quotation, 'id' | 'version' | 'status' | 'total_amount' | 'request_note' | 'client_approved_at' | 'created_at'>[];
     invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status' | 'paid_date'>[];
 }
 
@@ -590,7 +597,12 @@ function FinanceTab({
                             <tbody>
                                 {termins.map((termin) => (
                                     <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
-                                        <td className="px-4 py-3 font-medium">#{termin.termin_number}</td>
+                                        <td className="px-4 py-3 font-medium">
+                                            #{termin.termin_number}
+                                            {termin.quotation_id && project.quotation_id && termin.quotation_id !== project.quotation_id && (
+                                                <span className="ml-1.5 text-xs font-normal text-daiku-muted">Tambahan</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 text-daiku-muted">{terminTrigger(termin)}</td>
                                         <td className="px-4 py-3 text-right text-daiku-muted">{Number(termin.percentage).toLocaleString('id-ID')}%</td>
                                         <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
@@ -658,15 +670,77 @@ function FinanceTab({
 }
 
 /** Sprint 12 #21 — "Finance menerima RAB Fix + invoice final": the approved RAB and every invoice of the deal. */
-function DocumentsTab({ documents }: { documents: ProjectDocuments | null }) {
+function DocumentsTab({
+    project,
+    documents,
+    canRequestAddendum,
+}: {
+    project: Project;
+    documents: ProjectDocuments | null;
+    canRequestAddendum: boolean;
+}) {
+    const [requestOpen, setRequestOpen] = useState(false);
+
     if (!documents) {
         return <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses ke dokumen proyek ini." />;
     }
 
-    const { quotation, invoices } = documents;
+    const { quotation, invoices, addenda } = documents;
+    const approvedAddenda = addenda.filter((addendum) => addendum.status === 'CLIENT_APPROVED');
+    const addendaTotal = approvedAddenda.reduce((sum, addendum) => sum + Number(addendum.total_amount), 0);
 
     return (
         <div className="grid gap-6 lg:grid-cols-2">
+            <SectionCard
+                title="RAB Tambahan"
+                icon={FilePlus2}
+                description="Pekerjaan tambah setelah deal — alurnya sama: Estimator → PM → CEO → link klien."
+                className="lg:col-span-2"
+                flush
+                action={
+                    canRequestAddendum ? (
+                        <Button size="sm" variant="outline" onClick={() => setRequestOpen(true)}>
+                            <Plus className="size-4" />
+                            Minta RAB Tambahan
+                        </Button>
+                    ) : undefined
+                }
+                footer={
+                    quotation ? (
+                        <p className="text-sm">
+                            Nilai kontrak: RAB Fix {formatRupiah(quotation.total_amount)} + Tambahan disetujui {formatRupiah(addendaTotal)} ={' '}
+                            <span className="font-semibold">{formatRupiah(Number(quotation.total_amount) + addendaTotal)}</span>
+                        </p>
+                    ) : undefined
+                }
+            >
+                {addenda.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-daiku-muted sm:px-5">Belum ada RAB Tambahan.</p>
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {addenda.map((addendum, index) => (
+                            <li key={addendum.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm sm:px-5">
+                                <span className="min-w-0">
+                                    <Link
+                                        href={route('quotations.show', { quotation: addendum.id })}
+                                        className="font-medium text-daiku-dark underline decoration-daiku-yellow underline-offset-2"
+                                    >
+                                        Tambahan #{index + 1}
+                                    </Link>{' '}
+                                    <span className="text-daiku-muted">
+                                        · {Number(addendum.total_amount) > 0 ? formatRupiah(addendum.total_amount) : 'belum dihitung'}
+                                        {addendum.request_note ? ` · ${addendum.request_note}` : ''}
+                                    </span>
+                                </span>
+                                <StatusChip status={addendum.status} />
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </SectionCard>
+            {canRequestAddendum && (
+                <RequestAddendumDialog open={requestOpen} onOpenChange={setRequestOpen} projectId={project.id} projectName={project.name} />
+            )}
             <SectionCard title="RAB Fix" icon={FileText} description="Versi RAB Proyek yang disetujui klien.">
                 {quotation ? (
                     <div className="space-y-3 text-sm">
@@ -872,6 +946,7 @@ export default function ProjectShow({
     documents,
     budget,
     canManageBudget,
+    canRequestAddendum,
     canDecideOverrun,
     budgetVendors,
     allocationBreakdown,
@@ -1023,7 +1098,7 @@ export default function ProjectShow({
                 )}
                 {documents && (
                     <TabsContent value="documents" className="mt-6">
-                        <DocumentsTab documents={documents} />
+                        <DocumentsTab project={project} documents={documents} canRequestAddendum={canRequestAddendum} />
                     </TabsContent>
                 )}
                 {canViewMaterials && (

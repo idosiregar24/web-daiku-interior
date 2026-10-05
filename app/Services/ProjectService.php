@@ -13,6 +13,7 @@ use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\ProjectOpening;
+use App\Models\Quotation;
 use App\Models\Termin;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -402,9 +403,52 @@ class ProjectService
      * can't slip in between the check and the rewrite. Same condition as
      * Project::hasTerminPayments(), evaluated on the locked rows.
      */
+    /**
+     * Sprint 12 decision #29 / D7 — the client approved a RAB Tambahan
+     * (listener AddAddendumToProject): the contract value grows by its
+     * total, its payment scheme becomes new termins after the existing
+     * ones (invoice type TAMBAHAN, "di muka" due today) and its items
+     * become allocatable (ProjectBudgetService::sourceItems()). Audited;
+     * PM, Asisten PM, Marketing and Finance are told.
+     */
+    public function addAddendum(Quotation $addendum): Project
+    {
+        $project = Project::lockForUpdate()->findOrFail($addendum->project_id);
+        $before = number_format((float) $project->contract_value, 2, '.', '');
+
+        $project->update(['contract_value' => round((float) $project->contract_value + (float) $addendum->total_amount, 2)]);
+        $termins = $this->terminService->createFromPaymentTerms($project, $addendum->loadMissing('paymentTerms'), now()->toDateString());
+
+        $this->auditLogService->record('project.addendum_added', $project, ['contract_value' => $before], [
+            'contract_value' => number_format((float) $project->contract_value, 2, '.', ''),
+            'quotation_id' => $addendum->id,
+            'addendum_total' => (float) $addendum->total_amount,
+            'termins' => $termins->pluck('termin_number')->all(),
+        ]);
+
+        $this->notificationService->notifyMany(
+            collect([$project->pm, $project->assistantPm, $project->lead?->assignee])
+                ->merge(User::role('FINANCE')->where('is_active', true)->get()),
+            'project_addendum_added',
+            'RAB Tambahan Disetujui Klien',
+            "Klien menyetujui RAB Tambahan proyek \"{$project->name}\" (Rp ".number_format((float) $addendum->total_amount, 0, ',', '.').') — termin & item baru sudah ditambahkan.',
+            ['project_id' => $project->id, 'quotation_id' => $addendum->id],
+        );
+
+        return $project;
+    }
+
     private function recalculateTermins(Project $project, mixed $contractValue): int
     {
-        $termins = Termin::query()->where('project_id', $project->id)->lockForUpdate()->get();
+        // Sprint 12 #29: only the RAB Fix's termins follow the contract
+        // value; an addendum's are fixed amounts of their own RAB.
+        $addendaTotal = (float) $project->addenda()->where('status', QuotationStatus::ClientApproved->value)->sum('total_amount');
+        $contractValue = (float) $contractValue - $addendaTotal;
+        $termins = Termin::query()
+            ->where('project_id', $project->id)
+            ->where(fn ($query) => $query->whereNull('quotation_id')->orWhere('quotation_id', $project->quotation_id))
+            ->lockForUpdate()
+            ->get();
 
         $hasPayment = $termins->contains(fn (Termin $termin) => $termin->status === TerminStatus::Paid
             || $this->toCents($termin->dp_amount) > 0
@@ -423,7 +467,6 @@ class ProjectService
         return $termins->count();
     }
 
-    /** PRD §4.9-style heads-up to both sides of a PM hand-over. */
     /** Sprint 12 D2 — audit `project.assistant_pm_changed`, tell the new and the previous Asisten PM. */
     private function recordAssistantChange(Project $project, ?User $previous, User $actor): void
     {
@@ -458,6 +501,7 @@ class ProjectService
         }
     }
 
+    /** PRD §4.9-style heads-up to both sides of a PM hand-over. */
     private function notifyPmChange(Project $project, User $newPm, ?User $previousPm, User $actor): void
     {
         $this->notificationService->notify(

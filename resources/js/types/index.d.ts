@@ -454,7 +454,11 @@ export interface Quotation {
     lead?: Pick<Lead, 'id' | 'client_name'>;
     type: QuotationType;
     lead_survey_id: number | null;
+    /** Sprint 12 #29 — set on a RAB Tambahan: its RAB Fix / project. */
     parent_quotation_id: number | null;
+    project_id?: number | null;
+    project?: Pick<Project, 'id' | 'name'> | null;
+    parent?: Pick<Quotation, 'id' | 'version' | 'total_amount'> | null;
     /** Σ item subtotals. */
     items_total: string | null;
     discount_amount: string;
@@ -713,6 +717,8 @@ export type TerminStatus = 'SCHEDULED' | 'INVOICED' | 'PAID' | 'OVERDUE';
 export interface BudgetSourceItem {
     id: number;
     section: string | null;
+    /** Sprint 12 #29 — an item of an approved RAB Tambahan. */
+    addendum: boolean;
     description: string;
     qty: number;
     unit: string | null;
@@ -831,6 +837,8 @@ export interface ProjectBudget {
 export interface Termin {
     id: number;
     project_id: number;
+    /** Sprint 12 #29 — the RAB this termin bills (RAB Fix or a RAB Tambahan); null on pre-Sprint-12 termins. */
+    quotation_id?: number | null;
     project?: Pick<Project, 'id' | 'name'>;
     milestone_id: number | null;
     milestone?: Pick<Milestone, 'id' | 'name'>;

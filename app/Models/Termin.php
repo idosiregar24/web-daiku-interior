@@ -18,6 +18,7 @@ class Termin extends Model
         'project_id',
         'milestone_id',
         'payment_term_id',
+        'quotation_id',
         'trigger',
         'milestone_name',
         'termin_number',
@@ -59,6 +60,12 @@ class Termin extends Model
     public function milestone(): BelongsTo
     {
         return $this->belongsTo(Milestone::class);
+    }
+
+    /** Sprint 12 #29 — the RAB this termin bills: the RAB Fix, or an addendum (invoice type TAMBAHAN). */
+    public function quotation(): BelongsTo
+    {
+        return $this->belongsTo(Quotation::class);
     }
 
     /** Sprint 12 #20 — the invoice Marketing issued for this termin. */

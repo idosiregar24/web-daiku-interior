@@ -179,6 +179,8 @@ class ProjectController extends Controller
             'canMarkTerminPaid' => $canMarkTerminPaid,
             'documents' => $canViewDocuments ? [
                 'quotation' => $project->quotation()->first(['id', 'type', 'version', 'total_amount', 'client_approved_at', 'status']),
+                // Sprint 12 #29 — RAB Tambahan of this project, any status.
+                'addenda' => $project->addenda()->get(['id', 'type', 'version', 'status', 'total_amount', 'request_note', 'client_approved_at', 'created_at']),
                 'invoices' => Invoice::query()
                     ->where(fn ($query) => $query->where('project_id', $project->id)->orWhere('lead_id', $project->lead_id))
                     ->orderBy('issued_at')
@@ -186,6 +188,7 @@ class ProjectController extends Controller
             ] : null,
             'budget' => $canViewBudget ? $budgetService->overview($project) : null,
             'canManageBudget' => $canViewBudget && $user->can('manageBudget', $project) && ! $project->isClosed(),
+            'canRequestAddendum' => $project->quotation_id !== null && ! $project->isClosed() && $user->can('requestAddendum', $project),
             // Sprint 12 #28 — the CEO decides held realisations from the tab too.
             'canDecideOverrun' => $canViewBudget && $user->hasAnyRole(['CEO', 'SUPERADMIN']),
             'budgetVendors' => $canViewBudget && $user->can('manageBudget', $project) ? Vendor::options() : [],

@@ -194,6 +194,7 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                     <div className="min-w-0 flex-1">
                                         <p className="font-medium text-daiku-dark">{item.description}</p>
                                         <p className="text-xs text-daiku-muted">
+                                            {item.addendum ? 'RAB Tambahan · ' : ''}
                                             {item.section ? `${item.section} · ` : ''}
                                             {quantity(item.qty, item.unit)}
                                         </p>
