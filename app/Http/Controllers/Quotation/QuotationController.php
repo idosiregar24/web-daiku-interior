@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Quotation;
 
+use App\Enums\InvoiceType;
 use App\Enums\QuotationStatus;
 use App\Exports\QuotationExport;
 use App\Http\Controllers\Controller;
@@ -92,6 +93,12 @@ class QuotationController extends Controller
             'shareUrl' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN'])
                 ? $quotation->currentShareLink()?->url()
                 : null,
+            // Sprint 12 #20 — the invoice of an approved Jasa Survey / Jasa Desain RAB.
+            'invoices' => $quotation->invoices()->get(['id', 'quotation_id', 'number', 'type', 'amount', 'due_date', 'status']),
+            'canIssueInvoice' => $user->hasAnyRole(['MARKETING', 'SUPERADMIN'])
+                && $quotation->status === QuotationStatus::ClientApproved
+                && InvoiceType::forQuotation($quotation->type) !== null
+                && ! $quotation->invoices()->exists(),
         ]);
     }
 

@@ -246,6 +246,38 @@ export type QuotationStatus =
     | 'APPROVED'
     | 'REJECTED';
 
+/** Sprint 12 #20–#21 — App\Enums\InvoiceType / InvoiceStatus. */
+export type InvoiceType = 'JASA_SURVEY' | 'JASA_DESAIN' | 'DP' | 'TERMIN' | 'PELUNASAN' | 'TAMBAHAN';
+export type InvoiceStatus = 'DITERBITKAN' | 'MENUNGGU_VERIFIKASI' | 'TERVERIFIKASI';
+
+export interface Invoice {
+    id: number;
+    number: string;
+    lead_id: number;
+    lead?: Pick<Lead, 'id' | 'client_name'>;
+    project_id: number | null;
+    quotation_id: number | null;
+    quotation?: Pick<Quotation, 'id' | 'type' | 'version'> | null;
+    termin_id: number | null;
+    type: InvoiceType;
+    amount: string;
+    due_date: string;
+    status: InvoiceStatus;
+    issued_by: number;
+    issuer?: Pick<User, 'id' | 'name'>;
+    issued_at: string;
+    payment_proof_url: string | null;
+    proof_submitted_at: string | null;
+    bank_account_id: number | null;
+    bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
+    paid_date: string | null;
+    verified_by: number | null;
+    verifier?: Pick<User, 'id' | 'name'> | null;
+    verified_at: string | null;
+    reject_reason: string | null;
+    rejected_at: string | null;
+}
+
 /** Sprint 12 #8 — one ✔/✘ mark on a RAB item (App\Models\QuotationItemReview). */
 export interface QuotationItemReview {
     id: number;
@@ -658,6 +690,9 @@ export type FinanceCategory =
     | 'BBM'
     | 'OWNER'
     | 'PENALTY_COLLECT'
+    /** Sprint 12 Sub 6 — verified Jasa Survey / Jasa Desain invoices. */
+    | 'PENDAPATAN_SURVEY'
+    | 'PENDAPATAN_DESAIN'
     | 'LAINNYA';
 
 export interface FinanceTransaction {

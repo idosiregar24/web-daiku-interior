@@ -77,6 +77,12 @@ class Quotation extends Model
     }
 
     /** Sprint 12 decision #12 — the DP/termin scheme the client approves with the RAB. */
+    /** Sprint 12 #20 — invoices billed from this quotation. */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class)->orderBy('id');
+    }
+
     /** Sprint 12 #13 — every link sent to the client, newest first. */
     public function shareLinks(): HasMany
     {

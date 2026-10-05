@@ -113,6 +113,10 @@ const STATUS_TONE: Record<string, Tone> = {
     OPEN: 'info',
     CLOSED: 'success',
     ACKNOWLEDGED: 'success',
+    // Finance — InvoiceStatus (Sprint 12 Sub 6)
+    DITERBITKAN: 'info',
+    MENUNGGU_VERIFIKASI: 'warning',
+    TERVERIFIKASI: 'success',
     // CRM — LeadSurveyStatus (Sprint 12)
     DIJADWALKAN: 'info',
     MENUNGGU_BAYAR: 'warning',

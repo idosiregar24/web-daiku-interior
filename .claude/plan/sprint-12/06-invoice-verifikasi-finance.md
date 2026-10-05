@@ -1,7 +1,7 @@
 # Sprint 12 · 06 — Invoice oleh Marketing & Verifikasi Finance
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 05 · Keputusan: #3, #16, #20, #21
+> Status: **selesai 2026-10-05** · Prasyarat: 05 · Keputusan: #3, #16, #20, #21
 
 ## Tujuan
 Marketing menerbitkan semua invoice (Jasa Survey, Jasa Desain, DP, termin);
@@ -40,8 +40,8 @@ invoices   lead_id, project_id (nullable), quotation_id, termin_id (nullable),
   Pembayaran** (Finance: antrean). Audit `finance.invoice_verified/rejected`.
 
 ## Checklist
-- [ ] **[Database]** Tabel `invoices` + nomor otomatis
-- [ ] **[Finance]** `InvoiceService`: terbitkan (Marketing), unggah bukti, verifikasi/tolak (Finance) → transaksi & saldo, event `InvoiceVerified`
-- [ ] **[CRM]** Listener: SURVEY disetujui client → MENUNGGU_BAYAR; invoice JASA_SURVEY terverifikasi → SIAP
-- [ ] **[UI]** Halaman Invoice (Marketing), antrean Verifikasi (Finance), PDF invoice, nav
-- [ ] **[Test]** Hanya Marketing menerbitkan, hanya Finance memverifikasi (lainnya 403); verifikasi membuat transaksi sekali (idempotent); tolak wajib alasan; survey luar kota jadi SIAP setelah verifikasi
+- [x] **[Database]** Tabel `invoices` + nomor otomatis
+- [x] **[Finance]** `InvoiceService`: terbitkan (Marketing), unggah bukti, verifikasi/tolak (Finance) → transaksi & saldo, event `InvoiceVerified`
+- [x] **[CRM]** Listener: SURVEY disetujui client → MENUNGGU_BAYAR; invoice JASA_SURVEY terverifikasi → SIAP
+- [x] **[UI]** Halaman Invoice (Marketing), antrean Verifikasi (Finance), PDF invoice, nav
+- [x] **[Test]** Hanya Marketing menerbitkan, hanya Finance memverifikasi (lainnya 403); verifikasi membuat transaksi sekali (idempotent); tolak wajib alasan; survey luar kota jadi SIAP setelah verifikasi

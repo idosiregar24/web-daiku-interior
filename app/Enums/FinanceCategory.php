@@ -25,6 +25,9 @@ enum FinanceCategory: string
     case Bbm = 'BBM';
     case Owner = 'OWNER';
     case PenaltyCollect = 'PENALTY_COLLECT';
+    /** Sprint 12 Sub 6 — verified Jasa Survey / Jasa Desain invoices (InvoiceService). */
+    case PendapatanSurvey = 'PENDAPATAN_SURVEY';
+    case PendapatanDesain = 'PENDAPATAN_DESAIN';
     case Lainnya = 'LAINNYA';
 
     /**
@@ -52,6 +55,8 @@ enum FinanceCategory: string
             self::PindahDana,
             self::GajiKaryawan,
             self::PenaltyCollect, // Sprint 9 decision #10 — PenaltyCollectionService only
+            self::PendapatanSurvey, // Sprint 12 Sub 6 — InvoiceService::verify() only
+            self::PendapatanDesain,
         ];
     }
 
@@ -79,6 +84,8 @@ enum FinanceCategory: string
             self::Bbm => 'BBM',
             self::Owner => 'Owner',
             self::PenaltyCollect => 'Penalty Collect',
+            self::PendapatanSurvey => 'Pendapatan Jasa Survey',
+            self::PendapatanDesain => 'Pendapatan Jasa Desain',
             self::Lainnya => 'Lainnya',
         };
     }

@@ -46,6 +46,8 @@ export const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCa
         { value: 'PINDAH_DANA', label: 'Pindah Dana' },
         { value: 'OWNER', label: 'Owner' },
         { value: 'PENALTY_COLLECT', label: 'Penalty Collect' },
+        { value: 'PENDAPATAN_SURVEY', label: 'Pendapatan Jasa Survey' },
+        { value: 'PENDAPATAN_DESAIN', label: 'Pendapatan Jasa Desain' },
         { value: 'LAINNYA', label: 'Lainnya' },
     ],
     PENGELUARAN: [

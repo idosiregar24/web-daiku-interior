@@ -14,6 +14,7 @@ use App\Http\Controllers\Finance\FamilyGatheringFundController;
 use App\Http\Controllers\Finance\FinanceAllocationConfigController;
 use App\Http\Controllers\Finance\FinanceTransactionController;
 use App\Http\Controllers\Finance\FundTransferController;
+use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\PayrollController;
 use App\Http\Controllers\Finance\PenaltyController;
 use App\Http\Controllers\Finance\StaffLoanController;
@@ -225,6 +226,11 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->middleware('role:CEO|MARKETING')
         ->name('sendToClient');
 
+    // Sprint 12 #20 — the Jasa Survey / Jasa Desain invoice of an approved service RAB.
+    Route::post('{quotation}/invoices', [InvoiceController::class, 'storeForQuotation'])
+        ->middleware('role:MARKETING')
+        ->name('invoices.store');
+
     Route::post('{quotation}/cancel', [QuotationController::class, 'cancel'])
         ->middleware('role:CEO|MARKETING')
         ->name('cancel');
@@ -374,6 +380,28 @@ Route::post('projects/{project}/termins', [TerminController::class, 'store'])
     ->name('projects.termins.store');
 
 Route::middleware('auth')->prefix('finance')->name('finance.')->group(function () {
+    // Sprint 12 decisions #20–#21 — Marketing issues every invoice and
+    // follows it up; Finance verifies the payment (the only role that
+    // can). Read: CEO, Marketing, Finance. Never deleted (finance data).
+    Route::get('invoices', [InvoiceController::class, 'index'])
+        ->middleware('role:CEO|MARKETING|FINANCE')
+        ->name('invoices.index');
+    Route::get('invoices/verification', [InvoiceController::class, 'verification'])
+        ->middleware('role:CEO|FINANCE')
+        ->name('invoices.verification');
+    Route::get('invoices/{invoice}/pdf', [InvoiceController::class, 'exportPdf'])
+        ->middleware('role:CEO|MARKETING|FINANCE')
+        ->name('invoices.pdf');
+    Route::post('invoices/{invoice}/proof', [InvoiceController::class, 'submitProof'])
+        ->middleware(['role:MARKETING|FINANCE', 'throttle:60,1'])
+        ->name('invoices.proof');
+    Route::post('invoices/{invoice}/verify', [InvoiceController::class, 'verify'])
+        ->middleware(['role:FINANCE', 'throttle:60,1'])
+        ->name('invoices.verify');
+    Route::post('invoices/{invoice}/reject', [InvoiceController::class, 'reject'])
+        ->middleware(['role:FINANCE', 'throttle:60,1'])
+        ->name('invoices.reject');
+
     Route::get('termins', [TerminController::class, 'index'])
         ->middleware('role:CEO|FINANCE')
         ->name('termins.index');

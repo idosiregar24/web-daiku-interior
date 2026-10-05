@@ -1,4 +1,5 @@
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
+import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -16,6 +17,7 @@ import { QuotationRevisionHistory } from '@/Components/modules/quotation/Quotati
 import AppLayout from '@/Layouts/AppLayout';
 import type {
     Quotation,
+    Invoice,
     QuotationApproval,
     QuotationItemReview,
     QuotationRevisionReason,
@@ -34,6 +36,7 @@ import {
     FileText,
     Handshake,
     History,
+    ReceiptText,
     Send,
     Wallet,
 } from 'lucide-react';
@@ -57,6 +60,10 @@ interface QuotationShowProps {
     maxPaymentTerms: number;
     /** Sprint 12 #13 — this version's public link (CEO / Marketing only), once sent. */
     shareUrl: string | null;
+    /** Sprint 12 #20 — invoices billed from this RAB. */
+    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status'>[];
+    /** Marketing, on an approved Jasa Survey / Jasa Desain RAB without an invoice yet. */
+    canIssueInvoice: boolean;
 }
 
 const REVISION_REASON_TEXT: Record<QuotationRevisionReason, string> = {
@@ -98,9 +105,12 @@ export default function QuotationShow({
     units,
     maxPaymentTerms,
     shareUrl,
+    invoices,
+    canIssueInvoice,
 }: QuotationShowProps) {
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
+    const [issueOpen, setIssueOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     const status = quotation.status;
@@ -337,6 +347,8 @@ export default function QuotationShow({
                         ) : (
                             'Disetujui klien (dikonfirmasi Marketing sebelum link persetujuan tersedia).'
                         )}{' '}
+                        {quotation.type !== 'PROYEK' &&
+                            (invoices.length > 0 ? 'Pembayarannya ditagih lewat invoice di bawah.' : 'Terbitkan invoice-nya untuk ditagihkan ke klien.')}
                         {quotation.type === 'PROYEK' && (
                             <Link
                                 href={route('crm.leads.show', { lead: quotation.lead.id })}
@@ -347,6 +359,33 @@ export default function QuotationShow({
                             </Link>
                         )}
                     </p>
+                    {(invoices.length > 0 || canIssueInvoice) && (
+                        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+                            {invoices.map((invoice) => (
+                                <div key={invoice.id} className="flex flex-wrap items-center gap-2 text-sm">
+                                    <span className="font-medium text-daiku-dark">{invoice.number}</span>
+                                    <span className="text-daiku-muted">
+                                        {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)} · jatuh tempo {formatDate(invoice.due_date)}
+                                    </span>
+                                    <StatusChip status={invoice.status} />
+                                    <a
+                                        href={route('finance.invoices.pdf', { invoice: invoice.id })}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
+                                    >
+                                        PDF
+                                    </a>
+                                </div>
+                            ))}
+                            {canIssueInvoice && (
+                                <Button size="sm" className="w-fit" onClick={() => setIssueOpen(true)}>
+                                    <ReceiptText className="size-4" />
+                                    Terbitkan Invoice
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </SectionCard>
             )}
 
@@ -393,6 +432,15 @@ export default function QuotationShow({
                 role="CLIENT"
                 decision="reject"
             />
+            {canIssueInvoice && (
+                <IssueInvoiceDialog
+                    open={issueOpen}
+                    onOpenChange={setIssueOpen}
+                    quotationId={quotation.id}
+                    label={quotation.type === 'SURVEY' ? 'Jasa Survey' : 'Jasa Desain'}
+                    amount={quotation.total_amount}
+                />
+            )}
             <CancelQuotationDialog open={cancelOpen} onOpenChange={setCancelOpen} quotation={quotation} label={typeLabel} />
         </AppLayout>
     );

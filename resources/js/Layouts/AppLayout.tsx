@@ -47,6 +47,7 @@ import {
     Clock,
     ClipboardCheck,
     ClipboardList,
+    FileCheck2,
     FileText,
     FolderKanban,
     Gavel,
@@ -65,6 +66,7 @@ import {
     Percent,
     PiggyBank,
     Receipt,
+    ReceiptText,
     ScrollText,
     ShieldCheck,
     Target,
@@ -213,6 +215,22 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Termin',
                 icon: Wallet,
                 routeName: 'finance.termins.index',
+                roles: ['CEO', 'FINANCE'],
+            },
+            {
+                // Sprint 12 #20 — Marketing issues every invoice.
+                label: 'Invoice',
+                icon: ReceiptText,
+                routeName: 'finance.invoices.index',
+                match: 'finance.invoices.index',
+                roles: ['CEO', 'MARKETING', 'FINANCE'],
+            },
+            {
+                // Sprint 12 #21 — Finance's queue of payments to verify.
+                label: 'Verifikasi Pembayaran',
+                icon: FileCheck2,
+                routeName: 'finance.invoices.verification',
+                match: 'finance.invoices.verification',
                 roles: ['CEO', 'FINANCE'],
             },
             {
