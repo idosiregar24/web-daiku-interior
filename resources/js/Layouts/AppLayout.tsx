@@ -399,7 +399,7 @@ const NAV_GROUPS: NavGroup[] = [
 export const ROLE_LABEL: Record<Role, string> = {
     CEO: 'CEO',
     MARKETING: 'Marketing',
-    DESIGNER: 'Desainer',
+    DESIGNER: 'Arsitek',
     ESTIMATOR: 'Estimator',
     PM: 'Project Manager',
     QA: 'Quality Assurance',

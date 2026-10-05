@@ -3,6 +3,7 @@
 use App\Enums\DesignStatus;
 use App\Enums\LeadStatus;
 use App\Enums\QuotationStatus;
+use App\Models\BankAccount;
 use App\Models\Design;
 use App\Models\Lead;
 use App\Models\LeadSource;
@@ -10,6 +11,7 @@ use App\Models\Project;
 use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Services\DesignService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -75,6 +77,11 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     $marketing->assignRole('MARKETING');
     $designer = User::factory()->create();
     $designer->assignRole('DESIGNER');
+    $head = User::factory()->create();
+    $head->assignRole(User::rolesFor('KEPALA_DESAIN'));
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $account = BankAccount::factory()->create(['is_active' => true]);
     $estimator = User::factory()->create();
     $estimator->assignRole('ESTIMATOR');
     $ceo = User::factory()->create();
@@ -94,40 +101,73 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     $lead = Lead::where('client_name', 'Budi Santoso')->firstOrFail();
     expect($lead->status)->toBe(LeadStatus::FollowUp);
 
-    // 2. Marketing moves the lead to DEAL_DESAIN.
-    $this->actingAs($marketing)->patch(route('crm.leads.updateStatus', ['lead' => $lead->id]), [
-        'status' => 'DEAL_DESAIN',
-    ])->assertRedirect();
+    // 2. Sprint 12: Marketing asks for a RAB Jasa Desain — the lead moves to
+    // "Pengajuan Desain/Survey" (DEAL_DESAIN).
+    $this->actingAs($marketing)->post(route('crm.leads.submitRequest', $lead), [
+        'type' => 'RAB_DESAIN',
+        'note' => 'Desain kitchen set + ruang makan.',
+    ])->assertSessionHasNoErrors();
 
     expect($lead->fresh()->status)->toBe(LeadStatus::DealDesain);
+    $designRab = Quotation::where('lead_id', $lead->id)->where('type', 'DESAIN')->sole();
 
-    // 3. Designer opens a design brief for the lead.
-    $this->actingAs($designer)->post(route('crm.leads.design.store', ['lead' => $lead->id]), [
+    // 3. Estimator builds it, the PM approves (no CEO for a service RAB),
+    // Marketing sends it and the client approves on the link → the design
+    // is opened, locked until paid.
+    $this->actingAs($estimator)->post(route('quotations.start', $designRab))->assertSessionHasNoErrors();
+    $this->actingAs($estimator)->put(route('quotations.items.update', $designRab), [
+        'items' => [['description' => 'Jasa Desain Interior', 'qty' => 1, 'unit_id' => unitId('ls'), 'unit_price' => 5_000_000]],
+    ])->assertSessionHasNoErrors();
+    $this->actingAs($estimator)->post(route('quotations.submit', $designRab))->assertSessionHasNoErrors();
+    $this->actingAs($pm)->post(route('quotations.review', $designRab), presalesReview($designRab, 'approve'))->assertSessionHasNoErrors();
+    $this->actingAs($estimator)->post(route('quotations.sendToMarketing', $designRab))->assertSessionHasNoErrors();
+    $this->actingAs($marketing)->post(route('quotations.sendToClient', $designRab))->assertSessionHasNoErrors();
+    $this->post(route('public.quotation.approve', $designRab->fresh()->currentShareLink()->token), ['agree' => true])
+        ->assertSessionHasNoErrors();
+
+    $design = Design::where('lead_id', $lead->id)->sole();
+    expect($design->status)->toBe(DesignStatus::MenungguBayar)
+        ->and($design->quotation_id)->toBe($designRab->id);
+
+    // 4. Marketing invoices it, the client pays, Finance verifies → unlocked.
+    $this->actingAs($marketing)->post(route('quotations.invoices.store', $designRab), ['due_date' => now()->addDays(3)->toDateString()])
+        ->assertSessionHasNoErrors();
+    $invoice = $designRab->invoices()->sole();
+    $this->actingAs($marketing)->post(route('finance.invoices.proof', $invoice), ['payment_proof_url' => 'https://drive.google.com/bukti'])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($finance)->post(route('finance.invoices.verify', $invoice), [
+        'bank_account_id' => $account->id,
+        'paid_date' => now()->toDateString(),
+    ])->assertSessionHasNoErrors();
+
+    expect($design->fresh()->status)->toBe(DesignStatus::MenungguPenugasan);
+
+    // 5. The Kepala Desain assigns the architect; they upload the design;
+    // Marketing sends it, asks one revision, resends, and the client approves.
+    $this->actingAs($head)->post(route('design.assign', $design), [
         'pic_id' => $designer->id,
-    ])->assertRedirect();
-
-    $design = Design::where('lead_id', $lead->id)->firstOrFail();
-    expect($design->status)->toBe(DesignStatus::Brief);
-
-    // 4. Designer works the brief through to WAITING_ACC_DESAIN.
-    $this->actingAs($designer)->put(route('design.update', ['design' => $design->id]), [
-        'pic_id' => $designer->id,
-        'status' => DesignStatus::WaitingAccDesain->value,
-    ])->assertRedirect();
-
-    expect($design->fresh()->status)->toBe(DesignStatus::WaitingAccDesain);
-
-    // 5. Marketing confirms the client ACC'd the design — this both moves
-    // the design to GAMBAR_RAB and opens a Quotation (DesignService::clientAcc()).
-    $this->actingAs($marketing)->post(route('design.clientAcc', ['design' => $design->id]))
-        ->assertRedirect();
+        'start_date' => now()->toDateString(),
+        'target_hari' => 10,
+    ])->assertSessionHasNoErrors();
+    $this->actingAs($designer)->put(route('design.update', $design), ['design_urls' => ['https://figma.com/file/v1']])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
+    $this->actingAs($marketing)->post(route('design.requestRevision', $design), ['note' => 'Meja makan untuk 8 orang.'])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($designer)->put(route('design.update', $design), ['design_urls' => ['https://figma.com/file/v2']])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
+    $this->actingAs($marketing)->post(route('design.markClientApproved', $design))->assertSessionHasNoErrors();
 
     $design->refresh();
     expect($design->client_acc)->toBeTrue()
-        ->and($design->status)->toBe(DesignStatus::GambarRab);
+        ->and($design->status)->toBe(DesignStatus::AccDesain)
+        ->and($design->revision_count)->toBe(1);
 
-    $quotation = Quotation::where('lead_id', $lead->id)->firstOrFail();
-    expect($quotation->status)->toBe(QuotationStatus::Draft);
+    // The Estimator is asked for the RAB Proyek built on that design.
+    $quotation = Quotation::where('lead_id', $lead->id)->where('type', 'PROYEK')->sole();
+    expect($quotation->status)->toBe(QuotationStatus::Diminta);
+    $this->actingAs($estimator)->post(route('quotations.start', $quotation))->assertSessionHasNoErrors();
 
     // 6. Estimator builds the RAB and submits it for review.
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
@@ -155,7 +195,9 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     presalesClientApprovesAndProjectOpens($this, $quotation, $lead, $ceo, $pm, 21_000_000);
 
     expect($lead->fresh()->status)->toBe(LeadStatus::Closing)
-        ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue();
+        ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue()
+        // A Sprint 12 design's own work ended at the client's approval.
+        ->and($design->fresh()->status)->toBe(DesignStatus::AccDesain);
 });
 
 test('the presales flow survives rejections — CEO return, client reject, revisions and re-approval — through to the deal', function () {
@@ -186,9 +228,9 @@ test('the presales flow survives rejections — CEO return, client reject, revis
 
     $this->actingAs($marketing)->patch(route('crm.leads.updateStatus', ['lead' => $lead->id]), ['status' => 'DEAL_DESAIN'])
         ->assertRedirect();
-    $this->actingAs($designer)->post(route('crm.leads.design.store', ['lead' => $lead->id]), ['pic_id' => $designer->id])
-        ->assertRedirect();
-    $design = Design::where('lead_id', $lead->id)->firstOrFail();
+    // A pre-Sprint-12 design (opened by hand before Sub 8 removed that) —
+    // it still follows the quotation through the old pipeline stages.
+    $design = app(DesignService::class)->create($lead->fresh(), ['pic_id' => $designer->id]);
 
     // A post-ACC stage can't be picked before the client ACC'd.
     $this->actingAs($designer)->put(route('design.update', ['design' => $design->id]), [

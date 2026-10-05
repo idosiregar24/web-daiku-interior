@@ -10,6 +10,7 @@ use App\Enums\TaskStatus;
 use App\Models\Asset;
 use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
+use App\Models\Design;
 use App\Models\Lead;
 use App\Models\Material;
 use App\Models\MaterialCategory;
@@ -320,12 +321,26 @@ class DemoDataSeeder extends Seeder
         ], $this->marketing);
     }
 
+    /**
+     * Sprint 12 Sub 8 — designs born from a RAB Jasa Desain the client
+     * approved: one still waiting for its payment, one paid and assigned
+     * (PIC + assistant) and being worked on, one sent to the client, sent
+     * back for a revision, resent and waiting for the client's answer —
+     * with an Arsitek ↔ Estimator thread.
+     */
     private function seedDesignInProgressLeads(LeadService $leadService, DesignService $designService): void
     {
+        $head = User::role('KEPALA_DESAIN')->firstOrFail();
+        $assistant = User::firstOrCreate(
+            ['email' => 'lika@daikuinterior.com'],
+            ['name' => 'Lika', 'password' => Hash::make('password')],
+        );
+        $assistant->assignRole('DESIGNER');
+
         $specs = [
-            ['name' => 'Bambang Sutrisno', 'source' => 'Referral/Rekomendasi', 'design_status' => DesignStatus::Brief, 'jenis' => 'RUANG_TAMU_TV'],
-            ['name' => 'Dewi Anggraini', 'source' => 'TikTok', 'design_status' => DesignStatus::Desain, 'jenis' => 'KAMAR_SET'],
-            ['name' => 'Hendra Gunawan', 'source' => 'Marketplace', 'design_status' => DesignStatus::WaitingAccDesain, 'jenis' => 'KANTOR'],
+            ['name' => 'Bambang Sutrisno', 'source' => 'Referral/Rekomendasi', 'jenis' => 'RUANG_TAMU_TV', 'fee' => 3_500_000, 'stage' => 'unpaid'],
+            ['name' => 'Dewi Anggraini', 'source' => 'TikTok', 'jenis' => 'KAMAR_SET', 'fee' => 4_000_000, 'stage' => 'designing'],
+            ['name' => 'Hendra Gunawan', 'source' => 'Marketplace', 'jenis' => 'KANTOR', 'fee' => 6_000_000, 'stage' => 'waiting_client'],
         ];
 
         foreach ($specs as $i => $spec) {
@@ -337,42 +352,67 @@ class DemoDataSeeder extends Seeder
                 'assigned_to' => $this->marketing->id,
             ], $this->marketing);
 
-            $leadService->changeStatus($lead, ['status' => 'DEAL_DESAIN', 'note' => 'Klien setuju lanjut ke tahap desain.'], $this->marketing);
+            $design = $this->approvedDesignRab($leadService, $lead, $spec['fee'], paid: $spec['stage'] !== 'unpaid');
 
-            $design = $designService->create($lead, [
-                'pic_id' => $this->designer->id,
-                'jenis_project' => $spec['jenis'],
-                'target_hari' => 14,
+            if ($spec['stage'] === 'unpaid') {
+                continue;
+            }
+
+            $design = $designService->assign($design->fresh(), [
+                'pic_id' => $spec['stage'] === 'designing' ? $this->designer->id : $head->id,
+                'assistant_ids' => $spec['stage'] === 'designing' ? [$assistant->id] : [],
                 'start_date' => now()->subDays(3)->toDateString(),
+                'target_hari' => 14,
+            ], $head);
+            $designService->update($design, [
+                'jenis_project' => $spec['jenis'],
                 'brief_note' => 'Klien minta gaya minimalis modern.',
+                'design_urls' => ['https://drive.google.com/demo-desain-'.str($spec['name'])->slug()],
             ]);
 
-            // Walk the status forward to wherever this lead's demo stage
-            // needs to land — plain field update (DesignService::update()
-            // has no validated transition graph, see its docblock).
-            if ($spec['design_status'] !== DesignStatus::Brief) {
-                $designService->update($design, [
-                    'pic_id' => $this->designer->id,
-                    'jenis_project' => $spec['jenis'],
-                    'status' => $spec['design_status']->value,
-                    'target_hari' => 14,
-                    'start_date' => now()->subDays(3)->toDateString(),
-                ]);
+            if ($spec['stage'] === 'waiting_client') {
+                $designService->sendToClient($design, $this->marketing);
+                $designService->requestRevision($design, 'Klien minta meja kerja diperbesar dan warna dinding lebih terang.', $this->marketing);
+                $designService->sendToClient($design, $this->marketing);
+                $designService->discuss($design, ['body' => 'Material dinding partisi pakai gypsum atau kaca tempered? Ini menentukan RAB-nya.'], $this->estimator);
+                $designService->discuss($design, ['body' => 'Kaca tempered 10 mm, rangka aluminium hitam — detail di link.', 'attachment_url' => 'https://drive.google.com/demo-detail-partisi'], $head);
             }
         }
+    }
 
-        // PRD §4.2 "PIC & Sub-Staff" — one design worked on by a second designer.
-        $subStaff = User::firstOrCreate(
-            ['email' => 'lika@daikuinterior.com'],
-            ['name' => 'Lika', 'password' => Hash::make('password')],
-        );
-        $subStaff->assignRole('DESIGNER');
-        $design = Lead::where('client_name', 'Dewi Anggraini')->firstOrFail()->design;
-        $designService->update($design, [
-            'pic_id' => $this->designer->id,
-            'status' => $design->status->value,
-            'staff' => [['user_id' => $subStaff->id, 'role_note' => '3D modeling & render']],
+    /**
+     * Marketing asks for a RAB Jasa Desain, the Estimator builds it, the PM
+     * approves, Marketing sends it and the client approves it on the link —
+     * which opens the design locked (MENUNGGU_BAYAR). Marketing invoices
+     * it; unless `$paid` is false the client pays and Finance verifies,
+     * which unlocks the design for the Kepala Desain.
+     */
+    private function approvedDesignRab(LeadService $leadService, Lead $lead, int $fee, bool $paid = true): Design
+    {
+        $quotationService = app(QuotationService::class);
+        $leadService->submitRequest($lead, ['type' => 'RAB_DESAIN', 'note' => 'Desain interior lengkap + render 3D.'], $this->marketing);
+
+        $quotation = $lead->quotations()->where('type', 'DESAIN')->sole();
+        $quotationService->startDraft($quotation, $this->estimator);
+        $quotationService->replaceItems($quotation, [
+            ['description' => 'Jasa Desain Interior + Render 3D', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => $fee],
         ]);
+        $quotationService->submit($quotation);
+        $this->reviewRab($quotationService, $quotation->fresh(), $this->pm);
+        $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
+        $quotationService->sendToClient($quotation->fresh(), $this->marketing);
+        $quotationService->clientApprove($quotation->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
+
+        $invoices = app(InvoiceService::class);
+        $invoice = $invoices->issueForQuotation($quotation->fresh(), ['due_date' => now()->addDays(3)->toDateString()], $this->marketing);
+        $bankAccount = BankAccount::first();
+
+        if ($paid && $bankAccount) {
+            $invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-jasa-desain', $this->marketing);
+            $invoices->verify($invoice, ['bank_account_id' => $bankAccount->id, 'paid_date' => now()->subDays(4)->toDateString()], $this->finance);
+        }
+
+        return Design::where('lead_id', $lead->id)->sole();
     }
 
     private function seedQuotationInProgressLeads(LeadService $leadService, DesignService $designService, QuotationService $quotationService): void

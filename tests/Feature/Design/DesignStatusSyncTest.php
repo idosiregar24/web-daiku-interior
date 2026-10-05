@@ -85,6 +85,7 @@ test('pre-ACC and client-paused stages are always allowed', function (DesignStat
 test('after Client ACC any stage can be set, and going back to DESAIN keeps client_acc', function () {
     $designer = syncUser('DESIGNER');
     [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::Produksi, QuotationStatus::ClientApproved);
+    $design->update(['pic_id' => $designer->id]);
 
     $this->actingAs($designer)->put(route('design.update', ['design' => $design->id]), [
         'pic_id' => $designer->id,

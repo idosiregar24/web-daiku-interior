@@ -117,7 +117,7 @@ class DivisionDashboardService
 
         return $design->deadline !== null
             && $design->deadline->lt($today)
-            && $design->status !== DesignStatus::DoneProduksi
+            && ! $design->isDone()
             && ! in_array($design->status, self::SUSPENDED_DESIGN_STATUSES, true);
     }
 
@@ -135,7 +135,9 @@ class DivisionDashboardService
     public function designKpis(): array
     {
         $today = Carbon::today();
-        $designs = Design::query()->get(['id', 'pic_id', 'status', 'deadline', 'delay_hari']);
+        // Sprint 12 #16: a design still waiting for payment / assignment isn't
+        // anyone's work yet; a Sprint 12 design is done at the client's ACC.
+        $designs = Design::query()->started()->get(['id', 'quotation_id', 'pic_id', 'status', 'client_acc', 'deadline', 'delay_hari']);
         $byPic = $designs->groupBy(fn (Design $design) => $design->pic_id ?? 0);
 
         $people = User::role('DESIGNER')->where('is_active', true)->get(['id', 'name'])
@@ -149,7 +151,7 @@ class DivisionDashboardService
             $rows->push($this->picKpi(null, 'Tanpa PIC', $byPic->get(0), $today));
         }
 
-        $done = $designs->filter(fn (Design $design) => $design->status === DesignStatus::DoneProduksi)->count();
+        $done = $designs->filter(fn (Design $design) => $design->isDone())->count();
         $delayed = $designs->filter(fn (Design $design) => $this->isDesignDelayed($design, $today));
 
         return [
@@ -157,7 +159,7 @@ class DivisionDashboardService
                 'total' => $designs->count(),
                 'active' => $designs->count() - $done,
                 'done' => $done,
-                'delayedActive' => $delayed->filter(fn (Design $design) => $design->status !== DesignStatus::DoneProduksi)->count(),
+                'delayedActive' => $delayed->filter(fn (Design $design) => ! $design->isDone())->count(),
                 'onTimeRate' => $this->percentage($designs->count() - $delayed->count(), $designs->count()),
             ],
             'byPic' => $rows->values(),
@@ -168,7 +170,7 @@ class DivisionDashboardService
     private function picKpi(?int $picId, string $name, Collection $designs, CarbonInterface $today): array
     {
         $total = $designs->count();
-        $done = $designs->filter(fn (Design $design) => $design->status === DesignStatus::DoneProduksi)->count();
+        $done = $designs->filter(fn (Design $design) => $design->isDone())->count();
         $delayed = $designs->filter(fn (Design $design) => $this->isDesignDelayed($design, $today))->count();
         $delayDays = $designs->pluck('delay_hari')->filter(fn (int $days) => $days > 0);
 
@@ -284,8 +286,9 @@ class DivisionDashboardService
         $designs = Design::query()
             ->where('pic_id', $designer->id)
             ->where('status', '!=', DesignStatus::DoneProduksi->value)
+            ->where(fn ($query) => $query->whereNull('quotation_id')->orWhere('client_acc', false))
             ->with('lead:id,client_name')
-            ->get(['id', 'lead_id', 'status', 'deadline', 'delay_hari']);
+            ->get(['id', 'lead_id', 'quotation_id', 'status', 'client_acc', 'deadline', 'delay_hari']);
 
         [$delayed, $onTrack] = $designs->partition(fn (Design $design) => $this->isDesignDelayed($design, $today));
 

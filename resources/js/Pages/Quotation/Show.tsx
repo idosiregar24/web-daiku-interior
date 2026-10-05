@@ -14,6 +14,7 @@ import { QuotationDecisionDialog } from '@/Components/modules/quotation/Quotatio
 import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { QuotationReviewPanel } from '@/Components/modules/quotation/QuotationReviewPanel';
 import { QuotationRevisionHistory } from '@/Components/modules/quotation/QuotationRevisionHistory';
+import { DesignDiscussionPanel } from '@/Components/modules/design/DesignDiscussionPanel';
 import AppLayout from '@/Layouts/AppLayout';
 import type {
     Quotation,
@@ -23,6 +24,7 @@ import type {
     QuotationRevisionReason,
     QuotationStatus,
     UnitOption,
+    DesignDiscussionThread,
 } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import {
@@ -64,6 +66,8 @@ interface QuotationShowProps {
     invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status'>[];
     /** Marketing, on an approved Jasa Survey / Jasa Desain RAB without an invoice yet. */
     canIssueInvoice: boolean;
+    /** Sprint 12 #18 / D6 — the lead's Arsitek ↔ Estimator thread (null without a design / access). */
+    discussion: DesignDiscussionThread | null;
 }
 
 const REVISION_REASON_TEXT: Record<QuotationRevisionReason, string> = {
@@ -107,6 +111,7 @@ export default function QuotationShow({
     shareUrl,
     invoices,
     canIssueInvoice,
+    discussion,
 }: QuotationShowProps) {
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
@@ -424,6 +429,8 @@ export default function QuotationShow({
                     />
                 </SectionCard>
             )}
+
+            {discussion && <DesignDiscussionPanel thread={discussion} quotationId={quotation.id} className="mt-6" />}
 
             <QuotationDecisionDialog
                 open={clientRejectOpen}

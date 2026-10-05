@@ -25,7 +25,7 @@ class SubmitLeadRequestRequest extends FormRequest
         $survey = Rule::requiredIf(fn () => $this->input('type') === 'SURVEY');
 
         return [
-            'type' => ['required', Rule::in(['DESAIN', 'SURVEY', ...array_keys(LeadService::RAB_REQUEST_TYPES)])],
+            'type' => ['required', Rule::in(['SURVEY', ...array_keys(LeadService::RAB_REQUEST_TYPES)])],
             'note' => [Rule::requiredIf(fn () => array_key_exists((string) $this->input('type'), LeadService::RAB_REQUEST_TYPES)), 'nullable', 'string', 'max:1000'],
             'scheduled_at' => [$survey, 'nullable', 'date'],
             'address' => ['nullable', 'string', 'max:1000'],

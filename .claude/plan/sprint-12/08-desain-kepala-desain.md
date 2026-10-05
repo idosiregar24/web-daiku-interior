@@ -1,7 +1,7 @@
 # Sprint 12 · 08 — Desain: Kepala Desain, Kunci Bayar, Revisi, Diskusi
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 01, 06 · Keputusan: #15–#18 · Default: D5, D6
+> Status: **selesai 2026-10-05** · Prasyarat: 01, 06 · Keputusan: #15–#18 · Default: D5, D6
 
 ## Tujuan
 Desain dibuat dari RAB Jasa Desain yang disetujui client, terkunci sampai
@@ -46,8 +46,8 @@ design_discussions  design_id, quotation_id (nullable), user_id, body, attachmen
   notif ke pihak lain di thread.
 
 ## Checklist
-- [ ] **[Database]** Kolom `designs`, `design_members`, `design_discussions`, status baru
-- [ ] **[Design]** Listener persetujuan & pembayaran; `DesignService::assign()` (Kepala Desain), `sendToClient()`, `requestRevision()`, `markClientApproved()` (Marketing)
-- [ ] **[Design]** Policy keanggotaan desain; delay job mengabaikan MENUNGGU_*
-- [ ] **[UI]** Antrean Kepala Desain (Menunggu Bayar / Menunggu Penugasan), dialog penugasan, hitungan revisi, thread diskusi (Desain & Quotation), label "Arsitek"
-- [ ] **[Test]** Tidak bisa ditugaskan sebelum bayar; hanya Kepala Desain menugaskan (boleh diri sendiri); arsitek non-anggota 403; revisi menambah hitungan; Marketing saja yang kirim/minta revisi
+- [x] **[Database]** Kolom `designs`, `design_members`, `design_discussions`, status baru
+- [x] **[Design]** Listener persetujuan & pembayaran; `DesignService::assign()` (Kepala Desain), `sendToClient()`, `requestRevision()`, `markClientApproved()` (Marketing)
+- [x] **[Design]** Policy keanggotaan desain; delay job mengabaikan MENUNGGU_*
+- [x] **[UI]** Antrean Kepala Desain (Menunggu Bayar / Menunggu Penugasan), dialog penugasan, hitungan revisi, thread diskusi (Desain & Quotation), label "Arsitek"
+- [x] **[Test]** Tidak bisa ditugaskan sebelum bayar; hanya Kepala Desain menugaskan (boleh diri sendiri); arsitek non-anggota 403; revisi menambah hitungan; Marketing saja yang kirim/minta revisi

@@ -240,7 +240,7 @@ class KpiMetricRegistry
             ->where('pic_id', $user->id)
             ->where('deadline', '>=', $from->toDateString())
             ->where('deadline', '<', $to->toDateString())
-            ->get(['id', 'pic_id', 'status', 'deadline', 'delay_hari']);
+            ->get(['id', 'quotation_id', 'pic_id', 'status', 'client_acc', 'deadline', 'delay_hari']);
     }
 
     /** Uses today's delay_hari/status (no history is kept) — DivisionDashboardService's delay rule. */

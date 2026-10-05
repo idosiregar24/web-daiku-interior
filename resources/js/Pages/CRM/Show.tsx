@@ -9,7 +9,6 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
 import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
-import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
 import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
@@ -59,11 +58,9 @@ interface LeadShowProps {
     /** Null when the viewer's role has no "CRM – Pipeline Log" read access (PRD §7.1). */
     pipelineLogs: PipelineLogEntry[] | null;
     canManage: boolean;
-    canOpenDesign: boolean;
     /** LeadFollowUp::SUGGEST_LOST_FROM (Sprint 12 #2). */
     suggestLostFrom: number;
     marketers: Pick<User, 'id' | 'name'>[];
-    designers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
 }
@@ -77,16 +74,13 @@ export default function LeadShow({
     lead,
     pipelineLogs,
     canManage,
-    canOpenDesign,
     suggestLostFrom,
     marketers,
-    designers,
     leadSources,
     leadCategories,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [requestOpen, setRequestOpen] = useState(false);
     // Sprint 12 #7 — the same dialog with only the "Minta RAB …" options, once the lead is past FOLLOW_UP.
@@ -238,16 +232,8 @@ export default function LeadShow({
                                     PIC {lead.design.pic?.name ?? '—'} · Deadline {formatDate(lead.design.deadline)}
                                     {lead.design.client_acc && ' · Sudah di-ACC klien'}
                                 </>
-                            ) : lead.status === 'DEAL_DESAIN' ? (
-                                canOpenDesign ? (
-                                    <Button size="sm" variant="outline" className="mt-1" onClick={() => setDesignOpen(true)}>
-                                        Buka Desain
-                                    </Button>
-                                ) : (
-                                    'Menunggu Designer membuka proyek desain.'
-                                )
                             ) : (
-                                'Dibuka setelah lead masuk tahap Pengajuan Desain/Survey.'
+                                'Dibuka otomatis setelah klien menyetujui RAB Jasa Desain (lewat "Minta RAB").'
                             )}
                         </StageRow>
                         <StageRow
@@ -378,9 +364,6 @@ export default function LeadShow({
                         />
                     )}
                 </>
-            )}
-            {canOpenDesign && (
-                <OpenDesignDialog open={designOpen} onOpenChange={setDesignOpen} lead={lead} designers={designers} />
             )}
         </AppLayout>
     );

@@ -2,30 +2,38 @@
 
 namespace App\Http\Controllers\Design;
 
+use App\Enums\DesignStatus;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Design\StoreDesignRequest;
+use App\Http\Requests\Design\AssignDesignRequest;
+use App\Http\Requests\Design\RequestDesignRevisionRequest;
+use App\Http\Requests\Design\StoreDesignDiscussionRequest;
 use App\Http\Requests\Design\UpdateDesignRequest;
 use App\Models\Design;
-use App\Models\Lead;
 use App\Models\User;
 use App\Services\DesignService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * PRD §4.2. Design *creation* is reached from the CRM Lead index (a
- * DEAL_DESAIN lead gets a "Buka Desain" action) — `index()` here is the
- * general listing, wired to the "Desain" sidebar nav entry (CLAUDE.md
- * golden rule #8) as of Sprint 2 Week 4.
+ * PRD §4.2. Since Sprint 12 Sub 8 a design is no longer opened by hand
+ * from a lead: it is born from an approved RAB Jasa Desain (locked until
+ * Finance verifies its invoice), assigned by a Kepala Desain, and sent /
+ * revised / approved by Marketing. `index()` is the "Desain" sidebar
+ * entry; a plain architect only lists the designs they work on.
  */
 class DesignController extends Controller
 {
     public function index(Request $request): Response
     {
+        $user = $request->user();
+        $isHead = $user->hasAnyRole(['KEPALA_DESAIN', 'SUPERADMIN']);
+
         $designs = Design::query()
             ->with(['lead:id,client_name', 'pic:id,name', 'staff:id,name'])
+            ->visibleTo($user)
             ->byStatus($request->string('status')->value() ?: null)
             ->latest()
             ->paginate(15)
@@ -34,24 +42,43 @@ class DesignController extends Controller
         return Inertia::render('Design/Index', [
             'designs' => $designs,
             'filters' => $request->only(['status']),
+            // Decision #15/#16 — the Kepala Desain's queue: paid for yet? assigned yet?
+            'queue' => $isHead
+                ? Design::query()
+                    ->with(['lead:id,client_name', 'quotation:id,total_amount,client_approved_at'])
+                    ->whereIn('status', DesignStatus::lockedValues())
+                    ->oldest()
+                    ->get(['id', 'lead_id', 'quotation_id', 'status', 'brief_note', 'created_at'])
+                : null,
+            'architects' => $isHead ? $this->architects() : [],
         ]);
     }
 
-    public function store(StoreDesignRequest $request, Lead $lead, DesignService $service): RedirectResponse
+    public function show(Request $request, Design $design, DesignService $service): Response
     {
-        $design = $service->create($lead, $request->validated());
+        $this->authorize('view', $design);
 
-        return redirect()->route('design.show', $design)->with('success', 'Proyek desain berhasil dibuka.');
-    }
-
-    public function show(Request $request, Design $design): Response
-    {
-        $design->load(['lead:id,client_name', 'pic:id,name', 'staff:id,name']);
+        $user = $request->user();
+        $design->load([
+            'lead:id,client_name,assigned_to',
+            'pic:id,name',
+            'staff:id,name',
+            'assigner:id,name',
+            'quotation:id,lead_id,type,status,total_amount,version',
+            'revisions.requester:id,name',
+        ]);
+        $flow = $design->isFlowManaged();
+        $isMarketing = $user->hasAnyRole(['MARKETING', 'SUPERADMIN']);
 
         return Inertia::render('Design/Show', [
             'design' => $design,
-            'canManage' => $request->user()->hasAnyRole(['DESIGNER', 'SUPERADMIN']),
-            'canClientAcc' => $request->user()->hasAnyRole(['MARKETING', 'DESIGNER', 'SUPERADMIN']),
+            'canManage' => ! $design->status->isLocked() && $user->can('update', $design),
+            // Pre-Sprint-12 designs keep the old Client ACC button (Marketing / Designer).
+            'canClientAcc' => ! $flow && $user->hasAnyRole(['MARKETING', 'DESIGNER', 'SUPERADMIN']),
+            'canAssign' => $flow && ! $design->client_acc && $user->hasAnyRole(['KEPALA_DESAIN', 'SUPERADMIN'])
+                && $design->status !== DesignStatus::MenungguBayar,
+            'canMarketingActions' => $flow && $isMarketing,
+            'discussion' => $service->threadFor($design, $user),
             // `is_active` lets the sub-staff picker offer active designers
             // only (UpdateDesignRequest's rule) while still naming a
             // deactivated one already on the team.
@@ -66,9 +93,45 @@ class DesignController extends Controller
         return back()->with('success', 'Brief desain berhasil diperbarui.');
     }
 
+    /** Decision #15 — Kepala Desain only (route `role:KEPALA_DESAIN`). */
+    public function assign(AssignDesignRequest $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $wasWaiting = $design->status === DesignStatus::MenungguPenugasan;
+        $service->assign($design, $request->validated(), $request->user());
+
+        return back()->with('success', $wasWaiting ? 'Desain ditugaskan.' : 'Penugasan desain diperbarui.');
+    }
+
+    /** Decision #17 — Marketing only (route `role:MARKETING`). */
+    public function sendToClient(Request $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $service->sendToClient($design, $request->user());
+
+        return back()->with('success', 'Desain ditandai terkirim ke klien.');
+    }
+
+    public function requestRevision(RequestDesignRevisionRequest $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $design = $service->requestRevision($design, $request->validated('note'), $request->user());
+
+        return back()->with('success', "Revisi #{$design->revision_count} dikirim ke arsitek.");
+    }
+
+    public function markClientApproved(Request $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $service->markClientApproved($design, $request->user());
+
+        return back()->with('success', 'Desain disetujui klien — Estimator diminta menyusun RAB Proyek.');
+    }
+
+    /** Pre-Sprint-12 designs: Client ACC opens the project quotation (PRD §4.2). */
     public function clientAcc(Request $request, Design $design, DesignService $service): RedirectResponse
     {
         $design = $service->clientAcc($design, $request->user());
+
+        if ($design->isFlowManaged()) {
+            return back()->with('success', 'Desain disetujui klien — Estimator diminta menyusun RAB Proyek.');
+        }
 
         // Quotation is a sibling of Design via lead_id, not a direct
         // relation on Design — go through the Lead (Lead::quotation()).
@@ -76,5 +139,20 @@ class DesignController extends Controller
 
         return redirect()->route('quotations.show', $quotation)
             ->with('success', 'Desain di-ACC klien. Quotation baru telah dibuka.');
+    }
+
+    /** D6 — the Arsitek ↔ Estimator thread (route `role:DESIGNER|ESTIMATOR` + DesignPolicy::discuss()). */
+    public function discuss(StoreDesignDiscussionRequest $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $this->authorize('discuss', $design);
+        $service->discuss($design, $request->validated(), $request->user());
+
+        return back()->with('success', 'Pesan terkirim.');
+    }
+
+    /** @return Collection<int, User> */
+    private function architects()
+    {
+        return User::role('DESIGNER')->where('is_active', true)->orderBy('name')->get(['id', 'name']);
     }
 }

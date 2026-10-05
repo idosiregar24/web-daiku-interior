@@ -15,10 +15,14 @@ class UpdateDesignRequest extends FormRequest
     /** @var list<int>|null Memoized — one query per request, not one per sub-staff row. */
     private ?array $assignableStaffIds = null;
 
-    /** Route-level `role:DESIGNER` middleware already gates this action (PRD §7.1 "Design Brief" — DES has CRUD). */
+    /**
+     * Route-level `role:DESIGNER` (PRD §7.1 "Design Brief" — DES has CRUD),
+     * narrowed by DesignPolicy::update() to the design's own architects or
+     * a Kepala Desain (Sprint 12 #15).
+     */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()->can('update', $this->route('design'));
     }
 
     /**
@@ -28,19 +32,33 @@ class UpdateDesignRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'pic_id' => ['required', 'exists:users,id'],
+        $brief = [
             'jenis_project' => ['nullable', Rule::in([
                 'TOKO', 'CAFE', 'RENOVASI', 'KAMAR_SET', 'KITCHEN_SET',
                 'KANTOR', 'ARSITEKTURAL', 'RUANG_TAMU_TV', 'RETAIL_TOKO', 'LAINNYA',
             ])],
-            'status' => ['required', new Enum(DesignStatus::class)],
-            'target_hari' => ['nullable', 'integer', 'min:1'],
-            'start_date' => ['nullable', 'date'],
             'brief_note' => ['nullable', 'string'],
             'problem' => ['nullable', 'string'],
             'design_urls' => ['nullable', 'array'],
             'design_urls.*' => ['url:http,https', 'max:2048'],
+        ];
+
+        /** @var Design $design */
+        $design = $this->route('design');
+
+        // Sprint 12: team, timeline and status of a design born from a RAB
+        // Jasa Desain belong to the Kepala Desain / Marketing actions.
+        if ($design->isFlowManaged()) {
+            return $brief;
+        }
+
+        return [
+            ...$brief,
+            'pic_id' => ['required', 'exists:users,id'],
+            // MENUNGGU_BAYAR / MENUNGGU_PENUGASAN are only ever set by the payment flow.
+            'status' => ['required', (new Enum(DesignStatus::class))->except([DesignStatus::MenungguBayar, DesignStatus::MenungguPenugasan])],
+            'target_hari' => ['nullable', 'integer', 'min:1'],
+            'start_date' => ['nullable', 'date'],
             // PRD §4.2 "PIC & Sub-Staff" — the complete sub-staff list
             // (replaces the current one); omitted = left untouched.
             'staff' => ['sometimes', 'array', 'max:20'],
@@ -58,9 +76,9 @@ class UpdateDesignRequest extends FormRequest
             'status.required' => 'Status wajib dipilih.',
             'design_urls.*.url' => 'Link desain harus berupa URL yang valid.',
             'staff.max' => 'Maksimal 20 sub-staff per desain.',
-            'staff.*.user_id.required' => 'Pilih desainer untuk setiap baris sub-staff.',
+            'staff.*.user_id.required' => 'Pilih arsitek untuk setiap baris sub-staff.',
             'staff.*.user_id.integer' => 'Sub-staff yang dipilih tidak valid.',
-            'staff.*.user_id.distinct' => 'Desainer yang sama dipilih lebih dari sekali.',
+            'staff.*.user_id.distinct' => 'Arsitek yang sama dipilih lebih dari sekali.',
             'staff.*.role_note.max' => 'Peran sub-staff maksimal 100 karakter.',
         ];
     }
@@ -80,7 +98,7 @@ class UpdateDesignRequest extends FormRequest
             }
 
             if (! in_array((int) $value, $this->assignableStaffIds(), true)) {
-                $fail('Sub-staff harus pengguna ber-role Designer yang masih aktif.');
+                $fail('Sub-staff harus arsitek yang masih aktif.');
             }
         };
     }

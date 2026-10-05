@@ -427,8 +427,7 @@ class LeadService
                     'status' => LeadStatus::DealDesain->value,
                     'note' => trim(match (true) {
                         $data['type'] === 'SURVEY' => 'Pengajuan survey.',
-                        $rabType !== null => "Permintaan {$rabType->label()}.",
-                        default => 'Pengajuan desain.',
+                        default => "Permintaan {$rabType->label()}.",
                     }.' '.($data['note'] ?? '')),
                 ], $actor);
             }

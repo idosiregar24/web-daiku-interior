@@ -185,6 +185,10 @@ export interface PipelineLogEntry {
 
 /** PRD 4.2 — Desain */
 export type DesignStatus =
+    /** Sprint 12 #16 — opened from an approved RAB Jasa Desain, locked until Finance verifies the invoice. */
+    | 'MENUNGGU_BAYAR'
+    /** Paid — waiting for a Kepala Desain to assign the architects. */
+    | 'MENUNGGU_PENUGASAN'
     | 'BRIEF'
     | 'DESAIN'
     | 'WAITING_ACC_DESAIN'
@@ -234,8 +238,46 @@ export interface Design {
     problem: string | null;
     client_acc: boolean;
     acc_date: string | null;
+    /** Sprint 12 #16 — the RAB Jasa Desain it was paid through; null = a pre-Sprint-12 design. */
+    quotation_id: number | null;
+    quotation?: Pick<Quotation, 'id' | 'lead_id' | 'type' | 'status' | 'total_amount' | 'version'> | null;
+    /** Sprint 12 #15 — the Kepala Desain who assigned the team. */
+    assigned_by: number | null;
+    assigner?: Pick<User, 'id' | 'name'> | null;
+    assigned_at: string | null;
+    /** Sprint 12 #17 — revisions Marketing asked for (no limit). */
+    revision_count: number;
+    revisions?: DesignRevision[];
+    sent_to_client_at: string | null;
     created_at: string;
     updated_at: string;
+}
+
+/** Sprint 12 #17 — one revision Marketing asked of the architect. */
+export interface DesignRevision {
+    id: number;
+    design_id: number;
+    sequence: number;
+    note: string;
+    requester?: Pick<User, 'id' | 'name'> | null;
+    created_at: string;
+}
+
+/** Sprint 12 D6 — a message in a design's Arsitek ↔ Estimator thread. */
+export interface DesignDiscussionMessage {
+    id: number;
+    body: string;
+    attachment_url: string | null;
+    user_name: string | null;
+    quotation: { id: number; type: QuotationType; version: number } | null;
+    created_at: string;
+}
+
+/** DesignService::threadFor() — shared by the Design and Quotation pages. */
+export interface DesignDiscussionThread {
+    designId: number;
+    messages: DesignDiscussionMessage[];
+    canPost: boolean;
 }
 
 /** PRD 4.3 — Quotation / RAB */

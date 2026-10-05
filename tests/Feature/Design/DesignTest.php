@@ -8,6 +8,7 @@ use App\Models\Quotation;
 use App\Models\User;
 use App\Services\DesignService;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(fn () => $this->seed(RoleSeeder::class));
@@ -27,28 +28,9 @@ test('roles without access are forbidden from the design index', function (strin
     $this->actingAs($user)->get(route('design.index'))->assertForbidden();
 })->with(['FINANCE', 'LOGISTICS', 'FIELD_STAFF']);
 
-test('designer can open a design brief for a DEAL_DESAIN lead', function () {
-    $designer = User::factory()->create();
-    $designer->assignRole('DESIGNER');
-    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
-
-    $response = $this->actingAs($designer)->post(route('crm.leads.design.store', ['lead' => $lead->id]), [
-        'pic_id' => $designer->id,
-    ]);
-
-    $response->assertRedirect();
-    expect(Design::where('lead_id', $lead->id)->exists())->toBeTrue();
+test('a design can no longer be opened by hand from a lead (Sprint 12 Sub 8)', function () {
+    expect(Route::has('crm.leads.design.store'))->toBeFalse();
 });
-
-test('roles other than DESIGNER cannot open a design brief', function (string $role) {
-    $user = User::factory()->create();
-    $user->assignRole($role);
-    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value]);
-
-    $this->actingAs($user)->post(route('crm.leads.design.store', ['lead' => $lead->id]), [
-        'pic_id' => $user->id,
-    ])->assertForbidden();
-})->with(['CEO', 'MARKETING', 'PM']);
 
 test('design service refuses to open a brief for a lead that is not DEAL_DESAIN', function () {
     $lead = Lead::factory()->create(['status' => LeadStatus::FollowUp->value]);
@@ -83,7 +65,8 @@ test('design service calculates deadline from start_date + target_hari', functio
 test('roles with read access can view a design', function (string $role) {
     $user = User::factory()->create();
     $user->assignRole($role);
-    $design = Design::factory()->create();
+    // An architect sees the designs they work on (Sprint 12 #15).
+    $design = Design::factory()->create(['pic_id' => $user->id]);
 
     $this->actingAs($user)->get(route('design.show', ['design' => $design->id]))->assertOk();
 })->with(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA']);
@@ -100,7 +83,7 @@ test('designer can update the design brief', function () {
     $designer = User::factory()->create();
     $designer->assignRole('DESIGNER');
     $pic = User::factory()->create();
-    $design = Design::factory()->create(['status' => DesignStatus::Brief->value]);
+    $design = Design::factory()->create(['status' => DesignStatus::Brief->value, 'pic_id' => $designer->id]);
 
     $this->actingAs($designer)->put(route('design.update', ['design' => $design->id]), [
         'pic_id' => $pic->id,

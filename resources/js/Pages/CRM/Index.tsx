@@ -18,7 +18,6 @@ import {
 } from '@/Components/ui/select';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
-import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
@@ -37,7 +36,6 @@ interface LeadIndexProps {
         lead_category_id?: string;
     };
     marketers: Pick<User, 'id' | 'name'>[];
-    designers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
 }
@@ -45,20 +43,18 @@ interface LeadIndexProps {
 const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'CLOSING', 'LOST'];
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 
-export default function LeadIndex({ leads, filters, marketers, designers, leadSources, leadCategories }: LeadIndexProps) {
+export default function LeadIndex({ leads, filters, marketers, leadSources, leadCategories }: LeadIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     // PRD §4.1: only Marketing and CEO create/edit leads — mirrors the
     // `role:CEO|MARKETING` write routes so other readers don't see actions
     // that would 403.
     const canManage = role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN';
-    const canOpenDesign = role === 'DESIGNER' || role === 'SUPERADMIN';
 
     const [search, setSearch] = useState(filters.search ?? '');
 
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [activeLead, setActiveLead] = useState<Lead | null>(null);
 
@@ -83,11 +79,6 @@ export default function LeadIndex({ leads, filters, marketers, designers, leadSo
     function openStatus(lead: Lead) {
         setActiveLead(lead);
         setStatusOpen(true);
-    }
-
-    function openDesign(lead: Lead) {
-        setActiveLead(lead);
-        setDesignOpen(true);
     }
 
     function openClientReject(lead: Lead) {
@@ -191,18 +182,10 @@ export default function LeadIndex({ leads, filters, marketers, designers, leadSo
                                     )}
                                 </>
                             )}
-                            {canOpenDesign && lead.status === 'DEAL_DESAIN' && (
-                                lead.design ? (
-                                    <DropdownMenuItem asChild>
-                                        <Link href={route('design.show', { design: lead.design.id })}>
-                                            Lihat Desain
-                                        </Link>
-                                    </DropdownMenuItem>
-                                ) : (
-                                    <DropdownMenuItem onSelect={() => openDesign(lead)}>
-                                        Buka Desain
-                                    </DropdownMenuItem>
-                                )
+                            {lead.design && (
+                                <DropdownMenuItem asChild>
+                                    <Link href={route('design.show', { design: lead.design.id })}>Lihat Desain</Link>
+                                </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -353,14 +336,6 @@ export default function LeadIndex({ leads, filters, marketers, designers, leadSo
                     role="CLIENT"
                     decision="reject"
                     clientName={activeLead.client_name}
-                />
-            )}
-            {canOpenDesign && (
-                <OpenDesignDialog
-                    open={designOpen}
-                    onOpenChange={setDesignOpen}
-                    lead={activeLead}
-                    designers={designers}
                 />
             )}
         </AppLayout>

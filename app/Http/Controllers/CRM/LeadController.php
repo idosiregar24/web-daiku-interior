@@ -55,7 +55,6 @@ class LeadController extends Controller
             'leads' => $leads,
             'filters' => $request->only(['status', 'priority', 'search', 'lead_source_id', 'lead_category_id']),
             'marketers' => User::role('MARKETING')->orderBy('name')->get(['id', 'name']),
-            'designers' => User::role('DESIGNER')->orderBy('name')->get(['id', 'name']),
             // Sumber Lead / Kategori Customer — Data Master lists
             // (SuperAdmin-editable, see MasterData\LeadSourceController /
             // LeadCategoryController). The form submits the row `id`
@@ -78,7 +77,6 @@ class LeadController extends Controller
         $user = $request->user();
         $canManage = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
         $canViewPipelineLog = $user->hasAnyRole(['CEO', 'MARKETING', 'PM', 'SUPERADMIN']);
-        $canOpenDesign = $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']);
 
         $lead->load([
             'assignee:id,name',
@@ -117,13 +115,11 @@ class LeadController extends Controller
                     ])
                 : null,
             'canManage' => $canManage,
-            'canOpenDesign' => $canOpenDesign,
             // Decision #2: from this FU number on, suggest marking the lead Lost.
             'suggestLostFrom' => LeadFollowUp::SUGGEST_LOST_FROM,
             // Option lists for the edit/deal/design dialogs — only sent to
             // roles that can open them.
             'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
-            'designers' => $canOpenDesign ? User::role('DESIGNER')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canManage ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
             'leadCategories' => $canManage ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
         ]);

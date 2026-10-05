@@ -24,12 +24,18 @@ import {
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { ClientAccDialog } from '@/Components/modules/design/ClientAccDialog';
+import { AssignDesignDialog } from '@/Components/modules/design/AssignDesignDialog';
+import { DesignConfirmDialog } from '@/Components/modules/design/DesignConfirmDialog';
+import { DesignDiscussionPanel } from '@/Components/modules/design/DesignDiscussionPanel';
+import { DesignRevisionDialog } from '@/Components/modules/design/DesignRevisionDialog';
+import { Notice } from '@/Components/shared/Notice';
+import { formatRupiah } from '@/lib/format';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Design, DesignStaffMember, DesignStatus, ProjectType, User } from '@/types';
+import type { Design, DesignDiscussionThread, DesignStaffMember, DesignStatus, ProjectType, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Info, Palette, PenLine, Plus, Trash2, UserPlus } from 'lucide-react';
+import { History, Info, Palette, PenLine, Plus, Trash2, UserPlus } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { type FieldPath, useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -39,7 +45,14 @@ type DesignDetail = Design & { lead: { id: number; client_name: string }; staff?
 interface DesignShowProps {
     design: DesignDetail;
     canManage: boolean;
+    /** Pre-Sprint-12 designs only — the old Client ACC button. */
     canClientAcc: boolean;
+    /** Sprint 12 #15 — Kepala Desain: assign / reassign the team. */
+    canAssign: boolean;
+    /** Sprint 12 #17 — Marketing: send to the client, ask a revision, record the approval. */
+    canMarketingActions: boolean;
+    /** Sprint 12 D6 — null when the viewer may not see the thread. */
+    discussion: DesignDiscussionThread | null;
     /** Every DESIGNER — `is_active` decides who can still be added as sub-staff. */
     designers: Pick<User, 'id' | 'name' | 'is_active'>[];
 }
@@ -60,7 +73,8 @@ const STATUS_GROUPS: { label: string; statuses: DesignStatus[] }[] = [
     { label: 'Ditangguhkan klien', statuses: ['HOLD_CLIENT', 'REVISI_CLIENT'] },
 ];
 
-const STATUS_OPTIONS = STATUS_GROUPS.flatMap((group) => group.statuses);
+// Sprint 12 #16 — set by the payment flow only, never picked (a design in them isn't editable anyway).
+const STATUS_OPTIONS: DesignStatus[] = ['MENUNGGU_BAYAR', 'MENUNGGU_PENUGASAN', ...STATUS_GROUPS.flatMap((group) => group.statuses)];
 
 const JENIS_PROJECT_OPTIONS: ProjectType[] = [
     'TOKO', 'CAFE', 'RENOVASI', 'KAMAR_SET', 'KITCHEN_SET',
@@ -78,7 +92,7 @@ const baseSchema = z.object({
     design_urls: z.array(z.object({ value: z.string() })),
     staff: z.array(
         z.object({
-            user_id: z.string().min(1, 'Pilih desainer'),
+            user_id: z.string().min(1, 'Pilih arsitek'),
             role_note: z.string().max(100, 'Peran maksimal 100 karakter'),
         }),
     ),
@@ -115,7 +129,7 @@ function buildSchema(clientAcc: boolean, currentStatus: DesignStatus) {
                 ctx.addIssue({
                     code: 'custom',
                     path: ['staff', index, 'user_id'],
-                    message: 'Desainer yang sama dipilih lebih dari sekali.',
+                    message: 'Arsitek yang sama dipilih lebih dari sekali.',
                 });
             }
 
@@ -147,8 +161,17 @@ function toFormValues(design: DesignDetail): FormValues {
  * Client-ACC status guard (Sprint 9). Reached from the CRM Lead index's
  * "Buka Desain" action or the Desain list.
  */
-export default function DesignShow({ design, canManage, canClientAcc, designers }: DesignShowProps) {
+export default function DesignShow({ design, canManage, canClientAcc, canAssign, canMarketingActions, discussion, designers }: DesignShowProps) {
     const [accOpen, setAccOpen] = useState(false);
+    const [assignOpen, setAssignOpen] = useState(false);
+    const [revisionOpen, setRevisionOpen] = useState(false);
+    const [confirm, setConfirm] = useState<'send' | 'approve' | null>(null);
+    // Sprint 12: team, timeline and status come from the Kepala Desain / Marketing actions.
+    const flowManaged = design.quotation_id !== null;
+    const isLocked = design.status === 'MENUNGGU_BAYAR' || design.status === 'MENUNGGU_PENUGASAN';
+    const hasLinks = (design.design_urls ?? []).length > 0;
+    const canSend = canMarketingActions && (design.status === 'DESAIN' || design.status === 'REVISI_DESAIN');
+    const awaitingClient = canMarketingActions && design.status === 'WAITING_ACC_DESAIN';
 
     const schema = useMemo(() => buildSchema(design.client_acc, design.status), [design.client_acc, design.status]);
 
@@ -239,10 +262,32 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                 icon={Palette}
                 description="Brief, tim desain, link desain, dan status pipeline desain."
                 actions={
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <StatusChip status={design.status} />
                         {canOpenClientAcc && (
                             <Button onClick={() => setAccOpen(true)}>Client ACC</Button>
+                        )}
+                        {canAssign && (
+                            <Button variant={design.pic_id ? 'outline' : 'default'} onClick={() => setAssignOpen(true)}>
+                                {design.pic_id ? 'Ubah Penugasan' : 'Tugaskan Desain'}
+                            </Button>
+                        )}
+                        {canSend && (
+                            <Button
+                                onClick={() => setConfirm('send')}
+                                disabled={!hasLinks}
+                                title={hasLinks ? undefined : 'Arsitek belum mengunggah link desain.'}
+                            >
+                                Kirim Desain ke Klien
+                            </Button>
+                        )}
+                        {awaitingClient && (
+                            <>
+                                <Button variant="outline" onClick={() => setRevisionOpen(true)}>
+                                    Minta Revisi
+                                </Button>
+                                <Button onClick={() => setConfirm('approve')}>Desain Disetujui Klien</Button>
+                            </>
                         )}
                         {design.client_acc && (
                             <span className="text-xs text-daiku-muted">
@@ -252,6 +297,22 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                     </div>
                 }
             />
+
+            {design.status === 'MENUNGGU_BAYAR' && (
+                <Notice tone="warning" className="mb-6">
+                    Klien sudah menyetujui RAB Jasa Desain, tetapi pembayarannya belum diverifikasi Finance — desain terkunci.
+                </Notice>
+            )}
+            {design.status === 'MENUNGGU_PENUGASAN' && (
+                <Notice tone="info" className="mb-6">
+                    Pembayaran jasa desain sudah diverifikasi — menunggu Kepala Desain menugaskan arsitek.
+                </Notice>
+            )}
+            {flowManaged && design.status === 'DESAIN' && !hasLinks && (
+                <Notice tone="info" className="mb-6">
+                    Unggah link desain (Drive / Figma) di form brief, lalu Marketing mengirimkannya ke klien.
+                </Notice>
+            )}
 
             <div className="grid gap-6 lg:grid-cols-3">
                 <SectionCard title="Brief Desain" icon={PenLine} className="lg:col-span-2">
@@ -263,8 +324,8 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                     name="pic_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>PIC Utama</FormLabel>
-                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
+                                            <FormLabel>PIC Arsitek</FormLabel>
+                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage || flowManaged}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
                                                         <SelectValue placeholder="Pilih PIC" />
@@ -315,8 +376,8 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
 
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
-                                    <FormLabel>Sub-Staff</FormLabel>
-                                    {canManage && (
+                                    <FormLabel>Asisten Arsitek</FormLabel>
+                                    {canManage && !flowManaged && (
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -329,7 +390,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                     )}
                                 </div>
                                 {staffFields.length === 0 ? (
-                                    <p className="text-sm text-daiku-muted">Belum ada sub-staff — hanya PIC utama.</p>
+                                    <p className="text-sm text-daiku-muted">Belum ada asisten — hanya PIC arsitek.</p>
                                 ) : (
                                     <div className="space-y-2">
                                         {staffFields.map((item, index) => (
@@ -339,10 +400,10 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                                     name={`staff.${index}.user_id`}
                                                     render={({ field }) => (
                                                         <FormItem className="sm:w-60">
-                                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
+                                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage || flowManaged}>
                                                                 <FormControl>
                                                                     <SelectTrigger className="w-full" aria-label={`Sub-staff ${index + 1}`}>
-                                                                        <SelectValue placeholder="Pilih desainer" />
+                                                                        <SelectValue placeholder="Pilih arsitek" />
                                                                     </SelectTrigger>
                                                                 </FormControl>
                                                                 <SelectContent>
@@ -390,7 +451,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                                         </FormItem>
                                                     )}
                                                 />
-                                                {canManage && (
+                                                {canManage && !flowManaged && (
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
@@ -416,7 +477,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Status</FormLabel>
-                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage}>
+                                            <Select value={field.value} onValueChange={field.onChange} disabled={!canManage || flowManaged}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
                                                         <SelectValue />
@@ -454,7 +515,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                         <FormItem>
                                             <FormLabel>Target Hari</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="1" {...field} disabled={!canManage} />
+                                                <Input type="number" min="1" {...field} disabled={!canManage || flowManaged} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -467,7 +528,7 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                                         <FormItem>
                                             <FormLabel>Tanggal Mulai</FormLabel>
                                             <FormControl>
-                                                <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage} />
+                                                <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage || flowManaged} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -476,7 +537,9 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                             </div>
 
                             <p className="text-xs text-daiku-muted">
-                                {design.client_acc
+                                {flowManaged
+                                    ? 'Tim & timeline diatur Kepala Desain; status mengikuti tombol Marketing (kirim, revisi, disetujui klien).'
+                                    : design.client_acc
                                     ? 'Status maju otomatis mengikuti quotation, deal, dan proyek (kecuali saat Hold/Revisi Klien atau Reject Produksi).'
                                     : 'Tahap setelah ACC terkunci sampai klien ACC desain lewat tombol "Client ACC".'}
                             </p>
@@ -584,12 +647,29 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                         <p className="text-xs text-daiku-muted">Klien</p>
                         <p className="font-medium text-daiku-dark">{design.lead.client_name}</p>
                     </div>
+                    {design.quotation && (
+                        <div>
+                            <p className="text-xs text-daiku-muted">RAB Jasa Desain</p>
+                            <Link
+                                href={route('quotations.show', { quotation: design.quotation.id })}
+                                className="font-medium text-daiku-dark underline decoration-daiku-yellow underline-offset-2"
+                            >
+                                {formatRupiah(design.quotation.total_amount)} · v{design.quotation.version}
+                            </Link>
+                        </div>
+                    )}
                     <div>
-                        <p className="text-xs text-daiku-muted">PIC Utama</p>
+                        <p className="text-xs text-daiku-muted">PIC Arsitek</p>
                         <p className="font-medium text-daiku-dark">{design.pic?.name ?? '—'}</p>
+                        {design.assigner && (
+                            <p className="text-xs text-daiku-muted">
+                                Ditugaskan {design.assigner.name}
+                                {design.assigned_at && `, ${new Date(design.assigned_at).toLocaleDateString('id-ID')}`}
+                            </p>
+                        )}
                     </div>
                     <div>
-                        <p className="text-xs text-daiku-muted">Sub-Staff</p>
+                        <p className="text-xs text-daiku-muted">Asisten Arsitek</p>
                         {design.staff && design.staff.length > 0 ? (
                             <ul className="mt-0.5 space-y-1">
                                 {design.staff.map((member) => (
@@ -611,8 +691,78 @@ export default function DesignShow({ design, canManage, canClientAcc, designers 
                             {design.client_acc ? 'Sudah ACC' : 'Belum ACC'}
                         </p>
                     </div>
+                    {flowManaged && (
+                        <div>
+                            <p className="text-xs text-daiku-muted">Jumlah Revisi</p>
+                            <p className="font-medium text-daiku-dark">{design.revision_count}x</p>
+                        </div>
+                    )}
                 </SectionCard>
             </div>
+
+            {(design.revisions ?? []).length > 0 && (
+                <SectionCard title="Riwayat Revisi" icon={History} className="mt-6" flush>
+                    <ul className="divide-y divide-border">
+                        {[...(design.revisions ?? [])].reverse().map((revision) => (
+                            <li key={revision.id} className="px-4 py-3 text-sm sm:px-5">
+                                <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs text-daiku-muted">
+                                    <span>
+                                        <span className="font-medium text-daiku-dark">Revisi #{revision.sequence}</span> ·{' '}
+                                        {revision.requester?.name ?? '—'}
+                                    </span>
+                                    <time dateTime={revision.created_at}>{new Date(revision.created_at).toLocaleString('id-ID')}</time>
+                                </div>
+                                <p className="mt-1 whitespace-pre-line text-daiku-dark">{revision.note}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </SectionCard>
+            )}
+
+            {discussion && !isLocked && <DesignDiscussionPanel thread={discussion} className="mt-6" />}
+
+            {canAssign && (
+                <AssignDesignDialog
+                    open={assignOpen}
+                    onOpenChange={setAssignOpen}
+                    design={{
+                        id: design.id,
+                        client_name: design.lead.client_name,
+                        pic_id: design.pic_id,
+                        staff: design.staff,
+                        start_date: design.start_date,
+                        target_hari: design.target_hari,
+                    }}
+                    architects={designers.filter((designer) => designer.is_active !== false)}
+                />
+            )}
+            {canMarketingActions && (
+                <>
+                    <DesignRevisionDialog
+                        open={revisionOpen}
+                        onOpenChange={setRevisionOpen}
+                        designId={design.id}
+                        clientName={design.lead.client_name}
+                        nextNumber={design.revision_count + 1}
+                    />
+                    <DesignConfirmDialog
+                        open={confirm === 'send'}
+                        onOpenChange={(open) => !open && setConfirm(null)}
+                        title="Kirim Desain ke Klien"
+                        description={`Tandai desain "${design.lead.client_name}" sudah dikirim ke klien. Status menjadi menunggu persetujuan klien.`}
+                        confirmLabel="Kirim"
+                        action={route('design.sendToClient', { design: design.id })}
+                    />
+                    <DesignConfirmDialog
+                        open={confirm === 'approve'}
+                        onOpenChange={(open) => !open && setConfirm(null)}
+                        title="Desain Disetujui Klien"
+                        description={`Klien "${design.lead.client_name}" menyetujui desain ini. Estimator diminta menyusun RAB Proyek dari desain ini.`}
+                        confirmLabel="Konfirmasi"
+                        action={route('design.markClientApproved', { design: design.id })}
+                    />
+                </>
+            )}
 
             <ClientAccDialog
                 open={accOpen}

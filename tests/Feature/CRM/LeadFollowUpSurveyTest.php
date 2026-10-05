@@ -182,13 +182,14 @@ test('surveys can repeat, be rescheduled, and be cancelled with an audited reaso
 test('"Ajukan Desain/Survey" moves the lead to DEAL_DESAIN, scheduling the survey when chosen', function (string $type) {
     $this->actingAs($this->marketing)->post(route('crm.leads.submitRequest', $this->lead), [
         'type' => $type,
+        'note' => 'Desain ruang tamu minimalis.',
         'scheduled_at' => $type === 'SURVEY' ? now()->addDay()->toDateTimeString() : null,
     ])->assertSessionHasNoErrors();
 
     expect($this->lead->fresh()->status)->toBe(LeadStatus::DealDesain)
         ->and(LeadSurvey::count())->toBe($type === 'SURVEY' ? 1 : 0)
         ->and(PipelineLog::where('lead_id', $this->lead->id)->where('to_status', 'DEAL_DESAIN')->exists())->toBeTrue();
-})->with(['SURVEY', 'DESAIN']);
+})->with(['SURVEY', 'RAB_DESAIN']);
 
 test('a survey request needs a schedule', function () {
     $this->actingAs($this->marketing)->post(route('crm.leads.submitRequest', $this->lead), ['type' => 'SURVEY'])
@@ -205,7 +206,7 @@ test('only Marketing and CEO write follow-ups and surveys; other lead readers ge
     $this->actingAs($user)->post(route('crm.follow-ups.store', $this->lead), ['scheduled_date' => now()->toDateString()])->assertStatus($status);
     $this->actingAs($user)->post(route('crm.follow-ups.complete', $followUp), ['result_note' => 'ok'])->assertStatus($status);
     $this->actingAs($user)->post(route('crm.surveys.complete', $survey), ['result_note' => 'ok'])->assertStatus($status);
-    $this->actingAs($user)->post(route('crm.leads.submitRequest', $this->lead), ['type' => 'DESAIN'])->assertStatus($status);
+    $this->actingAs($user)->post(route('crm.leads.submitRequest', $this->lead), ['type' => 'RAB_DESAIN', 'note' => 'Desain ruang tamu minimalis.'])->assertStatus($status);
 })->with([['MARKETING', 302], ['CEO', 302], ['DESIGNER', 403], ['PM', 403], ['ESTIMATOR', 403]]);
 
 // ── Migrasi ──────────────────────────────────────────────────────────────

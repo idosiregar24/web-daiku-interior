@@ -41,7 +41,7 @@ test('user-supplied links only accept http(s) schemes', function (string $url) {
 test('design links reject non-http schemes', function () {
     $designer = User::factory()->create();
     $designer->assignRole('DESIGNER');
-    $design = Design::factory()->create();
+    $design = Design::factory()->create(['pic_id' => $designer->id]);
 
     $this->actingAs($designer)->put(route('design.update', $design), [
         'design_urls' => ['javascript:alert(1)'],

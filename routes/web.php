@@ -138,9 +138,9 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
 // else on the row R). "Design – Client ACC" is its own row with different
 // access (MKT + DES both U, not CEO/PM) — PRD explicitly gives Marketing
 // a say here since they're the ones talking to the client.
-Route::post('crm/leads/{lead}/design', [DesignController::class, 'store'])
-    ->middleware(['auth', 'role:DESIGNER'])
-    ->name('crm.leads.design.store');
+// Sprint 12 Sub 8: no design is opened by hand any more — an approved RAB
+// Jasa Desain opens it (locked until paid), a Kepala Desain assigns it,
+// Marketing sends / asks revisions / records the client's approval.
 
 Route::middleware('auth')->prefix('design')->name('design.')->group(function () {
     Route::get('/', [DesignController::class, 'index'])
@@ -165,6 +165,23 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
     Route::post('{design}/client-acc', [DesignController::class, 'clientAcc'])
         ->middleware('role:MARKETING|DESIGNER')
         ->name('clientAcc');
+
+    // Sprint 12 decision #15 — only a Kepala Desain assigns (themself allowed).
+    Route::post('{design}/assign', [DesignController::class, 'assign'])
+        ->middleware('role:KEPALA_DESAIN')
+        ->name('assign');
+
+    // Decision #17 — Marketing alone talks to the client about the design.
+    Route::middleware('role:MARKETING')->group(function () {
+        Route::post('{design}/send-to-client', [DesignController::class, 'sendToClient'])->name('sendToClient');
+        Route::post('{design}/request-revision', [DesignController::class, 'requestRevision'])->name('requestRevision');
+        Route::post('{design}/client-approved', [DesignController::class, 'markClientApproved'])->name('markClientApproved');
+    });
+
+    // D6 — Arsitek ↔ Estimator thread; DesignPolicy::discuss() narrows architects to their own designs.
+    Route::post('{design}/discussions', [DesignController::class, 'discuss'])
+        ->middleware(['role:DESIGNER|ESTIMATOR', 'throttle:60,1'])
+        ->name('discussions.store');
 });
 
 // Quotation — PRD §4.3 / §7.1 "Quotation" row: broad read, Estimator-only

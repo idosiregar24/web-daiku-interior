@@ -11,10 +11,12 @@ use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
 use App\Http\Requests\Quotation\ReviewQuotationRequest;
 use App\Http\Requests\Quotation\SavePaymentTermsRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
+use App\Models\Design;
 use App\Models\Quotation;
 use App\Models\QuotationItemReview;
 use App\Models\SiteSetting;
 use App\Models\Unit;
+use App\Services\DesignService;
 use App\Services\QuotationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -99,6 +101,10 @@ class QuotationController extends Controller
                 && $quotation->status === QuotationStatus::ClientApproved
                 && InvoiceType::forQuotation($quotation->type) !== null
                 && ! $quotation->invoices()->exists(),
+            // Sprint 12 #18 / D6 — the lead's Arsitek ↔ Estimator thread, when it has a design.
+            'discussion' => ($design = Design::where('lead_id', $quotation->lead_id)->first())
+                ? app(DesignService::class)->threadFor($design, $user)
+                : null,
         ]);
     }
 

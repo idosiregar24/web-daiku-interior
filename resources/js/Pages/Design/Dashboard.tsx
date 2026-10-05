@@ -283,7 +283,7 @@ export default function DesignDashboard({ kpis, revenue, range, monthOptions, my
             <SectionCard
                 title="KPI per PIC"
                 icon={UsersRound}
-                description="Total proyek desain per desainer, tepat waktu vs terlambat."
+                description="Total proyek desain per arsitek, tepat waktu vs terlambat."
                 flush
                 className="mb-6"
                 footer="Terlambat = delay_hari > 0, atau lewat deadline dan belum DONE_PRODUKSI. Hari HOLD_CLIENT/REVISI_CLIENT tidak dihitung sebagai delay."
@@ -291,7 +291,7 @@ export default function DesignDashboard({ kpis, revenue, range, monthOptions, my
                 <DataTable
                     columns={picColumns}
                     data={kpis.byPic}
-                    emptyMessage="Belum ada desainer aktif."
+                    emptyMessage="Belum ada arsitek aktif."
                     className={FLUSH_TABLE_CLASS}
                 />
             </SectionCard>

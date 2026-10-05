@@ -16,19 +16,17 @@ import type { Lead } from '@/types';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-type RequestType = 'SURVEY' | 'DESAIN' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK';
+type RequestType = 'SURVEY' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK';
 
 const OPTIONS: { value: RequestType; label: string; hint: string; rab?: boolean }[] = [
     { value: 'SURVEY', label: 'Jadwalkan Survey', hint: 'Survey lokasi — gratis di Pekanbaru, luar kota wajib RAB Jasa Survey.' },
-    { value: 'DESAIN', label: 'Ajukan Desain', hint: 'Lanjut ke tim desain tanpa survey.' },
     { value: 'RAB_SURVEY', label: 'Minta RAB Jasa Survey', hint: 'Biaya survey luar Pekanbaru — dibayar sebelum survey berangkat.', rab: true },
-    { value: 'RAB_DESAIN', label: 'Minta RAB Jasa Desain', hint: 'Biaya jasa desain sebelum tim desain mulai.', rab: true },
+    { value: 'RAB_DESAIN', label: 'Minta RAB Jasa Desain', hint: 'Biaya jasa desain — setelah dibayar, Kepala Desain menugaskan arsitek.', rab: true },
     { value: 'RAB_PROYEK', label: 'Minta RAB Proyek', hint: 'Penawaran pekerjaan — boleh tanpa desain dari Daiku.', rab: true },
 ];
 
 const SUBMIT_LABEL: Record<RequestType, string> = {
     SURVEY: 'Jadwalkan Survey',
-    DESAIN: 'Ajukan Desain',
     RAB_SURVEY: 'Minta RAB',
     RAB_DESAIN: 'Minta RAB',
     RAB_PROYEK: 'Minta RAB',

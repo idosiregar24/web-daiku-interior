@@ -27,6 +27,7 @@ const STATUS_TONE: Record<string, Tone> = {
     CLOSING: 'success',
     LOST: 'error',
     // Design — DesignStatus
+    MENUNGGU_PENUGASAN: 'info',
     BRIEF: 'neutral',
     DESAIN: 'info',
     WAITING_ACC_DESAIN: 'warning',
@@ -129,6 +130,7 @@ const STATUS_TONE: Record<string, Tone> = {
 const STATUS_LABEL: Record<string, string> = {
     DEAL_DESAIN: 'Pengajuan Desain/Survey',
     MENUNGGU_BAYAR: 'Menunggu Pembayaran',
+    MENUNGGU_PENUGASAN: 'Menunggu Penugasan',
     SIAP: 'Siap Berangkat',
     // Quotation (Sprint 12 #7–#10)
     WAITING_CEO: 'Menunggu CEO',
