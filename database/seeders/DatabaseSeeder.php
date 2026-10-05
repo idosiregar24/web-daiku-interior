@@ -65,6 +65,11 @@ class DatabaseSeeder extends Seeder
         // DEMO_USERS above.
         $this->call(DemoDataSeeder::class);
 
+        // Every remaining branch of the Sprint 12 flow (surveys, RAB stops,
+        // rejected invoices, design revisions, projects on hold / cancelled /
+        // completed, overdue items, overruns, …) — one example each.
+        $this->call(Demo\WorkflowScenarioSeeder::class);
+
         // SDM (Sprint 10) on top of DemoDataSeeder's employees, through the
         // real services: warnings + salary changes, KPI templates and three
         // months of scores, then semester reviews (which read the closed
