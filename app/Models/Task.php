@@ -101,6 +101,18 @@ class Task extends Model
         return $query->when($assigneeId, fn (Builder $q) => $q->where('assignee_id', $assigneeId));
     }
 
+    /**
+     * A Field Staff's not-DONE tasks still lacking their form for `$date`
+     * — the Form Harian fill-in list (PRD §4.5) and the "Perlu Tindakan"
+     * queue (Sprint 13) both read this.
+     */
+    public function scopeAwaitingDailyForm(Builder $query, User $staff, string $date): Builder
+    {
+        return $query->where('assignee_id', $staff->id)
+            ->where('status', '!=', TaskStatus::Done->value)
+            ->whereDoesntHave('dailyTaskForms', fn (Builder $form) => $form->where('staff_id', $staff->id)->forDate($date));
+    }
+
     /** Past due_date and not yet DONE — PRD §4.5 OVER status. */
     public function scopeOverdue(Builder $query): Builder
     {

@@ -1,6 +1,7 @@
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import AppLayout, { ROLE_LABEL } from '@/Layouts/AppLayout';
@@ -74,10 +75,10 @@ const columns: ColumnDef<UserWithRoles>[] = [
 export default function UsersIndex({ users }: UsersIndexProps) {
     return (
         <AppLayout>
-            <Head title="User Management" />
+            <Head title="Pengguna" />
 
             <PageHeader
-                title="User Management"
+                title="Pengguna"
                 icon={UserCog}
                 description="Kelola akun pengguna dan role RBAC (khusus CEO)."
                 actions={
@@ -89,6 +90,8 @@ export default function UsersIndex({ users }: UsersIndexProps) {
                     </Button>
                 }
             />
+
+            <ModuleTabs />
 
             <DataTable
                 columns={columns}

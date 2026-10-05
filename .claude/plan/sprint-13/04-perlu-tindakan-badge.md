@@ -1,7 +1,7 @@
 # Sprint 13 · 04 — Perlu Tindakan + Badge Menu
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 01 · Keputusan: #4, #5, #10 · Default: D2, D4
+> Status: **selesai 2026-10-05** · Prasyarat: 01 · Keputusan: #4, #5, #10 · Default: D2, D4
 
 ## Tujuan
 Setiap orang melihat "giliran saya" di satu tempat, dan angka di menu
@@ -46,9 +46,35 @@ menunjukkan menu mana yang perlu dibuka.
 - CEO mendarat di Perlu Tindakan setelah login (#10).
 
 ## Checklist
-- [ ] **[Backend]** `ActionInboxService` + sumber per role, memakai scope/Policy yang ada
-- [ ] **[Backend]** Lazy prop `navBadges` + cache + invalidasi di service pemroses
-- [ ] **[UI]** Halaman Perlu Tindakan + menu di grup Utama + tombol topbar
-- [ ] **[UI]** Badge di menu, hub, dan tab; ringkasan di Dashboard
-- [ ] **[Backend]** CEO mendarat di `inbox.index`
-- [ ] **[Test]** Unit per sumber (jumlah = jumlah di halaman daftar untuk user yang sama), Asisten PM hanya proyeknya, role tanpa antrean = kosong; feature `inbox.index` semua role 200, tamu 302
+- [x] **[Backend]** `ActionInboxService` + sumber per role, memakai scope/Policy yang ada
+- [x] **[Backend]** Lazy prop `navBadges` + cache + invalidasi di service pemroses
+- [x] **[UI]** Halaman Perlu Tindakan + menu di grup Utama + tombol topbar
+- [x] **[UI]** Badge di menu, hub, dan tab; ringkasan di Dashboard
+- [x] **[Backend]** CEO mendarat di `inbox.index`
+- [x] **[Test]** Unit per sumber (jumlah = jumlah di halaman daftar untuk user yang sama), Asisten PM hanya proyeknya, role tanpa antrean = kosong; feature `inbox.index` semua role 200, tamu 302
+
+## Catatan pelaksanaan (2026-10-05)
+- **Invalidasi cache** lewat satu middleware `ForgetActionInbox` (grup
+  `web`): setiap request tulis (POST/PUT/PATCH/DELETE) user membuang cache
+  `inbox:{id}` miliknya — bukan `forget()` di tiap service pemroses (lebih
+  sedikit titik yang bisa lupa). Badge orang lain menyusul ≤60 detik (D4).
+- Antrean diurutkan **paling lama menunggu dulu** (bukan "5 terbaru") —
+  antrean dikerjakan dari depan, sama seperti halaman Pengajuan Barang.
+  Grup diurutkan dari jumlah terbanyak.
+- Cakupan yang mengikuti halaman daftarnya (bukan rancangan awal):
+  RAB SUBMITTED untuk **semua** PM/Asisten PM (review tidak terikat proyek
+  — RAB lahir sebelum proyek, `QuotationService::REVIEW_ROLES`); lembur
+  PENDING hanya PM (Asisten PM tidak punya `pmApprove`). Estimator:
+  DIMINTA + DRAFT versi > 1 (dikembalikan). Marketing: follow-up jatuh
+  tempo ≤ hari ini di lead miliknya, RAB READY_TO_SEND, termin yang sudah
+  diingatkan `remindInvoices()` tapi belum ber-invoice. HR: evaluasi DRAFT
+  ber-`return_note` + nilai KPI manual kosong di periode OPEN. Tukang:
+  tugas jatuh tempo hari ini + form harian belum diisi (tidak tampil hari
+  Minggu). SUPERADMIN tidak punya antrean.
+- Scope bersama dipindah ke model supaya halaman daftar & inbox satu
+  query: `ProjectMaterial::visibleTo()`, `Project::managedBy()`,
+  `Task::awaitingDailyForm()`.
+- Detail Proyek kini menerima `?tab=` (milestone/finance/budget/…) untuk
+  tautan dari antrean — fondasi kecil untuk Sub 05.
+- Test "unit" ada di `tests/Feature/Inbox/ActionInboxServiceTest.php`
+  (butuh DB; `tests/Unit` di proyek ini tidak mem-boot Laravel).

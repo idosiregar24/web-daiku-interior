@@ -23,6 +23,16 @@ function syncFavicon(props: Record<string, unknown>) {
     }
 }
 
+// Sprint 13 H7 — installable as an app (public/sw.js caches nothing).
+// Production only: in dev a worker would only get in Vite's way.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+            // Not installable then — the site works exactly the same.
+        });
+    });
+}
+
 createInertiaApp({
     title: (title) => (title ? `${title} - ${siteName}` : siteName),
     resolve: (name) =>

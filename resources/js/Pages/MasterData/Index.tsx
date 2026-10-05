@@ -4,10 +4,10 @@ import { NameOnlyLookupManager } from '@/Components/modules/master-data/NameOnly
 import { MaterialCategoryManager } from '@/Components/modules/master-data/MaterialCategoryManager';
 import { MaterialSynonymManager } from '@/Components/modules/master-data/MaterialSynonymManager';
 import { UnitManager } from '@/Components/modules/master-data/UnitManager';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Card, CardContent } from '@/Components/ui/card';
-import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption, MaterialCategory, MaterialSynonym, UnitRow } from '@/types';
 import { Head } from '@inertiajs/react';
@@ -56,10 +56,12 @@ export default function MasterDataIndex({
                 description="Kelola data referensi yang dipakai modul lain — khusus SuperAdmin."
             />
 
+            <ModuleTabs />
+
             <Card>
-                <CardContent className="px-5 py-2 sm:px-6">
+                <CardContent className="px-5 py-4 sm:px-6">
                     <Tabs value={tab} onValueChange={setTab}>
-                        <UnderlineTabsList>
+                        <TabsList className="scrollbar-thin max-w-full justify-start overflow-x-auto *:flex-none *:px-3">
                             <TabsTrigger value="branches">Cabang</TabsTrigger>
                             <TabsTrigger value="lead-sources">Sumber Lead</TabsTrigger>
                             <TabsTrigger value="lead-categories">Kategori Customer</TabsTrigger>
@@ -67,7 +69,7 @@ export default function MasterDataIndex({
                             <TabsTrigger value="units">Satuan</TabsTrigger>
                             <TabsTrigger value="material-categories">Kategori Material</TabsTrigger>
                             <TabsTrigger value="material-synonyms">Sinonim Barang</TabsTrigger>
-                        </UnderlineTabsList>
+                        </TabsList>
 
                         <TabsContent value="branches" className="pt-4">
                             <BranchManager branches={branches} />

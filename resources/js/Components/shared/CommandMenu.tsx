@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/Components/ui/dialog';
+import { recentMenus } from '@/lib/recentMenus';
 import { cn } from '@/lib/utils';
 import { router } from '@inertiajs/react';
-import { CornerDownLeft, type LucideIcon, Search } from 'lucide-react';
+import { Briefcase, CornerDownLeft, FileText, FolderKanban, History, IdCard, Loader2, type LucideIcon, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 export interface CommandGroup {
@@ -15,16 +16,50 @@ interface CommandMenuProps {
     className?: string;
 }
 
+/** One row of the list — a menu (route) or a search hit (ready URL). */
+interface Entry {
+    key: string;
+    label: string;
+    sublabel?: string | null;
+    icon: LucideIcon;
+    href: string;
+}
+
+interface EntryGroup {
+    label: string;
+    entries: Entry[];
+}
+
+/** `GET search` (SearchController) — whitelisted fields only. */
+interface SearchGroup {
+    key: 'projects' | 'leads' | 'quotations' | 'employees';
+    label: string;
+    items: { id: number; label: string; sublabel: string | null; url: string }[];
+}
+
+const SEARCH_ICON: Record<SearchGroup['key'], LucideIcon> = {
+    projects: FolderKanban,
+    leads: Users,
+    quotations: FileText,
+    employees: IdCard,
+};
+
+const MIN_QUERY = 2;
+
 /**
- * Topbar "Cari menu" jump box (Ctrl/⌘ + K). Pure navigation over the same
- * items the sidebar shows for the current role — it never exposes a route
- * the sidebar hides, and server-side `role:` middleware still gates every
- * visit.
+ * Topbar search (Ctrl/⌘ + K) — Sprint 13 #12. Searches the menus the
+ * sidebar shows for this role (local) plus projects / leads / quotations
+ * / employees from `GET search` (debounced; the server scopes each kind
+ * like its list page). With an empty box it shows "Terakhir dibuka" — the
+ * last menus this device opened that the role can still see.
  */
 export function CommandMenu({ groups, className }: CommandMenuProps) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [activeIndex, setActiveIndex] = useState(0);
+    const [results, setResults] = useState<SearchGroup[]>([]);
+    const [searching, setSearching] = useState(false);
+    const [recent, setRecent] = useState<string[]>([]);
     const listRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -40,25 +75,91 @@ export function CommandMenu({ groups, className }: CommandMenuProps) {
         return () => window.removeEventListener('keydown', onKeyDown);
     }, []);
 
-    const filtered = useMemo(() => {
-        const needle = query.trim().toLowerCase();
+    // Read the device's recent list each time the box opens.
+    useEffect(() => {
+        if (open) setRecent(recentMenus());
+    }, [open]);
 
-        return groups
+    // Data search: 250 ms after typing stops, the previous request aborted.
+    const needle = query.trim();
+    useEffect(() => {
+        if (!open || needle.length < MIN_QUERY) {
+            setResults([]);
+            setSearching(false);
+
+            return;
+        }
+
+        const controller = new AbortController();
+        setSearching(true);
+        const timer = window.setTimeout(() => {
+            window.axios
+                .get<{ groups: SearchGroup[] }>(route('search'), { params: { q: needle }, signal: controller.signal })
+                .then((response) => setResults(response.data.groups))
+                .catch(() => {
+                    // Aborted, throttled or offline — the menu matches still show.
+                })
+                .finally(() => {
+                    if (!controller.signal.aborted) setSearching(false);
+                });
+        }, 250);
+
+        return () => {
+            window.clearTimeout(timer);
+            controller.abort();
+        };
+    }, [needle, open]);
+
+    const sections = useMemo<EntryGroup[]>(() => {
+        const lower = needle.toLowerCase();
+        const menuEntry = (item: CommandGroup['items'][number]): Entry => ({
+            key: `menu:${item.routeName}`,
+            label: item.label,
+            icon: item.icon,
+            href: route(item.routeName),
+        });
+
+        if (!lower) {
+            // Only menus the role still sees — a stale entry just drops out.
+            const byRoute = new Map(groups.flatMap((group) => group.items.map((item) => [item.routeName, item] as const)));
+            const recentEntries = recent.flatMap((routeName) => {
+                const item = byRoute.get(routeName);
+
+                return item ? [{ ...menuEntry(item), key: `recent:${routeName}` }] : [];
+            });
+
+            return [
+                ...(recentEntries.length > 0 ? [{ label: 'Terakhir dibuka', entries: recentEntries }] : []),
+                ...groups.map((group) => ({ label: group.label, entries: group.items.map(menuEntry) })),
+            ];
+        }
+
+        const menuSections = groups
             .map((group) => ({
-                ...group,
-                items: group.items.filter(
-                    (item) =>
-                        !needle ||
-                        item.label.toLowerCase().includes(needle) ||
-                        group.label.toLowerCase().includes(needle),
-                ),
+                label: group.label,
+                entries: group.items
+                    .filter((item) => item.label.toLowerCase().includes(lower) || group.label.toLowerCase().includes(lower))
+                    .map(menuEntry),
             }))
-            .filter((group) => group.items.length > 0);
-    }, [groups, query]);
+            .filter((group) => group.entries.length > 0);
 
-    const flat = useMemo(() => filtered.flatMap((group) => group.items), [filtered]);
+        const dataSections = results.map((group) => ({
+            label: group.label,
+            entries: group.items.map((item) => ({
+                key: `${group.key}:${item.id}`,
+                label: item.label,
+                sublabel: item.sublabel,
+                icon: SEARCH_ICON[group.key] ?? Briefcase,
+                href: item.url,
+            })),
+        }));
 
-    useEffect(() => setActiveIndex(0), [query]);
+        return [...menuSections, ...dataSections];
+    }, [groups, needle, recent, results]);
+
+    const flat = useMemo(() => sections.flatMap((group) => group.entries), [sections]);
+
+    useEffect(() => setActiveIndex(0), [query, results]);
 
     useEffect(() => {
         listRef.current
@@ -73,9 +174,9 @@ export function CommandMenu({ groups, className }: CommandMenuProps) {
         }
     }
 
-    function go(routeName: string) {
+    function go(entry: Entry) {
         onOpenChange(false);
-        router.visit(route(routeName));
+        router.visit(entry.href);
     }
 
     function onInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -87,7 +188,7 @@ export function CommandMenu({ groups, className }: CommandMenuProps) {
             setActiveIndex((index) => Math.max(0, index - 1));
         } else if (event.key === 'Enter' && flat[activeIndex]) {
             event.preventDefault();
-            go(flat[activeIndex].routeName);
+            go(flat[activeIndex]);
         }
     }
 
@@ -104,64 +205,76 @@ export function CommandMenu({ groups, className }: CommandMenuProps) {
                 )}
             >
                 <Search className="size-4 shrink-0" aria-hidden />
-                <span className="hidden flex-1 text-left md:inline">Cari menu…</span>
+                <span className="hidden flex-1 truncate text-left md:inline">Cari menu, proyek, klien…</span>
                 <kbd className="hidden items-center gap-0.5 rounded border border-border bg-background px-1.5 font-sans text-[10px] font-medium text-muted-foreground md:inline-flex">
                     Ctrl K
                 </kbd>
-                <span className="sr-only md:hidden">Cari menu</span>
+                <span className="sr-only md:hidden">Cari</span>
             </button>
 
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent showCloseButton={false} className="top-[20%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg">
-                    <DialogTitle className="sr-only">Cari menu</DialogTitle>
+                    <DialogTitle className="sr-only">Cari</DialogTitle>
                     <DialogDescription className="sr-only">
-                        Ketik nama modul lalu tekan Enter untuk membukanya.
+                        Ketik nama menu, proyek, klien, atau karyawan lalu tekan Enter untuk membukanya.
                     </DialogDescription>
                     <div className="flex items-center gap-2 border-b border-border px-3">
-                        <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        {searching ? (
+                            <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+                        ) : (
+                            <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        )}
                         <input
                             autoFocus
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             onKeyDown={onInputKeyDown}
-                            placeholder="Cari modul, mis. “Termin” atau “Material”…"
+                            placeholder="Cari menu, proyek, klien, quotation…"
                             className="h-12 w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground focus:ring-0"
                         />
                         <kbd className="rounded border border-border px-1.5 text-[10px] text-muted-foreground">Esc</kbd>
                     </div>
-                    <div ref={listRef} className="scrollbar-thin max-h-80 overflow-y-auto p-2">
+                    <div ref={listRef} className="scrollbar-thin max-h-96 overflow-y-auto p-2">
                         {flat.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-muted-foreground">Menu tidak ditemukan.</p>
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                {searching ? 'Mencari…' : needle.length > 0 && needle.length < MIN_QUERY ? 'Ketik minimal 2 huruf.' : 'Tidak ditemukan.'}
+                            </p>
                         ) : (
-                            filtered.map((group) => (
+                            sections.map((group) => (
                                 <div key={group.label} className="mb-1 last:mb-0">
-                                    <p className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                    <p className="flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                        {group.label === 'Terakhir dibuka' && <History className="size-3" aria-hidden />}
                                         {group.label}
                                     </p>
-                                    {group.items.map((item) => {
+                                    {group.entries.map((entry) => {
                                         runningIndex += 1;
                                         const index = runningIndex;
-                                        const Icon = item.icon;
+                                        const Icon = entry.icon;
                                         const active = index === activeIndex;
 
                                         return (
                                             <button
-                                                key={item.routeName}
+                                                key={entry.key}
                                                 type="button"
                                                 data-index={index}
                                                 onMouseMove={() => setActiveIndex(index)}
-                                                onClick={() => go(item.routeName)}
+                                                onClick={() => go(entry)}
                                                 className={cn(
                                                     'flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left text-sm',
                                                     active ? 'bg-daiku-yellow-light text-foreground' : 'text-foreground/80',
                                                 )}
                                             >
                                                 <Icon
-                                                    className={cn('size-4', active ? 'text-daiku-yellow-dark' : 'text-muted-foreground')}
+                                                    className={cn('size-4 shrink-0', active ? 'text-daiku-yellow-dark' : 'text-muted-foreground')}
                                                     aria-hidden
                                                 />
-                                                <span className="flex-1">{item.label}</span>
-                                                {active && <CornerDownLeft className="size-3.5 text-muted-foreground" aria-hidden />}
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block truncate">{entry.label}</span>
+                                                    {entry.sublabel && (
+                                                        <span className="block truncate text-xs text-muted-foreground">{entry.sublabel}</span>
+                                                    )}
+                                                </span>
+                                                {active && <CornerDownLeft className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
                                             </button>
                                         );
                                     })}

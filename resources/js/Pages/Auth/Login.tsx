@@ -19,7 +19,9 @@ export default function Login({
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
-        remember: false as boolean,
+        // Sprint 13 D6 — ticked by default so a Tukang doesn't sign in on
+        // their phone every morning; untick it on a shared computer.
+        remember: true as boolean,
     });
 
     const submit: FormEventHandler = (e) => {

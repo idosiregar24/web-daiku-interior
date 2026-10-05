@@ -13,6 +13,7 @@ use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\TaskService;
+use App\Support\DailyFormSchedule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -35,13 +36,17 @@ class TaskController extends Controller
         $user = $request->user();
         $canAssign = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         $due = in_array($request->query('due'), self::DUE_FILTERS, true) ? $request->query('due') : null;
+        $isFieldStaff = $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
+        // Sprint 13 H3 — a Tukang's card shows (and its Simpan sends) today's daily form.
+        $now = DailyFormSchedule::now();
+        $formDay = DailyFormSchedule::isWorkDay($now);
 
         $tasks = Task::query()
             ->with(['project:id,name,status', 'milestone:id,name', 'assignee:id,name'])
-            ->when(
-                $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']),
-                fn ($query) => $query->where('assignee_id', $user->id),
-            )
+            ->when($isFieldStaff, fn ($query) => $query->where('assignee_id', $user->id))
+            ->when($isFieldStaff && $formDay, fn ($query) => $query->withExists([
+                'dailyTaskForms as has_form_today' => fn ($form) => $form->where('staff_id', $user->id)->forDate($now->toDateString()),
+            ]))
             ->byStatus($request->string('status')->value() ?: null)
             ->byAssignee($request->integer('assignee_id') ?: null)
             ->byDue($due)
@@ -61,6 +66,7 @@ class TaskController extends Controller
                 ? Milestone::query()->with('project:id,name')->orderBy('name')->get(['id', 'name', 'project_id', 'status'])
                 : [],
             'canAssign' => $canAssign,
+            'canSubmitDailyForm' => $isFieldStaff && $formDay && ! DailyFormSchedule::isPastCutoff($now),
             // Sprint 11 Sub 4 — a Tukang asks for goods from their task list
             // (name + qty + note); the request goes to the project's PM first.
             'materialRequestProjects' => $user->hasRole('FIELD_STAFF')

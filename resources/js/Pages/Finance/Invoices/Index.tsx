@@ -1,4 +1,5 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -14,6 +15,7 @@ import {
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import type { BankAccount, Invoice, InvoiceStatus, InvoiceType, PaginatedData } from '@/types';
+import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, Link, router } from '@inertiajs/react';
 import { ExternalLink, FileCheck2, FileDown, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
@@ -67,6 +69,8 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                         : 'Semua invoice yang diterbitkan Marketing: Jasa Survey, Jasa Desain, DP, dan termin.'
                 }
             />
+
+            <ModuleTabs />
 
             <TableCard
                 pagination={invoices}
@@ -148,6 +152,11 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                                             </Link>
                                         ) : (
                                             invoice.lead?.client_name
+                                        )}
+                                        {invoice.project && (
+                                            <p className="text-xs text-daiku-muted">
+                                                <ProjectLink project={invoice.project} tab="documents" />
+                                            </p>
                                         )}
                                     </td>
                                     <td className="px-4 py-3">{INVOICE_TYPE_LABEL[invoice.type]}</td>

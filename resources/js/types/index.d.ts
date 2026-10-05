@@ -37,6 +37,50 @@ export interface User {
     is_active?: boolean;
     /** SDM: linked to an active employee row — the "Milik Saya" menu shows only then. */
     has_employee?: boolean;
+    /** Sprint 13 Sub 01 — sidebar groups this user folded (shared auth user only). */
+    nav_preferences?: { collapsed_groups: string[] };
+}
+
+/** Sprint 13 #4 — one row of a "Perlu Tindakan" queue (ActionInboxService). */
+export interface InboxItem {
+    id: string;
+    title: string;
+    subtitle: string | null;
+    /** ISO timestamp the item started waiting, when meaningful. */
+    at: string | null;
+    href: string;
+}
+
+/** Icon key of a queue — mapped to a lucide icon by InboxGroupCard. */
+export type InboxIcon =
+    | 'quotation'
+    | 'project'
+    | 'budget'
+    | 'salary'
+    | 'review'
+    | 'material'
+    | 'qa'
+    | 'overtime'
+    | 'followup'
+    | 'termin'
+    | 'invoice'
+    | 'design'
+    | 'kpi'
+    | 'task'
+    | 'dailyform';
+
+/** One "Perlu Tindakan" queue: count, the first few items, and the list page it comes from. */
+export interface InboxGroup {
+    key: string;
+    label: string;
+    description: string;
+    icon: InboxIcon;
+    count: number;
+    /** Sidebar menu the queue's badge is shown on. */
+    routeName: string;
+    /** "Lihat semua" — the list page with the queue's filter. */
+    href: string;
+    items: InboxItem[];
 }
 
 export type PageProps<
@@ -54,6 +98,8 @@ export type PageProps<
     site: SiteBranding;
     /** Sprint 12 #19 — CEO only: approved RAB Proyek waiting for "Buka Proyek" (null when none / not CEO). */
     pendingProjectOpenings?: PendingProjectOpenings | null;
+    /** Sprint 13 #5 — menu route name → items waiting there ("Perlu Tindakan", cached 60 s per user). */
+    navBadges: Record<string, number>;
 };
 
 /** Sprint 12 #19 — App\Models\ProjectOpening. */
@@ -317,6 +363,7 @@ export interface Invoice {
     lead_id: number;
     lead?: Pick<Lead, 'id' | 'client_name'>;
     project_id: number | null;
+    project?: Pick<Project, 'id' | 'name'> | null;
     quotation_id: number | null;
     quotation?: Pick<Quotation, 'id' | 'type' | 'version'> | null;
     termin_id: number | null;

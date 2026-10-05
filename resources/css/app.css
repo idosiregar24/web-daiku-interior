@@ -232,3 +232,18 @@
     linear-gradient(to bottom, color-mix(in oklab, var(--color-daiku-cream) 7%, transparent) 1px, transparent 1px);
   background-size: 32px 32px;
 }
+
+/*
+ * Sprint 13 H8 — honour "reduce motion" (also spares low-end phones the
+ * sheet/dialog animations): animations and transitions end at once.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

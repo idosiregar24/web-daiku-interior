@@ -12,11 +12,11 @@ test('resolves each role to its PRD §8.4 landing page', function (string $role,
 
     expect((new RoleRedirectService)->routeNameFor($user))->toBe($routeName);
 })->with([
-    ['CEO', 'analytics.index'],
+    ['CEO', 'inbox.index'],
     ['MARKETING', 'crm.dashboard'],
     ['FINANCE', 'finance.dashboard'],
     ['LOGISTICS', 'logistics.materials.index'],
-    ['FIELD_STAFF', 'tasks.index'],
+    ['FIELD_STAFF', 'today.index'],
     ['DESIGNER', 'design.dashboard'],
     ['ESTIMATOR', 'quotations.dashboard'],
     ['PM', 'projects.dashboard'],

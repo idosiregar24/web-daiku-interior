@@ -2,10 +2,10 @@ import { StatusChip } from '@/Components/shared/StatusChip';
 import { UnitSelect } from '@/Components/shared/UnitSelect';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
 import { Button } from '@/Components/ui/button';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -213,7 +213,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <ResponsiveDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Tinjau Pengajuan</DialogTitle>
                     <DialogDescription>
@@ -495,7 +495,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

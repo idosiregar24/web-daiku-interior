@@ -11,6 +11,7 @@ import {
 } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, QaForm } from '@/types';
+import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, Link, router } from '@inertiajs/react';
 import { BarChart3, ShieldCheck } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
@@ -58,7 +59,34 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                     </div>
                 }
             >
-                <table className="w-full text-sm">
+                {/* Sprint 13 P2 — QA on a phone: one card per form, the whole card opens it. */}
+                <ul className="divide-y divide-border md:hidden">
+                    {qaForms.data.length === 0 ? (
+                        <li>
+                            <EmptyState title="Belum ada QA Form." />
+                        </li>
+                    ) : (
+                        qaForms.data.map((qaForm) => (
+                            <li key={qaForm.id}>
+                                <Link
+                                    href={route('qa-forms.show', { qa_form: qaForm.id })}
+                                    className="flex items-start justify-between gap-3 px-4 py-3 active:bg-daiku-yellow-light/60"
+                                >
+                                    <span className="min-w-0">
+                                        <span className="block font-medium text-foreground">{qaForm.milestone?.name ?? 'Form QA'}</span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {qaForm.project?.name ?? '—'}
+                                            {qaForm.rejection_count > 0 && ` · ditolak ${qaForm.rejection_count}x`}
+                                        </span>
+                                    </span>
+                                    <StatusChip status={qaForm.status} />
+                                </Link>
+                            </li>
+                        ))
+                    )}
+                </ul>
+
+                <table className="hidden w-full text-sm md:table">
                     <thead className={TABLE_HEAD_CLASS}>
                         <tr>
                             <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
@@ -79,14 +107,17 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                             qaForms.data.map((qaForm) => (
                                 <tr key={qaForm.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                     <td className="px-4 py-3 font-medium">
+                                        <ProjectLink project={qaForm.project} tab="qa" />
+                                    </td>
+                                    {/* The milestone opens its QA form — the reviewer's working page. */}
+                                    <td className="px-4 py-3">
                                         <Link
                                             href={route('qa-forms.show', { qa_form: qaForm.id })}
-                                            className="text-foreground hover:text-daiku-yellow-dark hover:underline"
+                                            className="font-medium text-foreground hover:underline"
                                         >
-                                            {qaForm.project?.name ?? '—'}
+                                            {qaForm.milestone?.name ?? 'Buka form QA'}
                                         </Link>
                                     </td>
-                                    <td className="px-4 py-3 text-daiku-muted">{qaForm.milestone?.name ?? '—'}</td>
                                     <td className="px-4 py-3">
                                         <StatusChip status={qaForm.status} />
                                     </td>

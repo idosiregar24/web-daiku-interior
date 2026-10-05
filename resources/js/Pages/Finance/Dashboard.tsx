@@ -1,5 +1,6 @@
 import { MoneyTrendChart } from '@/Components/modules/analytics/MoneyTrendChart';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatCard, type StatDelta } from '@/Components/shared/StatCard';
@@ -100,6 +101,8 @@ export default function FinanceDashboard({ cashFlow, accountSummary }: FinanceDa
                     </Button>
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard

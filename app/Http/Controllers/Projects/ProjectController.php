@@ -39,15 +39,7 @@ class ProjectController extends Controller
             ->with(['pm:id,name'])
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
-            ->when(
-                $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'SUPERADMIN']),
-                fn ($query) => $query->whereHas('tasks', fn ($q) => $q->where('assignee_id', $user->id)),
-            )
-            // Sprint 12 #22 — an Asisten PM lists the projects assigned to them.
-            ->when(
-                $user->hasRole('ASISTEN_PM') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']),
-                fn ($query) => $query->assistedBy($user),
-            )
+            ->visibleTo($user)
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -127,6 +119,13 @@ class ProjectController extends Controller
         $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);
         $canManageMaterials = $user->can('manageMaterials', $project) && $project->status !== ProjectStatus::Completed;
         $isLogistics = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
+        // Sprint 13 #3 — Tab QA: the milestone QA forms (status, findings),
+        // never task data (security-standards §2). The form page itself is
+        // `qa-forms.show` (role:CEO|PM|QA) — the Asisten PM reads it here.
+        $canViewQa = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
+        // Tab Lembur — this project's overtime requests; decided on the
+        // Lembur page (overtime.index, role:CEO|PM|FINANCE).
+        $canViewOvertime = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
 
         $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name']);
 
@@ -169,6 +168,20 @@ class ProjectController extends Controller
                 ? $project->progressLogs()->with('logger:id,name')->get()
                 : [],
             'canViewProgressLogs' => $canViewProgressLogs,
+            'qaForms' => $canViewQa
+                ? $project->qaForms()
+                    ->with(['milestone:id,name,order,status', 'reviewer:id,name'])
+                    ->get(['id', 'project_id', 'milestone_id', 'reviewer_id', 'status', 'rejection_count', 'notes', 'reviewed_at', 'created_at'])
+                    ->sortBy(fn ($form) => $form->milestone?->order)
+                    ->values()
+                : [],
+            'canViewQa' => $canViewQa,
+            'canOpenQaForm' => $user->hasAnyRole(['CEO', 'PM', 'QA', 'SUPERADMIN']),
+            'overtimeRequests' => $canViewOvertime
+                ? $project->overtimeRequests()->with('staff:id,name')->latest('work_date')->latest('id')->get()
+                : [],
+            'canViewOvertime' => $canViewOvertime,
+            'canOpenOvertimeList' => $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']),
             'canManageProgressLogs' => $canManageProgressLogs,
             'termins' => $canViewTermins
                 ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status'])->orderBy('termin_number')->get()

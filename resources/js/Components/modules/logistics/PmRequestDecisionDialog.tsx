@@ -1,8 +1,8 @@
 import { Button } from '@/Components/ui/button';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -64,7 +64,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{approve ? 'Setujui Pengajuan' : 'Tolak Pengajuan'}</DialogTitle>
                     <DialogDescription>
@@ -90,7 +90,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
                         {approve ? 'Setujui & Teruskan' : 'Tolak Pengajuan'}
                     </Button>
                 </DialogFooter>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

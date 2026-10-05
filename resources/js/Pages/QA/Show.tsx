@@ -121,7 +121,7 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                                                         checked={field.value}
                                                         onCheckedChange={field.onChange}
                                                         disabled={!editable}
-                                                        className="mt-0.5"
+                                                        className="mt-0.5 size-5 sm:size-4"
                                                     />
                                                 </FormControl>
                                                 <FormLabel className="font-normal text-daiku-dark">{item.label}</FormLabel>
@@ -164,12 +164,13 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                         />
 
                         {editable ? (
-                            <div className="flex justify-end gap-2 border-t border-border pt-4">
-                                <Button type="button" variant="destructive" onClick={submitDecision('reject')}>
+                            // Sprint 13 P2 — on a phone the decision bar stays at the bottom of the screen, buttons full width.
+                            <div className="sticky bottom-0 z-10 grid grid-cols-2 gap-2 border-t border-border bg-card py-3 sm:static sm:flex sm:justify-end sm:pt-4 sm:pb-0">
+                                <Button type="button" variant="destructive" className="h-11 sm:h-8" onClick={submitDecision('reject')}>
                                     <XCircle className="size-4" />
                                     Tolak QA
                                 </Button>
-                                <Button type="button" onClick={submitDecision('approve')}>
+                                <Button type="button" className="h-11 sm:h-8" onClick={submitDecision('approve')}>
                                     <CheckCircle2 className="size-4" />
                                     Setujui QA
                                 </Button>

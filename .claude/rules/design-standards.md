@@ -70,7 +70,8 @@ Komponen gabungan modul-spesifik (`StatusChip`, `DataTable` + TanStack,
 | Banner peringatan/info | `Notice` (`tone` info/success/warning/error) |
 | Pasangan label–nilai di halaman detail | `DetailList` + `DetailItem` |
 | Rasio / progres | `ProgressBar` |
-| Tab level halaman (Detail Proyek, Data Master) | `UnderlineTabsList` di dalam `<Tabs>`; tab kecil di dalam section tetap `TabsList` biasa |
+| Tab level halaman (Detail Proyek, Kinerja Saya) | `UnderlineTabsList` di dalam `<Tabs>`; tab kecil di dalam section tetap `TabsList` biasa |
+| Tab antar-halaman satu menu (hub: Penagihan, Material, ⚙ Pengaturan…) | `ModuleTabs` tepat di bawah `PageHeader` — tab, urutan & saringan role dibaca dari `NavItem.tabs` di `AppLayout.tsx`, tiap tab = route sendiri (`<Link>`). Halaman anggota hub tidak boleh punya `UnderlineTabsList` kedua: tab internalnya pakai `TabsList` kecil (lihat Termin, Penggajian, Data Master) |
 | Status | `StatusChip` (pill ber-tint polos, tanpa titik/outline; prop `tone` untuk status di luar union domain, mis. Aktif/Nonaktif user) |
 
 Jangan pakai ornamen dekoratif: pill "badge" dengan titik + border kuning,
@@ -110,6 +111,33 @@ jangan duplikasi mapping ini di tiap halaman.
   modul baru ke `NAV_GROUPS` di file itu begitu route-nya siap — sidebar,
   command menu, dan daftar "Modul Anda" di Dashboard membaca data yang sama
   lewat `useNavGroups()`.
+- **Struktur menu (Sprint 13).** Header grup bisa dilipat (tersimpan per
+  user di `users.nav_preferences`; grup halaman aktif selalu terbuka) dan
+  urutan grup mengikuti role (`ROLE_GROUP_ORDER`). Halaman serumpun
+  digabung jadi satu **hub** (`NavItem.tabs`) — pakai hub bila ≥2 halaman
+  daftar dipakai orang yang sama untuk pekerjaan yang sama (Termin +
+  Invoice + Verifikasi); halaman yang berdiri sendiri tetap menu biasa.
+  Role yang hanya boleh membuka 1 tab melihat menu bernama tab itu tanpa
+  bar tab. Halaman setup (master, konfigurasi, template) masuk hub
+  **⚙ Pengaturan** (grup `pinned` di bawah sidebar), bukan grup harian.
+  Label grup yang bisa dilipat di-whitelist di
+  `UpdateNavPreferenceRequest::GROUPS` — ubah keduanya bersamaan.
+- **Perlu Tindakan & badge (Sprint 13 Sub 04).** Antrean "giliran saya"
+  dibangun sekali di `ActionInboxService` (query = scope/filter halaman
+  daftarnya, jangan tulis query baru). Angka di menu/tab hub/topbar dibaca
+  dari prop bersama `navBadges` (route menu → jumlah) lewat `useNavBadge()`
+  + `<NavBadge>` — jangan hitung ulang di halaman. Antrean baru = tambah
+  satu method di service dengan `routeName` menu tujuannya; badge ikut
+  otomatis. Item antrean memakai `InboxGroupCard`.
+- **HP (Sprint 13).** Tukang (role utama FIELD_STAFF) di bawah `lg` tidak
+  punya sidebar/hamburger: `BottomNav` 4 tombol (Hari Ini · Tugas · Lembur
+  · Lainnya, area sentuh ≥48px, `env(safe-area-inset-bottom)`), kata
+  membumi ("Tugas", bukan "Task" — `NavItem.roleLabels`), tugas sebagai
+  `TaskCard` + `TaskActionSheet` (panel bawah, status tombol besar, satu
+  Simpan). Role lain tetap sidebar; halaman lapangan mereka memakai kartu
+  (`DataTable` `mobileCard`) dan panel bawah (`ResponsiveDialogContent`).
+  Tombol keputusan di HP lebar penuh; aksi utama boleh menempel di bawah
+  layar (lihat form QA).
 - Topbar pakai **breadcrumb** (PRD §8.3). Awal jejaknya **otomatis** dari
   menu sidebar tempat route berada: 🏠 › grup ▾ (dropdown menu lain di grup
   itu) › menu (+ ikon). Menu dicocokkan lewat pola Ziggy `NavItem.match`
@@ -118,8 +146,10 @@ jangan duplikasi mapping ini di tiap halaman.
   `breadcrumbs`**; halaman detail/form hanya mengirim level setelah menu:
   `breadcrumbs={[{ label: project.name }, { label: 'Finance' }]}` (entry
   bisa `routeName` atau `href`; entry terakhir = halaman saat ini). Tab
-  level halaman ikut jadi crumb terakhir (lihat Detail Proyek, Termin,
-  Data Master). Jangan ulangi nama grup/menu di `breadcrumbs`.
+  hub ikut otomatis (🏠 › Keuangan › Penagihan › Invoice); tab level
+  halaman lain dikirim sendiri sebagai crumb terakhir (lihat Detail
+  Proyek, Termin, Data Master). Jangan ulangi nama grup/menu/tab hub di
+  `breadcrumbs`.
 - Halaman auth (login/register/dst) pakai `Layouts/AuthLayout.tsx`
   (kartu putih mengambang di atas `bg-daiku-cream`: panel gradien emas di
   kiri — desktop saja — dan form di kanan; judul/deskripsi lewat prop

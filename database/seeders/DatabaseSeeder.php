@@ -70,6 +70,11 @@ class DatabaseSeeder extends Seeder
         // completed, overdue items, overruns, …) — one example each.
         $this->call(Demo\WorkflowScenarioSeeder::class);
 
+        // Sprint 13 — the demo Tukang's "Hari Ini": tasks due today, some
+        // forms still missing (every other role's "Perlu Tindakan" queue is
+        // already filled by the two seeders above).
+        $this->call(Demo\TodayDemoSeeder::class);
+
         // SDM (Sprint 10) on top of DemoDataSeeder's employees, through the
         // real services: warnings + salary changes, KPI templates and three
         // months of scores, then semester reviews (which read the closed

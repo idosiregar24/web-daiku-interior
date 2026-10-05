@@ -13,6 +13,7 @@ import {
 import { StructureFilter } from '@/Components/modules/hr/StructureFilter';
 import { DataTable } from '@/Components/shared/DataTable';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -198,6 +199,8 @@ export default function KpiIndex({ periods, selected, board, trend, filters, str
                     </>
                 }
             />
+
+            <ModuleTabs />
 
             {!selected ? (
                 <SectionCard title="Belum ada periode KPI">

@@ -15,6 +15,7 @@ import { RequestAddendumDialog } from '@/Components/modules/projects/RequestAdde
 import { MilestoneCalendar } from '@/Components/modules/projects/MilestoneCalendar';
 import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
 import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneGanttCalendar';
+import { MilestoneList } from '@/Components/modules/projects/MilestoneList';
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
 import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDialog';
@@ -25,18 +26,25 @@ import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
+import { ProjectOvertimeTab } from '@/Components/modules/projects/ProjectOvertimeTab';
+import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
+import { BELOW_MD, useMediaQuery } from '@/hooks/useMediaQuery';
+import { useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
+import { cn } from '@/lib/utils';
 import type {
     FinanceAllocationLine,
     Invoice,
     Material,
     MaterialCategory,
     Milestone,
+    OvertimeRequest,
     ProgressLog,
     Project,
     ProjectBudget,
     ProjectMaterial,
     ProjectStatusNote,
+    QaForm,
     Quotation,
     SupplierDebt,
     Task,
@@ -48,7 +56,10 @@ import type {
 import { Head, Link, router } from '@inertiajs/react';
 import {
     Activity,
+    ChevronRight,
+    Clock,
     FileDown,
+    Hourglass,
     Flag,
     FolderKanban,
     Info,
@@ -60,6 +71,7 @@ import {
     Plus,
     Receipt,
     FileText,
+    ShieldCheck,
     Wallet,
     Layers,
     FilePlus2,
@@ -87,6 +99,15 @@ interface ProjectShowProps {
     progressLogs: ProgressLog[];
     canViewProgressLogs: boolean;
     canManageProgressLogs: boolean;
+    /** Sprint 13 #3 — Tab QA: milestone QA forms (CEO/PM/Asisten PM/QA). */
+    qaForms: QaForm[];
+    canViewQa: boolean;
+    /** qa-forms.show is role:CEO|PM|QA — the Asisten PM reads the tab only. */
+    canOpenQaForm: boolean;
+    /** Sprint 13 #3 — Tab Lembur (CEO/PM/Asisten PM/Finance). */
+    overtimeRequests: OvertimeRequest[];
+    canViewOvertime: boolean;
+    canOpenOvertimeList: boolean;
     termins: Termin[];
     canViewTermins: boolean;
     canViewFinanceSummary: boolean;
@@ -126,7 +147,32 @@ function formatDate(value: string | null) {
     return value ? new Date(value).toLocaleDateString('id-ID') : '—';
 }
 
-function OverviewTab({ project, progressLogs }: { project: Project; progressLogs: ProgressLog[] }) {
+/** One line of the Overview's "Menunggu di proyek ini" — opens the tab where it's handled. */
+interface WaitingRow {
+    key: string;
+    label: string;
+    detail: string;
+    tab: string;
+    tone: 'warning' | 'error' | 'info';
+}
+
+const WAITING_TONE: Record<WaitingRow['tone'], string> = {
+    warning: 'bg-warning/10 text-warning-ink',
+    error: 'bg-error/10 text-error-ink',
+    info: 'bg-info/10 text-info-ink',
+};
+
+function OverviewTab({
+    project,
+    progressLogs,
+    waiting,
+    onOpenTab,
+}: {
+    project: Project;
+    progressLogs: ProgressLog[];
+    waiting: WaitingRow[];
+    onOpenTab: (tab: string) => void;
+}) {
     const fields: { label: string; value: string }[] = [
         { label: 'Klien', value: project.lead?.client_name ?? '—' },
         { label: 'Project Manager', value: project.pm?.name ?? '—' },
@@ -151,7 +197,39 @@ function OverviewTab({ project, progressLogs }: { project: Project; progressLogs
                 </DetailList>
             </SectionCard>
 
-            <SectionCard title="Progress Keseluruhan" icon={Activity}>
+            <SectionCard
+                title="Menunggu di Proyek Ini"
+                description="Hal yang belum selesai diproses — klik untuk membuka tabnya."
+                icon={Hourglass}
+                flush
+                className="lg:col-span-2"
+            >
+                {waiting.length === 0 ? (
+                    <EmptyState title="Tidak ada yang menunggu." />
+                ) : (
+                    <ul className="divide-y divide-border">
+                        {waiting.map((row) => (
+                            <li key={row.key}>
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenTab(row.tab)}
+                                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-daiku-yellow-light/60 sm:px-5"
+                                >
+                                    <span className={cn('rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums', WAITING_TONE[row.tone])}>
+                                        {row.label}
+                                    </span>
+                                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{row.detail}</span>
+                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </SectionCard>
+
+            {/* Beside the project info; "Menunggu" goes under it. */}
+            <SectionCard title="Progress Keseluruhan" icon={Activity} className="self-start lg:col-start-3 lg:row-start-1">
+
                 <p className="text-4xl leading-none font-semibold tracking-tight text-foreground">{latestPercentage}%</p>
                 <ProgressBar value={latestPercentage} label="Progress keseluruhan proyek" className="mt-4" />
                 {progressLogs[0] && (
@@ -177,6 +255,8 @@ function MilestoneTab({
 }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<Milestone | null>(null);
+    // Sprint 13 P2 — Gantt/calendar need width; a phone gets the plain list.
+    const compact = useMediaQuery(BELOW_MD);
 
     if (!canView) {
         return (
@@ -217,6 +297,8 @@ function MilestoneTab({
 
             {milestones.length === 0 ? (
                 <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada milestone." />
+            ) : compact ? (
+                <MilestoneList milestones={milestones} canManage={canManage} onEdit={openEdit} onDelete={onDelete} onMarkDone={onMarkDone} />
             ) : (
                 <Tabs defaultValue="gantt">
                     <TabsList>
@@ -878,7 +960,9 @@ const PROJECT_TAB_LABEL: Record<string, string> = {
     documents: 'Dokumen',
     overview: 'Overview',
     milestone: 'Milestone',
+    qa: 'QA',
     task: 'Task',
+    overtime: 'Lembur',
     progress: 'Progress',
     finance: 'Finance',
     material: 'Material',
@@ -938,6 +1022,12 @@ export default function ProjectShow({
     progressLogs,
     canViewProgressLogs,
     canManageProgressLogs,
+    qaForms,
+    canViewQa,
+    canOpenQaForm,
+    overtimeRequests,
+    canViewOvertime,
+    canOpenOvertimeList,
     termins,
     canViewTermins,
     canViewFinanceSummary,
@@ -960,7 +1050,55 @@ export default function ProjectShow({
     units,
     materialCategories,
 }: ProjectShowProps) {
-    const [tab, setTab] = useState('overview');
+    // Sprint 13 #3 — the tab lives in `?tab=` (links from Perlu Tindakan
+    // and the cross-project lists); a tab this role doesn't get falls back
+    // to the overview.
+    const [tab, setTab] = useQueryTab(
+        {
+            milestone: true,
+            qa: canViewQa,
+            task: canViewTasks,
+            overtime: canViewOvertime,
+            progress: true,
+            finance: true,
+            budget: Boolean(budget),
+            documents: Boolean(documents),
+            material: canViewMaterials,
+        },
+        'overview',
+    );
+    const waiting = useMemo(() => {
+        const rows: WaitingRow[] = [];
+        const qaPending = qaForms.filter((form) => form.status === 'PENDING').length;
+        const qaRejected = qaForms.filter((form) => form.status === 'REJECTED').length;
+        const overtimeWaiting = overtimeRequests.filter((request) => request.status === 'PENDING' || request.status === 'PENDING_FINANCE').length;
+        const requestsWaiting = projectMaterials.filter((line) => line.request_status === 'MENUNGGU_PM' || line.request_status === 'DIAJUKAN').length;
+        const nextTermin = termins.find((termin) => termin.status !== 'PAID');
+
+        if (qaRejected > 0) {
+            rows.push({ key: 'qa-rejected', label: `${qaRejected} QA`, detail: 'Milestone ditolak QA — perbaiki lalu tandai selesai lagi', tab: 'qa', tone: 'error' });
+        }
+        if (qaPending > 0) {
+            rows.push({ key: 'qa-pending', label: `${qaPending} QA`, detail: 'Milestone menunggu pemeriksaan QA', tab: 'qa', tone: 'warning' });
+        }
+        if (overtimeWaiting > 0) {
+            rows.push({ key: 'overtime', label: `${overtimeWaiting} lembur`, detail: 'Pengajuan lembur menunggu keputusan PM / Finance', tab: 'overtime', tone: 'warning' });
+        }
+        if (requestsWaiting > 0) {
+            rows.push({ key: 'material', label: `${requestsWaiting} barang`, detail: 'Pengajuan barang menunggu PM / Logistik', tab: 'material', tone: 'warning' });
+        }
+        if (nextTermin) {
+            rows.push({
+                key: 'termin',
+                label: `Termin ${nextTermin.termin_number}`,
+                detail: `Termin berikutnya ${formatRupiah(nextTermin.sisa_piutang ?? nextTermin.amount)} · ${terminTrigger(nextTermin)}${nextTermin.status === 'OVERDUE' ? ' · lewat jadwal' : ''}`,
+                tab: 'finance',
+                tone: nextTermin.status === 'OVERDUE' ? 'error' : 'info',
+            });
+        }
+
+        return rows;
+    }, [qaForms, overtimeRequests, projectMaterials, termins]);
     const [editOpen, setEditOpen] = useState(false);
     const isClosed = project.status === 'COMPLETED' || project.status === 'CANCELLED';
 
@@ -1011,10 +1149,22 @@ export default function ProjectShow({
                         <Flag />
                         Milestone
                     </TabsTrigger>
+                    {canViewQa && (
+                        <TabsTrigger value="qa">
+                            <ShieldCheck />
+                            QA
+                        </TabsTrigger>
+                    )}
                     {canViewTasks && (
                         <TabsTrigger value="task">
                             <ListChecks />
                             Task
+                        </TabsTrigger>
+                    )}
+                    {canViewOvertime && (
+                        <TabsTrigger value="overtime">
+                            <Clock />
+                            Lembur
                         </TabsTrigger>
                     )}
                     <TabsTrigger value="progress">
@@ -1045,7 +1195,7 @@ export default function ProjectShow({
                     )}
                 </UnderlineTabsList>
                 <TabsContent value="overview" className="mt-6">
-                    <OverviewTab project={project} progressLogs={progressLogs} />
+                    <OverviewTab project={project} progressLogs={progressLogs} waiting={waiting} onOpenTab={setTab} />
                 </TabsContent>
                 <TabsContent value="milestone" className="mt-6">
                     <MilestoneTab
@@ -1055,6 +1205,16 @@ export default function ProjectShow({
                         canManage={canManageMilestones && !isClosed}
                     />
                 </TabsContent>
+                {canViewQa && (
+                    <TabsContent value="qa" className="mt-6">
+                        <ProjectQaTab qaForms={qaForms} canOpenForm={canOpenQaForm} />
+                    </TabsContent>
+                )}
+                {canViewOvertime && (
+                    <TabsContent value="overtime" className="mt-6">
+                        <ProjectOvertimeTab requests={overtimeRequests} canOpenList={canOpenOvertimeList} />
+                    </TabsContent>
+                )}
                 <TabsContent value="task" className="mt-6">
                     <TaskTab
                         project={project}

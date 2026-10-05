@@ -1,7 +1,7 @@
 # Sprint 13 · 06 — Tombol "+ Buat" Global, Pencarian & Terakhir Dibuka
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 03 · Keputusan: #6, #11 (sisa), #12 · Default: D3, D5
+> Status: **selesai 2026-10-05** · Prasyarat: 03 · Keputusan: #6, #11 (sisa), #12 · Default: D3, D5
 
 ## Tujuan
 Menambah data dan mencari sesuatu tidak perlu mencari menunya dulu.
@@ -31,9 +31,29 @@ Menambah data dan mencari sesuatu tidak perlu mencari menunya dulu.
   yang tidak lagi boleh dilihat role itu diabaikan.
 
 ## Checklist
-- [ ] **[UI]** `QuickCreateMenu` per role + dukungan `?create=1` di 6 halaman
-- [ ] **[UI]** Kolom cari yang terlihat di topbar desktop
-- [ ] **[Backend]** Endpoint `search` (scope per role, whitelist field, throttle)
-- [ ] **[UI]** Hasil data di `CommandMenu` dengan grup per jenis
-- [ ] **[UI]** "Terakhir dibuka" di `CommandMenu` (`localStorage`)
-- [ ] **[Test]** `search`: tiap role hanya mendapat yang boleh dilihat (Asisten PM proyek lain absen, Tukang hanya proyeknya), tamu 302; `/security-review` untuk endpoint ini
+- [x] **[UI]** `QuickCreateMenu` per role + dukungan `?create=1` di 6 halaman
+- [x] **[UI]** Kolom cari yang terlihat di topbar desktop
+- [x] **[Backend]** Endpoint `search` (scope per role, whitelist field, throttle)
+- [x] **[UI]** Hasil data di `CommandMenu` dengan grup per jenis
+- [x] **[UI]** "Terakhir dibuka" di `CommandMenu` (`localStorage`)
+- [x] **[Test]** `search`: tiap role hanya mendapat yang boleh dilihat (Asisten PM proyek lain absen, Tukang hanya proyeknya), tamu 302; `/security-review` untuk endpoint ini
+
+## Catatan pelaksanaan (2026-10-05)
+- **"+ Buat"**: `QUICK_CREATE` di `AppLayout.tsx` (Lead baru — CEO/Marketing;
+  Transaksi — Finance; Pengajuan barang — Estimator/PM/Tukang; Pengajuan
+  lembur — Tukang; Material katalog — Logistik; Karyawan — SDM; SUPERADMIN
+  hanya di halaman yang memang memberinya tombol tambah). Halaman membaca
+  `?create=1` lewat hook `useCreateParam()` (buka dialog sekali, lalu
+  `router.replace` menghapus param tanpa reload).
+- **Pencarian** `GET search?q=` (`SearchController`, `SearchRequest` 2–100
+  huruf, `throttle:60,1`): Proyek (nama/nama klien, `Project::visibleTo()`
+  — scope daftar proyek dipindah ke model), Lead (nama klien), Quotation
+  (nama klien), Karyawan (CEO/HR, `hrEligible`). Tiap jenis hanya untuk
+  role yang boleh membuka halaman daftarnya; respons whitelist
+  `id/label/sublabel/url`, **tanpa nominal**. Wildcard `%`/`_` di-escape.
+- Review keamanan dilakukan terarah pada endpoint ini (auth, throttle,
+  validasi, scope per role, whitelist) — `/security-review` penuh atas
+  diff Sprint 13 tetap disarankan sebelum merge.
+- **Terakhir dibuka**: `lib/recentMenus.ts` (`localStorage`, try/catch),
+  dicatat dari menu/tab aktif di topbar; tampil saat kolom cari kosong,
+  menu yang tak lagi terlihat untuk role itu diabaikan.

@@ -75,6 +75,16 @@ class Project extends Model
         return $this->hasMany(Task::class);
     }
 
+    public function qaForms(): HasMany
+    {
+        return $this->hasMany(QaForm::class);
+    }
+
+    public function overtimeRequests(): HasMany
+    {
+        return $this->hasMany(OvertimeRequest::class);
+    }
+
     public function progressLogs(): HasMany
     {
         return $this->hasMany(ProgressLog::class)->latest('log_date');
@@ -94,6 +104,36 @@ class Project extends Model
     {
         return ((int) $this->pm_id === (int) $user->id && $user->hasRole('PM'))
             || ($this->assistant_pm_id !== null && (int) $this->assistant_pm_id === (int) $user->id && $user->hasRole('ASISTEN_PM'));
+    }
+
+    /**
+     * The projects a user may list (the query twin of ProjectPolicy::view()
+     * for lists): a Field Staff only the projects with a task of theirs,
+     * an Asisten PM only the ones assigned to them (Sprint 12 #22),
+     * everyone else every project. Shared by the project list and the
+     * global search (Sprint 13).
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $query
+            ->when(
+                $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'SUPERADMIN']),
+                fn (Builder $q) => $q->whereHas('tasks', fn (Builder $task) => $task->where('assignee_id', $user->id)),
+            )
+            ->when(
+                $user->hasRole('ASISTEN_PM') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']),
+                fn (Builder $q) => $q->assistedBy($user),
+            );
+    }
+
+    /** The query twin of isManagedBy(): projects a PM leads or an Asisten PM is assigned to. */
+    public function scopeManagedBy(Builder $query, User $user): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->when($user->hasRole('PM'), fn (Builder $q) => $q->orWhere('pm_id', $user->id))
+            ->when($user->hasRole('ASISTEN_PM'), fn (Builder $q) => $q->orWhere('assistant_pm_id', $user->id))
+            // Neither role: nothing (an empty OR group would match everything).
+            ->when(! $user->hasAnyRole(['PM', 'ASISTEN_PM']), fn (Builder $q) => $q->whereRaw('1 = 0')));
     }
 
     /** Sprint 12 #22 — an Asisten PM's projects are the ones they're assigned to. */

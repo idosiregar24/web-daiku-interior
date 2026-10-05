@@ -10,13 +10,14 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/Components/ui/dropdown-menu';
+import { InboxGroupCard } from '@/Components/modules/inbox/InboxGroupCard';
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import AppLayout, { ROLE_LABEL, useNavGroups } from '@/Layouts/AppLayout';
 import { formatDate, formatRelative } from '@/lib/format';
 import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
-import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, User } from '@/types';
+import type { InboxGroup, Lead, LeadCategoryOption, LeadSourceOption, PageProps, User } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { startOfToday } from 'date-fns';
 import {
@@ -41,6 +42,8 @@ type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'ne
 };
 
 interface DashboardProps {
+    /** Sprint 13 #4 — the three busiest "Perlu Tindakan" queues. */
+    inbox: InboxGroup[];
     followUps: FollowUpLead[];
     /** Option lists for the "Tambah Lead" quick action — empty for roles that can't create leads. */
     marketers: Pick<User, 'id' | 'name'>[];
@@ -247,7 +250,7 @@ function ModuleDirectory() {
     );
 }
 
-export default function Dashboard({ followUps, marketers, leadSources, leadCategories }: DashboardProps) {
+export default function Dashboard({ inbox, followUps, marketers, leadSources, leadCategories }: DashboardProps) {
     const { auth, notifications, unreadNotificationsCount, site } = usePage<PageProps>().props;
     const role = auth.user?.role;
     // Follow-up readers are exactly the lead writers (PRD §4.1 "Marketing dan CEO").
@@ -336,6 +339,13 @@ export default function Dashboard({ followUps, marketers, leadSources, leadCateg
 
             <div className="grid gap-6 xl:grid-cols-3">
                 <div className="flex flex-col gap-6 xl:col-span-2">
+                    {inbox.length > 0 && (
+                        <div className="grid items-start gap-6 md:grid-cols-2">
+                            {inbox.map((group) => (
+                                <InboxGroupCard key={group.key} group={group} limit={3} />
+                            ))}
+                        </div>
+                    )}
                     {showFollowUps && <FollowUpReminder followUps={followUps} />}
                     <ModuleDirectory />
                 </div>

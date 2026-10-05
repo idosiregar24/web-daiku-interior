@@ -69,6 +69,25 @@ Sorting/filtering yang sifatnya query besar (>1 halaman data) dilakukan di
 backend (query string + `Inertia::render` props), bukan client-side TanStack
 filtering — supaya konsisten dengan pagination Laravel.
 
+**HP & tablet (Sprint 13).** Halaman yang dipakai di lapangan/gudang dari
+HP (ACC Lembur, Pengajuan Barang, QA, Material, Riwayat Stok, daftar
+tukang) memberi `DataTable` prop **`mobileCard={(row) => …}`**: di bawah
+`md` tiap baris jadi kartu (toolbar & paginasi tetap), tanpa memuat
+TanStack. Tombol aksi baris dibuat sekali sebagai fungsi (`actionsOf(row,
+block)`) dan dipakai di kolom grid **dan** kartu — jangan duplikasi logika
+izin. Halaman `<table>` manual (`TableCard`) memakai pola yang sama:
+`<ul className="md:hidden">` kartu + `<table className="hidden md:table">`.
+Satu halaman, dua tampilan — tidak ada halaman "versi HP" terpisah.
+Dialog keputusan/isian lapangan memakai **`ResponsiveDialogContent`**
+(pengganti `DialogContent`: panel bawah di HP, dialog di layar lebar).
+
+**Ringan.** `DataTableGrid` (TanStack) di-lazy-load lewat `DataTable`;
+jangan import `@tanstack/react-table` selain `type ColumnDef`. Komponen
+berat yang hanya untuk satu role (dialog CEO, chart) di-`lazy()` di
+layout. Bila dua tata letak memuat kode berbeda, pakai `useMediaQuery()`
+(`hooks/useMediaQuery.ts`) dan **jangan me-mount** yang tidak tampil —
+class `hidden` saja tetap mengunduh chunk-nya.
+
 ## 5. Real-time: Laravel Echo
 
 `lib/echo.ts` inisialisasi `window.Echo` tapi **tidak** di-import otomatis

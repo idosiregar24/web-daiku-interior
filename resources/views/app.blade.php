@@ -10,6 +10,14 @@
         <title inertia>{{ $site['name'] ?? config('app.name', 'Laravel') }}</title>
         <link rel="icon" href="{{ $site['faviconUrl'] ?? $site['logoUrl'] ?? asset('favicon.ico') }}">
 
+        {{-- Sprint 13 H7 — installable on a phone's home screen (PwaController, public/sw.js). --}}
+        <link rel="manifest" href="{{ route('pwa.manifest') }}">
+        <meta name="theme-color" content="{{ \App\Http\Controllers\PwaController::THEME_COLOR }}">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="{{ $site['name'] ?? config('app.name') }}">
+        <link rel="apple-touch-icon" href="{{ route('pwa.icon', ['size' => 180, 'purpose' => 'any']) }}">
+
         <!-- Scripts -->
         @routes
         @viteReactRefresh

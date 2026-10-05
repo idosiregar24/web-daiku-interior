@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureLinkedEmployee;
+use App\Http\Middleware\ForgetActionInbox;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ModuleAccessMiddleware;
 use App\Http\Middleware\RoleMiddleware as AppRoleMiddleware;
@@ -22,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            // Sprint 13 — drops the user's cached "Perlu Tindakan" counts after each write.
+            ForgetActionInbox::class,
         ]);
 
         // Spatie Laravel Permission — required for `role:`, `permission:` and

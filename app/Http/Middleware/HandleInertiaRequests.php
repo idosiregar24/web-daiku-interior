@@ -7,6 +7,7 @@ use App\Models\Notification;
 use App\Models\ProjectOpening;
 use App\Models\SiteSetting;
 use App\Models\User;
+use App\Services\ActionInboxService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -54,6 +55,10 @@ class HandleInertiaRequests extends Middleware
                     // middleware (field staff are never linked, decision #11).
                     'has_employee' => ! $user->hasRole('FIELD_STAFF')
                         && Employee::query()->hrEligible()->active()->where('user_id', $user->id)->exists(),
+                    // Sprint 13 Sub 01 — sidebar groups this user folded.
+                    'nav_preferences' => [
+                        'collapsed_groups' => $user->nav_preferences['collapsed_groups'] ?? [],
+                    ],
                 ] : null,
             ],
             // Every controller redirects with `->with('success', ...)` —
@@ -82,6 +87,9 @@ class HandleInertiaRequests extends Middleware
             'pendingProjectOpenings' => fn () => $user?->hasAnyRole(['CEO', 'SUPERADMIN'])
                 ? $this->pendingOpenings()
                 : null,
+            // Sprint 13 #5 — menu route => items waiting there ("Perlu
+            // Tindakan" counts, cached 60 s per user — ActionInboxService).
+            'navBadges' => fn () => $user ? app(ActionInboxService::class)->badges($user) : [],
             'unreadNotificationsCount' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->count()
                 : 0,

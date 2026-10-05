@@ -1,6 +1,7 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { BrandAssetCard } from '@/Components/modules/settings/BrandAssetCard';
 import { BrandLogoTile } from '@/Components/shared/BrandMark';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
@@ -142,6 +143,8 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                 icon={Settings}
                 description="Kustomisasi identitas, logo, dan halaman login sistem — khusus CEO dan SuperAdmin."
             />
+
+            <ModuleTabs />
 
             <div className="grid gap-6 xl:grid-cols-3">
                 <div className="flex flex-col gap-6 xl:col-span-2">

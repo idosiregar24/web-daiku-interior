@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Tasks;
 
-use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Tasks\StoreDailyTaskFormRequest;
 use App\Models\DailyTaskForm;
@@ -39,12 +38,8 @@ class DailyTaskFormController extends Controller
         $pendingTasks = collect();
 
         if ($isFieldStaff) {
-            $submittedTaskIds = $forms->pluck('task_id');
-
             $pendingTasks = Task::query()
-                ->where('assignee_id', $user->id)
-                ->where('status', '!=', TaskStatus::Done->value)
-                ->whereNotIn('id', $submittedTaskIds)
+                ->awaitingDailyForm($user, $date)
                 ->with('project:id,name')
                 ->get();
         }

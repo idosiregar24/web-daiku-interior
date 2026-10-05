@@ -1,13 +1,13 @@
 import { SalaryPaymentDialog } from '@/Components/modules/finance/SalaryPaymentDialog';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
-import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
-import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
 import type { BankAccount, Employee, PayrollRow } from '@/types';
@@ -245,8 +245,10 @@ export default function PayrollIndex({
                 }
             />
 
+            <ModuleTabs />
+
             <Tabs value={tab} onValueChange={setTab}>
-                <UnderlineTabsList>
+                <TabsList className="*:px-3">
                     <TabsTrigger value="payroll">
                         <WalletCards />
                         Gaji Bulanan
@@ -255,9 +257,9 @@ export default function PayrollIndex({
                         <Users />
                         Karyawan
                     </TabsTrigger>
-                </UnderlineTabsList>
+                </TabsList>
 
-                <TabsContent value="payroll" className="mt-6">
+                <TabsContent value="payroll" className="mt-4">
                     <div className="mb-6 grid gap-4 sm:grid-cols-3">
                         <StatCard
                             label={`Total Dibayar · ${periodLabel}`}
@@ -290,7 +292,7 @@ export default function PayrollIndex({
                     />
                 </TabsContent>
 
-                <TabsContent value="employees" className="mt-6">
+                <TabsContent value="employees" className="mt-4">
                     <Notice tone="info" className="mb-4">
                         Data karyawan dan perubahan gaji pokok dikelola SDM (perubahan gaji disetujui CEO). Finance membayar gaji di tab Gaji Bulanan.
                     </Notice>

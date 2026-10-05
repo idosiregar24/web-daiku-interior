@@ -5,10 +5,10 @@ import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -30,9 +30,11 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, OvertimeRequest, OvertimeStatus, PageProps, PaginatedData, Project } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { Clock, Plus } from 'lucide-react';
@@ -90,7 +92,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>Ajukan Lembur</DialogTitle>
                 </DialogHeader>
@@ -186,7 +188,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }
@@ -242,7 +244,7 @@ function DecisionDialog({
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>
                         {isReject ? 'Tolak' : 'Setujui'} Lembur — {overtime.staff?.name}
@@ -305,7 +307,7 @@ function DecisionDialog({
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }
@@ -334,6 +336,27 @@ export default function OvertimeIndex({
     function applyFilter(next: Partial<typeof filters>) {
         router.get(route('overtime.index'), { ...filters, ...next }, { preserveState: true, replace: true });
     }
+
+    /** "Setujui / Tolak Lembur" for whoever's turn it is — table row and phone card alike. */
+    function decisionButtons(overtime: OvertimeRequest, block = false) {
+        const stage = canPmDecide && overtime.status === 'PENDING' ? 'pm' : canFinanceDecide && overtime.status === 'PENDING_FINANCE' ? 'finance' : null;
+
+        if (!stage) return null;
+
+        return (
+            <>
+                <Button variant="outline" size={block ? 'default' : 'sm'} onClick={() => setDecision({ overtime, stage, decision: 'reject' })}>
+                    Tolak Lembur
+                </Button>
+                <Button size={block ? 'default' : 'sm'} onClick={() => setDecision({ overtime, stage, decision: 'approve' })}>
+                    Setujui Lembur
+                </Button>
+            </>
+        );
+    }
+
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(canSubmit, () => setRequestOpen(true));
 
     return (
         <AppLayout>
@@ -380,7 +403,40 @@ export default function OvertimeIndex({
                     </div>
                 }
             >
-                <table className="w-full text-sm">
+                {/* Sprint 13 P2 — cards on a phone: PM on site, Finance on the go, the Tukang's own list. */}
+                <ul className="divide-y divide-border md:hidden">
+                    {overtimeRequests.data.length === 0 ? (
+                        <li>
+                            <EmptyState title="Belum ada pengajuan lembur." />
+                        </li>
+                    ) : (
+                        overtimeRequests.data.map((overtime) => {
+                            const actions = decisionButtons(overtime, true);
+
+                            return (
+                                <li key={overtime.id} className="flex flex-col gap-2 px-4 py-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="font-medium text-foreground">
+                                                {isFieldStaff ? (overtime.project?.name ?? '—') : (overtime.staff?.name ?? '—')}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {!isFieldStaff && <ProjectLink project={overtime.project} tab="overtime" />}
+                                                {!isFieldStaff && ' · '}
+                                                {new Date(overtime.work_date).toLocaleDateString('id-ID')} · {overtime.hours} jam
+                                            </p>
+                                        </div>
+                                        <StatusChip status={overtime.status} />
+                                    </div>
+                                    <p className="text-sm font-semibold text-daiku-dark tabular-nums">{formatRupiah(overtime.total_amount)}</p>
+                                    {actions && <div className="grid grid-cols-2 gap-2">{actions}</div>}
+                                </li>
+                            );
+                        })
+                    )}
+                </ul>
+
+                <table className="hidden w-full text-sm md:table">
                     <thead className={TABLE_HEAD_CLASS}>
                         <tr>
                             {!isFieldStaff && <th className="px-4 py-2.5 text-left font-semibold">Tukang</th>}
@@ -403,7 +459,9 @@ export default function OvertimeIndex({
                             overtimeRequests.data.map((overtime) => (
                                 <tr key={overtime.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                     {!isFieldStaff && <td className="px-4 py-3 font-medium">{overtime.staff?.name ?? '—'}</td>}
-                                    <td className="px-4 py-3 text-daiku-muted">{overtime.project?.name ?? '—'}</td>
+                                    <td className="px-4 py-3 text-daiku-muted">
+                                        <ProjectLink project={overtime.project} tab="overtime" />
+                                    </td>
                                     <td className="px-4 py-3 text-daiku-muted">
                                         {new Date(overtime.work_date).toLocaleDateString('id-ID')}
                                     </td>
@@ -413,28 +471,7 @@ export default function OvertimeIndex({
                                         <StatusChip status={overtime.status} />
                                     </td>
                                     <td className="px-4 py-3">
-                                        <div className="flex justify-end gap-1">
-                                            {canPmDecide && overtime.status === 'PENDING' && (
-                                                <>
-                                                    <Button variant="outline" size="sm" onClick={() => setDecision({ overtime, stage: 'pm', decision: 'reject' })}>
-                                                        Tolak Lembur
-                                                    </Button>
-                                                    <Button size="sm" onClick={() => setDecision({ overtime, stage: 'pm', decision: 'approve' })}>
-                                                        Setujui Lembur
-                                                    </Button>
-                                                </>
-                                            )}
-                                            {canFinanceDecide && overtime.status === 'PENDING_FINANCE' && (
-                                                <>
-                                                    <Button variant="outline" size="sm" onClick={() => setDecision({ overtime, stage: 'finance', decision: 'reject' })}>
-                                                        Tolak Lembur
-                                                    </Button>
-                                                    <Button size="sm" onClick={() => setDecision({ overtime, stage: 'finance', decision: 'approve' })}>
-                                                        Setujui Lembur
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </div>
+                                        <div className="flex justify-end gap-1">{decisionButtons(overtime)}</div>
                                     </td>
                                 </tr>
                             ))

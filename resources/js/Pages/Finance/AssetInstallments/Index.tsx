@@ -1,6 +1,7 @@
 import { AssetInstallmentPaymentDialog } from '@/Components/modules/finance/AssetInstallmentPaymentDialog';
 import { ASSET_INSTALLMENT_STATUS_LABELS, installmentProgress } from '@/Components/modules/finance/assetInstallmentStatus';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SearchInput } from '@/Components/shared/SearchInput';
@@ -184,6 +185,8 @@ export default function AssetInstallmentIndex({ assets, filters, summary, canPay
                 icon={CalendarClock}
                 description="Aset perusahaan yang masih dalam cicilan — rencana diisi Logistik, pembayaran dicatat Finance."
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Total Cicilan" value={formatRupiah(summary.totalInstall)} icon={CalendarClock} />

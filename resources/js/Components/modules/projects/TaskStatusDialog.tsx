@@ -1,8 +1,8 @@
 import { Button } from '@/Components/ui/button';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -82,7 +82,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>Ubah Status Task</DialogTitle>
                 </DialogHeader>
@@ -151,7 +151,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

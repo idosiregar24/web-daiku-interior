@@ -5,6 +5,7 @@ import { DisciplineVoidDialog } from '@/Components/modules/hr/DisciplineVoidDial
 import { StructureFilter } from '@/Components/modules/hr/StructureFilter';
 import { DataTable } from '@/Components/shared/DataTable';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatCard } from '@/Components/shared/StatCard';
 import { Button } from '@/Components/ui/button';
@@ -231,6 +232,8 @@ export default function DisciplineIndex({ records, filters, stats, structure, ca
                     </>
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard

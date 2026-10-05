@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
 
 /**
  * PRD §6.5 — created only by PenaltyService::runDailyCheck() (via
@@ -75,6 +76,14 @@ class Penalty extends Model
     public function scopeForStaff(Builder $query, ?int $staffId): Builder
     {
         return $query->when($staffId, fn (Builder $q) => $q->where('staff_id', $staffId));
+    }
+
+    /** Penalties that occurred in the calendar month of `$month` (Sprint 13 H10 — "Penalti bulan ini"). */
+    public function scopeInMonth(Builder $query, Carbon $month): Builder
+    {
+        return $query
+            ->whereDate('date_occurred', '>=', $month->copy()->startOfMonth()->toDateString())
+            ->whereDate('date_occurred', '<=', $month->copy()->endOfMonth()->toDateString());
     }
 
     public function scopeUnpaid(Builder $query): Builder

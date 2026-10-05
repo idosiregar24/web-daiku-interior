@@ -7,6 +7,7 @@ use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadSource;
 use App\Models\User;
+use App\Services\ActionInboxService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -27,7 +28,7 @@ class DashboardController extends Controller
      * so the widget's quick actions (Tambah Lead, Ubah Status) work right
      * from here — the option lists below feed the reused CRM dialogs.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ActionInboxService $inbox): Response
     {
         $user = $request->user();
         $canSeeFollowUps = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
@@ -50,6 +51,8 @@ class DashboardController extends Controller
             : collect();
 
         return Inertia::render('Dashboard', [
+            // Sprint 13 #4 — the three busiest 'Perlu Tindakan' queues.
+            'inbox' => array_slice($inbox->for($user), 0, 3),
             'followUps' => $followUps,
             'marketers' => $canSeeFollowUps ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canSeeFollowUps ? LeadSource::orderBy('name')->get(['id', 'name']) : [],

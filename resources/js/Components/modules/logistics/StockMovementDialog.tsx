@@ -1,9 +1,9 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { Button } from '@/Components/ui/button';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -105,7 +105,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{isOut ? 'Keluarkan ke Proyek' : 'Terima Barang'}</DialogTitle>
                     <DialogDescription>
@@ -204,7 +204,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

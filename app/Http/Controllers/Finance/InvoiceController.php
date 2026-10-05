@@ -91,7 +91,7 @@ class InvoiceController extends Controller
         $canVerify = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
 
         $invoices = Invoice::query()
-            ->with(['lead:id,client_name', 'quotation:id,type,version', 'issuer:id,name', 'verifier:id,name', 'bankAccount:id,label'])
+            ->with(['lead:id,client_name', 'project:id,name', 'quotation:id,type,version', 'issuer:id,name', 'verifier:id,name', 'bankAccount:id,label'])
             ->byStatus($status)
             ->byType($request->string('type')->value() ?: null)
             ->when($request->filled('search'), fn ($query) => $query->where(fn ($q) => $q

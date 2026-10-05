@@ -1,7 +1,7 @@
 # Sprint 13 · 03 — Hub Lanjutan + ⚙ Pengaturan
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 02 · Keputusan: #1, #2
+> Status: **selesai 2026-10-05** · Prasyarat: 02 · Keputusan: #1, #2
 
 ## Tujuan
 Logistik dan SDM memakai hub; semua halaman setup pindah ke satu menu
@@ -25,7 +25,15 @@ Logistik dan SDM memakai hub; semua halaman setup pindah ke satu menu
   dibuka dari tautan lama (notifikasi, bookmark) tetap jalan.
 
 ## Checklist
-- [ ] **[UI]** Hub Logistik & SDM
-- [ ] **[UI]** Menu ⚙ Pengaturan di bawah sidebar + pemindahan 7 halaman setup
-- [ ] **[UI]** Tab internal Data Master diturunkan jadi `TabsList`
-- [ ] **[Test]** Cek manual sidebar CEO (±25 menu), HR, Finance, Logistik, SUPERADMIN; `npm run build`
+- [x] **[UI]** Hub Logistik & SDM
+- [x] **[UI]** Menu ⚙ Pengaturan di bawah sidebar + pemindahan 7 halaman setup
+- [x] **[UI]** Tab internal Data Master diturunkan jadi `TabsList`
+- [x] **[Test]** Cek manual sidebar CEO (±25 menu), HR, Finance, Logistik, SUPERADMIN; `npm run build`
+
+## Catatan pelaksanaan (2026-10-05)
+- Judul halaman "User Management" → "Pengguna" (sama dengan nama tabnya).
+- Template KPI tidak lagi mengirim `breadcrumbs` (jadi crumb otomatis
+  🏠 › Pengaturan › Template KPI); tombol "Template KPI" di halaman KPI tetap.
+- Role yang hanya punya 1 tab Pengaturan melihat menu bernama tab itu
+  (Finance → "Alokasi Persentase"); HR → Pengaturan [Divisi & Jabatan |
+  Template KPI]; SUPERADMIN melihat ke-7 tab.

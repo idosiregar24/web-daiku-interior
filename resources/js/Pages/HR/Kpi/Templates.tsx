@@ -7,6 +7,7 @@ import {
     type KpiTemplatePosition,
 } from '@/Components/modules/hr/KpiTypes';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -47,7 +48,7 @@ export default function KpiTemplates({ divisions, metrics, canManage }: KpiTempl
         .filter((position) => position.template?.isActive && position.withoutAccount > 0 && position.template.indicators.some((row) => row.source === 'AUTO'));
 
     return (
-        <AppLayout breadcrumbs={[{ label: 'Template KPI' }]}>
+        <AppLayout>
             <Head title="Template KPI" />
 
             <PageHeader
@@ -60,6 +61,8 @@ export default function KpiTemplates({ divisions, metrics, canManage }: KpiTempl
                     </Button>
                 }
             />
+
+            <ModuleTabs />
 
             <div className="space-y-6">
                 {warnings.length > 0 && (

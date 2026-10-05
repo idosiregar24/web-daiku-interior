@@ -1,4 +1,5 @@
 import { formatRupiah } from '@/lib/format';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { EmptyState } from '@/Components/shared/EmptyState';
@@ -58,6 +59,8 @@ export default function StaffPaymentsIndex({ tasks, bankAccounts }: StaffPayment
                 icon={Banknote}
                 description="Task DONE dengan rate per task yang belum dibayarkan. Cicilan pinjaman tukang dipotong otomatis."
             />
+
+            <ModuleTabs />
 
             <TableCard
                 pagination={tasks}

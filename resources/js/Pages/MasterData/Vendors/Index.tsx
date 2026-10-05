@@ -1,4 +1,5 @@
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -222,6 +223,8 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                     </Button>
                 }
             />
+
+            <ModuleTabs />
 
             <DataTable
                 columns={columns}

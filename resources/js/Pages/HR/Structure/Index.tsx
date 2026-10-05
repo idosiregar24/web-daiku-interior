@@ -1,4 +1,5 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -92,6 +93,8 @@ export default function StructureIndex({ divisions, canManage }: StructureIndexP
                     )
                 }
             />
+
+            <ModuleTabs />
 
             {divisions.length === 0 ? (
                 <EmptyState

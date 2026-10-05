@@ -1,7 +1,7 @@
 # Sprint 13 · 05 — Detail Proyek sebagai Pusat
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: — · Keputusan: #3
+> Status: **selesai 2026-10-05** · Prasyarat: — · Keputusan: #3
 
 ## Tujuan
 Semua urusan satu proyek bisa dijangkau dari Detail Proyek, dan setiap
@@ -30,7 +30,27 @@ daftar lintas proyek menautkan ke tab proyek yang tepat.
   lembur/pengajuan menunggu, termin berikutnya).
 
 ## Checklist
-- [ ] **[Projects]** Tab QA & Lembur (+ Pengajuan Barang bila belum ada), props per role
-- [ ] **[UI]** Tab dibaca/ditulis lewat `?tab=`
-- [ ] **[UI]** Tautan proyek → tab yang tepat di 6 daftar lintas proyek; ringkasan "menunggu" di Overview
-- [ ] **[Test]** Props tab baru: ada untuk role berhak, absen untuk QA (detail task) & Marketing (finance); `npm run build`
+- [x] **[Projects]** Tab QA & Lembur (+ Pengajuan Barang bila belum ada), props per role
+- [x] **[UI]** Tab dibaca/ditulis lewat `?tab=`
+- [x] **[UI]** Tautan proyek → tab yang tepat di 6 daftar lintas proyek; ringkasan "menunggu" di Overview
+- [x] **[Test]** Props tab baru: ada untuk role berhak, absen untuk QA (detail task) & Marketing (finance); `npm run build`
+
+## Catatan pelaksanaan (2026-10-05)
+- Tab baru **QA** (CEO/PM/Asisten PM/QA — status, catatan QA, reviewer;
+  tanpa data task) dan **Lembur** (CEO/PM/Asisten PM/Finance, baca saja —
+  keputusan tetap di halaman Lembur). Nama milestone menaut ke form QA
+  hanya untuk role yang boleh membuka `qa-forms.show` (bukan Asisten PM).
+- **Pengajuan Barang sudah ada** di tab Material (`ProjectMaterialsPanel`,
+  Sprint 11 Sub 4) — tidak dibuat tab baru.
+- `?tab=` lewat hook `useQueryTab()` (`resources/js/hooks/`): ganti tab
+  memakai `router.replace({ url })` — kunjungan sisi-klien Inertia v2,
+  **bukan** `router.get` seperti rancangan, supaya tidak memuat ulang
+  semua props proyek dari server setiap ganti tab.
+- Komponen `ProjectLink` (`Components/modules/projects/`) dipakai di 6
+  daftar: QA → tab QA (nama milestone kini yang membuka form QA), Lembur →
+  Lembur, Pengajuan Barang → Material, Termin → Finance, Invoice → Dokumen
+  (baris di bawah nama klien, hanya invoice yang punya proyek), Task → Task.
+- Overview: kartu "Menunggu di Proyek Ini" (QA ditolak/menunggu, lembur
+  menunggu, pengajuan barang menunggu, termin berikutnya) dihitung dari
+  props yang sudah diterima role itu — tidak ada query baru; klik = buka tab.
+- Antrean "QA ditolak" di Perlu Tindakan kini menaut ke tab QA.

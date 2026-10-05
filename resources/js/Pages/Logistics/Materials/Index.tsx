@@ -1,6 +1,7 @@
 import { MaterialFormDialog } from '@/Components/modules/logistics/MaterialFormDialog';
 import { StockMovementDialog } from '@/Components/modules/logistics/StockMovementDialog';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatCard } from '@/Components/shared/StatCard';
@@ -15,6 +16,7 @@ import {
 } from '@/Components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatQty, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -98,6 +100,52 @@ export default function MaterialIndex({ materials, filters, categories, summary,
         router.delete(route('logistics.materials.destroy', { material: material.id }), { preserveScroll: true });
     }
 
+    /** Logistics' actions on one material — grid row menu and phone card alike. */
+    function menuFor(material: Material) {
+        return (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label={`Aksi untuk ${material.name}`}>
+                        <MoreHorizontal className="size-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setMovement({ material, type: 'IN' })}>
+                        <ArrowDownToLine className="size-4" />
+                        Terima Barang
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        disabled={material.stock === 0}
+                        onClick={() => setMovement({ material, type: 'OUT' })}
+                    >
+                        <ArrowUpFromLine className="size-4" />
+                        Catat Pemakaian Proyek
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={route('logistics.stock-movements.index', { material_id: material.id })}>
+                            <History className="size-4" />
+                            Riwayat Stok
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        onClick={() => {
+                            setEditing(material);
+                            setFormOpen(true);
+                        }}
+                    >
+                        <Pencil className="size-4" />
+                        Ubah Material
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="destructive" onClick={() => destroy(material)}>
+                        <Trash2 className="size-4" />
+                        Hapus
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+    }
+
     const columns: ColumnDef<Material>[] = [
         {
             accessorKey: 'name',
@@ -169,61 +217,15 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                   {
                       id: 'actions',
                       header: '',
-                      cell: ({ row }) => {
-                          const material = row.original;
-
-                          // A merged item is an inactive record — nothing to do with it any more.
-                          if (!material.is_active) {
-                              return null;
-                          }
-
-                          return (
-                              <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon-sm" aria-label={`Aksi untuk ${material.name}`}>
-                                          <MoreHorizontal className="size-4" />
-                                      </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                      <DropdownMenuItem onClick={() => setMovement({ material, type: 'IN' })}>
-                                          <ArrowDownToLine className="size-4" />
-                                          Terima Barang
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                          disabled={material.stock === 0}
-                                          onClick={() => setMovement({ material, type: 'OUT' })}
-                                      >
-                                          <ArrowUpFromLine className="size-4" />
-                                          Catat Pemakaian Proyek
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem asChild>
-                                          <Link href={route('logistics.stock-movements.index', { material_id: material.id })}>
-                                              <History className="size-4" />
-                                              Riwayat Stok
-                                          </Link>
-                                      </DropdownMenuItem>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                          onClick={() => {
-                                              setEditing(material);
-                                              setFormOpen(true);
-                                          }}
-                                      >
-                                          <Pencil className="size-4" />
-                                          Ubah Material
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem variant="destructive" onClick={() => destroy(material)}>
-                                          <Trash2 className="size-4" />
-                                          Hapus
-                                      </DropdownMenuItem>
-                                  </DropdownMenuContent>
-                              </DropdownMenu>
-                          );
-                      },
+                      // A merged item is an inactive record — nothing to do with it any more.
+                      cell: ({ row }) => (row.original.is_active ? menuFor(row.original) : null),
                   } satisfies ColumnDef<Material>,
               ]
             : []),
     ];
+
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(canManage, openCreate);
 
     return (
         <AppLayout>
@@ -251,6 +253,8 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                 }
             />
 
+            <ModuleTabs />
+
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard label="Jumlah Material" value={summary.totalItems} icon={Boxes} />
                 <StatCard
@@ -272,6 +276,30 @@ export default function MaterialIndex({ materials, filters, categories, summary,
             <DataTable
                 columns={columns}
                 data={materials.data}
+                // Sprint 13 P2/P3 — the warehouse on a phone: stock first, no sideways scrolling.
+                mobileCard={(material) => (
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="font-medium text-daiku-dark">{material.name}</p>
+                            <p className="text-xs text-daiku-muted">
+                                {material.code} · {material.category?.name ?? 'Tanpa kategori'}
+                                {!material.is_active && ' · digabung (nonaktif)'}
+                            </p>
+                            <p className={cn('mt-1 text-base font-semibold tabular-nums', material.is_low_stock ? 'text-error-ink' : 'text-foreground')}>
+                                Stok {formatQty(material.stock)} {material.unit?.code}
+                                {material.is_low_stock && (
+                                    <span className="ml-2 text-xs font-medium">
+                                        (min {formatQty(material.min_stock)})
+                                    </span>
+                                )}
+                            </p>
+                            <p className="text-xs text-daiku-muted tabular-nums">
+                                Modal {formatRupiah(material.cost_price)} · Jual {formatRupiah(material.sell_price)}
+                            </p>
+                        </div>
+                        {canManage && material.is_active && menuFor(material)}
+                    </div>
+                )}
                 emptyMessage={
                     filters.search || filters.category_id || filters.low_stock
                         ? 'Tidak ada material yang cocok dengan filter.'

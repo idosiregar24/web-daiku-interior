@@ -13,6 +13,7 @@ use App\Jobs\TaskOverdueJob;
 use App\Jobs\TerminInvoiceReminderJob;
 use App\Jobs\TerminOverdueJob;
 use App\Jobs\TerminReminderJob;
+use App\Support\DailyFormSchedule;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -24,10 +25,11 @@ Artisan::command('inspire', function () {
 // PRD §6.5 — Senin–Sabtu jam 21:00 WIB, bukan `weekdaysOnly()` (itu
 // Senin–Jumat) — PRD eksplisit menyebut Sabtu termasuk hari kerja.
 // Day-of-week ints follow cron convention (0=Minggu…6=Sabtu), so 1-6 is
-// Senin–Sabtu.
+// Senin–Sabtu. Hour and days live in config/daiku.php (Sprint 13 — the
+// Tukang's Hari Ini screen reads the same values).
 Schedule::job(new DailyPenaltyJob)
-    ->days([1, 2, 3, 4, 5, 6])
-    ->at('21:00')
+    ->days(DailyFormSchedule::workDays())
+    ->at(DailyFormSchedule::penaltyAt())
     ->timezone('Asia/Jakarta');
 
 // PRD §4.5 "Task overdue detection ... via scheduled job tengah malam".
@@ -71,8 +73,8 @@ Schedule::job(new LeadFollowUpReminderJob)
 // the penalty runs 21:00, so 20:30 honors the more specific note. Same
 // Senin–Sabtu working days as DailyPenaltyJob.
 Schedule::job(new DailyFormReminderJob)
-    ->days([1, 2, 3, 4, 5, 6])
-    ->at('20:30')
+    ->days(DailyFormSchedule::workDays())
+    ->at(DailyFormSchedule::reminderAt())
     ->timezone('Asia/Jakarta');
 
 // Sprint 11 decision #13 — material requests not reviewed within 1 working

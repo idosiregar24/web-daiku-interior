@@ -1,7 +1,7 @@
 # Sprint 13 · 01 — Sidebar: Grup Dilipat & Urutan per Role
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: — · Keputusan: #7, #10 · Default: D3
+> Status: **selesai 2026-10-05** · Prasyarat: — · Keputusan: #7, #10 · Default: D3
 
 ## Tujuan
 Sidebar hanya menampilkan judul grup + isi grup yang sedang dipakai, dan
@@ -31,8 +31,19 @@ urutan grup mengikuti cara kerja tiap role.
   terpengaruh pelipatan.
 
 ## Checklist
-- [ ] **[Setup]** Kolom `users.nav_preferences` + endpoint simpan (validasi whitelist)
-- [ ] **[UI]** Header grup bisa dilipat; grup aktif selalu terbuka; tersimpan per user
-- [ ] **[UI]** Urutan grup per role (`ROLE_GROUP_ORDER`)
-- [ ] **[UI]** Sheet HP memakai perilaku yang sama
-- [ ] **[Test]** Simpan preferensi (sukses, nilai asing ditolak, tamu 302); `npm run build`
+- [x] **[Setup]** Kolom `users.nav_preferences` + endpoint simpan (validasi whitelist)
+- [x] **[UI]** Header grup bisa dilipat; grup aktif selalu terbuka; tersimpan per user
+- [x] **[UI]** Urutan grup per role (`ROLE_GROUP_ORDER`)
+- [x] **[UI]** Sheet HP memakai perilaku yang sama
+- [x] **[Test]** Simpan preferensi (sukses, nilai asing ditolak, tamu 302); `npm run build`
+
+## Catatan pelaksanaan (2026-10-05)
+- Simpan preferensi lewat `window.axios.patch` (debounce 600 ms), **bukan**
+  `router.patch` — kunjungan Inertia baru membatalkan kunjungan yang sedang
+  jalan, jadi melipat grup lalu langsung klik menu bisa membatalkan
+  navigasi. Karena itu endpoint mengembalikan **204**, bukan `back()`.
+  Nilai terakhir disimpan juga di modul JS (`localCollapsed`) supaya
+  halaman yang dibuka sebelum simpan selesai tidak "membuka lagi" grupnya.
+- Whitelist label grup: `UpdateNavPreferenceRequest::GROUPS` (sudah memakai
+  nama grup final Sub 02–03: Keuangan, tanpa Operasional/Sistem).
+- Grup ⚙ Pengaturan `pinned` (tanpa header) — tidak bisa dilipat.

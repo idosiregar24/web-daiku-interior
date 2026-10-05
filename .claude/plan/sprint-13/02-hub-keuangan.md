@@ -1,7 +1,7 @@
 # Sprint 13 · 02 — Hub Bertab: Fondasi + Keuangan
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 01 · Keputusan: #1 · Default: D1
+> Status: **selesai 2026-10-05** · Prasyarat: 01 · Keputusan: #1 · Default: D1
 
 ## Tujuan
 Grup Keuangan turun dari 13 menu jadi 5, tanpa mengubah satu pun route.
@@ -33,8 +33,17 @@ Grup Keuangan turun dari 13 menu jadi 5, tanpa mengubah satu pun route.
   pindah ke ⚙ Pengaturan di Sub 03 — sampai saat itu tetap menu tunggal.
 
 ## Checklist
-- [ ] **[UI]** `NavItem.tabs` + penyaringan per role + aturan "1 tab = menu biasa"
-- [ ] **[UI]** `ModuleTabs` + breadcrumb otomatis dengan tab
-- [ ] **[Finance]** 4 hub Keuangan dipasang di 11 halaman; tab internal Termin/Payroll jadi `TabsList`
-- [ ] **[Docs]** `design-standards.md`: kapan memakai hub bertab
-- [ ] **[Test]** Cek manual sidebar CEO, Finance, PM, Tukang (Penalti tampil sebagai menu sendiri), Marketing (Invoice saja); `npm run build`
+- [x] **[UI]** `NavItem.tabs` + penyaringan per role + aturan "1 tab = menu biasa"
+- [x] **[UI]** `ModuleTabs` + breadcrumb otomatis dengan tab
+- [x] **[Finance]** 4 hub Keuangan dipasang di 11 halaman; tab internal Termin/Payroll jadi `TabsList`
+- [x] **[Docs]** `design-standards.md`: kapan memakai hub bertab
+- [x] **[Test]** Cek manual sidebar CEO, Finance, PM, Tukang (Penalti tampil sebagai menu sendiri), Marketing (Invoice saja); `npm run build`
+
+## Catatan pelaksanaan (2026-10-05)
+- Hasil simulasi `useNavGroups()` per role: CEO 25 menu, PM 16, Finance 12
+  (5 di Keuangan), Marketing → "Invoice", Tukang → "Penalti", Logistik →
+  "Cicilan Aset".
+- `CommandMenu` mendaftar setiap tab hub sebagai "Hub › Tab" (mis.
+  "Penagihan › Invoice") supaya nama hub maupun tab bisa dicari.
+- Breadcrumb tab hub otomatis; halaman Termin/Penggajian tetap mengirim
+  crumb tab internalnya (List/Kalender, Gaji Bulanan/Karyawan).

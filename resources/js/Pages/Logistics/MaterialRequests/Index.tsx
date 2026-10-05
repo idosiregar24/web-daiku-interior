@@ -11,6 +11,7 @@ import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatQty, formatRupiah } from '@/lib/format';
 import type { MaterialCategory, MaterialRequestStatus, PaginatedData, Project, UnitOption, VendorOption } from '@/types';
@@ -84,6 +85,49 @@ export default function MaterialRequestIndex({
         );
     }
 
+    /** The status chip (+ rejection reason) — grid cell and phone card alike. */
+    function statusOf(line: MaterialRequestRow) {
+        return (
+            <div className="space-y-1">
+                <StatusChip
+                    status={line.request_status}
+                    label={line.request_status === 'DISETUJUI' && line.review_decision ? DECISION_LABEL[line.review_decision] : STATUS_LABEL[line.request_status]}
+                />
+                {line.reject_reason && <p className="max-w-[14rem] text-xs text-error-ink">{line.reject_reason}</p>}
+            </div>
+        );
+    }
+
+    /** Logistics reviews DIAJUKAN, the project's PM decides MENUNGGU_PM — grid cell and phone card alike. */
+    function actionsOf(line: MaterialRequestRow, block = false) {
+        const size = block ? 'default' : 'sm';
+
+        if (permissions.review && line.request_status === 'DIAJUKAN') {
+            return (
+                <Button size={size} className={block ? 'w-full' : undefined} onClick={() => setReviewing(line)}>
+                    Tinjau Pengajuan
+                </Button>
+            );
+        }
+
+        if (permissions.pmDecide && line.request_status === 'MENUNGGU_PM') {
+            return (
+                <div className={block ? 'grid grid-cols-2 gap-2' : 'flex justify-end gap-1'}>
+                    <Button size={size} onClick={() => setPmDecision({ line, decision: 'approve' })}>
+                        <Check className="size-4" />
+                        Setujui Pengajuan
+                    </Button>
+                    <Button size={size} variant="outline" onClick={() => setPmDecision({ line, decision: 'reject' })}>
+                        <X className="size-4" />
+                        Tolak Pengajuan
+                    </Button>
+                </div>
+            );
+        }
+
+        return null;
+    }
+
     const columns: ColumnDef<MaterialRequestRow>[] = [
         {
             id: 'item',
@@ -120,7 +164,7 @@ export default function MaterialRequestIndex({
             header: 'Proyek',
             cell: ({ row }) => (
                 <Link
-                    href={route('projects.show', { project: row.original.project.id })}
+                    href={route('projects.show', { project: row.original.project.id, tab: 'material' })}
                     className="underline decoration-daiku-yellow underline-offset-2"
                 >
                     {row.original.project.name}
@@ -143,57 +187,17 @@ export default function MaterialRequestIndex({
         {
             id: 'status',
             header: 'Status',
-            cell: ({ row }) => {
-                const line = row.original;
-
-                return (
-                    <div className="space-y-1">
-                        <StatusChip
-                            status={line.request_status}
-                            label={
-                                line.request_status === 'DISETUJUI' && line.review_decision
-                                    ? DECISION_LABEL[line.review_decision]
-                                    : STATUS_LABEL[line.request_status]
-                            }
-                        />
-                        {line.reject_reason && <p className="max-w-[14rem] text-xs text-error-ink">{line.reject_reason}</p>}
-                    </div>
-                );
-            },
+            cell: ({ row }) => statusOf(row.original),
         },
         {
             id: 'actions',
             header: '',
-            cell: ({ row }) => {
-                const line = row.original;
-
-                if (permissions.review && line.request_status === 'DIAJUKAN') {
-                    return (
-                        <Button size="sm" onClick={() => setReviewing(line)}>
-                            Tinjau Pengajuan
-                        </Button>
-                    );
-                }
-
-                if (permissions.pmDecide && line.request_status === 'MENUNGGU_PM') {
-                    return (
-                        <div className="flex justify-end gap-1">
-                            <Button size="sm" onClick={() => setPmDecision({ line, decision: 'approve' })}>
-                                <Check className="size-4" />
-                                Setujui Pengajuan
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setPmDecision({ line, decision: 'reject' })}>
-                                <X className="size-4" />
-                                Tolak Pengajuan
-                            </Button>
-                        </div>
-                    );
-                }
-
-                return null;
-            },
+            cell: ({ row }) => actionsOf(row.original),
         },
     ];
+
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(permissions.request && requestProjects.length > 0, () => setRequestOpen(true));
 
     return (
         <AppLayout>
@@ -223,6 +227,29 @@ export default function MaterialRequestIndex({
                 data={requests.data}
                 emptyMessage={filters.status === 'pending' ? 'Tidak ada pengajuan yang menunggu keputusan.' : 'Belum ada pengajuan.'}
                 pagination={requests}
+                // Sprint 13 P2/P3 — PM in the field, Logistics in the warehouse: a card per request.
+                mobileCard={(line) => (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <p className="font-medium text-daiku-dark">{line.display_name}</p>
+                                <p className="text-sm tabular-nums">
+                                    {formatQty(line.qty_planned)} {line.unit?.code ?? '(satuan?)'}
+                                    {line.unit_price && <span className="text-daiku-muted"> · {formatRupiah(line.unit_price)}/satuan</span>}
+                                </p>
+                            </div>
+                            {statusOf(line)}
+                        </div>
+                        {line.request_reason && <p className="text-xs text-daiku-muted">“{line.request_reason}”</p>}
+                        <p className="text-xs text-daiku-muted">
+                            <Link href={route('projects.show', { project: line.project.id, tab: 'material' })} className="underline decoration-daiku-yellow underline-offset-2">
+                                {line.project.name}
+                            </Link>{' '}
+                            · {line.requester?.name ?? '—'} · {formatDateTime(line.submitted_at ?? line.created_at)}
+                        </p>
+                        {actionsOf(line, true)}
+                    </div>
+                )}
                 toolbar={
                     <div className="flex flex-wrap items-center gap-2">
                         <Select value={filters.status} onValueChange={(value) => applyFilter({ status: value as StatusFilter })}>

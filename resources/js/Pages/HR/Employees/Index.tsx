@@ -6,6 +6,7 @@ import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate } from '@/lib/format';
 import type { Division, Employee, User } from '@/types';
@@ -121,6 +122,9 @@ export default function EmployeesIndex({ employees, filters, structure, canManag
               ]
             : []),
     ];
+
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(canManage, () => openDialog(null));
 
     return (
         <AppLayout>

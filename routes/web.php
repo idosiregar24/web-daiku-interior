@@ -22,6 +22,7 @@ use App\Http\Controllers\Finance\SupplierDebtController;
 use App\Http\Controllers\Finance\TerminController;
 use App\Http\Controllers\HR\HrDashboardController;
 use App\Http\Controllers\HR\MyHrController;
+use App\Http\Controllers\InboxController;
 use App\Http\Controllers\Logistics\AssetController;
 use App\Http\Controllers\Logistics\MaterialController;
 use App\Http\Controllers\Logistics\MaterialRequestController;
@@ -36,8 +37,10 @@ use App\Http\Controllers\MasterData\MaterialCategoryController;
 use App\Http\Controllers\MasterData\MaterialSynonymController;
 use App\Http\Controllers\MasterData\UnitController;
 use App\Http\Controllers\MasterData\VendorController;
+use App\Http\Controllers\MoreController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Overtime\OvertimeController;
+use App\Http\Controllers\Profile\NavPreferenceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
@@ -48,13 +51,16 @@ use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\ProjectOpeningController;
 use App\Http\Controllers\Projects\TaskController;
 use App\Http\Controllers\PublicQuotationController;
+use App\Http\Controllers\PwaController;
 use App\Http\Controllers\QA\QaDashboardController;
 use App\Http\Controllers\QA\QaFormController;
 use App\Http\Controllers\Quotation\QuotationController;
 use App\Http\Controllers\Quotation\QuotationDashboardController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Settings\BrandingAssetController;
 use App\Http\Controllers\Settings\SiteSettingController;
 use App\Http\Controllers\Tasks\DailyTaskFormController;
+use App\Http\Controllers\Tasks\TodayController;
 use App\Models\SiteSetting;
 use App\Services\RoleRedirectService;
 use Illuminate\Support\Facades\Route;
@@ -75,6 +81,14 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+    // Sprint 13 #4 — "Perlu Tindakan": every role, own queues only
+    // (scoped per role in ActionInboxService, not a role gate).
+    Route::get('/perlu-tindakan', [InboxController::class, 'index'])->name('inbox.index');
+
+    // Sprint 13 #12 — topbar search (JSON for the command menu); what each
+    // role finds is scoped in SearchController, like its list pages.
+    Route::get('/search', SearchController::class)->middleware('throttle:60,1')->name('search');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
@@ -83,6 +97,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])
         ->name('notifications.index');
     Route::middleware('throttle:60,1')->group(function () {
+        // Sprint 13 Sub 01 — sidebar groups folded by this user (own row only).
+        Route::patch('/profile/nav-preferences', [NavPreferenceController::class, 'update'])
+            ->name('profile.nav-preferences.update');
         Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
             ->name('notifications.markAllAsRead');
         Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
@@ -590,6 +607,17 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
         ->name('staffPayments.pay');
 });
 
+// Sprint 13 H2/H3 — "Hari Ini", the Tukang's first screen (read-only;
+// saving uses daily-forms.store / tasks.updateStatus above).
+Route::get('hari-ini', [TodayController::class, 'index'])
+    ->middleware(['auth', 'role:FIELD_STAFF'])
+    ->name('today.index');
+
+// Sprint 13 H1/H10 — "Lainnya" on the Tukang's phone bottom navigation.
+Route::get('lainnya', [MoreController::class, 'index'])
+    ->middleware(['auth', 'role:FIELD_STAFF'])
+    ->name('more.index');
+
 // Overtime — PRD §4.5/§6.6 / §7.1 "Overtime Request" row: PM and Finance
 // both RU (sequential approval, PM then Finance), Field Staff CR (own).
 Route::middleware(['auth', 'role:CEO|PM|FINANCE|FIELD_STAFF'])->prefix('overtime')->name('overtime.')->group(function () {
@@ -826,6 +854,15 @@ Route::middleware(['auth', 'role:CEO|SUPERADMIN'])->prefix('settings')->name('se
 Route::get('branding/{asset}', [BrandingAssetController::class, 'show'])
     ->whereIn('asset', array_keys(SiteSetting::ASSETS))
     ->name('branding.show');
+
+// Sprint 13 H7 — installable on a phone (manifest + icons drawn from the
+// logo). Public for the same reason as branding.show; nothing cached offline.
+Route::get('manifest.webmanifest', [PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('pwa/icon-{size}-{purpose}.png', [PwaController::class, 'icon'])
+    ->whereNumber('size')
+    ->whereIn('purpose', PwaController::PURPOSES)
+    ->middleware('throttle:60,1')
+    ->name('pwa.icon');
 
 // Sprint 12 decisions #13–#14 — the client's offer page, opened from the
 // link Marketing sends: no login (the 48-character token is the

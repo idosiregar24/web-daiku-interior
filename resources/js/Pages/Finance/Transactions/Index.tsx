@@ -1,4 +1,5 @@
 import { formatRupiah } from '@/lib/format';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
@@ -14,6 +15,7 @@ import {
 } from '@/Components/ui/select';
 import { FundTransferDialog } from '@/Components/modules/finance/FundTransferDialog';
 import { CATEGORY_LABELS, TransactionFormDialog } from '@/Components/modules/finance/TransactionFormDialog';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, FinanceCategory, FinanceTransaction, PageProps, PaginatedData, Project } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -77,6 +79,9 @@ export default function TransactionIndex({
         router.get(route('finance.transactions.index'), { ...filters, ...next }, { preserveState: true, replace: true });
     }
 
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(canManage, () => setCreateOpen(true));
+
     return (
         <AppLayout>
             <Head title="Transaksi Finance" />
@@ -111,6 +116,8 @@ export default function TransactionIndex({
                     </div>
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <StatCard

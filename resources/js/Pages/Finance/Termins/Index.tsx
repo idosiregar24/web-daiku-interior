@@ -1,4 +1,5 @@
 import { formatRupiah } from '@/lib/format';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
@@ -16,6 +17,7 @@ import { TerminCalendar } from '@/Components/modules/finance/TerminCalendar';
 import { isPartiallyPaid, TerminPaymentDialog } from '@/Components/modules/finance/TerminPaymentDialog';
 import AppLayout from '@/Layouts/AppLayout';
 import type { BankAccount, PageProps, PaginatedData, Termin } from '@/types';
+import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, router, usePage } from '@inertiajs/react';
 import { CalendarClock, CalendarDays, FileDown, List } from 'lucide-react';
 import { useState } from 'react';
@@ -61,6 +63,8 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
             <Head title="Termin" />
 
             <PageHeader title="Termin" icon={CalendarClock} description="Jadwal pembayaran termin seluruh proyek (selalu Sabtu)." />
+
+            <ModuleTabs />
 
             <Tabs value={tab} onValueChange={setTab}>
                 <TabsList>
@@ -122,7 +126,9 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                 ) : (
                                     termins.data.map((termin) => (
                                         <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
-                                            <td className="px-4 py-3 font-medium whitespace-nowrap">{termin.project?.name ?? '—'}</td>
+                                            <td className="px-4 py-3 font-medium whitespace-nowrap">
+                                                <ProjectLink project={termin.project} tab="finance" />
+                                            </td>
                                             <td className="px-4 py-3 text-daiku-muted">
                                                 #{termin.termin_number} ({Number(termin.percentage).toLocaleString('id-ID')}%)
                                             </td>

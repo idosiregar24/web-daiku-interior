@@ -1,5 +1,6 @@
 import { PenaltyPaymentDialog, type UnpaidPenalty } from '@/Components/modules/finance/PenaltyPaymentDialog';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatCard } from '@/Components/shared/StatCard';
@@ -98,6 +99,8 @@ export default function PenaltyIndex({
                     )
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard

@@ -1,4 +1,5 @@
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatCard } from '@/Components/shared/StatCard';
@@ -147,6 +148,8 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
                     )
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2">
                 <StatCard

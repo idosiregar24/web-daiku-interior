@@ -1,6 +1,6 @@
 # Sprint 13 — Navigasi & UX: sidebar ringkas, Perlu Tindakan, versi HP
 
-> Status: **rencana — belum dikerjakan.** Keputusan dikunci 2026-10-05 lewat
+> Status: **selesai 2026-10-05** — kecuali uji di HP sungguhan, Lighthouse, dan `/security-review` penuh (lihat Sub 10–12, "Sebagian"). Keputusan dikunci 2026-10-05 lewat
 > diskusi UX dengan user (12 ide navigasi desktop disetujui; #8 "sidebar dua
 > tingkat" kalah oleh #7 "grup dilipat"; versi HP untuk tukang + PM).
 > Beberapa default kecil masih menunggu konfirmasi — lihat §5. Rancangan
@@ -25,6 +25,24 @@ setiap halaman = satu menu. Hasilnya per role:
 | Finance | ±17 | ±9 |
 | Marketing | 6 | 6 |
 | Tukang (HP) | 6–7 lewat hamburger | 4 tombol navigasi bawah |
+
+**Hasil (Sub 12, dihitung dari `NAV_GROUPS` HEAD vs sesudah Sprint 13 —
+menu sidebar yang terlihat; tab hub tidak dihitung):**
+
+| Role | Sebelum | Sesudah | Catatan |
+|---|---|---|---|
+| CEO | 39 | 26 | 4 hub Keuangan, Kinerja SDM, ⚙ Pengaturan (6 tab) |
+| PM | 21 | 17 | |
+| Asisten PM | 4 | 5 | + Perlu Tindakan |
+| Finance | 19 | 13 | Pengaturan = "Alokasi Persentase" |
+| Marketing | 7 | 8 | + Perlu Tindakan; Keuangan = "Invoice" |
+| Arsitek | 6 | 7 | + Perlu Tindakan |
+| Estimator | 8 | 9 | + Perlu Tindakan |
+| QA | 5 | 6 | + Perlu Tindakan |
+| Logistik | 8 | 8 | |
+| SDM | 9 | 8 | Pengaturan [Divisi & Jabatan | Template KPI] |
+| Tukang | 7 | 9 (HP: 4 tombol bawah) | + Hari Ini, Perlu Tindakan; "Tugas" |
+| SUPERADMIN | 39 | 26 | |
 
 Penyebab terbesar: grup **Operasional (13 menu)** dan **SDM (7 menu)**, serta
 menu "setup" yang jarang dibuka bercampur dengan menu harian. Selain itu

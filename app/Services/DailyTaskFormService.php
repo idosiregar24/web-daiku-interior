@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\DailyTaskForm;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\DailyFormSchedule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -31,11 +32,11 @@ class DailyTaskFormService
             ]);
         }
 
-        $today = now('Asia/Jakarta');
+        $today = DailyFormSchedule::now();
 
-        if ($today->hour >= 21) {
+        if (DailyFormSchedule::isPastCutoff($today)) {
             throw ValidationException::withMessages([
-                'work_date' => 'Form harian tidak bisa disubmit setelah jam 21:00 WIB.',
+                'work_date' => 'Form harian tidak bisa disubmit setelah jam '.DailyFormSchedule::penaltyAt().' WIB.',
             ]);
         }
 

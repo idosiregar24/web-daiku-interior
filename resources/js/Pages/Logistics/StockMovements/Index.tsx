@@ -1,4 +1,5 @@
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
@@ -118,8 +119,37 @@ export default function StockMovementIndex({ movements, filters, materials, proj
                 description="Catatan penerimaan barang, barang keluar ke proyek, dan retur sisa material dari proyek."
             />
 
+            <ModuleTabs />
+
             <DataTable
                 columns={columns}
+                // Sprint 13 P2/P3 — one card per movement on a phone.
+                mobileCard={(movement) => {
+                    const out = OUTGOING.includes(movement.type);
+
+                    return (
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="font-medium">{movement.material?.name}</p>
+                                    <p className="text-xs text-daiku-muted">
+                                        {formatDate(movement.movement_date)}
+                                        {movement.project && ` · ${movement.type === 'RETURN' ? 'dari' : 'ke'} ${movement.project.name}`}
+                                    </p>
+                                </div>
+                                <span className={`shrink-0 tabular-nums font-semibold ${out ? 'text-daiku-dark' : 'text-success-ink'}`}>
+                                    {out ? '−' : '+'}
+                                    {formatQty(movement.qty)} {movement.material?.unit?.code}
+                                </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs text-daiku-muted">
+                                <StatusChip status={movement.type} label={TYPE_LABEL[movement.type]} />
+                                <span className="tabular-nums">Stok setelah {formatQty(movement.stock_after)}</span>
+                            </div>
+                            {movement.note && <p className="text-xs text-daiku-muted">{movement.note}</p>}
+                        </div>
+                    );
+                }}
                 data={movements.data}
                 emptyMessage="Belum ada pergerakan stok."
                 pagination={movements}

@@ -1,7 +1,7 @@
 # Sprint 13 · 08 — HP Tukang: Navigasi Bawah & Lainnya
 
 > Induk: [`../sprint-13-navigasi-ux.md`](../sprint-13-navigasi-ux.md).
-> Status: **belum dikerjakan** · Prasyarat: 03 · Keputusan: H1, H9, H10 · Default: D8
+> Status: **selesai 2026-10-05** · Prasyarat: 03 · Keputusan: H1, H9, H10 · Default: D8
 
 ## Tujuan
 Di HP, tukang tidak lagi melihat sidebar — cukup 4 tombol di bawah.
@@ -26,7 +26,24 @@ Di HP, tukang tidak lagi melihat sidebar — cukup 4 tombol di bawah.
 - Di `lg` ke atas tukang tetap mendapat sidebar biasa.
 
 ## Checklist
-- [ ] **[UI]** `BottomNav` untuk FIELD_STAFF di bawah `lg`; hamburger disembunyikan
-- [ ] **[UI]** Halaman Lainnya + total penalti bulan ini
-- [ ] **[UI]** "Tugas" menggantikan "Task" di layar tukang
-- [ ] **[Test]** `more.index`: FIELD_STAFF 200, role lain 403; total penalti hanya miliknya
+- [x] **[UI]** `BottomNav` untuk FIELD_STAFF di bawah `lg`; hamburger disembunyikan
+- [x] **[UI]** Halaman Lainnya + total penalti bulan ini
+- [x] **[UI]** "Tugas" menggantikan "Task" di layar tukang
+- [x] **[Test]** `more.index`: FIELD_STAFF 200, role lain 403; total penalti hanya miliknya
+
+## Catatan pelaksanaan (2026-10-05)
+- Mode tukang = role utama `FIELD_STAFF` (`useIsFieldStaff()` di
+  `AppLayout.tsx`). Di bawah `lg`: `BottomNav` tetap di bawah (h-16 +
+  `env(safe-area-inset-bottom)`, area sentuh ≥48px), tombol hamburger
+  disembunyikan, konten diberi padding bawah. `lg` ke atas tetap sidebar.
+- "Hari Ini" sementara = `tasks.index?due=today` (aktif hanya dengan
+  filter itu; "Tugas" aktif untuk daftar tugas lainnya & Form Harian) —
+  diganti layar Hari Ini di Sub 09. "Lainnya" aktif juga di Penalti,
+  Pengajuan Barang, Proyek, dan Profil.
+- `more.index` (`/lainnya`, `role:FIELD_STAFF`): total penalti bulan ini
+  milik sendiri (jumlah, total, belum dibayar) lewat scope baru
+  `Penalty::inMonth()`; daftar Penalti, Pengajuan Barang, Proyek, Profil,
+  Keluar. Tanpa chart/tabel (H8).
+- "Tugas": `NavItem.roleLabels` (menu Task → "Tugas" untuk FIELD_STAFF,
+  ikut breadcrumb & pencarian); judul/teks di `Tasks/Index` ("Tugas Saya")
+  dan `DailyForm/Index` untuk tukang.

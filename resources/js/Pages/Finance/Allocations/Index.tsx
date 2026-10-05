@@ -1,5 +1,6 @@
 import { AllocationFormDialog } from '@/Components/modules/finance/AllocationFormDialog';
 import { CATEGORY_OPTIONS } from '@/Components/modules/finance/TransactionFormDialog';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { ProgressBar } from '@/Components/shared/ProgressBar';
@@ -60,6 +61,8 @@ export default function AllocationIndex({ allocations, activeTotal }: Allocation
                     </Button>
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2">
                 <StatCard

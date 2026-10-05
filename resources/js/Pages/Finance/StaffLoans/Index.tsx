@@ -1,5 +1,6 @@
 import { STAFF_LOAN_STATUS_LABEL, staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -108,6 +109,8 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
                     )
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-3">
                 <StatCard label="Total Pinjaman" value={formatRupiah(summary.totalAmount)} icon={HandCoins} />

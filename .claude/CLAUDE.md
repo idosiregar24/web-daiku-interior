@@ -80,7 +80,12 @@ status): [`plan/README.md`](plan/README.md). Source task list:
    would erase their penalty/fund history.
 8. **Sidebar nav (`Layouts/AppLayout.tsx`) tracks reality.** A module's
    `NAV_GROUPS` entry gets a real `routeName` only once its `index` route
-   actually exists — until then it renders disabled ("Segera").
+   actually exists — until then it renders disabled ("Segera"). Since
+   Sprint 13, sibling list pages are one **hub** (`NavItem.tabs`, shown by
+   `<ModuleTabs />` under the page header), setup pages live in the pinned
+   **⚙ Pengaturan** hub, group order follows the role (`ROLE_GROUP_ORDER`),
+   and menu badges come only from `ActionInboxService` (`navBadges`) —
+   see `design-standards.md` §4 before adding a menu.
 9. **SDM / HR module (Sprint 10, outside the PRD — `plan/sprint-10-sdm.md`).**
    `HR` is a non-PRD role like SUPERADMIN. All `hr.*` routes sit behind one
    `module:hr` gate (`ModuleAccessMiddleware`, the future per-user module
@@ -120,6 +125,20 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     project PM's alone (`ProjectPolicy::manageBudget`) and never sent to
     Marketing or the Asisten PM; an Asisten PM works only on the projects
     it is assigned to (`Project::isManagedBy()`).
+12. **Navigasi & HP (Sprint 13 — `plan/sprint-13-navigasi-ux.md`).** No
+    route, gate or business rule changed — only how people reach pages.
+    "Perlu Tindakan" (`inbox.index`) is built once in `ActionInboxService`
+    from the list pages' own scopes (`Project::visibleTo()`,
+    `ProjectMaterial::visibleTo()`, `Task::awaitingDailyForm()`…); a new
+    queue is one method there, never a second query in a page. The topbar
+    search (`search`) answers a whitelist per role, scoped like the list
+    pages. A Tukang (primary role FIELD_STAFF) gets the phone layout below
+    `lg`: `BottomNav`, "Hari Ini" (`today.index`, their landing page),
+    "Lainnya" (`more.index`); saving from a task card uses the existing
+    `daily-forms.store` / `tasks.updateStatus`. The daily-form hour and
+    working days live only in `config/daiku.php` (`DailyFormSchedule`).
+    Pages used in the field pass `DataTable` a `mobileCard` and use
+    `ResponsiveDialogContent`; heavy, role-only code is `lazy()`-loaded.
 
 ## Local environment
 

@@ -19,6 +19,7 @@ import {
 import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
+import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
@@ -193,6 +194,9 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
             },
         },
     ];
+
+    // Sprint 13 #6 — arriving from the topbar "+ Buat" opens the add dialog.
+    useCreateParam(canManage, openCreate);
 
     return (
         <AppLayout>

@@ -2,6 +2,7 @@ import { ReviewCreateDialog, type ReviewEmployeeOption } from '@/Components/modu
 import { formatScore, REVIEW_STATUS_LABEL, REVIEW_STATUSES, REVIEW_RECOMMENDATION_LABEL } from '@/Components/modules/hr/ReviewShared';
 import { StructureFilter } from '@/Components/modules/hr/StructureFilter';
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -177,6 +178,8 @@ export default function ReviewsIndex({
                     )
                 }
             />
+
+            <ModuleTabs />
 
             <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {REVIEW_STATUSES.map((status) => (

@@ -39,7 +39,7 @@ class MaterialRequestController extends Controller
         $status = in_array($request->query('status'), self::STATUS_FILTERS, true) ? $request->query('status') : 'pending';
         $canReview = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
 
-        $scoped = fn () => $this->scopeFor(ProjectMaterial::query()->requested(), $user);
+        $scoped = fn () => ProjectMaterial::query()->requested()->visibleTo($user);
 
         $requests = $scoped()
             ->with([
@@ -127,23 +127,6 @@ class MaterialRequestController extends Controller
         return back()->with('success', $line->request_status === MaterialRequestStatus::Ditolak
             ? 'Pengajuan ditolak.'
             : 'Pengajuan disetujui — baris material proyek siap diproses.');
-    }
-
-    /** Logistics/CEO see everything; a PM their own projects; a Tukang (and an Estimator) what they asked for. */
-    private function scopeFor(Builder $query, User $user): Builder
-    {
-        if ($user->hasAnyRole(['LOGISTICS', 'CEO', 'SUPERADMIN'])) {
-            return $query;
-        }
-
-        if ($user->hasAnyRole(['PM', 'ASISTEN_PM'])) {
-            // The projects they manage — as PM or as its Asisten PM (Sprint 12 #22).
-            return $query->whereHas('project', fn (Builder $q) => $q->where(fn (Builder $q) => $q
-                ->when($user->hasRole('PM'), fn (Builder $q) => $q->orWhere('pm_id', $user->id))
-                ->when($user->hasRole('ASISTEN_PM'), fn (Builder $q) => $q->orWhere('assistant_pm_id', $user->id))));
-        }
-
-        return $query->where('requested_by', $user->id);
     }
 
     /** Running projects this user may raise a request on (mirrors ProjectMaterialPolicy::request()). */

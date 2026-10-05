@@ -171,6 +171,25 @@ class ProjectMaterial extends Model
         return $query->whereIn('request_status', [MaterialRequestStatus::MenungguPm->value, MaterialRequestStatus::Diajukan->value]);
     }
 
+    /**
+     * Which requests a user may list: Logistics/CEO everything; a PM /
+     * Asisten PM the projects they manage (Sprint 12 #22); a Tukang (and
+     * an Estimator) what they asked for. Shared by the Pengajuan Barang
+     * page and the "Perlu Tindakan" queue (Sprint 13).
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if ($user->hasAnyRole(['LOGISTICS', 'CEO', 'SUPERADMIN'])) {
+            return $query;
+        }
+
+        if ($user->hasAnyRole(['PM', 'ASISTEN_PM'])) {
+            return $query->whereHas('project', fn (Builder $project) => $project->managedBy($user));
+        }
+
+        return $query->where('requested_by', $user->id);
+    }
+
     /** Lines that went through a request (anything a person asked for rather than planned from the catalog). */
     public function scopeRequested(Builder $query): Builder
     {

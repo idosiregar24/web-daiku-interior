@@ -178,7 +178,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                 icon={ClipboardCheck}
                 description={
                     isFieldStaff
-                        ? 'Isi form harian untuk setiap task aktif sebelum jam 21:00 WIB.'
+                        ? 'Isi form harian untuk setiap tugas aktif sebelum jam 21:00 WIB.'
                         : 'Riwayat form harian tukang, per tanggal.'
                 }
                 actions={
@@ -195,7 +195,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
 
             {isFieldStaff && (
                 <SectionCard
-                    title="Task Aktif Belum Diisi Hari Ini"
+                    title="Tugas Aktif Belum Diisi Hari Ini"
                     icon={ClipboardList}
                     className="mb-6"
                     action={
@@ -236,7 +236,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                 <table className="w-full text-sm">
                     <thead className={TABLE_HEAD_CLASS}>
                         <tr>
-                            <th className="px-4 py-2.5 text-left font-semibold">Task</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">{isFieldStaff ? 'Tugas' : 'Task'}</th>
                             {!isFieldStaff && <th className="px-4 py-2.5 text-left font-semibold">Tukang</th>}
                             <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Kendala</th>

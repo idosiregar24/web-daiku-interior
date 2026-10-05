@@ -24,7 +24,9 @@ class RoleRedirectService
      * of its route.
      */
     private const ROLE_ROUTES = [
-        'CEO' => 'analytics.index',            // "Dashboard utama"
+        // Sprint 13 #10 / D2 — what waits for the CEO's decision first;
+        // the executive dashboard (analytics.index) is one click away.
+        'CEO' => 'inbox.index',
         'MARKETING' => 'crm.dashboard',
         'DESIGNER' => 'design.dashboard',      // KPI Desain
         'ESTIMATOR' => 'quotations.dashboard', // Dashboard Quotation
@@ -32,7 +34,8 @@ class RoleRedirectService
         'QA' => 'qa-forms.dashboard',          // Dashboard QA
         'FINANCE' => 'finance.dashboard',      // "Dashboard cash flow + termin"
         'LOGISTICS' => 'logistics.materials.index',
-        'FIELD_STAFF' => 'tasks.index',        // "hanya task list & form daily"
+        // "hanya task list & form daily" — Sprint 13 H2: both on one screen.
+        'FIELD_STAFF' => 'today.index',
         // SUPERADMIN is a technical role (RoleSeeder), not a PRD §7.1
         // business role — lands straight on its own tool instead of the
         // business dashboard.
