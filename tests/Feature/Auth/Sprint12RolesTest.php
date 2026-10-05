@@ -109,12 +109,10 @@ test('the Asisten PM sees the project tabs the PM reads, without any write actio
 test('an Asisten PM is refused every PM write action for now', function () {
     $assistant = sprint12User('ASISTEN_PM');
     $project = Project::factory()->create(['pm_id' => $assistant->id]);
-    $quotation = Quotation::factory()->create();
 
     $this->actingAs($assistant)->post(route('projects.store'), [])->assertForbidden();
     $this->actingAs($assistant)->put(route('projects.update', $project), [])->assertForbidden();
     $this->actingAs($assistant)->post(route('milestones.store', $project), [])->assertForbidden();
     $this->actingAs($assistant)->post(route('tasks.store', $project), [])->assertForbidden();
-    $this->actingAs($assistant)->post(route('quotations.pmDecision', $quotation), ['decision' => 'approve'])->assertForbidden();
     $this->actingAs($assistant)->post(route('projects.materials.store', $project), [])->assertForbidden();
 });

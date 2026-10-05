@@ -2,13 +2,15 @@
 
 namespace App\Http\Requests\CRM;
 
+use App\Services\LeadService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * Sprint 12 decision #5 — "Ajukan Desain/Survey". DESAIN moves the lead
- * on; SURVEY also schedules a survey (same fields as LeadSurveyRequest).
- * The RAB requests (Jasa Survey / Jasa Desain / Proyek) come in Sub 3.
+ * on; SURVEY also schedules a survey (same fields as LeadSurveyRequest);
+ * RAB_SURVEY / RAB_DESAIN / RAB_PROYEK ask the Estimator for that RAB
+ * (decision #7 — the note is what the Estimator works from, so required).
  */
 class SubmitLeadRequestRequest extends FormRequest
 {
@@ -23,8 +25,8 @@ class SubmitLeadRequestRequest extends FormRequest
         $survey = Rule::requiredIf(fn () => $this->input('type') === 'SURVEY');
 
         return [
-            'type' => ['required', Rule::in(['DESAIN', 'SURVEY'])],
-            'note' => ['nullable', 'string', 'max:1000'],
+            'type' => ['required', Rule::in(['DESAIN', 'SURVEY', ...array_keys(LeadService::RAB_REQUEST_TYPES)])],
+            'note' => [Rule::requiredIf(fn () => array_key_exists((string) $this->input('type'), LeadService::RAB_REQUEST_TYPES)), 'nullable', 'string', 'max:1000'],
             'scheduled_at' => [$survey, 'nullable', 'date'],
             'address' => ['nullable', 'string', 'max:1000'],
             'maps_url' => ['nullable', 'string', 'max:500', 'url:http,https'],
@@ -37,6 +39,7 @@ class SubmitLeadRequestRequest extends FormRequest
         return [
             'type.required' => 'Pilih jenis pengajuan.',
             'type.in' => 'Jenis pengajuan tidak valid.',
+            'note.required' => 'Catatan untuk Estimator wajib diisi.',
             'scheduled_at.required' => 'Jadwal survey wajib diisi.',
             'maps_url.url' => 'Link Google Maps harus berupa URL http/https.',
         ];

@@ -33,7 +33,7 @@ function revisionUser(string $role): User
     return $user;
 }
 
-/** A quotation that already cleared CEO → PM, with two RAB items (total 7.000.000). */
+/** A quotation already reviewed internally and sent by Marketing, with two RAB items (total 7.000.000). */
 function sentQuotation(array $attributes = []): Quotation
 {
     $quotation = Quotation::factory()->create([
@@ -111,7 +111,7 @@ test('a client rejection is only possible while the offer is SENT_TO_CLIENT', fu
 
     expect($quotation->fresh()->status->value)->toBe($status)
         ->and(QuotationApproval::count())->toBe(0);
-})->with(['DRAFT', 'SUBMITTED', 'CEO_REVIEW', 'APPROVED']);
+})->with(['DRAFT', 'SUBMITTED', 'WAITING_CEO', 'CLIENT_APPROVED']);
 
 test('a client rejection records a CLIENT approval row, a revision snapshot, an audit entry and notifies the estimator and marketing', function () {
     $ceo = revisionUser('CEO');
@@ -134,8 +134,8 @@ test('a client rejection records a CLIENT approval row, a revision snapshot, an 
         ->and($revision->note)->toBe('Klien minta ganti material.')
         ->and($revision->closed_by)->toBe($ceo->id)
         ->and($revision->items)->toBe([
-            ['description' => 'Kitchen Set', 'qty' => 1, 'unit_code' => 'set', 'unit_price' => '5000000.00', 'total_price' => '5000000.00'],
-            ['description' => 'Meja', 'qty' => 2, 'unit_code' => 'unit', 'unit_price' => '1000000.00', 'total_price' => '2000000.00'],
+            ['section' => null, 'description' => 'Kitchen Set', 'dim_length' => null, 'dim_width_height' => null, 'qty' => 1, 'unit_code' => 'set', 'unit_price' => '5000000.00', 'total_price' => '5000000.00'],
+            ['section' => null, 'description' => 'Meja', 'dim_length' => null, 'dim_width_height' => null, 'qty' => 2, 'unit_code' => 'unit', 'unit_price' => '1000000.00', 'total_price' => '2000000.00'],
         ]);
 
     // The new DRAFT keeps the items so the Estimator revises from them.
@@ -181,15 +181,12 @@ test('a second client rejection of the same version is refused', function () {
         ->and($quotation->fresh()->version)->toBe(2);
 });
 
-// ── Riwayat revisi (CEO/PM rejections too) ──────────────────────────────
+// ── Riwayat revisi (PM / CEO returns too) ───────────────────────────────
 
-test('CEO and PM rejections also close the version into the revision history', function (string $gate, string $fromStatus, string $reason) {
+test('PM and CEO returns also close the version into the revision history', function (string $gate, string $fromStatus, string $reason) {
     $quotation = sentQuotation(['status' => $fromStatus, 'valid_until' => null]);
-    $service = app(QuotationService::class);
 
-    $gate === 'CEO'
-        ? $service->ceoDecision($quotation, 'reject', revisionUser('CEO'), 'Margin terlalu tipis.')
-        : $service->pmDecision($quotation, 'reject', revisionUser('PM'), 'Volume tidak realistis.');
+    reviewQuotation($quotation, revisionUser($gate), ['Meja' => 'Volume tidak realistis.']);
 
     $revision = QuotationRevision::sole();
     expect($revision->reason)->toBe($reason)
@@ -198,16 +195,15 @@ test('CEO and PM rejections also close the version into the revision history', f
         ->and($quotation->fresh()->version)->toBe(2)
         ->and($quotation->fresh()->status)->toBe(QuotationStatus::Draft);
 })->with([
-    'CEO' => ['CEO', 'SUBMITTED', 'CEO_REJECTED'],
-    'PM' => ['PM', 'CEO_REVIEW', 'PM_REJECTED'],
+    'PM' => ['PM', 'SUBMITTED', 'PM_REJECTED'],
+    'CEO' => ['CEO', 'WAITING_CEO', 'CEO_REJECTED'],
 ]);
 
 test('approvals never create a revision or bump the version', function () {
     $quotation = sentQuotation(['status' => QuotationStatus::Submitted->value, 'valid_until' => null]);
-    $service = app(QuotationService::class);
 
-    $service->ceoDecision($quotation, 'approve', revisionUser('CEO'));
-    $service->pmDecision($quotation, 'approve', revisionUser('PM'));
+    reviewQuotation($quotation, revisionUser('PM'));
+    reviewQuotation($quotation, revisionUser('CEO'));
 
     expect(QuotationRevision::count())->toBe(0)
         ->and($quotation->fresh()->version)->toBe(1)
@@ -254,31 +250,32 @@ test('roles outside CEO/Marketing do not get the client-decision action', functi
 
 // ── Masa berlaku (valid_until) ──────────────────────────────────────────
 
-test('PM approval sets valid_until to today + 14 days (Asia/Jakarta)', function () {
+test('sending to the client sets valid_until to today + 14 days (Asia/Jakarta)', function () {
     // 05:00 WIB on 1 Oct is still 30 Sep in UTC — the Jakarta date must win.
     Carbon::setTestNow(Carbon::parse('2026-10-01 05:00:00', 'Asia/Jakarta'));
 
-    $quotation = Quotation::factory()->create(['status' => QuotationStatus::CeoReview->value]);
+    $quotation = Quotation::factory()->create(['status' => QuotationStatus::ReadyToSend->value]);
 
-    app(QuotationService::class)->pmDecision($quotation, 'approve', revisionUser('PM'));
+    app(QuotationService::class)->sendToClient($quotation, revisionUser('MARKETING'));
 
     $quotation->refresh();
     expect($quotation->status)->toBe(QuotationStatus::SentToClient)
         ->and($quotation->valid_until->toDateString())->toBe('2026-10-15')
         ->and(QuotationService::VALIDITY_DAYS)->toBe(14);
 
-    $log = AuditLog::where('action', 'quotation.pm_approved')->sole();
+    $log = AuditLog::where('action', 'quotation.sent_to_client')->sole();
     expect($log->new_values['valid_until'])->toStartWith('2026-10-15');
 
     Carbon::setTestNow();
 });
 
-test('CEO approval does not start the validity period', function () {
-    $quotation = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
+test('internal approvals do not start the validity period', function () {
+    $quotation = sentQuotation(['status' => QuotationStatus::WaitingCeo->value, 'valid_until' => null]);
 
-    app(QuotationService::class)->ceoDecision($quotation, 'approve', revisionUser('CEO'));
+    reviewQuotation($quotation, revisionUser('CEO'));
 
-    expect($quotation->fresh()->valid_until)->toBeNull();
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::ApprovedInternal)
+        ->and($quotation->fresh()->valid_until)->toBeNull();
 });
 
 test('an expired offer can still be confirmed as a deal (warning only)', function () {
@@ -294,7 +291,7 @@ test('an expired offer can still be confirmed as a deal (warning only)', functio
         'contract_value' => 7_000_000,
     ])->assertSessionHasNoErrors();
 
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::Approved);
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved);
 });
 
 test('an expired offer can still be rejected by the client', function () {

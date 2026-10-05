@@ -18,7 +18,6 @@ use App\Models\Position;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
-use App\Models\QuotationApproval;
 use App\Models\Termin;
 use App\Models\User;
 use App\Services\AuditLogService;
@@ -314,11 +313,8 @@ test('estimator AUTO metrics measure quotations first sent to the client in the 
     $employee = Employee::factory()->create(['position_id' => $position->id, 'user_id' => $estimator->id]);
     $month = kpiPreviousMonth();
 
-    $approve = function (Quotation $quotation, Carbon $at, string $status = 'APPROVED') use ($pm) {
-        $this->travelTo($at);
-        QuotationApproval::create(['quotation_id' => $quotation->id, 'version' => 1, 'approver_id' => $pm->id, 'approver_role' => 'PM', 'status' => $status]);
-        $this->travelBack();
-    };
+    // Sprint 12: the first "Kirim ke Client" (QuotationService::sendToClient()) stamps first_sent_at.
+    $send = fn (Quotation $quotation, Carbon $at) => $quotation->update(['first_sent_at' => $at]);
 
     $this->travelTo($month->copy()->addDays(1)->setTime(9, 0));
     $q1 = Quotation::factory()->create(['created_by' => $estimator->id]);
@@ -326,11 +322,9 @@ test('estimator AUTO metrics measure quotations first sent to the client in the 
     $other = Quotation::factory()->create();
     $this->travelBack();
 
-    $approve($q1, $month->copy()->addDays(3)->setTime(9, 0));          // 2 days
-    $approve($q2, $month->copy()->addDays(5)->setTime(9, 0), 'REJECTED');
-    $approve($q2, $month->copy()->addDays(7)->setTime(9, 0));          // 6 days
-    $approve($q2, $month->copy()->addDays(8)->setTime(9, 0));          // later approval — first one counts
-    $approve($other, $month->copy()->addDays(3)->setTime(9, 0));       // not theirs
+    $send($q1, $month->copy()->addDays(3)->setTime(9, 0));             // 2 days
+    $send($q2, $month->copy()->addDays(7)->setTime(9, 0));             // 6 days
+    $send($other, $month->copy()->addDays(3)->setTime(9, 0));          // not theirs
 
     $period = kpiOpenPreviousMonth();
     app(KpiService::class)->compute($period, kpiUser('HR'));

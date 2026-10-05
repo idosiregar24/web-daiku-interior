@@ -12,7 +12,10 @@ class QuotationItem extends Model
 
     protected $fillable = [
         'quotation_id',
+        'section_id',
         'description',
+        'dim_length',
+        'dim_width_height',
         'qty',
         'unit_id',
         'unit_price',
@@ -28,6 +31,9 @@ class QuotationItem extends Model
         return [
             // Fractional quantities allowed (Sprint 11 decision #3) — 2,5 m².
             'qty' => 'float',
+            // Sprint 12 #11 — Dimensi P × T/L (informational; volume is typed).
+            'dim_length' => 'float',
+            'dim_width_height' => 'float',
             'unit_price' => 'decimal:2',
             'total_price' => 'decimal:2',
         ];
@@ -36,6 +42,11 @@ class QuotationItem extends Model
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);
+    }
+
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(QuotationSection::class, 'section_id');
     }
 
     public function unit(): BelongsTo

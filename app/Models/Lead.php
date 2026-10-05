@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
+use App\Enums\QuotationType;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -105,9 +106,24 @@ class Lead extends Model
         return $this->hasOne(Design::class);
     }
 
+    /**
+     * The project RAB (Sprint 12: a lead has several quotations — Jasa
+     * Survey, Jasa Desain, Proyek). Kept as `quotation` because every
+     * pre-Sprint-12 reader (deal confirmation, project creation, design
+     * sync, analytics) means the project offer.
+     */
     public function quotation(): HasOne
     {
-        return $this->hasOne(Quotation::class);
+        // Newest first: a has-one keeps the first row per lead, eager-loaded or not.
+        return $this->hasOne(Quotation::class)
+            ->where('quotations.type', QuotationType::Proyek->value)
+            ->orderByDesc('quotations.id');
+    }
+
+    /** Sprint 12 decision #6 — every quotation of the lead, any type. */
+    public function quotations(): HasMany
+    {
+        return $this->hasMany(Quotation::class)->latest('id');
     }
 
     public function scopeByStatus(Builder $query, ?string $status): Builder

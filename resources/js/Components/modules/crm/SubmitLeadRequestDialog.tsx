@@ -16,13 +16,23 @@ import type { Lead } from '@/types';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-type RequestType = 'SURVEY' | 'DESAIN';
+type RequestType = 'SURVEY' | 'DESAIN' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK';
 
-const OPTIONS: { value: RequestType | 'RAB'; label: string; hint: string; disabled?: boolean }[] = [
+const OPTIONS: { value: RequestType; label: string; hint: string; rab?: boolean }[] = [
     { value: 'SURVEY', label: 'Jadwalkan Survey', hint: 'Survey lokasi — gratis di Pekanbaru, luar kota wajib RAB Jasa Survey.' },
     { value: 'DESAIN', label: 'Ajukan Desain', hint: 'Lanjut ke tim desain tanpa survey.' },
-    { value: 'RAB', label: 'Minta RAB Jasa Survey / Jasa Desain / Proyek', hint: 'Segera — dibuka di tahap berikutnya.', disabled: true },
+    { value: 'RAB_SURVEY', label: 'Minta RAB Jasa Survey', hint: 'Biaya survey luar Pekanbaru — dibayar sebelum survey berangkat.', rab: true },
+    { value: 'RAB_DESAIN', label: 'Minta RAB Jasa Desain', hint: 'Biaya jasa desain sebelum tim desain mulai.', rab: true },
+    { value: 'RAB_PROYEK', label: 'Minta RAB Proyek', hint: 'Penawaran pekerjaan — boleh tanpa desain dari Daiku.', rab: true },
 ];
+
+const SUBMIT_LABEL: Record<RequestType, string> = {
+    SURVEY: 'Jadwalkan Survey',
+    DESAIN: 'Ajukan Desain',
+    RAB_SURVEY: 'Minta RAB',
+    RAB_DESAIN: 'Minta RAB',
+    RAB_PROYEK: 'Minta RAB',
+};
 
 const EMPTY_SURVEY: SurveyFormValues = { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: false };
 
@@ -30,32 +40,43 @@ interface SubmitLeadRequestDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     lead: Pick<Lead, 'id' | 'client_name' | 'address'>;
+    /** Lead already in Pengajuan Desain/Survey — only the "Minta RAB …" options remain. */
+    rabOnly?: boolean;
 }
 
 /**
  * Sprint 12 decision #5 — "Ajukan Desain/Survey" replaces "Deal Desain".
  * The lead moves to DEAL_DESAIN (shown as "Pengajuan Desain/Survey");
- * choosing a survey also schedules it. Mirrors SubmitLeadRequestRequest.
+ * choosing a survey also schedules it; "Minta RAB …" asks the Estimator
+ * for that RAB (decision #7 — the note is required). Mirrors
+ * SubmitLeadRequestRequest.
  */
-export function SubmitLeadRequestDialog({ open, onOpenChange, lead }: SubmitLeadRequestDialogProps) {
-    const [type, setType] = useState<RequestType>('SURVEY');
+export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = false }: SubmitLeadRequestDialogProps) {
+    const options = rabOnly ? OPTIONS.filter((option) => option.rab) : OPTIONS;
+    const [type, setType] = useState<RequestType>(options[0].value);
     const [survey, setSurvey] = useState<SurveyFormValues>(EMPTY_SURVEY);
     const [note, setNote] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
+    const isRab = type.startsWith('RAB_');
 
     useEffect(() => {
         if (open) {
-            setType('SURVEY');
+            setType(rabOnly ? 'RAB_SURVEY' : 'SURVEY');
             setSurvey(EMPTY_SURVEY);
             setNote('');
             setErrors({});
         }
-    }, [open]);
+    }, [open, rabOnly]);
 
     function submit() {
         if (type === 'SURVEY' && !survey.scheduled_at) {
             setErrors({ scheduled_at: 'Jadwal survey wajib diisi.' });
+            return;
+        }
+
+        if (isRab && !note.trim()) {
+            setErrors({ note: 'Catatan untuk Estimator wajib diisi.' });
             return;
         }
 
@@ -87,19 +108,22 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead }: SubmitLead
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Ajukan Desain/Survey</DialogTitle>
-                    <DialogDescription>{lead.client_name} masuk tahap Pengajuan Desain/Survey.</DialogDescription>
+                    <DialogTitle>{rabOnly ? 'Minta RAB' : 'Ajukan Desain/Survey'}</DialogTitle>
+                    <DialogDescription>
+                        {rabOnly
+                            ? `Estimator mendapat notifikasi untuk menyusun RAB ${lead.client_name}.`
+                            : `${lead.client_name} masuk tahap Pengajuan Desain/Survey.`}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid gap-2">
-                    {OPTIONS.map((option) => (
+                    {options.map((option) => (
                         <button
                             key={option.value}
                             type="button"
-                            disabled={option.disabled}
-                            onClick={() => !option.disabled && setType(option.value as RequestType)}
+                            onClick={() => setType(option.value)}
                             className={cn(
-                                'rounded-lg border p-3 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                'rounded-lg border p-3 text-left text-sm transition-colors',
                                 type === option.value ? 'border-daiku-yellow bg-daiku-yellow-light' : 'border-border hover:bg-daiku-gray/60',
                             )}
                         >
@@ -120,8 +144,15 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead }: SubmitLead
                 )}
 
                 <div className="space-y-2">
-                    <Label htmlFor="submit-request-note">Catatan (opsional)</Label>
-                    <Textarea id="submit-request-note" rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
+                    <Label htmlFor="submit-request-note">{isRab ? 'Catatan untuk Estimator' : 'Catatan (opsional)'}</Label>
+                    <Textarea
+                        id="submit-request-note"
+                        rows={isRab ? 3 : 2}
+                        value={note}
+                        placeholder={isRab ? 'mis. Kitchen set 3 m + backdrop TV, material HPL, budget ±30 juta' : undefined}
+                        onChange={(event) => setNote(event.target.value)}
+                    />
+                    {errors.note && <p className="text-sm text-destructive">{errors.note}</p>}
                 </div>
                 {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
 
@@ -132,7 +163,7 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead }: SubmitLead
                         </Button>
                     </DialogClose>
                     <Button type="button" onClick={submit} disabled={processing}>
-                        {type === 'SURVEY' ? 'Jadwalkan Survey' : 'Ajukan Desain'}
+                        {SUBMIT_LABEL[type]}
                     </Button>
                 </DialogFooter>
             </DialogContent>

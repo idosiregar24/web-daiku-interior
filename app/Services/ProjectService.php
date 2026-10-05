@@ -61,9 +61,9 @@ class ProjectService
         // PRD §4.3 "Konversi ke Project hanya bisa dilakukan setelah status
         // APPROVED" — enforced here, not only in LeadService::confirmDeal(),
         // so PM's direct projects.store path can't skip the quotation.
-        if ($lead->quotation?->status !== QuotationStatus::Approved) {
+        if ($lead->quotation?->status !== QuotationStatus::ClientApproved) {
             throw ValidationException::withMessages([
-                'lead_id' => 'Proyek hanya bisa dibuat setelah quotation lead ini berstatus APPROVED.',
+                'lead_id' => 'Proyek hanya bisa dibuat setelah RAB Proyek lead ini disetujui klien.',
             ]);
         }
 

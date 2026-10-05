@@ -15,7 +15,6 @@ use App\Services\FamilyGatheringFundService;
 use App\Services\MilestoneService;
 use App\Services\PenaltyService;
 use App\Services\QaFormService;
-use App\Services\QuotationService;
 use App\Services\TerminService;
 use App\Services\UserService;
 use Database\Seeders\RoleSeeder;
@@ -36,17 +35,17 @@ function auditUser(string $role): User
 
 test('a quotation approval is audited with actor and before/after', function () {
     $ceo = auditUser('CEO');
-    $quotation = Quotation::factory()->create(['status' => 'SUBMITTED']);
+    $quotation = Quotation::factory()->create(['status' => 'WAITING_CEO']);
 
-    app(QuotationService::class)->ceoDecision($quotation, 'approve', $ceo);
+    reviewQuotation($quotation, $ceo);
 
     $log = AuditLog::sole();
     expect($log->action)->toBe('quotation.ceo_approved')
         ->and($log->user_id)->toBe($ceo->id)
         ->and($log->model_type)->toBe('Quotation')
         ->and($log->model_id)->toBe($quotation->id)
-        ->and($log->old_values)->toBe(['status' => 'SUBMITTED'])
-        ->and($log->new_values['status'])->toBe('CEO_REVIEW');
+        ->and($log->old_values)->toBe(['status' => 'WAITING_CEO', 'version' => 1])
+        ->and($log->new_values['status'])->toBe('APPROVED_INTERNAL');
 });
 
 test('a QA decision is audited', function () {
@@ -125,7 +124,7 @@ test('an audit row is only written when the audited action commits', function ()
     $ceo = auditUser('CEO');
     $quotation = Quotation::factory()->create(['status' => 'DRAFT']); // not reviewable
 
-    expect(fn () => app(QuotationService::class)->ceoDecision($quotation, 'approve', $ceo))->toThrow(Exception::class);
+    expect(fn () => reviewQuotation($quotation, $ceo))->toThrow(Exception::class);
     expect(AuditLog::count())->toBe(0);
 });
 

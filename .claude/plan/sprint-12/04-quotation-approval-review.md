@@ -1,7 +1,7 @@
 # Sprint 12 · 04 — Quotation: Review per Item & Approval PM → CEO
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: 01 (role ASISTEN_PM), 03 · Keputusan: #7–#10
+> Status: **selesai 2026-10-05** · Prasyarat: 01 (role ASISTEN_PM), 03 · Keputusan: #7–#10
 > **Menggantikan Sprint 11 Fitur A.**
 
 ## Tujuan
@@ -52,12 +52,12 @@ quotation_item_reviews   quotation_id, version, quotation_item_id, stage (PM | C
   `quotation.sent_to_marketing`, `quotation.sent_to_client`.
 
 ## Checklist
-- [ ] **[Database]** `quotation_item_reviews`; status baru di enum; migrasi data status lama (reversibel)
-- [ ] **[Quotation]** `QuotationService`: state machine baru, gate PM|ASISTEN_PM lalu CEO (PROYEK), review per item, kirim ke Marketing/client, cancel; notifikasi + audit
-- [ ] **[Quotation]** Route: ganti `ceoDecision`/`pmDecision` dengan `review` (PM/CEO), `sendToMarketing` (Estimator), `sendToClient`/`cancel` (Marketing)
-- [ ] **[UI]** Layar review ✔/✘ per item + ringkasan; highlight item ✘ untuk Estimator; tombol per status; dashboard antrean per role
-- [ ] **[Docs]** `security-standards.md` §4 + catatan deviasi PRD §4.3/§6.2/§7.1 di `plan/README.md`
-- [ ] **[Test]** SURVEY/DESAIN: PM saja; PROYEK: PM → CEO, CEO sebelum PM ditolak; ✘ memaksa kembali; Asisten PM bisa review; Estimator/Marketing tidak bisa review (403); migrasi status lama
+- [x] **[Database]** `quotation_item_reviews`; status baru di enum; migrasi data status lama (reversibel)
+- [x] **[Quotation]** `QuotationService`: state machine baru, gate PM|ASISTEN_PM lalu CEO (PROYEK), review per item, kirim ke Marketing/client, cancel; notifikasi + audit
+- [x] **[Quotation]** Route: ganti `ceoDecision`/`pmDecision` dengan `review` (PM/CEO), `sendToMarketing` (Estimator), `sendToClient`/`cancel` (Marketing)
+- [x] **[UI]** Layar review ✔/✘ per item + ringkasan; highlight item ✘ untuk Estimator; tombol per status; dashboard antrean per role
+- [x] **[Docs]** `security-standards.md` §4 + catatan deviasi PRD §4.3/§6.2/§7.1 di `plan/README.md`
+- [x] **[Test]** SURVEY/DESAIN: PM saja; PROYEK: PM → CEO, CEO sebelum PM ditolak; ✘ memaksa kembali; Asisten PM bisa review; Estimator/Marketing tidak bisa review (403); migrasi status lama
 
 ## Di luar cakupan
 Halaman client (05); perhitungan KPI (13) — di sini hanya datanya.

@@ -297,6 +297,11 @@ class DemoDataSeeder extends Seeder
             'scheduled_at' => now()->addWeek()->setTime(10, 0)->toDateTimeString(),
             'is_outside_pekanbaru' => true,
         ], $this->marketing);
+        // Sprint 12 #7: Marketing asks the Estimator for that RAB Jasa Survey (DIMINTA, linked to the survey).
+        $leadService->submitRequest($ahmad, [
+            'type' => 'RAB_SURVEY',
+            'note' => 'Survey lokasi di Bangkinang (±60 km) — transport + 1 hari kerja tim survey.',
+        ], $this->marketing);
 
         $lost = $leadService->create([
             'client_name' => 'Rina Wijaya',
@@ -373,7 +378,7 @@ class DemoDataSeeder extends Seeder
         $specs = [
             ['name' => 'Maya Sari', 'source' => 'Iklan Sosmed', 'quotation_stage' => 'draft'],
             ['name' => 'Yusuf Pratama', 'source' => 'Existing', 'quotation_stage' => 'submitted'],
-            ['name' => 'Indah Permata', 'source' => 'Instagram', 'quotation_stage' => 'ceo_review'],
+            ['name' => 'Indah Permata', 'source' => 'Instagram', 'quotation_stage' => 'waiting_ceo'],
             ['name' => 'Rina Kartika', 'source' => 'Website', 'quotation_stage' => 'revised'],
         ];
 
@@ -392,10 +397,11 @@ class DemoDataSeeder extends Seeder
 
             $quotationService->submit($quotation);
 
-            // v1 rejected by the CEO, revised and resubmitted as v2 — gives
-            // "Riwayat Revisi" a real entry (PRD §4.3 "Versi Revisi").
+            // v1 returned by the PM with the kitchen set marked ✘, revised and
+            // resubmitted as v2 — gives "Riwayat Revisi" a real entry (PRD §4.3
+            // "Versi Revisi") and the Estimator a highlighted item (Sprint 12 #8).
             if ($spec['quotation_stage'] === 'revised') {
-                $quotationService->ceoDecision($quotation, 'reject', $this->ceo, 'Harga kitchen set terlalu tinggi, turunkan ±10%.');
+                $this->reviewRab($quotationService, $quotation, $this->pm, ['Kitchen Set Custom' => 'Harga kitchen set terlalu tinggi, turunkan ±10%.']);
                 $quotationService->replaceItems($quotation, [
                     ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 16_000_000],
                     ['description' => 'Lemari Pakaian 2 Pintu', 'qty' => 2, 'unit_id' => $this->unit('unit'), 'unit_price' => 4_500_000],
@@ -410,8 +416,27 @@ class DemoDataSeeder extends Seeder
                 continue;
             }
 
-            $quotationService->ceoDecision($quotation, 'approve', $this->ceo);
+            // Sprint 12 #7: PM reviews first; a RAB Proyek then waits for the CEO.
+            $this->reviewRab($quotationService, $quotation, $this->pm);
         }
+    }
+
+    /**
+     * Sprint 12 #8 — PM / CEO mark every item: ✔ unless named in `$wrong`
+     * (description → note), then approve, or return when anything is ✘.
+     *
+     * @param  array<string, string>  $wrong
+     */
+    private function reviewRab(QuotationService $quotationService, Quotation $quotation, User $reviewer, array $wrong = []): void
+    {
+        $quotationService->review($quotation, [
+            'decision' => $wrong === [] ? 'approve' : 'return',
+            'items' => $quotation->items()->get()->map(fn ($item) => [
+                'item_id' => $item->id,
+                'verdict' => isset($wrong[$item->description]) ? 'SALAH' : 'OK',
+                'note' => $wrong[$item->description] ?? null,
+            ])->all(),
+        ], $reviewer);
     }
 
     /**
@@ -433,8 +458,10 @@ class DemoDataSeeder extends Seeder
                 ['description' => 'Pengecatan Interior', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => 8_000_000],
             ]);
             $quotationService->submit($quotation);
-            $quotationService->ceoDecision($quotation, 'approve', $this->ceo);
-            $quotationService->pmDecision($quotation, 'approve', $this->pm);
+            $this->reviewRab($quotationService, $quotation, $this->pm);
+            $this->reviewRab($quotationService, $quotation, $this->ceo);
+            $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
+            $quotationService->sendToClient($quotation->fresh(), $this->marketing);
 
             $leadService->confirmDeal($lead, [
                 'name' => 'Proyek '.$spec['name'],

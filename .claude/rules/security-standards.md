@@ -57,9 +57,12 @@ progres milestone (PRD §4.6). Jangan expose relasi `tasks` di response
 Setiap kali menambah route baru untuk suatu modul, cek baris matriks di
 PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
 
-- `Quotation Approval` → CEO **lalu** PM, berurutan (bukan siapa saja
-  duluan). Implementasikan sebagai state check di `QuotationService`:
-  approval PM ditolak kalau `ceo_approved_at` masih null.
+- `Quotation Approval` → **PM / Asisten PM lalu CEO**, berurutan (Sprint 12
+  keputusan #7 menggantikan urutan CEO → PM PRD §7.1; CEO hanya untuk RAB
+  Proyek). Dijaga state machine `QuotationService::reviewStage()`: status
+  SUBMITTED hanya bisa diputuskan PM/Asisten PM, WAITING_CEO hanya CEO —
+  keputusan CEO ditolak selama PM belum ACC. Route `quotations.review`
+  cukup `role:PM|ASISTEN_PM|CEO`; giliran siapa diputuskan di Service.
 - `Finance – Termin`: PM cuma `Create`, Finance `Read+Update` (mark paid),
   bukan sebaliknya.
 - `Analytics – Executive`: **hanya CEO**, full. Role lain dapat "Analytics

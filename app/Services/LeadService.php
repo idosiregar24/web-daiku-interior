@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadFollowUp;
@@ -17,11 +18,19 @@ use Illuminate\Validation\ValidationException;
 
 class LeadService
 {
+    /** Sprint 12 #7 — "Minta RAB …" options of the Ajukan dialog → the quotation type asked for. */
+    public const RAB_REQUEST_TYPES = [
+        'RAB_SURVEY' => QuotationType::Survey,
+        'RAB_DESAIN' => QuotationType::Desain,
+        'RAB_PROYEK' => QuotationType::Proyek,
+    ];
+
     public function __construct(
         private ProjectService $projectService,
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
         private DesignService $designService,
+        private QuotationService $quotationService,
     ) {}
 
     /**
@@ -245,15 +254,15 @@ class LeadService
 
         $quotation = $lead->quotation;
 
-        if (! $quotation || ! in_array($quotation->status, [QuotationStatus::SentToClient, QuotationStatus::Approved], true)) {
+        if (! $quotation || ! in_array($quotation->status, [QuotationStatus::SentToClient, QuotationStatus::ClientApproved], true)) {
             throw ValidationException::withMessages([
-                'status' => 'Deal hanya bisa dikonfirmasi setelah quotation disetujui CEO & PM (status SENT_TO_CLIENT).',
+                'status' => 'Deal hanya bisa dikonfirmasi setelah RAB Proyek dikirim ke klien (status SENT_TO_CLIENT).',
             ]);
         }
 
         return DB::transaction(function () use ($lead, $quotation, $projectData, $actor) {
             $oldQuotationStatus = $quotation->status;
-            $quotation->update(['status' => QuotationStatus::Approved->value]);
+            $quotation->update(['status' => QuotationStatus::ClientApproved->value]);
 
             // PRD §9.4 — the client's acceptance is the final quotation approval.
             $this->auditLogService->record(
@@ -434,8 +443,9 @@ class LeadService
     /**
      * "Ajukan Desain/Survey" (decision #5 — replaces "Deal Desain"): the
      * lead moves to DEAL_DESAIN (shown as "Pengajuan Desain/Survey") and,
-     * for a survey, the survey is scheduled in the same transaction. The
-     * RAB requests (Jasa Survey / Jasa Desain / Proyek) arrive in Sub 3.
+     * for a survey, the survey is scheduled in the same transaction.
+     * RAB_SURVEY / RAB_DESAIN / RAB_PROYEK ask the Estimator for that RAB
+     * (Sprint 12 #7 — QuotationService::request(), note required).
      *
      * @param  array{type: string, note?: ?string, scheduled_at?: string, address?: ?string, maps_url?: ?string, is_outside_pekanbaru?: bool}  $data
      */
@@ -446,10 +456,20 @@ class LeadService
                 $this->scheduleSurvey($lead, $data, $actor);
             }
 
+            $rabType = self::RAB_REQUEST_TYPES[$data['type']] ?? null;
+
+            if ($rabType !== null) {
+                $this->quotationService->request($lead, $rabType, (string) ($data['note'] ?? ''), $actor);
+            }
+
             if ($lead->status === LeadStatus::FollowUp) {
                 $lead = $this->changeStatus($lead, [
                     'status' => LeadStatus::DealDesain->value,
-                    'note' => trim(($data['type'] === 'SURVEY' ? 'Pengajuan survey.' : 'Pengajuan desain.').' '.($data['note'] ?? '')),
+                    'note' => trim(match (true) {
+                        $data['type'] === 'SURVEY' => 'Pengajuan survey.',
+                        $rabType !== null => "Permintaan {$rabType->label()}.",
+                        default => 'Pengajuan desain.',
+                    }.' '.($data['note'] ?? '')),
                 ], $actor);
             }
 

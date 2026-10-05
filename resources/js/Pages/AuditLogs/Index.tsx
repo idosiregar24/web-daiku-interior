@@ -22,8 +22,13 @@ interface AuditLogIndexProps {
 const ACTION_LABELS: Record<string, string> = {
     'quotation.ceo_approved': 'Quotation disetujui CEO',
     'quotation.ceo_rejected': 'Quotation ditolak CEO',
+    'quotation.ceo_returned': 'RAB dikembalikan CEO',
     'quotation.pm_approved': 'Quotation disetujui PM',
     'quotation.pm_rejected': 'Quotation ditolak PM',
+    'quotation.pm_returned': 'RAB dikembalikan PM / Asisten PM',
+    'quotation.sent_to_marketing': 'RAB final dikirim ke Marketing',
+    'quotation.sent_to_client': 'RAB dikirim ke klien',
+    'quotation.cancelled': 'RAB dibatalkan',
     'quotation.client_approved': 'Quotation diterima klien (deal)',
     'quotation.client_rejected': 'Quotation ditolak klien',
     'project.updated': 'Proyek diubah',

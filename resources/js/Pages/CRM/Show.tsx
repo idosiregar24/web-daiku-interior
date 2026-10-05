@@ -11,6 +11,7 @@ import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
 import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
 import { OpenDesignDialog } from '@/Components/modules/crm/OpenDesignDialog';
+import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import AppLayout from '@/Layouts/AppLayout';
@@ -49,6 +50,8 @@ type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> 
     surveys: LeadSurvey[];
     design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
     quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until'> | null;
+    /** Sprint 12 #6 — every RAB of the lead (Jasa Survey / Jasa Desain / Proyek), newest first. */
+    quotations: Pick<Quotation, 'id' | 'type' | 'status' | 'total_amount' | 'version' | 'created_at'>[];
     project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
 };
 
@@ -90,6 +93,8 @@ export default function LeadShow({
     const [designOpen, setDesignOpen] = useState(false);
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [requestOpen, setRequestOpen] = useState(false);
+    // Sprint 12 #7 — the same dialog with only the "Minta RAB …" options, once the lead is past FOLLOW_UP.
+    const [rabOnly, setRabOnly] = useState(false);
 
     const isClosed = lead.status === 'LOST' || lead.status === 'CLOSING';
     const quotationExpired = isQuotationExpired(lead.quotation);
@@ -128,9 +133,26 @@ export default function LeadShow({
                                 Ubah Status
                             </Button>
                             {lead.status === 'FOLLOW_UP' && (
-                                <Button onClick={() => setRequestOpen(true)}>
+                                <Button
+                                    onClick={() => {
+                                        setRabOnly(false);
+                                        setRequestOpen(true);
+                                    }}
+                                >
                                     <Send className="size-4" />
                                     Ajukan Desain/Survey
+                                </Button>
+                            )}
+                            {lead.status === 'DEAL_DESAIN' && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setRabOnly(true);
+                                        setRequestOpen(true);
+                                    }}
+                                >
+                                    <FileText className="size-4" />
+                                    Minta RAB
                                 </Button>
                             )}
                             {lead.quotation?.status === 'SENT_TO_CLIENT' && (
@@ -254,7 +276,25 @@ export default function LeadShow({
                                     )}
                                 </>
                             ) : (
-                                'Dibuat otomatis setelah desain di-ACC klien.'
+                                'Diminta Marketing atau dibuat otomatis setelah desain di-ACC klien.'
+                            )}
+                            {lead.quotations.filter((quotation) => quotation.type !== 'PROYEK').length > 0 && (
+                                <ul className="mt-2 space-y-1">
+                                    {lead.quotations
+                                        .filter((quotation) => quotation.type !== 'PROYEK')
+                                        .map((quotation) => (
+                                            <li key={quotation.id} className="flex flex-wrap items-center gap-2">
+                                                <Link
+                                                    href={route('quotations.show', { quotation: quotation.id })}
+                                                    className="font-medium text-foreground underline decoration-daiku-yellow underline-offset-4 hover:decoration-2"
+                                                >
+                                                    {QUOTATION_TYPE_LABEL[quotation.type]}
+                                                </Link>
+                                                <StatusChip status={quotation.status} />
+                                                <span>{formatRupiah(quotation.total_amount)}</span>
+                                            </li>
+                                        ))}
+                                </ul>
                             )}
                         </StageRow>
                         <StageRow
@@ -328,7 +368,7 @@ export default function LeadShow({
                         leadCategories={leadCategories}
                     />
                     <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={lead} />
-                    <SubmitLeadRequestDialog open={requestOpen} onOpenChange={setRequestOpen} lead={lead} />
+                    <SubmitLeadRequestDialog open={requestOpen} onOpenChange={setRequestOpen} lead={lead} rabOnly={rabOnly} />
                     <ConfirmDealDialog
                         open={dealOpen}
                         onOpenChange={setDealOpen}

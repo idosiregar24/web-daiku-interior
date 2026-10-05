@@ -17,6 +17,7 @@ class QuotationFactory extends Factory
     {
         return [
             'lead_id' => Lead::factory(),
+            'type' => 'PROYEK',
             'total_amount' => 0,
             'status' => QuotationStatus::Draft->value,
             'valid_until' => null,
@@ -25,7 +26,7 @@ class QuotationFactory extends Factory
         ];
     }
 
-    /** Cleared both internal gates (CEO→PM) — ready for Marketing's deal confirmation. */
+    /** Approved internally and sent by Marketing — ready for the client's decision / deal confirmation. */
     public function sentToClient(): static
     {
         return $this->state(['status' => QuotationStatus::SentToClient->value, 'total_amount' => 150_000_000]);
@@ -34,6 +35,6 @@ class QuotationFactory extends Factory
     /** Client accepted (LeadService::confirmDeal()) — a Project may be created from its lead. */
     public function approved(): static
     {
-        return $this->state(['status' => QuotationStatus::Approved->value, 'total_amount' => 150_000_000]);
+        return $this->state(['status' => QuotationStatus::ClientApproved->value, 'total_amount' => 150_000_000]);
     }
 }

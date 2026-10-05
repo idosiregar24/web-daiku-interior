@@ -48,7 +48,7 @@ class AnalyticsService
             ->count();
         $quotationApproved = Lead::whereHas('quotation', fn ($query) => $query->whereIn('status', [
             QuotationStatus::SentToClient->value,
-            QuotationStatus::Approved->value,
+            QuotationStatus::ClientApproved->value,
         ]))->count();
         $closing = Lead::where('status', LeadStatus::Closing->value)->count();
 

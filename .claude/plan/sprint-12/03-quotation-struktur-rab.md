@@ -1,7 +1,7 @@
 # Sprint 12 · 03 — Quotation: 3 Jenis & Struktur RAB (format Excel)
 
 > Induk: [`../sprint-12-revisi-alur.md`](../sprint-12-revisi-alur.md).
-> Status: **belum dikerjakan** · Prasyarat: Sprint 11 Sub 1 (Master Satuan), sub-plan 02 · Keputusan: #6, #7 (bagian "diminta Marketing"), #11, #12
+> Status: **selesai 2026-10-05** · Prasyarat: Sprint 11 Sub 1 (Master Satuan), sub-plan 02 · Keputusan: #6, #7 (bagian "diminta Marketing"), #11, #12
 
 ## Tujuan
 Quotation punya jenis SURVEY/DESAIN/PROYEK, bisa diminta Marketing, dan
@@ -48,11 +48,11 @@ quotation_payment_terms     quotation_id, sequence (1..6), label, percentage (DE
 - PDF/Excel meniru tata letak Excel "RAB_KOPI OZ ARIFIN".
 
 ## Checklist
-- [ ] **[Database]** Kolom & tabel di atas; data lama → type PROYEK, item tanpa section tampil di bagian "Umum"
-- [ ] **[Quotation]** `QuotationService`: `request()` (Marketing), `startDraft()` (Estimator), `createForLead()` per jenis, `replaceItems()` dengan section/dimensi, `savePaymentTerms()`, kalkulasi total
-- [ ] **[UI]** RAB builder (bagian, dimensi, diskon, pembulatan, skema bayar); filter jenis di Index; opsi "Minta RAB" di Detail Lead
-- [ ] **[Quotation]** PDF/Excel format baru
-- [ ] **[Test]** Permintaan Marketing → DIMINTA → DRAFT; validasi skema (maks. 6, Σ 100%, Σ = total); RAB Proyek tanpa desain; snapshot revisi lengkap; RBAC (Marketing minta, Estimator susun)
+- [x] **[Database]** Kolom & tabel di atas; data lama → type PROYEK, item tanpa section tampil di bagian "Umum"
+- [x] **[Quotation]** `QuotationService`: `request()` (Marketing), `startDraft()` (Estimator), `createForLead()` per jenis, `replaceItems()` dengan section/dimensi, `savePaymentTerms()`, kalkulasi total
+- [x] **[UI]** RAB builder (bagian, dimensi, diskon, pembulatan, skema bayar); filter jenis di Index; opsi "Minta RAB" di Detail Lead
+- [x] **[Quotation]** PDF/Excel format baru
+- [x] **[Test]** Permintaan Marketing → DIMINTA → DRAFT; validasi skema (maks. 6, Σ 100%, Σ = total); RAB Proyek tanpa desain; snapshot revisi lengkap; RBAC (Marketing minta, Estimator susun)
 
 ## Di luar cakupan
 Review ✔/✘, PM → CEO (04); link client (05); addendum (12).

@@ -30,6 +30,7 @@ class QuotationRevision extends Model
         'version',
         'total_amount',
         'items',
+        'details',
         'reason',
         'note',
         'closed_by',
@@ -41,6 +42,8 @@ class QuotationRevision extends Model
             'version' => 'integer',
             'total_amount' => 'decimal:2',
             'items' => 'array',
+            // Sprint 12: items total, discount, rounding, payment scheme (null on older snapshots).
+            'details' => 'array',
         ];
     }
 

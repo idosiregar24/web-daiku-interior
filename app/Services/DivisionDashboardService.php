@@ -330,7 +330,9 @@ class DivisionDashboardService
     /**
      * One work queue of the approval pipeline, longest-waiting first:
      * DRAFT ("Perlu dikerjakan" — the Estimator's turn), SUBMITTED
-     * (waiting for the CEO) or CEO_REVIEW (waiting for PM). `since` is when
+     * (waiting for PM / Asisten PM), WAITING_CEO (RAB Proyek, waiting for
+     * the CEO) or APPROVED_INTERNAL (the Estimator still has to hand it
+     * to Marketing). `since` is when
      * it entered the queue: created_at for a draft; updated_at for the
      * review states — exactly the submit / CEO-approval moment, since
      * nothing writes a quotation outside DRAFT except those status changes
@@ -382,7 +384,7 @@ class DivisionDashboardService
     /**
      * "Nilai RAB per bulan" — one measure (quotations.total_amount) at two
      * pipeline points: `sent` puts each quotation in the month it last
-     * went out to the client (PM's approval in quotation_approvals),
+     * went out to the client (`sent_at`, Marketing's "Kirim ke Client"),
      * `deal` in the month its deal closed (the Project's creation — the
      * same closing month the CEO's revenue chart and KPI Desain use).
      *
@@ -393,24 +395,17 @@ class DivisionDashboardService
         $from = Carbon::today()->startOfMonth()->subMonths($months - 1);
         $to = Carbon::today()->endOfMonth();
 
-        $lastSent = QuotationApproval::query()
-            ->where('approver_role', 'PM')
-            ->where('status', 'APPROVED')
-            ->groupBy('quotation_id')
-            ->selectRaw('quotation_id, MAX(created_at) as sent_at')
-            ->get()
-            ->mapWithKeys(fn (QuotationApproval $row) => [$row->quotation_id => Carbon::parse($row->sent_at)])
-            ->filter(fn (Carbon $sentAt) => $sentAt->gte($from));
-
-        $amounts = Quotation::whereIn('id', $lastSent->keys())->pluck('total_amount', 'id');
-        $sent = $lastSent->map(fn (Carbon $sentAt, int $id) => [
-            'month' => $sentAt->format('Y-m'),
-            'amount' => (float) ($amounts[$id] ?? 0),
-        ]);
+        $sent = Quotation::query()
+            ->where('sent_at', '>=', $from)
+            ->get(['id', 'total_amount', 'sent_at'])
+            ->map(fn (Quotation $quotation) => [
+                'month' => $quotation->sent_at->format('Y-m'),
+                'amount' => (float) $quotation->total_amount,
+            ]);
 
         $deals = Quotation::query()
             ->join('projects', 'projects.lead_id', '=', 'quotations.lead_id')
-            ->where('quotations.status', QuotationStatus::Approved->value)
+            ->where('quotations.status', QuotationStatus::ClientApproved->value)
             ->where('projects.created_at', '>=', $from)
             ->get(['quotations.total_amount', 'projects.created_at as closed_at'])
             ->map(fn (Quotation $quotation) => [
@@ -437,7 +432,7 @@ class DivisionDashboardService
 
     /**
      * Average time from a quotation's creation (the Client ACC that opened
-     * its draft) to its first PM approval (SENT_TO_CLIENT), over the
+     * its draft) to its first sending to the client (`first_sent_at`), over the
      * quotations first sent in the last `$months` months, plus how many
      * rejections each went through before that. The clock starts at
      * creation, not at submit, because the submit moment isn't stored:
@@ -452,17 +447,9 @@ class DivisionDashboardService
     {
         $from = Carbon::today()->startOfMonth()->subMonths($months - 1);
 
-        $firstSent = QuotationApproval::query()
-            ->where('approver_role', 'PM')
-            ->where('status', 'APPROVED')
-            ->groupBy('quotation_id')
-            ->selectRaw('quotation_id, MIN(created_at) as sent_at')
-            ->get()
-            ->mapWithKeys(fn (QuotationApproval $row) => [$row->quotation_id => Carbon::parse($row->sent_at)])
-            ->filter(fn (Carbon $sentAt) => $sentAt->gte($from));
-
-        $createdAt = Quotation::whereIn('id', $firstSent->keys())->pluck('created_at', 'id');
-        $firstSent = $firstSent->filter(fn (Carbon $sentAt, int $id) => isset($createdAt[$id]));
+        $sentRows = Quotation::query()->where('first_sent_at', '>=', $from)->get(['id', 'created_at', 'first_sent_at']);
+        $firstSent = $sentRows->mapWithKeys(fn (Quotation $quotation) => [$quotation->id => $quotation->first_sent_at]);
+        $createdAt = $sentRows->pluck('created_at', 'id');
 
         if ($firstSent->isEmpty()) {
             return ['avgDays' => null, 'count' => 0, 'avgRejections' => null];

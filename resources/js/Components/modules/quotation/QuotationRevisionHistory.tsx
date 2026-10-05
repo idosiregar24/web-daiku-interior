@@ -8,8 +8,8 @@ import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 const REASON_LABEL: Record<QuotationRevisionReason, string> = {
-    CEO_REJECTED: 'Ditolak CEO',
-    PM_REJECTED: 'Ditolak PM',
+    CEO_REJECTED: 'Dikembalikan CEO',
+    PM_REJECTED: 'Dikembalikan PM',
     CLIENT_REJECTED: 'Ditolak Klien',
 };
 

@@ -41,8 +41,13 @@ const STATUS_TONE: Record<string, Tone> = {
     HOLD_CLIENT: 'warning',
     REVISI_CLIENT: 'warning',
     // Quotation — QuotationStatus
+    DIMINTA: 'warning',
     DRAFT: 'neutral',
     SUBMITTED: 'info',
+    WAITING_CEO: 'warning',
+    APPROVED_INTERNAL: 'success',
+    READY_TO_SEND: 'info',
+    CLIENT_APPROVED: 'success',
     CEO_REVIEW: 'warning',
     PM_REVIEW: 'warning',
     SENT_TO_CLIENT: 'info',
@@ -121,6 +126,12 @@ const STATUS_LABEL: Record<string, string> = {
     DEAL_DESAIN: 'Pengajuan Desain/Survey',
     MENUNGGU_BAYAR: 'Menunggu Pembayaran',
     SIAP: 'Siap Berangkat',
+    // Quotation (Sprint 12 #7–#10)
+    WAITING_CEO: 'Menunggu CEO',
+    APPROVED_INTERNAL: 'Disetujui Internal',
+    READY_TO_SEND: 'Siap Dikirim',
+    CLIENT_APPROVED: 'Disetujui Klien',
+    CANCELLED: 'Dibatalkan',
 };
 
 function humanize(status: string) {

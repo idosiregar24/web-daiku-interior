@@ -3,11 +3,15 @@
 namespace App\Http\Controllers\Quotation;
 
 use App\Enums\QuotationStatus;
+use App\Exports\QuotationExport;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Quotation\CancelQuotationRequest;
 use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
-use App\Http\Requests\Quotation\QuotationDecisionRequest;
+use App\Http\Requests\Quotation\ReviewQuotationRequest;
+use App\Http\Requests\Quotation\SavePaymentTermsRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Quotation;
+use App\Models\QuotationItemReview;
 use App\Models\SiteSetting;
 use App\Models\Unit;
 use App\Services\QuotationService;
@@ -17,27 +21,33 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * PRD §4.3. RAB builder (Sprint 2 Week 4) + CEO→PM dual approval + PDF
- * export (Sprint 3 Week 5) + the client's rejection, revision history and
- * validity period (Sprint 9) — see QuotationService's docblock for the
- * state machine. The client's acceptance is LeadController::confirmDeal().
+ * PRD §4.3. RAB builder (Sprint 2 Week 4; Sprint 12 sections & payment
+ * scheme), PDF/Excel export, the Sprint 12 approval flow (item review by
+ * PM / Asisten PM, then CEO for a RAB Proyek; Estimator → Marketing →
+ * client) and the client's rejection, revision history and validity
+ * period (Sprint 9) — see QuotationService's docblock for the state
+ * machine. The client's acceptance is LeadController::confirmDeal().
  */
 class QuotationController extends Controller
 {
     public function index(Request $request): Response
     {
         $quotations = Quotation::query()
-            ->with('lead:id,client_name')
+            ->with(['lead:id,client_name', 'requester:id,name'])
             ->byStatus($request->string('status')->value() ?: null)
+            // Sprint 12 #6 — RAB Jasa Survey / Jasa Desain / Proyek.
+            ->byType($request->string('type')->value() ?: null)
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('Quotation/Index', [
             'quotations' => $quotations,
-            'filters' => $request->only(['status']),
+            'filters' => $request->only(['status', 'type']),
         ]);
     }
 
@@ -46,31 +56,63 @@ class QuotationController extends Controller
         $quotation->load([
             'lead:id,client_name',
             'items',
+            // Sprint 12 #11–#12 — bagian pekerjaan, skema DP/termin, who asked for it.
+            'sections:id,quotation_id,name,sort_order',
+            'paymentTerms',
+            'requester:id,name',
             'approvals.approver:id,name',
             'revisions.closer:id,name',
         ]);
 
         $user = $request->user();
+        $isReviewer = fn (string $stage) => $user->hasAnyRole([...QuotationService::REVIEW_ROLES[$stage], 'SUPERADMIN']);
 
         return Inertia::render('Quotation/Show', [
             'quotation' => $quotation,
             'canManage' => $user->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']),
-            'canCeoDecide' => $user->hasAnyRole(['CEO', 'SUPERADMIN']),
-            'canPmDecide' => $user->hasAnyRole(['PM', 'SUPERADMIN']),
+            // Sprint 12 #7–#8 — whose review it is right now (QuotationService::reviewStage()).
+            'reviewStage' => match (true) {
+                $quotation->status === QuotationStatus::Submitted && $isReviewer(QuotationItemReview::STAGE_PM) => QuotationItemReview::STAGE_PM,
+                $quotation->status === QuotationStatus::WaitingCeo && $isReviewer(QuotationItemReview::STAGE_CEO) => QuotationItemReview::STAGE_CEO,
+                default => null,
+            },
+            // ✔/✘ marks of this version and the one before (the ✘ the Estimator is fixing).
+            'itemReviews' => $quotation->itemReviews()
+                ->with('reviewer:id,name')
+                ->where('version', '>=', $quotation->version - 1)
+                ->get(),
             // Recording the client's decision — same roles as the
             // `quotations.clientReject` / `crm.leads.confirmDeal` routes.
             'canClientDecide' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']),
             'validityDays' => QuotationService::VALIDITY_DAYS,
             // Master Satuan dropdown for the RAB builder (only editable while DRAFT).
             'units' => $quotation->status === QuotationStatus::Draft ? Unit::options() : [],
+            'maxPaymentTerms' => QuotationService::MAX_PAYMENT_TERMS,
         ]);
     }
 
+    /** Sprint 12 #11 — the whole RAB: sections + items + discount + rounding (QuotationService::saveRab()). */
     public function updateItems(UpdateQuotationItemsRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
     {
-        $service->replaceItems($quotation, $request->validated('items'));
+        $service->saveRab($quotation, $request->validated());
 
-        return back()->with('success', 'Item RAB berhasil disimpan.');
+        return back()->with('success', 'RAB berhasil disimpan.');
+    }
+
+    /** Sprint 12 #12 — the DP/termin scheme the client approves with the RAB. */
+    public function updatePaymentTerms(SavePaymentTermsRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->savePaymentTerms($quotation, $request->validated('terms'));
+
+        return back()->with('success', 'Skema pembayaran berhasil disimpan.');
+    }
+
+    /** Sprint 12 #7 — the Estimator picks up a RAB Marketing asked for (DIMINTA → DRAFT). */
+    public function startDraft(Request $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->startDraft($quotation, $request->user());
+
+        return back()->with('success', 'RAB mulai disusun.');
     }
 
     public function submit(Quotation $quotation, QuotationService $service): RedirectResponse
@@ -80,18 +122,39 @@ class QuotationController extends Controller
         return back()->with('success', 'Quotation berhasil disubmit untuk review.');
     }
 
-    public function ceoDecision(QuotationDecisionRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    /** Sprint 12 #8 — ✔/✘ per item, then approve or return (PM / Asisten PM, then CEO for a RAB Proyek). */
+    public function review(ReviewQuotationRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
     {
-        $service->ceoDecision($quotation, $request->validated('decision'), $request->user(), $request->validated('note'));
+        $quotation = $service->review($quotation, $request->validated(), $request->user());
 
-        return back()->with('success', 'Keputusan CEO atas quotation tersimpan.');
+        return back()->with('success', match ($quotation->status) {
+            QuotationStatus::Draft => "RAB dikembalikan ke Estimator sebagai versi {$quotation->version}.",
+            QuotationStatus::WaitingCeo => 'RAB disetujui — diteruskan ke CEO.',
+            default => 'RAB disetujui — Estimator bisa mengirimnya ke Marketing.',
+        });
     }
 
-    public function pmDecision(QuotationDecisionRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    /** Sprint 12 #10 — the Estimator hands the internally approved RAB to Marketing. */
+    public function sendToMarketing(Request $request, Quotation $quotation, QuotationService $service): RedirectResponse
     {
-        $service->pmDecision($quotation, $request->validated('decision'), $request->user(), $request->validated('note'));
+        $service->sendToMarketing($quotation, $request->user());
 
-        return back()->with('success', 'Keputusan PM atas quotation tersimpan.');
+        return back()->with('success', 'RAB final dikirim ke Marketing.');
+    }
+
+    /** Sprint 12 #10 — Marketing sends the final RAB to the client (Sub 5 adds the approval link). */
+    public function sendToClient(Request $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $quotation = $service->sendToClient($quotation, $request->user());
+
+        return back()->with('success', 'RAB ditandai terkirim ke klien — berlaku sampai '.$quotation->valid_until->translatedFormat('d F Y').'.');
+    }
+
+    public function cancel(CancelQuotationRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->cancel($quotation, $request->user(), $request->validated('reason'));
+
+        return back()->with('success', 'RAB dibatalkan.');
     }
 
     /**
@@ -107,7 +170,7 @@ class QuotationController extends Controller
 
     public function exportPdf(Quotation $quotation): HttpResponse
     {
-        $quotation->load(['lead:id,client_name', 'items']);
+        $quotation->load(['lead:id,client_name', 'items', 'sections', 'paymentTerms']);
 
         $pdf = Pdf::loadView('pdf.quotation', [
             'quotation' => $quotation,
@@ -116,5 +179,15 @@ class QuotationController extends Controller
         ]);
 
         return $pdf->stream("penawaran-{$quotation->lead->client_name}-v{$quotation->version}.pdf");
+    }
+
+    /** Sprint 12 #11 — the RAB in the Estimator's Excel layout (App\Exports\QuotationExport). */
+    public function exportExcel(Quotation $quotation): BinaryFileResponse
+    {
+        $quotation->load(['lead:id,client_name', 'items', 'sections', 'paymentTerms']);
+
+        $client = str($quotation->lead->client_name)->slug();
+
+        return Excel::download(new QuotationExport($quotation), "rab-{$client}-v{$quotation->version}.xlsx");
     }
 }

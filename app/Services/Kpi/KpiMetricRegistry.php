@@ -15,7 +15,6 @@ use App\Models\PipelineLog;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
-use App\Models\QuotationApproval;
 use App\Models\Termin;
 use App\Models\User;
 use App\Services\DivisionDashboardService;
@@ -278,8 +277,8 @@ class KpiMetricRegistry
     // ── Quotation (Estimator) ─────────────────────────────────────────────
 
     /**
-     * The user's quotations first sent to the client (first PM approval →
-     * SENT_TO_CLIENT) within the month — the same "sent" moment as
+     * The user's quotations first sent to the client (`first_sent_at` —
+     * Marketing's first "Kirim ke Client", Sprint 12) within the month — the same "sent" moment as
      * DivisionDashboardService::quotationTurnaround(), scoped to the
      * creator (that method is company-wide).
      *
@@ -287,15 +286,11 @@ class KpiMetricRegistry
      */
     private function quotationsFirstSent(User $user, CarbonInterface $from, CarbonInterface $to): Collection
     {
-        return QuotationApproval::query()
-            ->where('approver_role', 'PM')
-            ->where('status', 'APPROVED')
-            ->whereIn('quotation_id', Quotation::query()->where('created_by', $user->id)->select('id'))
-            ->groupBy('quotation_id')
-            ->selectRaw('quotation_id, MIN(created_at) as sent_at')
-            ->get()
-            ->mapWithKeys(fn (QuotationApproval $row) => [$row->quotation_id => Carbon::parse($row->sent_at)])
-            ->filter(fn (Carbon $sentAt) => $sentAt->gte($from) && $sentAt->lt($to));
+        return Quotation::query()
+            ->where('created_by', $user->id)
+            ->where('first_sent_at', '>=', $from)
+            ->where('first_sent_at', '<', $to)
+            ->pluck('first_sent_at', 'id');
     }
 
     private function quotationTurnaround(User $user, CarbonInterface $from, CarbonInterface $to): ?float

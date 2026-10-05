@@ -190,21 +190,46 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('pdf');
 
+    // Sprint 12 #11 — the RAB in the Estimator's Excel layout.
+    Route::get('{quotation}/excel', [QuotationController::class, 'exportExcel'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
+        ->name('excel');
+
     Route::put('{quotation}/items', [QuotationController::class, 'updateItems'])
         ->middleware('role:ESTIMATOR')
         ->name('items.update');
+
+    // Sprint 12 #7 / #12 — pick up a RAB Marketing asked for; the DP/termin scheme.
+    Route::post('{quotation}/start', [QuotationController::class, 'startDraft'])
+        ->middleware('role:ESTIMATOR')
+        ->name('start');
+
+    Route::put('{quotation}/payment-terms', [QuotationController::class, 'updatePaymentTerms'])
+        ->middleware('role:ESTIMATOR')
+        ->name('paymentTerms.update');
 
     Route::post('{quotation}/submit', [QuotationController::class, 'submit'])
         ->middleware('role:ESTIMATOR')
         ->name('submit');
 
-    Route::post('{quotation}/ceo-decision', [QuotationController::class, 'ceoDecision'])
-        ->middleware('role:CEO')
-        ->name('ceoDecision');
+    // Sprint 12 #7–#10 (replaces PRD §7.1's CEO → PM "Quotation Approval"):
+    // PM / Asisten PM review every item first, the CEO second (RAB Proyek
+    // only) — QuotationService::reviewStage() picks the stage from the status.
+    Route::post('{quotation}/review', [QuotationController::class, 'review'])
+        ->middleware('role:PM|ASISTEN_PM|CEO')
+        ->name('review');
 
-    Route::post('{quotation}/pm-decision', [QuotationController::class, 'pmDecision'])
-        ->middleware('role:PM')
-        ->name('pmDecision');
+    Route::post('{quotation}/send-to-marketing', [QuotationController::class, 'sendToMarketing'])
+        ->middleware('role:ESTIMATOR')
+        ->name('sendToMarketing');
+
+    Route::post('{quotation}/send-to-client', [QuotationController::class, 'sendToClient'])
+        ->middleware('role:CEO|MARKETING')
+        ->name('sendToClient');
+
+    Route::post('{quotation}/cancel', [QuotationController::class, 'cancel'])
+        ->middleware('role:CEO|MARKETING')
+        ->name('cancel');
 
     // PRD §6.2 "SENT TO CLIENT → REJECTED (klien) → DRAFT (revisi)" — the
     // client's decision is recorded by the people talking to the client:

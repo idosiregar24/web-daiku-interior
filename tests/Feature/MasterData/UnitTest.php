@@ -137,7 +137,7 @@ test('the quotation PDF prints the unit code and a fractional qty', function () 
         'validityDays' => QuotationService::VALIDITY_DAYS,
     ])->render();
 
-    expect($html)->toContain('<td>2,5</td>')->toContain('<td>m2</td>');
+    expect($html)->toContain('<td class="text-right">2,5</td>')->toContain('<td>m2</td>');
 });
 
 // ── Backfill migration ───────────────────────────────────────────────────

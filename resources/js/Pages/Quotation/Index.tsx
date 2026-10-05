@@ -1,4 +1,5 @@
 import { formatDate, formatRupiah } from '@/lib/format';
+import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -11,7 +12,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
-import type { PaginatedData, Quotation, QuotationStatus } from '@/types';
+import type { PaginatedData, Quotation, QuotationStatus, QuotationType } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { BarChart3, FileText } from 'lucide-react';
@@ -19,11 +20,11 @@ import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLi
 
 interface QuotationIndexProps {
     quotations: PaginatedData<Quotation & { lead: { id: number; client_name: string } }>;
-    filters: { status?: string };
+    filters: { status?: string; type?: string };
 }
 
 const STATUS_OPTIONS: QuotationStatus[] = [
-    'DRAFT', 'SUBMITTED', 'CEO_REVIEW', 'PM_REVIEW', 'SENT_TO_CLIENT', 'APPROVED', 'REJECTED',
+    'DIMINTA', 'DRAFT', 'SUBMITTED', 'WAITING_CEO', 'APPROVED_INTERNAL', 'READY_TO_SEND', 'SENT_TO_CLIENT', 'CLIENT_APPROVED', 'CANCELLED',
 ];
 
 const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string } }>[] = [
@@ -34,6 +35,18 @@ const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string }
             <Link href={route('quotations.show', { quotation: row.original.id })} className="font-medium hover:underline">
                 {row.original.lead.client_name}
             </Link>
+        ),
+    },
+    {
+        accessorKey: 'type',
+        header: 'Jenis',
+        cell: ({ row }) => (
+            <span>
+                {QUOTATION_TYPE_LABEL[row.original.type]}
+                {row.original.requester && (
+                    <span className="block text-xs text-daiku-muted">diminta {row.original.requester.name}</span>
+                )}
+            </span>
         ),
     },
     {
@@ -69,8 +82,9 @@ const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string }
 /**
  * Quotation list — the "Quotation" sidebar entry's landing page (Sprint 2
  * Week 4 discoverability fix, same root cause as Design's — see
- * .claude/plan/README.md). New quotations are only ever created as a side
- * effect of a Design's Client ACC, not from here.
+ * .claude/plan/README.md). Quotations are opened by Marketing's "Minta RAB"
+ * on the lead (Sprint 12 #7 — Jasa Survey / Jasa Desain / Proyek) or by a
+ * Design's Client ACC (project RAB), not from here.
  */
 export default function QuotationIndex({ quotations, filters }: QuotationIndexProps) {
     function applyFilter(next: Partial<typeof filters>) {
@@ -88,14 +102,14 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
             <PageHeader
                 title="Quotation"
                 icon={FileText}
-                description="Daftar RAB/penawaran — dibuka otomatis saat desain di-ACC klien."
+                description="Daftar RAB Jasa Survey, Jasa Desain, dan Proyek — diminta Marketing dari halaman lead atau dibuka saat desain di-ACC klien."
                 actions={<DashboardLinkButton routeName="quotations.dashboard" label="Dashboard Quotation" icon={BarChart3} roles={['CEO', 'ESTIMATOR']} />}
             />
 
             <DataTable
                 columns={columns}
                 data={quotations.data}
-                emptyMessage="Belum ada quotation. Dibuka otomatis saat desain di-ACC klien."
+                emptyMessage="Belum ada quotation. Marketing meminta RAB dari halaman lead."
                 pagination={quotations}
                 toolbar={
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -111,6 +125,22 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                                 {STATUS_OPTIONS.map((status) => (
                                     <SelectItem key={status} value={status}>
                                         {status.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={filters.type ?? 'all'}
+                            onValueChange={(value) => applyFilter({ type: value === 'all' ? undefined : value })}
+                        >
+                            <SelectTrigger className="sm:w-56">
+                                <SelectValue placeholder="Semua jenis" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua jenis</SelectItem>
+                                {(Object.keys(QUOTATION_TYPE_LABEL) as QuotationType[]).map((type) => (
+                                    <SelectItem key={type} value={type}>
+                                        {QUOTATION_TYPE_LABEL[type]}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

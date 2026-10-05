@@ -176,26 +176,32 @@ test('notifyRoles skips deactivated users', function () {
 
 // ── PRD §4.9 triggers ────────────────────────────────────────────────────
 
-test('trigger: submitting a quotation notifies CEO and PM', function () {
+test('trigger: submitting a quotation notifies PM and Asisten PM (Sprint 12 — not the CEO)', function () {
     $ceo = userWithRole('CEO');
     $pm = userWithRole('PM');
+    $assistant = userWithRole('ASISTEN_PM');
     $quotation = Quotation::factory()->create();
     QuotationItem::factory()->create(['quotation_id' => $quotation->id]);
 
     app(QuotationService::class)->submit($quotation);
 
-    expect(notificationsFor($ceo, 'quotation_submitted'))->toHaveCount(1)
-        ->and(notificationsFor($pm, 'quotation_submitted'))->toHaveCount(1);
+    expect(notificationsFor($ceo, 'quotation_submitted'))->toHaveCount(0)
+        ->and(notificationsFor($pm, 'quotation_submitted'))->toHaveCount(1)
+        ->and(notificationsFor($assistant, 'quotation_submitted'))->toHaveCount(1);
 });
 
-test('trigger: a quotation decision notifies its estimator and the lead marketing', function () {
-    $ceo = userWithRole('CEO');
-    $quotation = Quotation::factory()->create(['status' => 'SUBMITTED']);
+test('trigger: a returned RAB notifies its estimator; a final RAB notifies the lead marketing', function () {
+    $quotation = Quotation::factory()->create(['status' => 'WAITING_CEO']);
 
-    app(QuotationService::class)->ceoDecision($quotation, 'reject', $ceo, 'Harga terlalu tinggi');
+    reviewQuotation($quotation, userWithRole('CEO'), [], 'Harga terlalu tinggi');
 
     expect(notificationsFor($quotation->creator, 'quotation_rejected'))->toHaveCount(1)
-        ->and(notificationsFor($quotation->lead->assignee, 'quotation_rejected'))->toHaveCount(1);
+        ->and(notificationsFor($quotation->lead->assignee, 'quotation_rejected'))->toHaveCount(0);
+
+    $final = Quotation::factory()->create(['status' => 'APPROVED_INTERNAL']);
+    app(QuotationService::class)->sendToMarketing($final, userWithRole('ESTIMATOR'));
+
+    expect(notificationsFor($final->lead->assignee, 'quotation_ready_to_send'))->toHaveCount(1);
 });
 
 test('trigger: assigning a task notifies the field staff', function () {

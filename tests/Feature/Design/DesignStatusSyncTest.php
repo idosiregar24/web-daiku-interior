@@ -85,7 +85,7 @@ test('pre-ACC and client-paused stages are always allowed', function (DesignStat
 
 test('after Client ACC any stage can be set, and going back to DESAIN keeps client_acc', function () {
     $designer = syncUser('DESIGNER');
-    [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::Produksi, QuotationStatus::Approved);
+    [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::Produksi, QuotationStatus::ClientApproved);
 
     $this->actingAs($designer)->put(route('design.update', ['design' => $design->id]), [
         'pic_id' => $designer->id,
@@ -141,18 +141,18 @@ test('submitting the quotation also moves the design to PEMBUATAN_PENAWARAN', fu
     expect($design->fresh()->status)->toBe(DesignStatus::PembuatanPenawaran);
 });
 
-test('PM approval (SENT_TO_CLIENT) moves the design to WAITING_ACC_PENAWARAN', function () {
-    [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::PembuatanPenawaran, QuotationStatus::CeoReview);
+test('sending the RAB to the client (SENT_TO_CLIENT) moves the design to WAITING_ACC_PENAWARAN', function () {
+    [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::PembuatanPenawaran, QuotationStatus::ReadyToSend);
 
-    app(QuotationService::class)->pmDecision($quotation, 'approve', syncUser('PM'));
+    app(QuotationService::class)->sendToClient($quotation, syncUser('MARKETING'));
 
     expect($design->fresh()->status)->toBe(DesignStatus::WaitingAccPenawaran);
 });
 
-test('CEO/PM rejections leave the design where it is', function () {
+test('PM / CEO returns leave the design where it is', function () {
     [, $design, $quotation] = accdDesignWithQuotation(DesignStatus::PembuatanPenawaran, QuotationStatus::Submitted);
 
-    app(QuotationService::class)->ceoDecision($quotation, 'reject', syncUser('CEO'), 'Revisi harga.');
+    reviewQuotation($quotation, syncUser('PM'), [], 'Revisi harga.');
 
     expect($design->fresh()->status)->toBe(DesignStatus::PembuatanPenawaran);
 });
@@ -183,7 +183,7 @@ test('confirming the deal moves the design to PRODUKSI', function () {
 });
 
 test('the project passing its last QA moves the design to DONE_PRODUKSI and freezes the delay', function () {
-    [$lead, $design] = accdDesignWithQuotation(DesignStatus::Produksi, QuotationStatus::Approved);
+    [$lead, $design] = accdDesignWithQuotation(DesignStatus::Produksi, QuotationStatus::ClientApproved);
     $design->update(['deadline' => now()->subDays(5)->toDateString(), 'delay_hari' => 5, 'delay_counted_on' => now()->toDateString()]);
     $project = Project::factory()->create(['lead_id' => $lead->id, 'pm_id' => syncUser('PM')->id]);
     $milestone = Milestone::factory()->create([

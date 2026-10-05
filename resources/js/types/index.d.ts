@@ -220,19 +220,57 @@ export interface Design {
 }
 
 /** PRD 4.3 — Quotation / RAB */
+/** Sprint 12 #6 — App\Enums\QuotationType. */
+export type QuotationType = 'SURVEY' | 'DESAIN' | 'PROYEK';
+
+/** Sprint 12 #12 — App\Enums\PaymentTermTrigger. */
+export type PaymentTermTrigger = 'DI_MUKA' | 'TANGGAL' | 'MILESTONE' | 'PROYEK_SELESAI';
+
 export type QuotationStatus =
+    /** Sprint 12 #7 — asked for by Marketing, not picked up by the Estimator yet. */
+    | 'DIMINTA'
     | 'DRAFT'
+    /** Sprint 12 #7 — waiting for the PM / Asisten PM item review. */
     | 'SUBMITTED'
+    /** RAB Proyek only — PM approved, waiting for the CEO. */
+    | 'WAITING_CEO'
+    | 'APPROVED_INTERNAL'
+    /** The Estimator handed the final RAB to Marketing. */
+    | 'READY_TO_SEND'
+    | 'SENT_TO_CLIENT'
+    | 'CLIENT_APPROVED'
+    | 'CANCELLED'
+    /** Pre-Sprint-12 states — no longer persisted (App\Enums\QuotationStatus). */
     | 'CEO_REVIEW'
     | 'PM_REVIEW'
-    | 'SENT_TO_CLIENT'
     | 'APPROVED'
     | 'REJECTED';
+
+/** Sprint 12 #8 — one ✔/✘ mark on a RAB item (App\Models\QuotationItemReview). */
+export interface QuotationItemReview {
+    id: number;
+    quotation_id: number;
+    version: number;
+    quotation_item_id: number | null;
+    item_description: string;
+    section_name: string | null;
+    stage: 'PM' | 'CEO';
+    reviewer_id: number;
+    reviewer?: Pick<User, 'id' | 'name'>;
+    verdict: 'OK' | 'SALAH';
+    note: string | null;
+    created_at: string;
+}
 
 export interface QuotationItem {
     id: number;
     quotation_id: number;
+    /** Sprint 12 #11 — null = pre-Sprint-12 item, shown under "Umum". */
+    section_id: number | null;
     description: string;
+    /** Optional dimensions (P, T/L) — informational, the volume is typed. */
+    dim_length: number | null;
+    dim_width_height: number | null;
     /** Fractional allowed (Sprint 11) — 2.5. */
     qty: number;
     unit_id: number;
@@ -240,6 +278,27 @@ export interface QuotationItem {
     unit_price: string;
     total_price: string;
     sort_order: number;
+}
+
+/** Sprint 12 #11 — a bagian pekerjaan of the RAB. */
+export interface QuotationSection {
+    id: number;
+    quotation_id: number;
+    name: string;
+    sort_order: number;
+}
+
+/** Sprint 12 #12 — one DP/termin row; `amount` is derived from the total server-side. */
+export interface QuotationPaymentTerm {
+    id: number;
+    quotation_id: number;
+    sequence: number;
+    label: string;
+    percentage: string;
+    amount: string;
+    trigger: PaymentTermTrigger;
+    due_date: string | null;
+    milestone_name: string | null;
 }
 
 export interface QuotationApproval {
@@ -261,7 +320,11 @@ export type QuotationRevisionReason = 'CEO_REJECTED' | 'PM_REJECTED' | 'CLIENT_R
 
 /** One RAB line as frozen in a revision snapshot (money stays a decimal string, like QuotationItem). */
 export interface QuotationRevisionItem {
+    /** Section name — snapshots taken since Sprint 12. */
+    section?: string | null;
     description: string;
+    dim_length?: number | null;
+    dim_width_height?: number | null;
     qty: number;
     /** Master Satuan code — snapshots taken since Sprint 11. */
     unit_code?: string | null;
@@ -278,6 +341,13 @@ export interface QuotationRevision {
     version: number;
     total_amount: string;
     items: QuotationRevisionItem[];
+    /** Sprint 12 — totals and payment scheme of the closed version (null on older snapshots). */
+    details: {
+        items_total: string | null;
+        discount_amount: string | null;
+        rounded_total: string | null;
+        payment_terms: Pick<QuotationPaymentTerm, 'sequence' | 'label' | 'percentage' | 'amount' | 'trigger' | 'due_date' | 'milestone_name'>[];
+    } | null;
     reason: QuotationRevisionReason;
     note: string | null;
     closed_by: number;
@@ -289,13 +359,30 @@ export interface Quotation {
     id: number;
     lead_id: number;
     lead?: Pick<Lead, 'id' | 'client_name'>;
+    type: QuotationType;
+    lead_survey_id: number | null;
+    parent_quotation_id: number | null;
+    /** Σ item subtotals. */
+    items_total: string | null;
+    discount_amount: string;
+    /** Pembulatan typed by the Estimator; null = total − discount. */
+    rounded_total: string | null;
+    /** What the client pays: rounded_total ?? items_total − discount_amount. */
     total_amount: string;
     status: QuotationStatus;
-    /** Set when CEO & PM approval sends the offer (+14 days), cleared when it returns to DRAFT. */
+    requested_by: number | null;
+    requester?: Pick<User, 'id' | 'name'> | null;
+    request_note: string | null;
+    /** Set when Marketing sends the offer (+14 days), cleared when it returns to DRAFT. */
     valid_until: string | null;
+    /** Sprint 12 — Marketing's first / latest "Kirim ke Client". */
+    first_sent_at: string | null;
+    sent_at: string | null;
     version: number;
     created_by: number;
     items?: QuotationItem[];
+    sections?: QuotationSection[];
+    payment_terms?: QuotationPaymentTerm[];
     approvals?: QuotationApproval[];
     revisions?: QuotationRevision[];
     created_at: string;

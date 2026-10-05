@@ -2,56 +2,53 @@
 
 namespace App\Services;
 
+use App\Enums\LeadStatus;
+use App\Enums\LeadSurveyStatus;
+use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Models\Design;
+use App\Models\Lead;
+use App\Models\LeadSurvey;
 use App\Models\Quotation;
 use App\Models\QuotationApproval;
 use App\Models\QuotationItem;
+use App\Models\QuotationItemReview;
+use App\Models\QuotationPaymentTerm;
 use App\Models\QuotationRevision;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * RAB builder (Sprint 2 Week 4) + CEO→PM dual approval (Sprint 3 Week 5,
- * PRD §4.3/§6.2/§7.1 "Quotation Approval" row — CEO and PM both `U` only,
- * sequential). State machine reads each status as "last completed gate":
- * DRAFT →(submit)→ SUBMITTED →(CEO approve)→ CEO_REVIEW →(PM approve)→
- * SENT_TO_CLIENT. `PM_REVIEW` is reserved but never persisted — PM's
- * approval both closes their own gate and marks it sent in one step,
- * same simplification already applied to `SUBMITTED` (see
- * QuotationStatus's docblock). CEO/PM reject both kick back to DRAFT.
- * Sequencing is enforced by the state machine itself (PM's gate is only
- * reachable via CEO_REVIEW, which only CEO's approval produces) — same
- * pattern as LeadService's CLOSING guard, and exactly the check
- * security-standards.md §4 calls out ("approval PM ditolak kalau
- * ceo_approved_at masih null").
- *
- * After SENT_TO_CLIENT (Sprint 9 decision #3, PRD §6.2): the client's
- * acceptance is recorded by LeadService::confirmDeal() (→ APPROVED), their
- * rejection by clientReject() — straight back to DRAFT for a revision, so
- * `REJECTED` stays unpersisted like the other "in between" states. Every
- * rejection that returns the quotation to DRAFT (CEO, PM or client) closes
- * the rejected version into `quotation_revisions` and opens the next
- * version number (closeVersion()); PM's approval starts the
- * VALIDITY_DAYS offer period (`valid_until`). The lead's design follows
- * each step via DesignService::syncWithPipeline().
+ * RAB builder (Sprint 2 Week 4; Sprint 12 #11–#12 sections, discount,
+ * rounding, payment scheme) and its approval flow — Sprint 12 decisions
+ * #7–#10, which replace PRD §4.3/§6.2/§7.1's CEO → PM order (state
+ * machine in QuotationStatus's docblock): Marketing asks (request()), the
+ * Estimator drafts (startDraft(), saveRab()) and submits; PM / Asisten PM
+ * mark every item ✔/✘ and approve or return it (review()); a RAB Proyek
+ * then needs the CEO's review too, so the CEO can never decide before the
+ * PM. The Estimator hands the final RAB to Marketing (sendToMarketing()),
+ * Marketing sends it to the client (sendToClient(), starts the
+ * VALIDITY_DAYS validity period). The client's acceptance is
+ * LeadService::confirmDeal() (→ CLIENT_APPROVED), their rejection
+ * clientReject(). Every return/rejection closes the version into
+ * `quotation_revisions` and reopens the next version as DRAFT
+ * (closeVersion()). The lead's design follows the project RAB via
+ * DesignService::syncWithPipeline().
  */
 class QuotationService
 {
     /** PRD §4.3 "Validity Period: Tanggal berlaku penawaran (default 14 hari dari tanggal kirim)". */
     public const VALIDITY_DAYS = 14;
 
-    /**
-     * Decision gates, keyed by QuotationApproval::approver_role: the
-     * status the quotation must be in, the status an approval moves it to
-     * (null for CLIENT — only the rejection is recorded here, acceptance
-     * is LeadService::confirmDeal()), and the error when it isn't there.
-     */
-    private const GATES = [
-        'CEO' => [QuotationStatus::Submitted, QuotationStatus::CeoReview, 'Quotation ini belum berstatus SUBMITTED — belum bisa direview CEO.'],
-        'PM' => [QuotationStatus::CeoReview, QuotationStatus::SentToClient, 'Quotation ini menunggu approval CEO terlebih dahulu.'],
-        'CLIENT' => [QuotationStatus::SentToClient, null, 'Penolakan klien hanya bisa dicatat saat penawaran berstatus SENT_TO_CLIENT (sudah disetujui CEO & PM).'],
+    /** Sprint 12 decision #12 / D1 — at most 6 payment rows, the DP included. */
+    public const MAX_PAYMENT_TERMS = 6;
+
+    /** Sprint 12 #7 — who reviews at each stage (SUPERADMIN acts as either). */
+    public const REVIEW_ROLES = [
+        'PM' => ['PM', 'ASISTEN_PM'],
+        'CEO' => ['CEO'],
     ];
 
     public function __construct(
@@ -73,68 +70,240 @@ class QuotationService
             ]);
         }
 
-        if ($design->lead->quotation()->exists()) {
-            throw ValidationException::withMessages([
-                'design_id' => 'Lead ini sudah punya quotation.',
-            ]);
+        // Sprint 12: Marketing may already have asked for the project RAB
+        // (it doesn't need an accepted design, decision #6) — that one is it.
+        if ($existing = $design->lead->quotation()->first()) {
+            return $existing;
         }
 
-        return Quotation::create([
+        $quotation = Quotation::create([
             'lead_id' => $design->lead_id,
+            'type' => QuotationType::Proyek->value,
             'status' => QuotationStatus::Draft->value,
             'created_by' => $actor->id,
         ]);
+        $this->ensureDefaultPaymentTerms($quotation);
+
+        return $quotation;
     }
 
     /**
-     * Replaces the full RAB item list in one go (the builder UI sends the
-     * whole current list on every save, not incremental add/remove calls)
-     * — only while still DRAFT, matching the RBAC matrix's Estimator-only
-     * CRUD and keeping edits impossible once approval has started.
-     * `total_price` is always computed server-side from qty × unit_price,
-     * never trusted from the client. A rejected version's items survive
-     * in its QuotationRevision snapshot, so overwriting them here is safe.
+     * Sprint 12 decision #7 — Marketing asks the Estimator for a RAB Jasa
+     * Survey, Jasa Desain or Proyek (a note is required). One running
+     * quotation per type per lead; a RAB Jasa Survey pays for the lead's
+     * outside-Pekanbaru survey waiting for payment, if there is one.
      */
-    public function replaceItems(Quotation $quotation, array $items): Quotation
+    public function request(Lead $lead, QuotationType $type, string $note, User $actor): Quotation
     {
-        if ($quotation->status !== QuotationStatus::Draft) {
-            throw ValidationException::withMessages([
-                'items' => 'Item RAB hanya bisa diubah selama quotation berstatus DRAFT.',
-            ]);
+        if (in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
+            throw ValidationException::withMessages(['type' => "Lead ini sudah {$lead->status->value} — tidak bisa meminta RAB baru."]);
         }
 
-        return DB::transaction(function () use ($quotation, $items) {
-            $quotation->items()->delete();
+        $running = $lead->quotations()
+            ->where('type', $type->value)
+            ->whereNotIn('status', QuotationStatus::closedValues())
+            ->exists();
 
-            $total = 0;
+        if ($running) {
+            throw ValidationException::withMessages(['type' => "Masih ada {$type->label()} yang berjalan untuk lead ini."]);
+        }
 
-            foreach (array_values($items) as $index => $item) {
-                // qty may be fractional (2,5 m²) — round the line to the cent.
-                $totalPrice = round((float) $item['qty'] * (float) $item['unit_price'], 2);
-                $total += $totalPrice;
+        return DB::transaction(function () use ($lead, $type, $note, $actor) {
+            $survey = $type === QuotationType::Survey
+                ? $lead->surveys()->where('status', LeadSurveyStatus::MenungguBayar->value)->whereNull('quotation_id')->latest('id')->first()
+                : null;
 
-                $quotation->items()->create([
-                    'description' => $item['description'],
-                    'qty' => $item['qty'],
-                    'unit_id' => $item['unit_id'],
-                    'unit_price' => $item['unit_price'],
-                    'total_price' => $totalPrice,
-                    'sort_order' => $index,
-                ]);
-            }
+            $quotation = Quotation::create([
+                'lead_id' => $lead->id,
+                'type' => $type->value,
+                'lead_survey_id' => $survey?->id,
+                'status' => QuotationStatus::Diminta->value,
+                'created_by' => $actor->id,
+                'requested_by' => $actor->id,
+                'request_note' => trim($note),
+            ]);
 
-            $quotation->update(['total_amount' => $total]);
+            $survey?->update(['quotation_id' => $quotation->id]);
 
-            // The RAB is being written — the design is now "Pembuatan Penawaran".
-            $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_DRAFTED);
+            $this->notificationService->notifyRoles(
+                ['ESTIMATOR'],
+                'quotation_requested',
+                "Permintaan {$type->label()}",
+                "{$actor->name} meminta {$type->label()} untuk \"{$lead->client_name}\": ".trim($note),
+                ['quotation_id' => $quotation->id, 'lead_id' => $lead->id],
+            );
 
-            return $quotation->fresh('items');
+            return $quotation;
+        });
+    }
+
+    /** The Estimator picks up a requested RAB — DIMINTA → DRAFT (Sprint 12 #7). */
+    public function startDraft(Quotation $quotation, User $actor): Quotation
+    {
+        $this->assertStatus($quotation, QuotationStatus::Diminta, 'RAB ini tidak sedang menunggu disusun.');
+
+        return DB::transaction(function () use ($quotation, $actor) {
+            // The Estimator who builds it owns it from here (notifications, KPI).
+            $quotation->update(['status' => QuotationStatus::Draft->value, 'created_by' => $actor->id]);
+            $this->ensureDefaultPaymentTerms($quotation);
+
+            $this->notificationService->notifyMany(
+                [$quotation->requester],
+                'quotation_started',
+                "{$quotation->type->label()} Mulai Disusun",
+                "{$actor->name} mulai menyusun {$quotation->type->label()} \"{$quotation->lead->client_name}\".",
+                ['quotation_id' => $quotation->id],
+            );
+
+            return $quotation->fresh();
         });
     }
 
     /**
-     * Estimator hands the draft off for review. Only reaches SUBMITTED —
-     * advancing past that (CEO_REVIEW onward) is Week 5's approval flow.
+     * Sprint 12 decision #11 — the whole RAB as the Excel lays it out:
+     * bagian pekerjaan with their items (dimensions P × T/L optional),
+     * then discount and rounding. The builder sends everything on every
+     * save. `items` without sections (pre-Sprint-12 callers) are stored
+     * without a section ("Umum"). Totals are computed here, never trusted:
+     * total_amount = rounded_total ?? items_total − discount. The payment
+     * scheme's amounts follow the new total.
+     *
+     * @param  array{sections?: list<array{name: string, items: list<array>}>, items?: list<array>, discount_amount?: numeric|null, rounded_total?: numeric|null}  $data
+     */
+    public function saveRab(Quotation $quotation, array $data): Quotation
+    {
+        $this->assertStatus($quotation, QuotationStatus::Draft, 'Item RAB hanya bisa diubah selama quotation berstatus DRAFT.');
+
+        $groups = isset($data['sections'])
+            ? $data['sections']
+            : [['name' => null, 'items' => $data['items'] ?? []]];
+
+        return DB::transaction(function () use ($quotation, $groups, $data) {
+            $quotation->items()->delete();
+            $quotation->sections()->delete();
+
+            $totalCents = 0;
+            $sort = 0;
+
+            foreach (array_values($groups) as $groupIndex => $group) {
+                $section = filled($group['name'] ?? null)
+                    ? $quotation->sections()->create(['name' => trim($group['name']), 'sort_order' => $groupIndex])
+                    : null;
+
+                foreach (array_values($group['items'] ?? []) as $item) {
+                    // qty may be fractional (2,5 m²) — round the line to the cent.
+                    $lineCents = (int) round((float) $item['qty'] * (float) $item['unit_price'] * 100);
+                    $totalCents += $lineCents;
+
+                    $quotation->items()->create([
+                        'section_id' => $section?->id,
+                        'description' => $item['description'],
+                        'dim_length' => $item['dim_length'] ?? null,
+                        'dim_width_height' => $item['dim_width_height'] ?? null,
+                        'qty' => $item['qty'],
+                        'unit_id' => $item['unit_id'],
+                        'unit_price' => $item['unit_price'],
+                        'total_price' => $lineCents / 100,
+                        'sort_order' => $sort++,
+                    ]);
+                }
+            }
+
+            $discountCents = (int) round((float) ($data['discount_amount'] ?? 0) * 100);
+
+            if ($discountCents > $totalCents) {
+                throw ValidationException::withMessages(['discount_amount' => 'Diskon tidak boleh melebihi total RAB.']);
+            }
+
+            $rounded = isset($data['rounded_total']) && $data['rounded_total'] !== '' ? round((float) $data['rounded_total'], 2) : null;
+
+            $quotation->update([
+                'items_total' => $totalCents / 100,
+                'discount_amount' => $discountCents / 100,
+                'rounded_total' => $rounded,
+                'total_amount' => $rounded ?? ($totalCents - $discountCents) / 100,
+            ]);
+
+            $this->recalculatePaymentTerms($quotation);
+
+            // The RAB is being written — the design is now "Pembuatan Penawaran".
+            $this->syncDesign($quotation, DesignService::EVENT_QUOTATION_DRAFTED);
+
+            return $quotation->fresh(['items', 'sections', 'paymentTerms']);
+        });
+    }
+
+    /**
+     * Sprint 12 decision #12 — the DP/termin scheme (1–6 rows incl. DP,
+     * D1). Percentages must add up to exactly 100; amounts are derived
+     * from the total so they always add up to it. A date-triggered row
+     * needs its date, a milestone-triggered one the milestone's name.
+     *
+     * @param  list<array{label: string, percentage: numeric, trigger: string, due_date?: ?string, milestone_name?: ?string}>  $terms
+     */
+    public function savePaymentTerms(Quotation $quotation, array $terms): Quotation
+    {
+        $this->assertStatus($quotation, QuotationStatus::Draft, 'Skema pembayaran hanya bisa diubah selama quotation berstatus DRAFT.');
+
+        $terms = array_values($terms);
+
+        if ($terms === [] || count($terms) > self::MAX_PAYMENT_TERMS) {
+            throw ValidationException::withMessages(['terms' => 'Skema pembayaran berisi 1 sampai '.self::MAX_PAYMENT_TERMS.' baris (termasuk DP).']);
+        }
+
+        $percentHundredths = array_sum(array_map(fn ($term) => (int) round((float) $term['percentage'] * 100), $terms));
+
+        if ($percentHundredths !== 10000) {
+            throw ValidationException::withMessages(['terms' => 'Total persentase skema pembayaran harus tepat 100% (sekarang '.rtrim(rtrim(number_format($percentHundredths / 100, 2, ',', ''), '0'), ',').'%).']);
+        }
+
+        foreach ($terms as $index => $term) {
+            $trigger = PaymentTermTrigger::from($term['trigger']);
+
+            if ($trigger === PaymentTermTrigger::Tanggal && blank($term['due_date'] ?? null)) {
+                throw ValidationException::withMessages(["terms.{$index}.due_date" => 'Tanggal jatuh tempo wajib diisi untuk termin bertanggal.']);
+            }
+
+            if ($trigger === PaymentTermTrigger::Milestone && blank($term['milestone_name'] ?? null)) {
+                throw ValidationException::withMessages(["terms.{$index}.milestone_name" => 'Nama milestone pemicu wajib diisi.']);
+            }
+        }
+
+        return DB::transaction(function () use ($quotation, $terms) {
+            $quotation->paymentTerms()->delete();
+
+            foreach ($terms as $index => $term) {
+                $trigger = PaymentTermTrigger::from($term['trigger']);
+
+                $quotation->paymentTerms()->create([
+                    'sequence' => $index + 1,
+                    'label' => trim($term['label']),
+                    'percentage' => $term['percentage'],
+                    'amount' => 0,
+                    'trigger' => $trigger->value,
+                    'due_date' => $trigger === PaymentTermTrigger::Tanggal ? $term['due_date'] : null,
+                    'milestone_name' => $trigger === PaymentTermTrigger::Milestone ? trim($term['milestone_name']) : null,
+                ]);
+            }
+
+            $this->recalculatePaymentTerms($quotation);
+
+            return $quotation->fresh('paymentTerms');
+        });
+    }
+
+    /**
+     * Pre-Sprint-12 entry point: a flat item list without sections,
+     * discount or rounding (DemoDataSeeder, older tests). Same rules as saveRab().
+     */
+    public function replaceItems(Quotation $quotation, array $items): Quotation
+    {
+        return $this->saveRab($quotation, ['items' => $items]);
+    }
+
+    /**
+     * Estimator hands the draft to PM / Asisten PM for the item review
+     * (Sprint 12 #7) — SUBMITTED now means "waiting for PM".
      */
     public function submit(Quotation $quotation): Quotation
     {
@@ -151,17 +320,17 @@ class QuotationService
         }
 
         return DB::transaction(function () use ($quotation) {
+            // Sprint 12 #12: a RAB always carries a payment scheme.
+            $this->ensureDefaultPaymentTerms($quotation);
             $quotation->update(['status' => QuotationStatus::Submitted->value]);
 
-            $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_DRAFTED);
+            $this->syncDesign($quotation, DesignService::EVENT_QUOTATION_DRAFTED);
 
-            // PRD §4.9 "Quotation disubmit → CEO, PM" — CEO acts first (see
-            // ceoDecision()), PM is told now so the second gate isn't a surprise.
             $this->notificationService->notifyRoles(
-                ['CEO', 'PM'],
+                self::REVIEW_ROLES[QuotationItemReview::STAGE_PM],
                 'quotation_submitted',
-                'Quotation Menunggu Approval',
-                "Quotation \"{$quotation->lead->client_name}\" versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') disubmit dan menunggu approval CEO.',
+                "{$this->typeLabel($quotation)} Menunggu Review",
+                "{$this->typeLabel($quotation)} \"{$quotation->lead->client_name}\" versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') menunggu review item oleh PM / Asisten PM.',
                 ['quotation_id' => $quotation->id],
             );
 
@@ -170,25 +339,185 @@ class QuotationService
     }
 
     /**
-     * CEO's gate. `$decision` is 'approve'|'reject' — a single entry point
-     * (rather than two methods) so the "must be SUBMITTED" guard lives in
-     * one place. Reject requires a note (mirrors Lead's lost_reason rule).
+     * Sprint 12 decision #8 — the item review. The stage follows the
+     * status: SUBMITTED is the PM / Asisten PM's, WAITING_CEO the CEO's
+     * (so the CEO can never decide before the PM). Every item gets ✔ OK
+     * or ✘ SALAH (a ✘ needs a note) at the PM stage; the CEO may mark the
+     * items they object to. "approve" needs no ✘; "return" needs a ✘ or a
+     * note and closes the version back to DRAFT for the Estimator. PM's
+     * approval of a RAB Proyek moves it on to the CEO; otherwise the RAB
+     * is approved internally.
+     *
+     * @param  array{decision: string, note?: ?string, items?: list<array{item_id: int, verdict: string, note?: ?string}>}  $data
      */
-    public function ceoDecision(Quotation $quotation, string $decision, User $actor, ?string $note = null): Quotation
+    public function review(Quotation $quotation, array $data, User $actor): Quotation
     {
-        return $this->recordDecision($quotation, 'CEO', $decision, $actor, $note);
+        $stage = $this->reviewStage($quotation, $actor);
+        $decision = $data['decision'];
+        $note = filled($data['note'] ?? null) ? trim($data['note']) : null;
+        $marks = collect($data['items'] ?? [])->keyBy(fn (array $mark) => (int) $mark['item_id']);
+        $items = $quotation->items()->with('section:id,name')->get()->keyBy('id');
+
+        if ($marks->keys()->diff($items->keys())->isNotEmpty()) {
+            throw ValidationException::withMessages(['items' => 'Ada item yang bukan bagian dari RAB ini.']);
+        }
+
+        if ($stage === QuotationItemReview::STAGE_PM && $marks->count() !== $items->count()) {
+            throw ValidationException::withMessages(['items' => 'Tandai semua item RAB (✔ cocok / ✘ kurang cocok) sebelum memutuskan.']);
+        }
+
+        foreach ($marks as $itemId => $mark) {
+            if ($mark['verdict'] === QuotationItemReview::VERDICT_SALAH && blank($mark['note'] ?? null)) {
+                throw ValidationException::withMessages(["items.{$itemId}" => "Catatan wajib diisi untuk item ✘ \"{$items[$itemId]->description}\"."]);
+            }
+        }
+
+        $wrong = $marks->where('verdict', QuotationItemReview::VERDICT_SALAH)->count();
+
+        if ($decision === 'approve' && $wrong > 0) {
+            throw ValidationException::withMessages(['decision' => 'RAB dengan item ✘ tidak bisa disetujui — kembalikan ke Estimator.']);
+        }
+
+        if ($decision === 'return' && $wrong === 0 && $note === null) {
+            throw ValidationException::withMessages(['note' => 'Tandai item yang salah (✘) atau tulis catatan alasan RAB dikembalikan.']);
+        }
+
+        return DB::transaction(function () use ($quotation, $stage, $decision, $note, $marks, $items, $wrong, $actor) {
+            // Serialize decisions on one quotation — a double-submitted click
+            // must not record two reviews or close one version twice.
+            Quotation::whereKey($quotation->getKey())->lockForUpdate()->first();
+            $quotation->refresh();
+
+            if ($this->reviewStage($quotation, $actor) !== $stage) {
+                throw ValidationException::withMessages(['status' => 'RAB ini sudah diputuskan oleh reviewer lain.']);
+            }
+
+            $oldStatus = $quotation->status;
+            $version = $quotation->version;
+
+            foreach ($marks as $itemId => $mark) {
+                QuotationItemReview::create([
+                    'quotation_id' => $quotation->id,
+                    'version' => $version,
+                    'quotation_item_id' => $itemId,
+                    'item_description' => $items[$itemId]->description,
+                    'section_name' => $items[$itemId]->section?->name,
+                    'stage' => $stage,
+                    'reviewer_id' => $actor->id,
+                    'verdict' => $mark['verdict'],
+                    'note' => filled($mark['note'] ?? null) ? trim($mark['note']) : null,
+                ]);
+            }
+
+            $summary = $note ?? "{$wrong} item ditandai ✘.";
+
+            QuotationApproval::create([
+                'quotation_id' => $quotation->id,
+                'version' => $version,
+                'approver_id' => $actor->id,
+                'approver_role' => $stage,
+                'status' => $decision === 'approve' ? 'APPROVED' : 'REJECTED',
+                'note' => $decision === 'approve' ? $note : $summary,
+            ]);
+
+            if ($decision === 'return') {
+                $this->closeVersion($quotation, $stage, $actor, $summary);
+            } else {
+                $next = $stage === QuotationItemReview::STAGE_PM && $quotation->type === QuotationType::Proyek
+                    ? QuotationStatus::WaitingCeo
+                    : QuotationStatus::ApprovedInternal;
+                $quotation->update(['status' => $next->value]);
+            }
+
+            // PRD §9.4 "approval quotation" — audit trail.
+            $this->auditLogService->record(
+                'quotation.'.strtolower($stage).'_'.($decision === 'approve' ? 'approved' : 'returned'),
+                $quotation,
+                ['status' => $oldStatus, 'version' => $version],
+                ['status' => $quotation->status, 'version' => $quotation->version, 'total_amount' => $quotation->total_amount, 'items_wrong' => $wrong, 'note' => $note],
+                $actor,
+            );
+
+            $this->notifyReview($quotation, $stage, $decision, $summary, $actor, $version);
+
+            return $quotation->fresh();
+        });
+    }
+
+    /** Sprint 12 #10 — the Estimator hands the internally approved RAB to Marketing. */
+    public function sendToMarketing(Quotation $quotation, User $actor): Quotation
+    {
+        return $this->advance($quotation, QuotationStatus::ApprovedInternal, QuotationStatus::ReadyToSend, $actor, 'quotation.sent_to_marketing',
+            'RAB ini belum disetujui internal — belum bisa dikirim ke Marketing.',
+            function (Quotation $quotation) use ($actor) {
+                $quotation->loadMissing(['lead.assignee', 'requester']);
+                $recipients = collect([$quotation->lead->assignee, $quotation->requester])->filter()->unique('id');
+
+                if ($recipients->isEmpty()) {
+                    $this->notificationService->notifyRoles(['MARKETING'], 'quotation_ready_to_send', ...$this->readyToSendMessage($quotation, $actor));
+                } else {
+                    $this->notificationService->notifyMany($recipients, 'quotation_ready_to_send', ...$this->readyToSendMessage($quotation, $actor));
+                }
+            });
     }
 
     /**
-     * PM's gate — only reachable once CEO has approved (status
-     * CEO_REVIEW), which is exactly how "CEO dulu, baru PM" is enforced.
-     * Approving here also marks the quotation SENT_TO_CLIENT in the same
-     * step (see class docblock for why PM_REVIEW is never persisted) and
-     * starts its VALIDITY_DAYS validity period.
+     * Marketing sends the final RAB to the client — the offer's validity
+     * period starts here (PRD §4.3 "default 14 hari dari tanggal kirim").
+     * Sub 5 adds the client's approval link on top of this step.
      */
-    public function pmDecision(Quotation $quotation, string $decision, User $actor, ?string $note = null): Quotation
+    public function sendToClient(Quotation $quotation, User $actor): Quotation
     {
-        return $this->recordDecision($quotation, 'PM', $decision, $actor, $note);
+        return $this->advance($quotation, QuotationStatus::ReadyToSend, QuotationStatus::SentToClient, $actor, 'quotation.sent_to_client',
+            'RAB ini belum dikirim Estimator ke Marketing.',
+            function (Quotation $quotation) {
+                $now = now();
+                $quotation->update([
+                    'valid_until' => now('Asia/Jakarta')->startOfDay()->addDays(self::VALIDITY_DAYS)->toDateString(),
+                    'first_sent_at' => $quotation->first_sent_at ?? $now,
+                    'sent_at' => $now,
+                ]);
+
+                $this->syncDesign($quotation, DesignService::EVENT_QUOTATION_SENT);
+            });
+    }
+
+    /**
+     * Marketing drops a RAB that is still running (client changed their
+     * mind, wrong request) — a reason is required. A RAB Jasa Survey
+     * releases its survey, so a new one can be asked for.
+     */
+    public function cancel(Quotation $quotation, User $actor, string $reason): Quotation
+    {
+        if (blank($reason)) {
+            throw ValidationException::withMessages(['reason' => 'Alasan pembatalan wajib diisi.']);
+        }
+
+        return DB::transaction(function () use ($quotation, $actor, $reason) {
+            Quotation::whereKey($quotation->getKey())->lockForUpdate()->first();
+            $quotation->refresh();
+
+            if (! $quotation->status->isOpen()) {
+                throw ValidationException::withMessages(['status' => 'RAB ini sudah selesai atau dibatalkan.']);
+            }
+
+            $oldStatus = $quotation->status;
+            $quotation->update(['status' => QuotationStatus::Cancelled->value]);
+            LeadSurvey::where('quotation_id', $quotation->id)->update(['quotation_id' => null]);
+
+            $this->auditLogService->record('quotation.cancelled', $quotation, ['status' => $oldStatus], ['status' => $quotation->status, 'reason' => trim($reason)], $actor);
+
+            $quotation->loadMissing(['creator', 'lead']);
+            $this->notificationService->notifyMany(
+                collect([$quotation->creator])->filter()->reject(fn (User $user) => $user->is($actor)),
+                'quotation_cancelled',
+                "{$this->typeLabel($quotation)} Dibatalkan",
+                "{$actor->name} membatalkan {$this->typeLabel($quotation)} \"{$quotation->lead->client_name}\": ".trim($reason),
+                ['quotation_id' => $quotation->id],
+            );
+
+            return $quotation->fresh();
+        });
     }
 
     /**
@@ -200,91 +529,105 @@ class QuotationService
      */
     public function clientReject(Quotation $quotation, User $actor, ?string $note): Quotation
     {
-        return $this->recordDecision($quotation, 'CLIENT', 'reject', $actor, $note);
-    }
+        $this->assertStatus($quotation, QuotationStatus::SentToClient, 'Penolakan klien hanya bisa dicatat saat penawaran sudah dikirim ke klien.');
 
-    private function recordDecision(Quotation $quotation, string $gate, string $decision, User $actor, ?string $note): Quotation
-    {
-        [$requiredStatus, $approveStatus, $notReadyMessage] = self::GATES[$gate];
-
-        $this->assertStatus($quotation, $requiredStatus, $notReadyMessage);
-
-        if (! in_array($decision, $approveStatus ? ['approve', 'reject'] : ['reject'], true)) {
-            throw ValidationException::withMessages(['decision' => 'Keputusan tidak valid.']);
+        if (blank($note)) {
+            throw ValidationException::withMessages(['note' => 'Alasan penolakan klien wajib diisi.']);
         }
 
-        if ($decision === 'reject' && blank($note)) {
-            throw ValidationException::withMessages([
-                'note' => $gate === 'CLIENT' ? 'Alasan penolakan klien wajib diisi.' : 'Catatan alasan reject wajib diisi.',
-            ]);
-        }
-
-        return DB::transaction(function () use ($quotation, $gate, $decision, $approveStatus, $requiredStatus, $notReadyMessage, $actor, $note) {
-            // Serialize decisions on one quotation — a double-submitted
-            // click must not record two decisions or close one version
-            // twice: take the row lock, reload, and re-check the gate.
+        return DB::transaction(function () use ($quotation, $actor, $note) {
             Quotation::whereKey($quotation->getKey())->lockForUpdate()->first();
             $quotation->refresh();
-            $this->assertStatus($quotation, $requiredStatus, $notReadyMessage);
+            $this->assertStatus($quotation, QuotationStatus::SentToClient, 'Penolakan klien hanya bisa dicatat saat penawaran sudah dikirim ke klien.');
 
-            $oldStatus = $quotation->status;
+            $old = ['status' => $quotation->status, 'version' => $quotation->version, 'valid_until' => $quotation->valid_until];
             $oldVersion = $quotation->version;
-            $oldValidUntil = $quotation->valid_until;
 
             QuotationApproval::create([
                 'quotation_id' => $quotation->id,
                 'version' => $quotation->version,
                 'approver_id' => $actor->id,
-                'approver_role' => $gate,
-                'status' => $decision === 'approve' ? 'APPROVED' : 'REJECTED',
+                'approver_role' => 'CLIENT',
+                'status' => 'REJECTED',
                 'note' => $note,
             ]);
 
-            if ($decision === 'reject') {
-                $this->closeVersion($quotation, $gate, $actor, $note);
-            } elseif ($approveStatus === QuotationStatus::SentToClient) {
-                // PM's approval is the moment the offer goes out (PRD §4.3
-                // "default 14 hari dari tanggal kirim").
-                $quotation->update([
-                    'status' => $approveStatus->value,
-                    'valid_until' => now('Asia/Jakarta')->startOfDay()->addDays(self::VALIDITY_DAYS)->toDateString(),
-                ]);
-            } else {
-                $quotation->update(['status' => $approveStatus->value]);
-            }
+            $this->closeVersion($quotation, 'CLIENT', $actor, $note);
+            $this->syncDesign($quotation, DesignService::EVENT_CLIENT_REJECTED);
 
-            if ($decision === 'approve' && $approveStatus === QuotationStatus::SentToClient) {
-                $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_QUOTATION_SENT);
-            } elseif ($gate === 'CLIENT') {
-                $this->designService()->syncWithPipeline($quotation->lead_id, DesignService::EVENT_CLIENT_REJECTED);
-            }
+            $this->auditLogService->record('quotation.client_rejected', $quotation, $old, [
+                'status' => $quotation->status,
+                'version' => $quotation->version,
+                'valid_until' => $quotation->valid_until,
+                'total_amount' => $quotation->total_amount,
+                'note' => $note,
+            ], $actor);
 
-            // PRD §9.4 "approval quotation" — audit trail.
-            $old = ['status' => $oldStatus];
-            $new = ['status' => $quotation->status, 'total_amount' => $quotation->total_amount, 'note' => $note];
-
-            if ($decision === 'reject') {
-                $old['version'] = $oldVersion;
-                $new['version'] = $quotation->version;
-            }
-
-            if ($quotation->wasChanged('valid_until')) {
-                $old['valid_until'] = $oldValidUntil;
-                $new['valid_until'] = $quotation->valid_until;
-            }
-
-            $this->auditLogService->record(
-                'quotation.'.strtolower($gate).'_'.($decision === 'approve' ? 'approved' : 'rejected'),
-                $quotation,
-                $old,
-                $new,
-                $actor,
+            $quotation->loadMissing(['creator', 'lead.assignee']);
+            $this->notificationService->notifyMany(
+                collect([$quotation->creator, $quotation->lead->assignee])->filter()->unique('id')->reject(fn (User $user) => $user->is($actor)),
+                'quotation_rejected',
+                'Penawaran Ditolak Klien',
+                "Klien menolak penawaran \"{$quotation->lead->client_name}\" versi {$oldVersion} — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi: {$note}",
+                ['quotation_id' => $quotation->id],
             );
-
-            $this->notifyDecision($quotation, $decision, $gate, $note, $actor, $oldVersion);
 
             return $quotation->fresh();
         });
+    }
+
+    /**
+     * Whose turn it is, checked against the actor: PM / Asisten PM on
+     * SUBMITTED, CEO on WAITING_CEO (SUPERADMIN acts as either).
+     */
+    public function reviewStage(Quotation $quotation, User $actor): string
+    {
+        $stage = match ($quotation->status) {
+            QuotationStatus::Submitted => QuotationItemReview::STAGE_PM,
+            QuotationStatus::WaitingCeo => QuotationItemReview::STAGE_CEO,
+            default => throw ValidationException::withMessages(['status' => 'RAB ini tidak sedang menunggu review.']),
+        };
+
+        if (! $actor->hasAnyRole([...self::REVIEW_ROLES[$stage], 'SUPERADMIN'])) {
+            throw ValidationException::withMessages(['status' => $stage === QuotationItemReview::STAGE_PM
+                ? 'RAB ini menunggu review PM / Asisten PM terlebih dahulu.'
+                : 'RAB ini menunggu keputusan CEO.']);
+        }
+
+        return $stage;
+    }
+
+    /** One locked, audited status step (sendToMarketing / sendToClient). */
+    private function advance(Quotation $quotation, QuotationStatus $from, QuotationStatus $to, User $actor, string $action, string $notReady, callable $after): Quotation
+    {
+        $this->assertStatus($quotation, $from, $notReady);
+
+        return DB::transaction(function () use ($quotation, $from, $to, $actor, $action, $notReady, $after) {
+            Quotation::whereKey($quotation->getKey())->lockForUpdate()->first();
+            $quotation->refresh();
+            $this->assertStatus($quotation, $from, $notReady);
+
+            $quotation->update(['status' => $to->value]);
+            $after($quotation);
+
+            $this->auditLogService->record($action, $quotation, ['status' => $from], [
+                'status' => $quotation->status,
+                'total_amount' => $quotation->total_amount,
+                'valid_until' => $quotation->valid_until,
+            ], $actor);
+
+            return $quotation->fresh();
+        });
+    }
+
+    /** @return array{0: string, 1: string, 2: array<string, int>} title, message, metadata */
+    private function readyToSendMessage(Quotation $quotation, User $actor): array
+    {
+        return [
+            "{$this->typeLabel($quotation)} Siap Dikirim",
+            "{$actor->name} mengirim {$this->typeLabel($quotation)} final \"{$quotation->lead->client_name}\" (".$this->rupiah($quotation->total_amount).') — silakan kirim ke klien.',
+            ['quotation_id' => $quotation->id],
+        ];
     }
 
     /**
@@ -301,14 +644,33 @@ class QuotationService
             'quotation_id' => $quotation->id,
             'version' => $quotation->version,
             'total_amount' => $quotation->total_amount,
-            'items' => $quotation->items()->get()->map(fn (QuotationItem $item) => [
+            'items' => $quotation->items()->with('section:id,name')->get()->map(fn (QuotationItem $item) => [
+                // Sprint 12: the bagian pekerjaan and dimensions travel with the line.
+                'section' => $item->section?->name,
                 'description' => $item->description,
+                'dim_length' => $item->dim_length,
+                'dim_width_height' => $item->dim_width_height,
                 'qty' => (float) $item->qty,
                 // Snapshots taken before Master Satuan (Sprint 11) hold a free-text `unit` instead.
                 'unit_code' => $item->unit?->code,
                 'unit_price' => $item->unit_price,
                 'total_price' => $item->total_price,
             ])->all(),
+            // Sprint 12 #11–#12: totals and the payment scheme of the closed version.
+            'details' => [
+                'items_total' => $quotation->items_total,
+                'discount_amount' => $quotation->discount_amount,
+                'rounded_total' => $quotation->rounded_total,
+                'payment_terms' => $quotation->paymentTerms()->get()->map(fn (QuotationPaymentTerm $term) => [
+                    'sequence' => $term->sequence,
+                    'label' => $term->label,
+                    'percentage' => $term->percentage,
+                    'amount' => $term->amount,
+                    'trigger' => $term->trigger->value,
+                    'due_date' => $term->due_date?->toDateString(),
+                    'milestone_name' => $term->milestone_name,
+                ])->all(),
+            ],
             'reason' => QuotationRevision::reasonFor($gate),
             'note' => $note,
             'closed_by' => $actor->id,
@@ -321,6 +683,57 @@ class QuotationService
         ]);
     }
 
+    /**
+     * D4: a Jasa Survey / Jasa Desain RAB is paid 100% upfront; a project
+     * RAB starts with the same single row until the Estimator drafts its
+     * DP/termin scheme. Only when the quotation has no scheme yet.
+     */
+    private function ensureDefaultPaymentTerms(Quotation $quotation): void
+    {
+        if ($quotation->paymentTerms()->exists()) {
+            return;
+        }
+
+        $quotation->paymentTerms()->create([
+            'sequence' => 1,
+            'label' => 'Pembayaran penuh',
+            'percentage' => 100,
+            'amount' => $quotation->total_amount ?? 0,
+            'trigger' => PaymentTermTrigger::DiMuka->value,
+        ]);
+    }
+
+    /** amount = total × percentage, in cents; the last row takes the remainder so the rows sum to the total exactly. */
+    private function recalculatePaymentTerms(Quotation $quotation): void
+    {
+        $terms = $quotation->paymentTerms()->get();
+
+        if ($terms->isEmpty()) {
+            return;
+        }
+
+        $totalCents = (int) round((float) $quotation->fresh()->total_amount * 100);
+        $assigned = 0;
+
+        foreach ($terms as $index => $term) {
+            $cents = $index === $terms->count() - 1
+                ? $totalCents - $assigned
+                : (int) floor($totalCents * (float) $term->percentage / 100);
+            $assigned += $cents;
+
+            $term->update(['amount' => $cents / 100]);
+        }
+    }
+
+    /** The design pipeline only follows the project RAB (Jasa Survey / Desain quotations don't move it). */
+    private function syncDesign(Quotation $quotation, string $event): void
+    {
+        // An in-memory row created without `type` is PROYEK (the column default).
+        if (($quotation->type ?? QuotationType::Proyek) === QuotationType::Proyek) {
+            $this->designService()->syncWithPipeline($quotation->lead_id, $event);
+        }
+    }
+
     private function assertStatus(Quotation $quotation, QuotationStatus $required, string $message): void
     {
         if ($quotation->status !== $required) {
@@ -329,52 +742,55 @@ class QuotationService
     }
 
     /**
-     * PRD §4.9 "Quotation approve/reject → Estimator, Marketing": the
-     * Estimator who built the RAB and the Marketing owner of the lead —
-     * minus whoever made the decision (a Marketing user recording their
-     * own client's rejection doesn't need telling). A CEO approval
-     * additionally hands the next gate to PM.
+     * Sprint 12: a returned RAB goes back to the Estimator who built it;
+     * PM's approval of a RAB Proyek hands it to the CEO; an internal
+     * approval tells the Estimator to send it on to Marketing.
      */
-    private function notifyDecision(Quotation $quotation, string $decision, string $gate, ?string $note, User $actor, int $decidedVersion): void
+    private function notifyReview(Quotation $quotation, string $stage, string $decision, string $summary, User $actor, int $reviewedVersion): void
     {
-        $quotation->loadMissing(['creator', 'lead.assignee']);
+        $quotation->loadMissing(['creator', 'lead']);
         $client = $quotation->lead->client_name;
+        $label = $this->typeLabel($quotation);
         $metadata = ['quotation_id' => $quotation->id];
+        $estimator = collect([$quotation->creator])->filter()->reject(fn (User $user) => $user->is($actor));
+        $by = $stage === QuotationItemReview::STAGE_PM ? 'PM / Asisten PM' : 'CEO';
 
-        if ($decision === 'reject' && $gate === 'CLIENT') {
-            $title = 'Penawaran Ditolak Klien';
-            $message = "Klien menolak penawaran \"{$client}\" versi {$decidedVersion} — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi: {$note}";
-        } elseif ($decision === 'reject') {
-            $title = 'Quotation Ditolak';
-            $message = "Quotation \"{$client}\" versi {$decidedVersion} ditolak {$gate} dan kembali ke DRAFT sebagai versi {$quotation->version}: {$note}";
-        } elseif ($gate === 'CEO') {
-            $title = 'Quotation Disetujui';
-            $message = "Quotation \"{$client}\" disetujui CEO, menunggu approval PM.";
-        } else {
-            $title = 'Quotation Disetujui';
-            $message = "Quotation \"{$client}\" disetujui CEO & PM dan siap dikirim ke klien — berlaku sampai "
-                .$quotation->valid_until->translatedFormat('d F Y').'.';
+        if ($decision === 'return') {
+            $this->notificationService->notifyMany(
+                $estimator,
+                'quotation_rejected',
+                "{$label} Dikembalikan",
+                "{$label} \"{$client}\" versi {$reviewedVersion} dikembalikan {$by} ({$actor->name}) dan dibuka lagi sebagai versi {$quotation->version}: {$summary}",
+                $metadata,
+            );
+
+            return;
+        }
+
+        if ($quotation->status === QuotationStatus::WaitingCeo) {
+            $this->notificationService->notifyRoles(
+                self::REVIEW_ROLES[QuotationItemReview::STAGE_CEO],
+                'quotation_awaiting_ceo',
+                'RAB Proyek Menunggu Approval CEO',
+                "RAB Proyek \"{$client}\" (".$this->rupiah($quotation->total_amount).") sudah di-ACC {$actor->name} dan menunggu keputusan Anda.",
+                $metadata,
+            );
+
+            return;
         }
 
         $this->notificationService->notifyMany(
-            collect([$quotation->creator, $quotation->lead->assignee])
-                ->filter()
-                ->reject(fn (User $user) => $user->is($actor)),
-            $decision === 'reject' ? 'quotation_rejected' : 'quotation_approved',
-            $title,
-            $message,
+            $estimator,
+            'quotation_approved',
+            "{$label} Disetujui",
+            "{$label} \"{$client}\" disetujui {$by} — kirim RAB final ke Marketing.",
             $metadata,
         );
+    }
 
-        if ($decision === 'approve' && $gate === 'CEO') {
-            $this->notificationService->notifyRoles(
-                ['PM'],
-                'quotation_awaiting_pm',
-                'Quotation Menunggu Approval PM',
-                "Quotation \"{$client}\" sudah disetujui CEO dan menunggu approval Anda.",
-                $metadata,
-            );
-        }
+    private function typeLabel(Quotation $quotation): string
+    {
+        return ($quotation->type ?? QuotationType::Proyek)->label();
     }
 
     /**

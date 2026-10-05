@@ -1,8 +1,11 @@
 <?php
 
 use App\Models\MaterialCategory;
+use App\Models\Quotation;
 use App\Models\Unit;
+use App\Models\User;
 use App\Models\Vendor;
+use App\Services\QuotationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -68,4 +71,24 @@ function vendorId(string $name): int
 function categoryId(string $prefix = 'KYP', ?string $name = null): int
 {
     return MaterialCategory::firstOrCreate(['code_prefix' => $prefix], ['name' => $name ?? "Kategori {$prefix}"])->id;
+}
+
+/**
+ * Sprint 12 #8 — QuotationService::review() with every item marked: ✔
+ * unless its description is a key of `$wrong` (→ ✘ with that note).
+ * Decision "return" when anything is ✘ or a note is given, else "approve".
+ *
+ * @param  array<string, string>  $wrong
+ */
+function reviewQuotation(Quotation $quotation, User $reviewer, array $wrong = [], ?string $note = null): Quotation
+{
+    return app(QuotationService::class)->review($quotation, [
+        'decision' => $wrong === [] && $note === null ? 'approve' : 'return',
+        'note' => $note,
+        'items' => $quotation->items()->get()->map(fn ($item) => [
+            'item_id' => $item->id,
+            'verdict' => isset($wrong[$item->description]) ? 'SALAH' : 'OK',
+            'note' => $wrong[$item->description] ?? null,
+        ])->all(),
+    ], $reviewer);
 }

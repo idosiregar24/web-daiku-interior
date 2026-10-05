@@ -90,6 +90,8 @@ class LeadController extends Controller
             'design:id,lead_id,pic_id,status,deadline,client_acc',
             'design.pic:id,name',
             'quotation:id,lead_id,status,total_amount,version,valid_until',
+            // Sprint 12 #6 — RAB Jasa Survey / Jasa Desain / Proyek, all versions' current rows.
+            'quotations:id,lead_id,type,status,total_amount,version,created_at',
             'project:id,lead_id,name,pm_id,status,contract_value',
             'project.pm:id,name',
             // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
@@ -201,9 +203,11 @@ class LeadController extends Controller
     {
         $service->submitRequest($lead, $request->validated(), $request->user());
 
-        return back()->with('success', $request->validated('type') === 'SURVEY'
-            ? 'Survey dijadwalkan dan lead masuk tahap Pengajuan Desain/Survey.'
-            : 'Lead masuk tahap Pengajuan Desain/Survey.');
+        return back()->with('success', match ($request->validated('type')) {
+            'SURVEY' => 'Survey dijadwalkan dan lead masuk tahap Pengajuan Desain/Survey.',
+            'DESAIN' => 'Lead masuk tahap Pengajuan Desain/Survey.',
+            default => LeadService::RAB_REQUEST_TYPES[$request->validated('type')]->label().' diminta — Estimator mendapat notifikasi.',
+        });
     }
 
     /**

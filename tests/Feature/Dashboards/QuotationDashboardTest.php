@@ -62,21 +62,23 @@ test('every other role is refused the quotation dashboard', function (string $ro
 
 test('queues list the oldest first and a returned draft shows why it came back', function () {
     $rejected = Quotation::factory()->create(['total_amount' => 80_000_000, 'version' => 2, 'created_at' => '2026-09-20 09:00:00']);
-    quotationDecision($rejected, 'CEO', 'APPROVED', '2026-09-22 09:00:00');
+    quotationDecision($rejected, 'PM', 'APPROVED', '2026-09-22 09:00:00');
     quotationDecision($rejected, 'CLIENT', 'REJECTED', '2026-09-25 09:00:00', 'Minta material lebih murah');
     $fresh = Quotation::factory()->create(['created_at' => '2026-09-29 09:00:00']);
     $submittedLater = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value, 'updated_at' => '2026-09-29 08:00:00']);
     $submittedEarlier = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value, 'updated_at' => '2026-09-26 08:00:00']);
-    Quotation::factory()->create(['status' => QuotationStatus::CeoReview->value]);
+    $waitingCeo = Quotation::factory()->create(['status' => QuotationStatus::WaitingCeo->value]);
+    $approved = Quotation::factory()->create(['status' => QuotationStatus::ApprovedInternal->value]);
     Quotation::factory()->sentToClient()->create();
 
     $this->actingAs(quotationDashboardUser('ESTIMATOR'))->get(route('quotations.dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('statusCounts.DRAFT', 2)
             ->where('statusCounts.SUBMITTED', 2)
-            ->where('statusCounts.CEO_REVIEW', 1)
+            ->where('statusCounts.WAITING_CEO', 1)
+            ->where('statusCounts.APPROVED_INTERNAL', 1)
             ->where('statusCounts.SENT_TO_CLIENT', 1)
-            ->where('statusCounts.APPROVED', 0)
+            ->where('statusCounts.CLIENT_APPROVED', 0)
             ->where('todo.total', 2)
             ->where('todo.rows.0.id', $rejected->id)
             ->where('todo.rows.0.daysWaiting', 10)
@@ -85,10 +87,14 @@ test('queues list the oldest first and a returned draft shows why it came back',
             ->where('todo.rows.0.lastRejection.note', 'Minta material lebih murah')
             ->where('todo.rows.1.id', $fresh->id)
             ->where('todo.rows.1.lastRejection', null)
-            ->where('waitingCeo.rows.0.id', $submittedEarlier->id)
-            ->where('waitingCeo.rows.0.daysWaiting', 4)
-            ->where('waitingCeo.rows.1.id', $submittedLater->id)
-            ->where('waitingPm.total', 1));
+            // Sprint 12: SUBMITTED waits for the PM review, then WAITING_CEO for the CEO.
+            ->where('waitingPm.rows.0.id', $submittedEarlier->id)
+            ->where('waitingPm.rows.0.daysWaiting', 4)
+            ->where('waitingPm.rows.1.id', $submittedLater->id)
+            ->where('waitingCeo.total', 1)
+            ->where('waitingCeo.rows.0.id', $waitingCeo->id)
+            ->where('readyToSend.total', 1)
+            ->where('readyToSend.rows.0.id', $approved->id));
 });
 
 test('a draft whose latest decision was an approval shows no stale rejection note', function () {
@@ -104,13 +110,11 @@ test('a draft whose latest decision was an approval shows no stale rejection not
 // ── RAB value per month & turnaround ─────────────────────────────────────
 
 test('RAB value is bucketed by the last send month and the deal month', function () {
-    $sentTwice = Quotation::factory()->sentToClient()->create(['total_amount' => 150_000_000]);
-    quotationDecision($sentTwice, 'PM', 'APPROVED', '2026-08-10 09:00:00');
+    // Sprint 12: Marketing's "Kirim ke Client" stamps first_sent_at / sent_at.
+    $sentTwice = Quotation::factory()->sentToClient()->create(['total_amount' => 150_000_000, 'first_sent_at' => '2026-08-10 09:00:00', 'sent_at' => '2026-09-05 09:00:00']);
     quotationDecision($sentTwice, 'CLIENT', 'REJECTED', '2026-08-20 09:00:00', 'Revisi');
-    quotationDecision($sentTwice, 'PM', 'APPROVED', '2026-09-05 09:00:00');
 
-    $deal = Quotation::factory()->approved()->create(['total_amount' => 90_000_000]);
-    quotationDecision($deal, 'PM', 'APPROVED', '2026-08-01 09:00:00');
+    $deal = Quotation::factory()->approved()->create(['total_amount' => 90_000_000, 'first_sent_at' => '2026-08-01 09:00:00', 'sent_at' => '2026-08-01 09:00:00']);
     Project::factory()->create(['lead_id' => $deal->lead_id, 'created_at' => '2026-09-12 09:00:00']);
 
     $months = app(DivisionDashboardService::class)->quotationMonthlyValue()->keyBy('month');
@@ -121,19 +125,16 @@ test('RAB value is bucketed by the last send month and the deal month', function
 });
 
 test('turnaround runs from draft creation to the first send and counts rejections before it', function () {
-    $quick = Quotation::factory()->sentToClient()->create(['created_at' => '2026-09-20 09:00:00']);
-    quotationDecision($quick, 'CEO', 'APPROVED', '2026-09-21 09:00:00');
-    quotationDecision($quick, 'PM', 'APPROVED', '2026-09-22 09:00:00'); // 2 days
+    $quick = Quotation::factory()->sentToClient()->create(['created_at' => '2026-09-20 09:00:00', 'first_sent_at' => '2026-09-22 09:00:00']); // 2 days
+    quotationDecision($quick, 'PM', 'APPROVED', '2026-09-21 09:00:00');
 
-    $revised = Quotation::factory()->sentToClient()->create(['created_at' => '2026-09-01 09:00:00']);
-    quotationDecision($revised, 'CEO', 'REJECTED', '2026-09-03 09:00:00', 'Terlalu mahal');
-    quotationDecision($revised, 'CEO', 'APPROVED', '2026-09-05 09:00:00');
-    quotationDecision($revised, 'PM', 'APPROVED', '2026-09-07 09:00:00'); // 6 days, 1 rejection
+    $revised = Quotation::factory()->sentToClient()->create(['created_at' => '2026-09-01 09:00:00', 'first_sent_at' => '2026-09-07 09:00:00']); // 6 days, 1 return
+    quotationDecision($revised, 'PM', 'REJECTED', '2026-09-03 09:00:00', 'Terlalu mahal');
+    quotationDecision($revised, 'PM', 'APPROVED', '2026-09-05 09:00:00');
     quotationDecision($revised, 'CLIENT', 'REJECTED', '2026-09-10 09:00:00', 'Setelah terkirim'); // after the first send
 
     // First sent before the 6-month window — ignored.
-    $old = Quotation::factory()->sentToClient()->create(['created_at' => '2026-01-01 09:00:00']);
-    quotationDecision($old, 'PM', 'APPROVED', '2026-02-20 09:00:00');
+    $old = Quotation::factory()->sentToClient()->create(['created_at' => '2026-01-01 09:00:00', 'first_sent_at' => '2026-02-20 09:00:00']);
 
     expect(app(DivisionDashboardService::class)->quotationTurnaround())->toBe([
         'avgDays' => 4.0,

@@ -222,7 +222,7 @@ test('confirming a deal closes the lead and creates a project in one transaction
         ->and($lead->pipelineLogs()->count())->toBe(1)
         ->and(Project::where('lead_id', $lead->id)->exists())->toBeTrue()
         // Marketing's confirmation records the client's acceptance.
-        ->and($quotation->fresh()->status)->toBe(QuotationStatus::Approved);
+        ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved);
 });
 
 test('confirming a deal is rejected until the quotation clears CEO and PM approval', function (?string $quotationStatus) {
@@ -247,7 +247,9 @@ test('confirming a deal is rejected until the quotation clears CEO and PM approv
     'no quotation' => [null],
     'draft' => ['DRAFT'],
     'submitted' => ['SUBMITTED'],
-    'CEO approved only' => ['CEO_REVIEW'],
+    'waiting for the CEO' => ['WAITING_CEO'],
+    'approved internally, still with the Estimator' => ['APPROVED_INTERNAL'],
+    'with Marketing, not sent yet' => ['READY_TO_SEND'],
 ]);
 
 test('confirming a deal notifies the project PM, CEO, Finance and Logistics', function () {
