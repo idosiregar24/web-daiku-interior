@@ -37,6 +37,7 @@ email) to browse it.
 | Sprint 10 | — (di luar PRD/CSV) | — | Modul SDM/HR (karyawan tetap): Divisi & Jabatan, Karyawan, Kedisiplinan/SP, Gaji, KPI bulanan, Evaluasi semester, Kinerja Saya — selesai 2026-10-04; absensi (SDM-7) menunggu alat | 26 selesai / 0 sebagian / 5 belum (31) | [sprint-10-sdm.md](sprint-10-sdm.md) |
 | Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
 | Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | **66 selesai / 0 sebagian / 0 belum (66)** — Sub 1–2 selesai 2026-10-04, Sub 3–14 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
+| Sprint 13 | — (di luar PRD/CSV) | — | Navigasi & UX — 12 sub-plan di `sprint-13/`: grup sidebar dilipat + urutan per role, hub bertab (Keuangan/Logistik/SDM), menu ⚙ Pengaturan, Perlu Tindakan + badge, Detail Proyek sebagai pusat, tombol "+ Buat" & pencarian, favorit, versi HP tukang (navigasi bawah, Hari Ini, PWA), HP/tablet PM | 0 selesai / 0 sebagian / 53 belum (53) — rencana dikunci 2026-10-05 | [sprint-13-navigasi-ux.md](sprint-13-navigasi-ux.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -47,6 +48,7 @@ checklist-nya.
 ```
 "Kerjakan Sprint 11 Sub 1"  →  ... Sub 6        (sprint-11/01..06)
 "Kerjakan Sprint 12 Sub 1"  →  ... Sub 14       (sprint-12/01..14)
+"Kerjakan Sprint 13 Sub 1"  →  ... Sub 12       (sprint-13/01..12)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini
