@@ -101,7 +101,9 @@ export interface LetterRow {
  */
 export interface CompanyLetter {
     kind: 'PENAWARAN' | 'INVOICE';
-    company: { name: string; logo: string | null; address: string | null; email: string | null; phone: string | null; instagram: string | null; footer: string };
+    company: { name: string; logo: string | null; address: string | null; email: string | null; phone: string | null; instagram: string | null; footer: string;
+        /** Letterhead contact icons as SVG data URIs (same as the PDF). */
+        icons: Record<'address' | 'email' | 'phone' | 'instagram', string> };
     signer: { name: string | null; title: string | null; signature: string | null };
     number: string | null;
     draft: boolean;

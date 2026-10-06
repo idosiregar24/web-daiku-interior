@@ -51,6 +51,8 @@ class DatabaseSeeder extends Seeder
         $this->call(MaterialCatalogSeeder::class);
         $this->call(MasterDataSeeder::class);
         $this->call(FinanceAllocationConfigSeeder::class);
+        // Sprint 15 — the company profile on the letterhead (PDF & client link).
+        $this->call(SiteSettingSeeder::class);
 
         foreach (self::DEMO_USERS as $role => $attributes) {
             $user = User::factory()->create($attributes);

@@ -7,6 +7,8 @@ const rupiah = (amount: number) => new Intl.NumberFormat('id-ID', { maximumFract
 /** Header & total rows of the RAB table — the light blue of the company's letters. */
 const HEAD = 'bg-info/15 text-daiku-dark';
 
+const CONTACT_FIELDS = ['address', 'email', 'phone', 'instagram'] as const;
+
 function RowCard({ row }: { row: LetterRow }) {
     return (
         <li className="px-3 py-2.5 text-sm">
@@ -46,10 +48,15 @@ export function LetterDocument({ letter, className }: { letter: CompanyLetter; c
                     )}
                 </div>
                 <div className="bg-daiku-yellow px-5 py-3 text-xs leading-relaxed text-daiku-dark sm:px-10 sm:text-right">
-                    {company.address && <p>{company.address}</p>}
-                    {company.email && <p>{company.email}</p>}
-                    {company.phone && <p>{company.phone}</p>}
-                    {company.instagram && <p>IG: {company.instagram}</p>}
+                    {/* Text, then its icon — the same marks as the PDF (LetterParts::ICONS). */}
+                    {CONTACT_FIELDS.map((field) =>
+                        company[field] ? (
+                            <p key={field} className="flex items-center gap-1.5 sm:justify-end">
+                                <span className="order-2 sm:order-1">{company[field]}</span>
+                                <img src={company.icons[field]} alt="" aria-hidden className="order-1 size-3 shrink-0 sm:order-2" />
+                            </p>
+                        ) : null,
+                    )}
                 </div>
             </header>
             <div className="h-1.5 bg-daiku-dark" />

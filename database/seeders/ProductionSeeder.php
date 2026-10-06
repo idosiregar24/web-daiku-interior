@@ -32,6 +32,8 @@ class ProductionSeeder extends Seeder
         $this->call(MaterialCatalogSeeder::class);
         // PRD §4.7 default allocation percentages — real configuration, not demo data.
         $this->call(FinanceAllocationConfigSeeder::class);
+        // Sprint 15 — the company profile on the letterhead (fills empty fields only).
+        $this->call(SiteSettingSeeder::class);
 
         foreach (self::LEAD_CATEGORIES as $name) {
             LeadCategory::firstOrCreate(['name' => $name]);

@@ -290,7 +290,7 @@ export default function LeadShow({
             </div>
 
             {/* Sprint 14 Sub 02 — every RAB of this client, one section per kind. */}
-            <div className="mb-6">
+            <div className="mt-6">
                 <RabHistoryCard quotations={lead.quotations} />
             </div>
 

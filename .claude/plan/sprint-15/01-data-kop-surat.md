@@ -28,3 +28,12 @@
   Pengaturan (`signature_url`).
 - Pengaturan Situs: Profil Perusahaan + Instagram & nama badan usaha; kartu
   baru "Surat & Tanda Tangan" dan "Catatan Bawaan RAB" (placeholder = teks contoh).
+- **`SiteSettingSeeder`** (dipanggil `DatabaseSeeder` & `ProductionSeeder`):
+  isi profil kop surat asli — Jl. Yos Sudarso, Rumbai, Pekanbaru ·
+  daikupku@gmail.com · 0811 759 7766 · Instagram DaikuInterior · PT Daiku
+  Shankara Kreasitech · penanda tangan Fendra Budiono. Hanya mengisi kolom
+  yang **kosong** — isian CEO di Pengaturan tidak pernah ditimpa, aman
+  dijalankan ulang saat deploy. Logo & tanda tangan tetap diunggah manual.
+- Blok kontak kuning di kop: teks + ikon (lokasi, email, WhatsApp, Instagram)
+  dari `LetterParts::ICONS` — SVG data URI, dipakai PDF dan `LetterDocument`
+  (link klien) sehingga keduanya identik.

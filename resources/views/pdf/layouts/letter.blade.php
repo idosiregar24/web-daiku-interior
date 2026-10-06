@@ -25,7 +25,9 @@
         .letterhead .brand { padding-left: 56px; height: 96px; }
         .letterhead .brand img { height: 58px; }
         .letterhead .brand .name { font-size: 20px; font-weight: bold; }
-        .letterhead .contact { width: 46%; background: #f5c518; text-align: right; padding: 10px 56px 10px 16px; font-size: 9px; line-height: 1.6; color: #1a1a1a; }
+        .letterhead .contact { width: 46%; background: #f5c518; text-align: right; padding: 10px 56px 10px 16px; font-size: 9.5px; color: #1a1a1a; }
+        .letterhead .contact .line { height: 17px; line-height: 17px; }
+        .letterhead .contact .icon { width: 11px; height: 11px; margin-left: 5px; vertical-align: middle; }
         .letterhead .rule { height: 6px; background: #1a1a1a; }
 
         .footer { position: fixed; bottom: -70px; left: -56px; right: -56px; height: 22px; background: #1a1a1a; color: #ffffff;
@@ -78,10 +80,12 @@
                     @endif
                 </td>
                 <td class="contact">
-                    @if($company['address']){{ $company['address'] }}<br>@endif
-                    @if($company['email']){{ $company['email'] }}<br>@endif
-                    @if($company['phone']){{ $company['phone'] }}<br>@endif
-                    @if($company['instagram'])IG: {{ $company['instagram'] }}@endif
+                    {{-- Text, then its icon — as on the company's letter. --}}
+                    @foreach(['address', 'email', 'phone', 'instagram'] as $field)
+                        @if($company[$field])
+                            <div class="line">{{ $company[$field] }} <img class="icon" src="{{ $company['icons'][$field] }}" alt=""></div>
+                        @endif
+                    @endforeach
                 </td>
             </tr>
         </table>

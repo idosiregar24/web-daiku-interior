@@ -13,6 +13,7 @@ use App\Services\QuotationService;
 use App\Support\Letters\QuotationLetter;
 use App\Support\Terbilang;
 use Database\Seeders\RoleSeeder;
+use Database\Seeders\SiteSettingSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
@@ -235,4 +236,26 @@ test('only CEO and SUPERADMIN change the letter settings', function () {
     $this->actingAs(letterUser('MARKETING'))->post(route('settings.assets.store', ['asset' => 'signature']), [
         'file' => UploadedFile::fake()->image('ttd.png', 600, 200),
     ])->assertForbidden();
+});
+
+test('the seeder fills the letterhead contact once and never overwrites the CEO', function () {
+    SiteSetting::current()->update(['company_email' => 'kantor@daiku.test']);
+
+    $this->seed(SiteSettingSeeder::class);
+    $this->seed(SiteSettingSeeder::class);
+
+    $settings = SiteSetting::current()->fresh();
+    expect($settings->company_address)->toBe('Jl. Yos Sudarso, Rumbai, Pekanbaru')
+        ->and($settings->company_phone)->toBe('0811 759 7766')
+        ->and($settings->company_instagram)->toBe('DaikuInterior')
+        ->and($settings->company_email)->toBe('kantor@daiku.test');
+
+    $quotation = readyDesignRab($this, ['letter_number' => '377/OFF/Daiku/IX/2026', 'status' => QuotationStatus::SentToClient->value]);
+    $html = view('pdf.quotation', ['quotation' => $quotation, 'siteSettings' => $settings, 'validityDays' => 14])->render();
+
+    expect($html)
+        ->toContain('Jl. Yos Sudarso, Rumbai, Pekanbaru')
+        ->toContain('0811 759 7766')
+        ->toContain('DaikuInterior')
+        ->toContain('data:image/svg+xml;base64,');
 });

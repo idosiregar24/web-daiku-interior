@@ -14,7 +14,19 @@ use Illuminate\Support\Carbon;
  */
 final class LetterParts
 {
-    /** @return array<string, string|null> */
+    /**
+     * Letterhead contact icons (location, email, WhatsApp, Instagram) as in
+     * the company's letter, 24×24 line art — inlined as data URIs so DomPDF
+     * and the client's page draw the very same marks.
+     */
+    private const ICONS = [
+        'address' => '<path d="M20 10c0 5-5.5 10.2-7.4 11.8a1 1 0 0 1-1.2 0C9.5 20.2 4 15 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
+        'email' => '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-9 5.7a2 2 0 0 1-2 0L2 7"/>',
+        'phone' => '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/><path d="M9.6 8.4c.3-.5 1-.6 1.4-.2l.8.9c.3.4.3.9 0 1.2l-.5.5a6 6 0 0 0 2.4 2.4l.5-.5c.3-.3.8-.3 1.2 0l.9.8c.4.4.3 1.1-.2 1.4-1.2.7-2.8.5-4.2-.6a10 10 0 0 1-1.7-1.7c-1.1-1.4-1.3-3-.6-4.2z"/>',
+        'instagram' => '<rect width="20" height="20" x="2" y="2" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6"/>',
+    ];
+
+    /** @return array<string, mixed> */
     public static function company(SiteSetting $site): array
     {
         return [
@@ -25,7 +37,15 @@ final class LetterParts
             'phone' => $site->company_phone,
             'instagram' => $site->company_instagram ? ltrim($site->company_instagram, '@') : null,
             'footer' => $site->letterFooterLine(),
+            'icons' => array_map(fn (string $paths) => self::svgDataUri($paths), self::ICONS),
         ];
+    }
+
+    private static function svgDataUri(string $paths): string
+    {
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'.$paths.'</svg>';
+
+        return 'data:image/svg+xml;base64,'.base64_encode($svg);
     }
 
     /** @return array{name: string|null, title: string|null, signature: string|null} */
