@@ -139,6 +139,16 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     working days live only in `config/daiku.php` (`DailyFormSchedule`).
     Pages used in the field pass `DataTable` a `mobileCard` and use
     `ResponsiveDialogContent`; heavy, role-only code is `lazy()`-loaded.
+13. **RAB & surat resmi (Sprint 14–15 — `plan/sprint-14-…`, `plan/sprint-15-…`).**
+    A RAB's name comes only from `Quotation::title()` (custom name → "RAB
+    Tambahan" → type label); "Buat RAB → Lainnya" is a RAB Proyek with
+    `custom_name`, same flow. Offers and invoices are company letters built
+    once in `App\Support\Letters\*` and rendered by `pdf/layouts/letter` and
+    the client's link (`LetterDocument`) — change the letter there, never per
+    page. Letter numbers (`377/OFF/Daiku/IX/2026`, INV for invoices) come only
+    from `LetterNumberService`; an offer is numbered when sent. RAB request
+    references (links/photos) are internal; the signature asset is never
+    served publicly (`SiteSetting::PUBLIC_ASSETS`).
 
 ## Local environment
 

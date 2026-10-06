@@ -9,7 +9,7 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
 import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
-import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
+import { RabHistoryCard } from '@/Components/modules/quotation/RabHistoryCard';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import AppLayout from '@/Layouts/AppLayout';
@@ -47,9 +47,13 @@ type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> 
     follow_ups: LeadFollowUp[];
     surveys: LeadSurvey[];
     design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
-    quotation: Pick<Quotation, 'id' | 'status' | 'total_amount' | 'version' | 'valid_until' | 'client_approved_at'> | null;
-    /** Sprint 12 #6 — every RAB of the lead (Jasa Survey / Jasa Desain / Proyek), newest first. */
-    quotations: Pick<Quotation, 'id' | 'type' | 'status' | 'total_amount' | 'version' | 'created_at'>[];
+    quotation: Pick<Quotation, 'id' | 'type' | 'custom_name' | 'status' | 'total_amount' | 'version' | 'valid_until' | 'client_approved_at'> | null;
+    /** Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the lead ("Riwayat RAB"), newest first. */
+    quotations: (Pick<Quotation, 'id' | 'type' | 'custom_name' | 'parent_quotation_id' | 'status' | 'total_amount' | 'version' | 'created_at'> & {
+        letter_number?: string | null;
+        /** Sprint 15 — the RAB's own client link (CEO/Marketing only). */
+        client_url?: string | null;
+    })[];
     project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
 };
 
@@ -63,6 +67,8 @@ interface LeadShowProps {
     marketers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
+    /** Sprint 14 Sub 02 — custom RAB names used before ("Buat RAB → Lainnya" suggestions). */
+    customRabNames: string[];
 }
 
 /**
@@ -78,6 +84,7 @@ export default function LeadShow({
     marketers,
     leadSources,
     leadCategories,
+    customRabNames,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -142,7 +149,7 @@ export default function LeadShow({
                                     }}
                                 >
                                     <FileText className="size-4" />
-                                    Minta RAB
+                                    Buat RAB
                                 </Button>
                             )}
                             {lead.quotation?.status === 'SENT_TO_CLIENT' && (
@@ -233,7 +240,7 @@ export default function LeadShow({
                                     {lead.design.client_acc && ' · Sudah di-ACC klien'}
                                 </>
                             ) : (
-                                'Dibuka otomatis setelah klien menyetujui RAB Jasa Desain (lewat "Minta RAB").'
+                                'Dibuka otomatis setelah klien menyetujui RAB Jasa Desain (lewat "Buat RAB").'
                             )}
                         </StageRow>
                         <StageRow
@@ -256,24 +263,6 @@ export default function LeadShow({
                                 </>
                             ) : (
                                 'Diminta Marketing atau dibuat otomatis setelah desain di-ACC klien.'
-                            )}
-                            {lead.quotations.filter((quotation) => quotation.type !== 'PROYEK').length > 0 && (
-                                <ul className="mt-2 space-y-1">
-                                    {lead.quotations
-                                        .filter((quotation) => quotation.type !== 'PROYEK')
-                                        .map((quotation) => (
-                                            <li key={quotation.id} className="flex flex-wrap items-center gap-2">
-                                                <Link
-                                                    href={route('quotations.show', { quotation: quotation.id })}
-                                                    className="font-medium text-foreground underline decoration-daiku-yellow underline-offset-4 hover:decoration-2"
-                                                >
-                                                    {QUOTATION_TYPE_LABEL[quotation.type]}
-                                                </Link>
-                                                <StatusChip status={quotation.status} />
-                                                <span>{formatRupiah(quotation.total_amount)}</span>
-                                            </li>
-                                        ))}
-                                </ul>
                             )}
                         </StageRow>
                         <StageRow
@@ -298,6 +287,11 @@ export default function LeadShow({
                         </StageRow>
                     </ul>
                 </SectionCard>
+            </div>
+
+            {/* Sprint 14 Sub 02 — every RAB of this client, one section per kind. */}
+            <div className="mb-6">
+                <RabHistoryCard quotations={lead.quotations} />
             </div>
 
             <LeadTimeline lead={lead} canManage={canManage} suggestLostFrom={suggestLostFrom} />
@@ -352,7 +346,13 @@ export default function LeadShow({
                         leadCategories={leadCategories}
                     />
                     <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={lead} />
-                    <SubmitLeadRequestDialog open={requestOpen} onOpenChange={setRequestOpen} lead={lead} rabOnly={rabOnly} />
+                    <SubmitLeadRequestDialog
+                        open={requestOpen}
+                        onOpenChange={setRequestOpen}
+                        lead={lead}
+                        rabOnly={rabOnly}
+                        customRabNames={customRabNames}
+                    />
                     {lead.quotation && (
                         <QuotationDecisionDialog
                             open={clientRejectOpen}

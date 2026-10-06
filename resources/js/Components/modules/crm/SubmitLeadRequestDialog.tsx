@@ -1,4 +1,5 @@
 import { SurveyFormFields, type SurveyFormValues } from '@/Components/modules/crm/SurveyFormFields';
+import { EMPTY_REFERENCES, RabReferenceFields, type RabReferences, referencePayload } from '@/Components/modules/quotation/RabReferenceFields';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -9,6 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/Components/ui/dialog';
+import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import { Textarea } from '@/Components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -16,20 +18,23 @@ import type { Lead } from '@/types';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 
-type RequestType = 'SURVEY' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK';
+type RequestType = 'SURVEY' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK' | 'RAB_LAINNYA';
 
 const OPTIONS: { value: RequestType; label: string; hint: string; rab?: boolean }[] = [
     { value: 'SURVEY', label: 'Jadwalkan Survey', hint: 'Survey lokasi — gratis di Pekanbaru, luar kota wajib RAB Jasa Survey.' },
-    { value: 'RAB_SURVEY', label: 'Minta RAB Jasa Survey', hint: 'Biaya survey luar Pekanbaru — dibayar sebelum survey berangkat.', rab: true },
-    { value: 'RAB_DESAIN', label: 'Minta RAB Jasa Desain', hint: 'Biaya jasa desain — setelah dibayar, Kepala Desain menugaskan arsitek.', rab: true },
-    { value: 'RAB_PROYEK', label: 'Minta RAB Proyek', hint: 'Penawaran pekerjaan — boleh tanpa desain dari Daiku.', rab: true },
+    { value: 'RAB_SURVEY', label: 'RAB Jasa Survey', hint: 'Biaya survey luar Pekanbaru — dibayar sebelum survey berangkat.', rab: true },
+    { value: 'RAB_DESAIN', label: 'RAB Jasa Desain', hint: 'Biaya jasa desain — setelah dibayar, Kepala Desain menugaskan arsitek.', rab: true },
+    { value: 'RAB_PROYEK', label: 'RAB Proyek', hint: 'Penawaran pekerjaan — boleh tanpa desain dari Daiku.', rab: true },
+    // Sprint 14 Sub 02 — any other job, with its own name; runs exactly like a RAB Proyek.
+    { value: 'RAB_LAINNYA', label: 'RAB Lainnya', hint: 'Pekerjaan lain dengan nama sendiri (mis. Renovasi Pagar) — alurnya sama dengan RAB Proyek.', rab: true },
 ];
 
 const SUBMIT_LABEL: Record<RequestType, string> = {
     SURVEY: 'Jadwalkan Survey',
-    RAB_SURVEY: 'Minta RAB',
-    RAB_DESAIN: 'Minta RAB',
-    RAB_PROYEK: 'Minta RAB',
+    RAB_SURVEY: 'Buat RAB',
+    RAB_DESAIN: 'Buat RAB',
+    RAB_PROYEK: 'Buat RAB',
+    RAB_LAINNYA: 'Buat RAB',
 };
 
 const EMPTY_SURVEY: SurveyFormValues = { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: false };
@@ -38,8 +43,10 @@ interface SubmitLeadRequestDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     lead: Pick<Lead, 'id' | 'client_name' | 'address'>;
-    /** Lead already in Pengajuan Desain/Survey — only the "Minta RAB …" options remain. */
+    /** Lead already in Pengajuan Desain/Survey — only the RAB options remain ("Buat RAB"). */
     rabOnly?: boolean;
+    /** Sprint 14 Sub 02 — custom names used before, suggested for "RAB Lainnya". */
+    customRabNames?: string[];
 }
 
 /**
@@ -49,11 +56,14 @@ interface SubmitLeadRequestDialogProps {
  * for that RAB (decision #7 — the note is required). Mirrors
  * SubmitLeadRequestRequest.
  */
-export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = false }: SubmitLeadRequestDialogProps) {
+export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = false, customRabNames = [] }: SubmitLeadRequestDialogProps) {
     const options = rabOnly ? OPTIONS.filter((option) => option.rab) : OPTIONS;
     const [type, setType] = useState<RequestType>(options[0].value);
     const [survey, setSurvey] = useState<SurveyFormValues>(EMPTY_SURVEY);
     const [note, setNote] = useState('');
+    const [customName, setCustomName] = useState('');
+    // Sprint 14 Sub 01 — links & photos for the Estimator.
+    const [references, setReferences] = useState<RabReferences>(EMPTY_REFERENCES);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [processing, setProcessing] = useState(false);
     const isRab = type.startsWith('RAB_');
@@ -63,6 +73,8 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
             setType(rabOnly ? 'RAB_SURVEY' : 'SURVEY');
             setSurvey(EMPTY_SURVEY);
             setNote('');
+            setCustomName('');
+            setReferences(EMPTY_REFERENCES);
             setErrors({});
         }
     }, [open, rabOnly]);
@@ -70,6 +82,11 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
     function submit() {
         if (type === 'SURVEY' && !survey.scheduled_at) {
             setErrors({ scheduled_at: 'Jadwal survey wajib diisi.' });
+            return;
+        }
+
+        if (type === 'RAB_LAINNYA' && customName.trim().length < 3) {
+            setErrors({ custom_name: 'Isi nama RAB-nya, mis. "Renovasi Pagar".' });
             return;
         }
 
@@ -91,6 +108,8 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
                           is_outside_pekanbaru: survey.is_outside_pekanbaru,
                       }
                     : {}),
+                ...(isRab ? referencePayload(references) : {}),
+                ...(type === 'RAB_LAINNYA' ? { custom_name: customName.trim() } : {}),
             },
             {
                 preserveScroll: true,
@@ -106,10 +125,10 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>{rabOnly ? 'Minta RAB' : 'Ajukan Desain/Survey'}</DialogTitle>
+                    <DialogTitle>{rabOnly ? 'Buat RAB' : 'Ajukan Desain/Survey'}</DialogTitle>
                     <DialogDescription>
                         {rabOnly
-                            ? `Estimator mendapat notifikasi untuk menyusun RAB ${lead.client_name}.`
+                            ? `Pilih jenis RAB untuk ${lead.client_name} — Estimator yang menyusun isinya.`
                             : `${lead.client_name} masuk tahap Pengajuan Desain/Survey.`}
                     </DialogDescription>
                 </DialogHeader>
@@ -131,6 +150,27 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
                     ))}
                 </div>
 
+                {type === 'RAB_LAINNYA' && (
+                    <div className="space-y-2">
+                        <Label htmlFor="submit-request-custom-name">Nama RAB</Label>
+                        <Input
+                            id="submit-request-custom-name"
+                            list="custom-rab-names"
+                            maxLength={100}
+                            value={customName}
+                            placeholder="mis. Renovasi Pagar, Maintenance AC"
+                            onChange={(event) => setCustomName(event.target.value)}
+                        />
+                        {/* Names used before — one job keeps one spelling. */}
+                        <datalist id="custom-rab-names">
+                            {customRabNames.map((name) => (
+                                <option key={name} value={name} />
+                            ))}
+                        </datalist>
+                        {errors.custom_name && <p className="text-sm text-destructive">{errors.custom_name}</p>}
+                    </div>
+                )}
+
                 {type === 'SURVEY' && (
                     <SurveyFormFields
                         values={survey}
@@ -145,13 +185,20 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
                     <Label htmlFor="submit-request-note">{isRab ? 'Catatan untuk Estimator' : 'Catatan (opsional)'}</Label>
                     <Textarea
                         id="submit-request-note"
-                        rows={isRab ? 3 : 2}
+                        rows={isRab ? 4 : 2}
+                        maxLength={2000}
                         value={note}
-                        placeholder={isRab ? 'mis. Kitchen set 3 m + backdrop TV, material HPL, budget ±30 juta' : undefined}
+                        placeholder={
+                            isRab
+                                ? 'Apa yang dikerjakan, ukuran/luas, gaya, bahan, budget klien, tenggat — mis. Kitchen set 3 m + backdrop TV, HPL putih doff, budget ±30 juta, mulai Desember.'
+                                : undefined
+                        }
                         onChange={(event) => setNote(event.target.value)}
                     />
                     {errors.note && <p className="text-sm text-destructive">{errors.note}</p>}
                 </div>
+
+                {isRab && <RabReferenceFields value={references} onChange={setReferences} errors={errors} />}
                 {errors.type && <p className="text-sm text-destructive">{errors.type}</p>}
 
                 <DialogFooter>

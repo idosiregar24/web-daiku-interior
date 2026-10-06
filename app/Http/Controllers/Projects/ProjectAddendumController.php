@@ -16,7 +16,13 @@ class ProjectAddendumController extends Controller
 {
     public function store(RequestAddendumRequest $request, Project $project, QuotationService $service): RedirectResponse
     {
-        $quotation = $service->requestAddendum($project, $request->validated('note'), $request->user());
+        $quotation = $service->requestAddendum(
+            $project,
+            $request->validated('note'),
+            $request->user(),
+            $request->validated('reference_links') ?? [],
+            $request->validated('reference_photos') ?? [],
+        );
 
         return redirect()->route('quotations.show', $quotation)->with('success', 'RAB Tambahan diminta — Estimator diberi tahu.');
     }

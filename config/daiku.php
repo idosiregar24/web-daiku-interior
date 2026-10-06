@@ -19,4 +19,11 @@ return [
         // Senin–Sabtu (PRD §6.5 counts Saturday as a working day).
         'work_days' => [1, 2, 3, 4, 5, 6],
     ],
+
+    /*
+     * Sprint 15 K2 — letter numbers "377/OFF/Daiku/IX/2026" (LetterNumberService).
+     */
+    'letter' => [
+        'company_code' => env('LETTER_COMPANY_CODE', 'Daiku'),
+    ],
 ];

@@ -23,6 +23,8 @@ class LeadService
         'RAB_SURVEY' => QuotationType::Survey,
         'RAB_DESAIN' => QuotationType::Desain,
         'RAB_PROYEK' => QuotationType::Proyek,
+        // Sprint 14 Sub 02 — "Buat RAB → Lainnya": a RAB Proyek with its own name.
+        'RAB_LAINNYA' => QuotationType::Proyek,
     ];
 
     public function __construct(
@@ -418,8 +420,18 @@ class LeadService
 
             $rabType = self::RAB_REQUEST_TYPES[$data['type']] ?? null;
 
+            $quotation = null;
+
             if ($rabType !== null) {
-                $this->quotationService->request($lead, $rabType, (string) ($data['note'] ?? ''), $actor);
+                $quotation = $this->quotationService->request(
+                    $lead,
+                    $rabType,
+                    (string) ($data['note'] ?? ''),
+                    $actor,
+                    $data['reference_links'] ?? [],
+                    $data['reference_photos'] ?? [],
+                    $data['type'] === 'RAB_LAINNYA' ? ($data['custom_name'] ?? null) : null,
+                );
             }
 
             if ($lead->status === LeadStatus::FollowUp) {
@@ -427,7 +439,7 @@ class LeadService
                     'status' => LeadStatus::DealDesain->value,
                     'note' => trim(match (true) {
                         $data['type'] === 'SURVEY' => 'Pengajuan survey.',
-                        default => "Permintaan {$rabType->label()}.",
+                        default => "Permintaan {$quotation->title()}.",
                     }.' '.($data['note'] ?? '')),
                 ], $actor);
             }

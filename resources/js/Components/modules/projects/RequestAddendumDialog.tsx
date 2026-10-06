@@ -1,3 +1,4 @@
+import { EMPTY_REFERENCES, RabReferenceFields, type RabReferences, referencePayload } from '@/Components/modules/quotation/RabReferenceFields';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -12,7 +13,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/Components/ui/textarea';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -37,22 +38,32 @@ interface RequestAddendumDialogProps {
  */
 export function RequestAddendumDialog({ open, onOpenChange, projectId, projectName }: RequestAddendumDialogProps) {
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { note: '' } });
+    // Sprint 14 Sub 01 — links & photos for the Estimator (files, kept outside the RHF values).
+    const [references, setReferences] = useState<RabReferences>(EMPTY_REFERENCES);
+    const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        if (open) form.reset({ note: '' });
+        if (open) {
+            form.reset({ note: '' });
+            setReferences(EMPTY_REFERENCES);
+            setServerErrors({});
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     function onSubmit(values: FormValues) {
-        router.post(route('projects.addenda.store', { project: projectId }), values, {
-            onError: (errors) => form.setError('note', { message: errors.note }),
+        router.post(route('projects.addenda.store', { project: projectId }), { ...values, ...referencePayload(references) }, {
+            onError: (errors) => {
+                setServerErrors(errors);
+                if (errors.note) form.setError('note', { message: errors.note });
+            },
             onSuccess: () => onOpenChange(false),
         });
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Minta RAB Tambahan</DialogTitle>
                     <DialogDescription>
@@ -69,12 +80,18 @@ export function RequestAddendumDialog({ open, onOpenChange, projectId, projectNa
                                 <FormItem>
                                     <FormLabel>Pekerjaan yang ditambah</FormLabel>
                                     <FormControl>
-                                        <Textarea {...field} rows={4} maxLength={2000} placeholder="mis. Plafon membran 8,84 m² dan plafon topian meja bar." />
+                                        <Textarea
+                                            {...field}
+                                            rows={4}
+                                            maxLength={2000}
+                                            placeholder="Apa yang ditambah, ukuran/luas, bahan, tenggat — mis. Plafon membran 8,84 m² dan plafon topian meja bar."
+                                        />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
+                        <RabReferenceFields value={references} onChange={setReferences} errors={serverErrors} />
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">

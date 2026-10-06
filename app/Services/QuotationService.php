@@ -17,9 +17,11 @@ use App\Models\QuotationApproval;
 use App\Models\QuotationItem;
 use App\Models\QuotationItemReview;
 use App\Models\QuotationPaymentTerm;
+use App\Models\QuotationReference;
 use App\Models\QuotationRevision;
 use App\Models\QuotationShareLink;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -59,6 +61,7 @@ class QuotationService
     public function __construct(
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
+        private LetterNumberService $letterNumbers,
     ) {}
 
     /**
@@ -97,9 +100,17 @@ class QuotationService
      * Survey, Jasa Desain or Proyek (a note is required). One running
      * quotation per type per lead; a RAB Jasa Survey pays for the lead's
      * outside-Pekanbaru survey waiting for payment, if there is one.
+     * Sprint 14 Sub 01: reference links and photos may ride along.
+     * Sprint 14 Sub 02: a RAB Proyek may carry its own name ("Buat RAB →
+     * Lainnya", e.g. "Renovasi Pagar") — same flow, only the title differs.
+     *
+     * @param  list<string>  $links
+     * @param  list<UploadedFile>  $photos
      */
-    public function request(Lead $lead, QuotationType $type, string $note, User $actor): Quotation
+    public function request(Lead $lead, QuotationType $type, string $note, User $actor, array $links = [], array $photos = [], ?string $customName = null): Quotation
     {
+        $customName = $type === QuotationType::Proyek ? (trim((string) $customName) ?: null) : null;
+
         if (in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
             throw ValidationException::withMessages(['type' => "Lead ini sudah {$lead->status->value} — tidak bisa meminta RAB baru."]);
         }
@@ -107,13 +118,13 @@ class QuotationService
         $running = $lead->quotations()
             ->where('type', $type->value)
             ->whereNotIn('status', QuotationStatus::closedValues())
-            ->exists();
+            ->first();
 
         if ($running) {
-            throw ValidationException::withMessages(['type' => "Masih ada {$type->label()} yang berjalan untuk lead ini."]);
+            throw ValidationException::withMessages(['type' => "Masih ada {$running->title()} yang berjalan untuk lead ini — selesaikan atau batalkan dulu."]);
         }
 
-        return DB::transaction(function () use ($lead, $type, $note, $actor) {
+        return DB::transaction(function () use ($lead, $type, $note, $actor, $links, $photos, $customName) {
             $survey = $type === QuotationType::Survey
                 ? $lead->surveys()->where('status', LeadSurveyStatus::MenungguBayar->value)->whereNull('quotation_id')->latest('id')->first()
                 : null;
@@ -121,6 +132,7 @@ class QuotationService
             $quotation = Quotation::create([
                 'lead_id' => $lead->id,
                 'type' => $type->value,
+                'custom_name' => $customName,
                 'lead_survey_id' => $survey?->id,
                 'status' => QuotationStatus::Diminta->value,
                 'created_by' => $actor->id,
@@ -129,12 +141,13 @@ class QuotationService
             ]);
 
             $survey?->update(['quotation_id' => $quotation->id]);
+            $attached = $this->attachReferences($quotation, $links, $photos, $actor);
 
             $this->notificationService->notifyRoles(
                 ['ESTIMATOR'],
                 'quotation_requested',
-                "Permintaan {$type->label()}",
-                "{$actor->name} meminta {$type->label()} untuk \"{$lead->client_name}\": ".trim($note),
+                "Permintaan {$quotation->title()}",
+                "{$actor->name} meminta {$quotation->title()} untuk \"{$lead->client_name}\": ".trim($note).$attached,
                 ['quotation_id' => $quotation->id, 'lead_id' => $lead->id],
             );
 
@@ -149,8 +162,11 @@ class QuotationService
      * same flow — Estimator → PM / Asisten PM → CEO → client link. Its
      * approval adds to the project (ProjectService::addAddendum()), never
      * opens a new one. One running addendum per project at a time.
+     *
+     * @param  list<string>  $links
+     * @param  list<UploadedFile>  $photos
      */
-    public function requestAddendum(Project $project, string $note, User $actor): Quotation
+    public function requestAddendum(Project $project, string $note, User $actor, array $links = [], array $photos = []): Quotation
     {
         if ($project->quotation_id === null) {
             throw ValidationException::withMessages(['note' => 'Proyek ini belum tertaut ke RAB Fix — RAB Tambahan tidak bisa diminta.']);
@@ -164,7 +180,7 @@ class QuotationService
             throw ValidationException::withMessages(['note' => 'Masih ada RAB Tambahan proyek ini yang sedang berjalan.']);
         }
 
-        return DB::transaction(function () use ($project, $note, $actor) {
+        return DB::transaction(function () use ($project, $note, $actor, $links, $photos) {
             $quotation = Quotation::create([
                 'lead_id' => $project->lead_id,
                 'type' => QuotationType::Proyek->value,
@@ -175,12 +191,13 @@ class QuotationService
                 'requested_by' => $actor->id,
                 'request_note' => trim($note),
             ]);
+            $attached = $this->attachReferences($quotation, $links, $photos, $actor);
 
             $this->notificationService->notifyRoles(
                 ['ESTIMATOR'],
                 'quotation_requested',
                 'Permintaan RAB Tambahan',
-                "{$actor->name} meminta RAB Tambahan untuk proyek \"{$project->name}\": ".trim($note),
+                "{$actor->name} meminta RAB Tambahan untuk proyek \"{$project->name}\": ".trim($note).$attached,
                 ['quotation_id' => $quotation->id, 'project_id' => $project->id],
             );
 
@@ -201,8 +218,8 @@ class QuotationService
             $this->notificationService->notifyMany(
                 [$quotation->requester],
                 'quotation_started',
-                "{$quotation->type->label()} Mulai Disusun",
-                "{$actor->name} mulai menyusun {$quotation->type->label()} \"{$quotation->lead->client_name}\".",
+                "{$quotation->title()} Mulai Disusun",
+                "{$actor->name} mulai menyusun {$quotation->title()} \"{$quotation->lead->client_name}\".",
                 ['quotation_id' => $quotation->id],
             );
 
@@ -532,6 +549,8 @@ class QuotationService
 
                 $now = now();
                 $quotation->update([
+                    // Sprint 15 K2 — the offer letter's number, for this version.
+                    'letter_number' => $quotation->letter_number ?? $this->letterNumbers->next(LetterNumberService::OFFER),
                     'valid_until' => now('Asia/Jakarta')->startOfDay()->addDays(self::VALIDITY_DAYS)->toDateString(),
                     'first_sent_at' => $quotation->first_sent_at ?? $now,
                     'sent_at' => $now,
@@ -720,6 +739,45 @@ class QuotationService
     }
 
     /**
+     * Sprint 14 Sub 01 — store a request's reference links and photos
+     * (validated by the Form Request: http/https, counts, image types and
+     * sizes). Photos go to the private disk, one folder per quotation.
+     * Returns the " (+2 foto, 1 link)" suffix for the Estimator's notification.
+     *
+     * @param  list<string>  $links
+     * @param  list<UploadedFile>  $photos
+     */
+    private function attachReferences(Quotation $quotation, array $links, array $photos, User $actor): string
+    {
+        $links = array_values(array_unique(array_filter(array_map('trim', $links))));
+
+        foreach ($links as $url) {
+            $quotation->references()->create([
+                'kind' => QuotationReference::KIND_LINK,
+                'url' => $url,
+                'uploaded_by' => $actor->id,
+            ]);
+        }
+
+        foreach ($photos as $photo) {
+            $quotation->references()->create([
+                'kind' => QuotationReference::KIND_PHOTO,
+                'path' => $photo->store("quotation-references/{$quotation->id}", QuotationReference::DISK),
+                'original_name' => mb_substr($photo->getClientOriginalName(), 0, 255),
+                'size' => $photo->getSize(),
+                'uploaded_by' => $actor->id,
+            ]);
+        }
+
+        $parts = array_filter([
+            $photos ? count($photos).' foto' : null,
+            $links ? count($links).' link' : null,
+        ]);
+
+        return $parts ? ' (+'.implode(', ', $parts).')' : '';
+    }
+
+    /**
      * Whose turn it is, checked against the actor: PM / Asisten PM on
      * SUBMITTED, CEO on WAITING_CEO (SUPERADMIN acts as either).
      */
@@ -738,6 +796,20 @@ class QuotationService
         }
 
         return $stage;
+    }
+
+    /**
+     * Sprint 15 K4 — the RAB's "Catatan" for the client, written by the
+     * Estimator while the version is a DRAFT. Empty = the type's default
+     * from Pengaturan Situs (SiteSetting::defaultNoteFor()).
+     */
+    public function saveClientNotes(Quotation $quotation, ?string $notes): Quotation
+    {
+        $this->assertStatus($quotation, QuotationStatus::Draft, 'Catatan hanya bisa diubah selama RAB berstatus DRAFT.');
+
+        $quotation->update(['client_notes' => trim((string) $notes) ?: null]);
+
+        return $quotation;
     }
 
     /** One locked, audited status step (sendToMarketing / sendToClient). */
@@ -823,6 +895,8 @@ class QuotationService
             'status' => QuotationStatus::Draft->value,
             'version' => $quotation->version + 1,
             'valid_until' => null,
+            // A revised offer is a new letter — it gets its own number when sent.
+            'letter_number' => null,
         ]);
     }
 
@@ -933,7 +1007,7 @@ class QuotationService
 
     private function typeLabel(Quotation $quotation): string
     {
-        return ($quotation->type ?? QuotationType::Proyek)->label();
+        return $quotation->title();
     }
 
     /**

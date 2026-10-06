@@ -78,7 +78,7 @@ test('Marketing issues the one invoice of an approved Jasa Survey RAB', function
         ->assertSessionHasNoErrors();
 
     $invoice = Invoice::sole();
-    expect($invoice->number)->toBe('INV-202610-0001')
+    expect($invoice->number)->toBe('1/INV/Daiku/X/2026')
         ->and($invoice->type->value)->toBe('JASA_SURVEY')
         ->and((float) $invoice->amount)->toBe(1_500_000.0)
         ->and($invoice->status)->toBe(InvoiceStatus::Diterbitkan)
@@ -90,11 +90,11 @@ test('Marketing issues the one invoice of an approved Jasa Survey RAB', function
     expect(Invoice::count())->toBe(1);
 });
 
-test('invoice numbers run per month', function () {
+test('invoice numbers follow the yearly letter sequence (Sprint 15)', function () {
     issuedInvoice($this);
     issuedInvoice($this, 'DESAIN');
 
-    expect(Invoice::orderBy('id')->pluck('number')->all())->toBe(['INV-202610-0001', 'INV-202610-0002']);
+    expect(Invoice::orderBy('id')->pluck('number')->all())->toBe(['1/INV/Daiku/X/2026', '2/INV/Daiku/X/2026']);
 });
 
 test('no invoice before the client approved, and none straight from a RAB Proyek', function (string $type, string $status) {

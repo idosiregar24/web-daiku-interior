@@ -83,6 +83,56 @@ export interface InboxGroup {
     items: InboxItem[];
 }
 
+/** Sprint 15 — one line of the letter's RAB table (App\Support\Letters\QuotationLetter::row()). */
+export interface LetterRow {
+    no: number;
+    description: string;
+    p: string | null;
+    t: string | null;
+    volume: string;
+    unit: string | null;
+    unitPrice: number;
+    total: number;
+}
+
+/**
+ * Sprint 15 — an offer / invoice as the company's letter, built once on the
+ * server (App\Support\Letters\*) for both the PDF and the client's link page.
+ */
+export interface CompanyLetter {
+    kind: 'PENAWARAN' | 'INVOICE';
+    company: { name: string; logo: string | null; address: string | null; email: string | null; phone: string | null; instagram: string | null; footer: string };
+    signer: { name: string | null; title: string | null; signature: string | null };
+    number: string | null;
+    draft: boolean;
+    date: string;
+    subject: string;
+    recipient: string;
+    meta: { label: string; value: string }[];
+    intro: string;
+    showGroups: boolean;
+    groups: { label: string; name: string; subtotal: number; rows: LetterRow[] }[];
+    totals: { label: string; amount: number }[];
+    total: number;
+    totalInWords: string;
+    notes: string[];
+    paymentTerms: { sequence: number; label: string; percentage: string; amount: number; when: string }[];
+    closing: string;
+    stamp: string | null;
+}
+
+/** Sprint 14 Sub 01 — a link or photo handed to the Estimator with a RAB request. */
+export interface QuotationReference {
+    id: number;
+    quotation_id: number;
+    kind: 'LINK' | 'PHOTO';
+    url: string | null;
+    original_name: string | null;
+    size: number | null;
+    /** Auth-gated URL of a photo (quotations.references.show); null for a link. */
+    photo_url: string | null;
+}
+
 export type PageProps<
     T extends Record<string, unknown> = Record<string, unknown>,
 > = T & {
@@ -500,6 +550,11 @@ export interface Quotation {
     lead_id: number;
     lead?: Pick<Lead, 'id' | 'client_name'>;
     type: QuotationType;
+    /** Sprint 14 Sub 02 — "Buat RAB → Lainnya": a RAB Proyek with its own name (see quotationTitle()). */
+    custom_name: string | null;
+    /** Sprint 15 — "377/OFF/Daiku/IX/2026" once this version was sent; the letter's "Catatan". */
+    letter_number?: string | null;
+    client_notes?: string | null;
     lead_survey_id: number | null;
     /** Sprint 12 #29 — set on a RAB Tambahan: its RAB Fix / project. */
     parent_quotation_id: number | null;
@@ -517,6 +572,8 @@ export interface Quotation {
     requested_by: number | null;
     requester?: Pick<User, 'id' | 'name'> | null;
     request_note: string | null;
+    /** Sprint 14 Sub 01 — links & photos sent with the request (internal; loaded on the quotation page). */
+    references?: QuotationReference[];
     /** Set when Marketing sends the offer (+14 days), cleared when it returns to DRAFT. */
     valid_until: string | null;
     /** Sprint 12 — Marketing's first / latest "Kirim ke Klien". */
@@ -1617,15 +1674,26 @@ export interface SiteSetting {
     company_address: string | null;
     company_phone: string | null;
     company_email: string | null;
+    /** Sprint 15 — letterhead, signer & default RAB notes. */
+    company_instagram: string | null;
+    company_legal_name: string | null;
+    letter_footer: string | null;
+    signer_name: string | null;
+    signer_title: string | null;
+    note_survey: string | null;
+    note_desain: string | null;
+    note_proyek: string | null;
     logo_url: string | null;
     favicon_url: string | null;
     login_image_url: string | null;
+    /** Data URI — the signature has no public route. */
+    signature_url: string | null;
     created_at: string;
     updated_at: string;
 }
 
 /** Keys of SiteSetting::ASSETS — the `{asset}` route parameter. */
-export type BrandAsset = 'logo' | 'favicon' | 'login_image';
+export type BrandAsset = 'logo' | 'favicon' | 'login_image' | 'signature';
 
 /** SiteSetting::branding() — shared on every page as `site`, guests included. */
 export interface SiteBranding {

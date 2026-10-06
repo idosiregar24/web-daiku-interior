@@ -137,7 +137,8 @@ test('the quotation PDF prints the unit code and a fractional qty', function () 
         'validityDays' => QuotationService::VALIDITY_DAYS,
     ])->render();
 
-    expect($html)->toContain('<td class="text-right">2,5</td>')->toContain('<td>m2</td>');
+    // Sprint 15 letter layout: VOLUME and SATUAN are centred cells.
+    expect($html)->toContain('<td class="center">2,5</td>')->toContain('<td class="center">m2</td>');
 });
 
 // ── Backfill migration ───────────────────────────────────────────────────

@@ -229,7 +229,7 @@ class ActionInboxService
             fn (Quotation $q) => [
                 'id' => $q->id,
                 'title' => $q->lead?->client_name ?? "Quotation #{$q->id}",
-                'subtitle' => "{$q->type?->label()} v{$q->version} · {$this->rupiah($q->total_amount)}",
+                'subtitle' => "{$q->title()} v{$q->version} · {$this->rupiah($q->total_amount)}",
                 'at' => $q->updated_at,
                 'href' => route('quotations.show', $q),
             ],
@@ -246,7 +246,7 @@ class ActionInboxService
             fn (Quotation $q) => [
                 'id' => $q->id,
                 'title' => $q->lead?->client_name ?? "Quotation #{$q->id}",
-                'subtitle' => "{$q->type?->label()} v{$q->version}",
+                'subtitle' => "{$q->title()} v{$q->version}",
                 'at' => $q->updated_at,
                 'href' => route('quotations.show', $q),
             ],

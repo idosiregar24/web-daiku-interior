@@ -37,6 +37,7 @@ class InvoiceService
         private FinanceTransactionService $financeTransactionService,
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
+        private LetterNumberService $letterNumbers,
     ) {}
 
     /**
@@ -259,14 +260,14 @@ class InvoiceService
         });
     }
 
-    /** INV-YYYYMM-0001, sequential per month (read under a lock; `number` is UNIQUE). */
+    /**
+     * Sprint 15 K2 — "378/INV/Daiku/IX/2026", from the letter numbers shared
+     * with offers (LetterNumberService). Invoices issued before keep their
+     * old "INV-YYYYMM-NNNN" number.
+     */
     private function nextNumber(): string
     {
-        $prefix = 'INV-'.now('Asia/Jakarta')->format('Ym').'-';
-        $last = Invoice::where('number', 'like', $prefix.'%')->lockForUpdate()->max('number');
-        $sequence = $last ? (int) substr($last, strlen($prefix)) + 1 : 1;
-
-        return $prefix.str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+        return $this->letterNumbers->next(LetterNumberService::INVOICE);
     }
 
     private function locked(Invoice $invoice, InvoiceStatus $required, string $message): Invoice

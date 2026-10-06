@@ -1,5 +1,5 @@
 import { formatDate, formatRupiah } from '@/lib/format';
-import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
+import { QUOTATION_TYPE_LABEL, quotationTitle } from '@/Components/modules/quotation/labels';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { DataTable } from '@/Components/shared/DataTable';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -42,7 +42,7 @@ const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string }
         header: 'Jenis',
         cell: ({ row }) => (
             <span>
-                {QUOTATION_TYPE_LABEL[row.original.type]}
+                {quotationTitle(row.original)}
                 {row.original.requester && (
                     <span className="block text-xs text-daiku-muted">diminta {row.original.requester.name}</span>
                 )}
@@ -143,6 +143,8 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                                         {QUOTATION_TYPE_LABEL[type]}
                                     </SelectItem>
                                 ))}
+                                {/* Sprint 14 Sub 02 — RAB Proyek with their own name (Quotation::FILTER_CUSTOM). */}
+                                <SelectItem value="CUSTOM">RAB Lainnya (nama khusus)</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

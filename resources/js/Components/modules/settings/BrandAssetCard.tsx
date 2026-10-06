@@ -29,6 +29,14 @@ const CROP: Record<BrandAsset, { title: string; aspects: CropAspect[]; output: C
         aspects: [{ label: 'Potret 4:5 (panel login)', value: 4 / 5 }],
         output: { mime: 'image/jpeg', minWidth: 600, maxWidth: 1200, quality: 0.88 },
     },
+    signature: {
+        title: 'Crop Tanda Tangan',
+        aspects: [
+            { label: 'Lebar 3:1', value: 3 },
+            { label: 'Lebar 2:1', value: 2 },
+        ],
+        output: { mime: 'image/png', minWidth: 300, maxWidth: 900, allowFit: true },
+    },
 };
 
 /** Mirrors UploadBrandingAssetRequest — checked client-side before sending. */
@@ -50,6 +58,12 @@ export const ASSET_RULES: Record<BrandAsset, { accept: string; types: string[]; 
         types: ['image/jpeg', 'image/png', 'image/webp'],
         maxKb: 5120,
         hint: 'JPG/PNG/WEBP, maks. 5 MB, minimal 600×600 piksel.',
+    },
+    signature: {
+        accept: '.png',
+        types: ['image/png'],
+        maxKb: 1024,
+        hint: 'PNG, maks. 1 MB. Tanda tangan di atas latar transparan.',
     },
 };
 

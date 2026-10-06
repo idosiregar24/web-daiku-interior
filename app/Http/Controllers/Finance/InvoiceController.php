@@ -76,13 +76,15 @@ class InvoiceController extends Controller
 
     public function exportPdf(Invoice $invoice): HttpResponse
     {
-        $invoice->load(['lead:id,client_name,address', 'quotation:id,type,version', 'quotation.items.unit', 'quotation.sections']);
+        // Sprint 15 — the whole quotation: the letter repeats a service RAB's lines, title, notes and number.
+        $invoice->load(['lead:id,client_name,address', 'quotation', 'quotation.items.unit', 'quotation.sections', 'termin']);
 
         return Pdf::loadView('pdf.invoice', [
             'invoice' => $invoice,
             'siteSettings' => SiteSetting::current(),
             'bankAccounts' => BankAccount::where('is_active', true)->orderBy('label')->get(),
-        ])->stream("{$invoice->number}.pdf");
+            // "1/INV/Daiku/X/2026" → "invoice-1-INV-Daiku-X-2026.pdf" (no slashes in a file name).
+        ])->stream('invoice-'.str_replace('/', '-', $invoice->number).'.pdf');
     }
 
     private function list(Request $request, string $mode, ?string $status): Response

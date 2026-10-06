@@ -38,6 +38,8 @@ email) to browse it.
 | Sprint 11 | — (di luar PRD/CSV) | — | Master satuan, master Vendor, material Gudang/Pembelian/Custom + retur sisa, pengajuan barang (PM/Estimator & Tukang → PM) ke Logistik, katalog anti-dobel — 6 sub-plan di `sprint-11/`; Fitur A (quotation cukup ACC PM) dibatalkan oleh Sprint 12 | 30 selesai / 0 sebagian / 0 belum (30) — selesai 2026-10-04 (T2 tautan Finance masih menunggu Daiku) | [sprint-11-quotation-satuan-material.md](sprint-11-quotation-satuan-material.md) |
 | Sprint 12 | — (di luar PRD/CSV) | — | Revisi alur bisnis — 14 sub-plan di `sprint-12/`: follow-up & survey bertingkat, 3 jenis quotation (Survey/Desain/Proyek) dengan review per item PM → CEO, link persetujuan client, Kepala Desain, invoice oleh Marketing + verifikasi Finance, Buka Proyek oleh CEO, alokasi dana per pos + realisasi, Asisten PM, RAB tambahan, KPI otomatis | **66 selesai / 0 sebagian / 0 belum (66)** — Sub 1–2 selesai 2026-10-04, Sub 3–14 selesai 2026-10-05 | [sprint-12-revisi-alur.md](sprint-12-revisi-alur.md) |
 | Sprint 13 | — (di luar PRD/CSV) | — | Navigasi & UX — 12 sub-plan di `sprint-13/`: grup sidebar dilipat + urutan per role, hub bertab (Keuangan/Logistik/SDM), menu ⚙ Pengaturan, Perlu Tindakan + badge, Detail Proyek sebagai pusat, tombol "+ Buat" & pencarian, versi HP tukang (navigasi bawah, Hari Ini, PWA), HP/tablet PM, QA, Logistik | **49 selesai / 3 sebagian / 0 belum (52)** — selesai 2026-10-05; tersisa uji di HP sungguhan (Lighthouse, 390/820/1366px) dan `/security-review` penuh (Sub 07 dibatalkan) | [sprint-13-navigasi-ux.md](sprint-13-navigasi-ux.md) |
+| Sprint 14 | — (di luar PRD/CSV) | — | RAB: referensi permintaan (deskripsi + link + foto) dan "Buat RAB" dengan nama custom + Riwayat RAB per klien — 2 sub-plan di `sprint-14/` | **9 selesai / 0 sebagian / 0 belum (9)** — selesai 2026-10-06 | [sprint-14-rab-referensi-template.md](sprint-14-rab-referensi-template.md) |
+| Sprint 15 | — (di luar PRD/CSV) | — | Surat resmi RAB: kop & tanda tangan di Pengaturan, nomor surat OFF/INV, catatan & terbilang, PDF penawaran/invoice format surat, link klien format surat, riwayat RAB dengan PDF & link per RAB — 5 sub-plan di `sprint-15/` | **16 selesai / 0 sebagian / 0 belum (16)** — selesai 2026-10-06 | [sprint-15-surat-resmi-rab.md](sprint-15-surat-resmi-rab.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -49,6 +51,8 @@ checklist-nya.
 "Kerjakan Sprint 11 Sub 1"  →  ... Sub 6        (sprint-11/01..06)
 "Kerjakan Sprint 12 Sub 1"  →  ... Sub 14       (sprint-12/01..14)
 "Kerjakan Sprint 13 Sub 1"  →  ... Sub 12       (sprint-13/01..12)
+"Kerjakan Sprint 14 Sub 1"  →  Sub 2          (sprint-14/01..02)
+"Kerjakan Sprint 15 Sub 1"  →  ... Sub 5        (sprint-15/01..05)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini

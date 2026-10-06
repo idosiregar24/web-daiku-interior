@@ -6,6 +6,8 @@ use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\QuotationPaymentTerm;
 use App\Models\SiteSetting;
+use App\Services\QuotationService;
+use App\Support\Letters\QuotationLetter;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -40,7 +42,7 @@ class PublicQuotationResource extends JsonResource
             ],
             'type' => $quotation->type->value,
             // Sprint 12 #29 — an addendum shows as such to the client.
-            'typeLabel' => $quotation->isAddendum() ? 'RAB Tambahan' : $quotation->type->label(),
+            'typeLabel' => $quotation->title(),
             'number' => 'QUO-'.str_pad((string) $quotation->id, 5, '0', STR_PAD_LEFT),
             'version' => $quotation->version,
             'sentAt' => $quotation->sent_at?->toIso8601String(),
@@ -72,6 +74,9 @@ class PublicQuotationResource extends JsonResource
                 'milestone' => $term->milestone_name,
             ])->all(),
             'approvedAt' => $quotation->client_approved_at?->toIso8601String(),
+            // Sprint 15 — the same company letter as the PDF (QuotationLetter):
+            // client-facing text only — never the request note, references or reviews.
+            'letter' => QuotationLetter::for($quotation, $site, QuotationService::VALIDITY_DAYS),
         ];
     }
 }

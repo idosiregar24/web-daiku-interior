@@ -13,6 +13,7 @@ use App\Models\LeadCategory;
 use App\Models\LeadFollowUp;
 use App\Models\LeadSource;
 use App\Models\PipelineLog;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Services\LeadService;
 use Illuminate\Http\RedirectResponse;
@@ -85,15 +86,28 @@ class LeadController extends Controller
             'leadCategory:id,name',
             'design:id,lead_id,pic_id,status,deadline,client_acc',
             'design.pic:id,name',
-            'quotation:id,lead_id,status,total_amount,version,valid_until,client_approved_at',
-            // Sprint 12 #6 — RAB Jasa Survey / Jasa Desain / Proyek, all versions' current rows.
-            'quotations:id,lead_id,type,status,total_amount,version,created_at',
+            'quotation:id,lead_id,type,custom_name,status,total_amount,version,valid_until,client_approved_at',
+            // Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the client ("Riwayat RAB"), named.
+            'quotations:id,lead_id,type,custom_name,parent_quotation_id,status,total_amount,version,letter_number,created_at',
             'project:id,lead_id,name,pm_id,status,contract_value',
             'project.pm:id,name',
             // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
             'followUps.creator:id,name',
             'surveys.creator:id,name',
         ]);
+
+        // Sprint 15 Sub 05 — each RAB's own client link in "Riwayat RAB", for
+        // the roles that may send it (same rule as Quotation page's shareUrl);
+        // the tokens themselves never reach anyone else.
+        $canSeeClientLinks = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
+        if ($canSeeClientLinks) {
+            $lead->quotations->load('shareLinks:id,quotation_id,version,token');
+        }
+        $lead->quotations->each(function (Quotation $quotation) use ($canSeeClientLinks) {
+            $link = $canSeeClientLinks ? $quotation->shareLinks->firstWhere('version', $quotation->version) : null;
+            $quotation->setAttribute('client_url', $link?->url());
+            $quotation->unsetRelation('shareLinks');
+        });
 
         return Inertia::render('CRM/Show', [
             'lead' => $lead,
@@ -115,6 +129,10 @@ class LeadController extends Controller
                     ])
                 : null,
             'canManage' => $canManage,
+            // Sprint 14 Sub 02 — suggestions for "Buat RAB → Lainnya", so one job keeps one spelling.
+            'customRabNames' => $canManage
+                ? Quotation::query()->whereNotNull('custom_name')->distinct()->orderBy('custom_name')->limit(50)->pluck('custom_name')
+                : [],
             // Decision #2: from this FU number on, suggest marking the lead Lost.
             'suggestLostFrom' => LeadFollowUp::SUGGEST_LOST_FROM,
             // Option lists for the edit/deal/design dialogs — only sent to
@@ -199,7 +217,11 @@ class LeadController extends Controller
         return back()->with('success', match ($request->validated('type')) {
             'SURVEY' => 'Survey dijadwalkan dan lead masuk tahap Pengajuan Desain/Survey.',
             'DESAIN' => 'Lead masuk tahap Pengajuan Desain/Survey.',
-            default => LeadService::RAB_REQUEST_TYPES[$request->validated('type')]->label().' diminta — Estimator mendapat notifikasi.',
+            // Same naming as the quotation itself (Quotation::title()) — a "Lainnya" RAB says its own name.
+            default => (new Quotation([
+                'type' => LeadService::RAB_REQUEST_TYPES[$request->validated('type')],
+                'custom_name' => $request->validated('type') === 'RAB_LAINNYA' ? $request->validated('custom_name') : null,
+            ]))->title().' diminta — Estimator mendapat notifikasi.',
         });
     }
 }

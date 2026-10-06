@@ -20,9 +20,16 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { SiteSetting } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
-import { Building2, Eye, ImageIcon, Images, LogIn, Settings } from 'lucide-react';
+import { Building2, Eye, ImageIcon, Images, LogIn, NotebookText, PenLine, Settings } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+
+/** Mirrors SiteSetting::DEFAULT_NOTES — shown as placeholders. */
+const DEFAULT_NOTES = {
+    SURVEY: 'Biaya survey meliputi transportasi dan pengukuran lokasi oleh tim Daiku. Survey dijadwalkan setelah pembayaran diterima.',
+    DESAIN: 'Paket desain meliputi: Desain Interior, Desain layout, 3D Render, Gambar spesifikasi, 2 kali Revisi Desain, dan Handover kit.',
+    PROYEK: 'Harga sudah termasuk material, upah kerja, dan pemasangan sesuai rincian di atas. Pekerjaan di luar rincian dihitung sebagai pekerjaan tambah.',
+};
 
 // Mirrors UpdateSiteSettingRequest.
 const schema = z.object({
@@ -32,6 +39,15 @@ const schema = z.object({
     company_address: z.string().optional(),
     company_phone: z.string().max(50, 'Telepon maksimal 50 karakter').optional(),
     company_email: z.string().email('Format email tidak valid').optional().or(z.literal('')),
+    // Sprint 15 — letterhead, signer, default RAB notes.
+    company_instagram: z.string().max(100, 'Instagram maksimal 100 karakter').optional(),
+    company_legal_name: z.string().max(150, 'Nama badan usaha maksimal 150 karakter').optional(),
+    letter_footer: z.string().max(200, 'Teks footer maksimal 200 karakter').optional(),
+    signer_name: z.string().max(100, 'Nama penanda tangan maksimal 100 karakter').optional(),
+    signer_title: z.string().max(100, 'Jabatan maksimal 100 karakter').optional(),
+    note_survey: z.string().max(2000, 'Catatan maksimal 2000 karakter').optional(),
+    note_desain: z.string().max(2000, 'Catatan maksimal 2000 karakter').optional(),
+    note_proyek: z.string().max(2000, 'Catatan maksimal 2000 karakter').optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -116,6 +132,14 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
             company_address: settings.company_address ?? '',
             company_phone: settings.company_phone ?? '',
             company_email: settings.company_email ?? '',
+            company_instagram: settings.company_instagram ?? '',
+            company_legal_name: settings.company_legal_name ?? '',
+            letter_footer: settings.letter_footer ?? '',
+            signer_name: settings.signer_name ?? '',
+            signer_title: settings.signer_title ?? '',
+            note_survey: settings.note_survey ?? '',
+            note_desain: settings.note_desain ?? '',
+            note_proyek: settings.note_proyek ?? '',
         },
     });
 
@@ -233,23 +257,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                             <SectionCard
                                 title="Profil Perusahaan"
                                 icon={Building2}
-                                description="Dicetak di kop PDF penawaran (quotation) dan invoice termin."
-                                footer={
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={!form.formState.isDirty}
-                                            onClick={() => form.reset()}
-                                        >
-                                            Batalkan
-                                        </Button>
-                                        <Button type="submit" disabled={form.formState.isSubmitting}>
-                                            Simpan Pengaturan
-                                        </Button>
-                                    </div>
-                                }
+                                description="Dicetak di kop surat PDF penawaran & invoice dan di halaman link klien."
                             >
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <FormField
@@ -286,6 +294,159 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                                                 <FormLabel>Email</FormLabel>
                                                 <FormControl>
                                                     <Input type="email" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="company_instagram"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Instagram</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormDescription>Tanpa @, mis. DaikuInterior.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="company_legal_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Nama Badan Usaha</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormDescription>Pemilik rekening di catatan pembayaran (a.n.), mis. PT Daiku Shankara Kreasitech.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </SectionCard>
+
+                            {/* Sprint 15 K3 — who signs the letters. */}
+                            <SectionCard
+                                title="Surat & Tanda Tangan"
+                                icon={PenLine}
+                                description="Penutup surat penawaran & invoice: Hormat kami, tanda tangan, nama, dan footer hitam."
+                            >
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="signer_name"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Nama Penanda Tangan</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="signer_title"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Jabatan (opsional)</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="letter_footer"
+                                        render={({ field }) => (
+                                            <FormItem className="sm:col-span-2">
+                                                <FormLabel>Teks Footer Surat</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormDescription>Setelah nama perusahaan; kosong = INTERIOR FURNISHING | ARCHITECTURAL DESIGN | BUILDING CONSTRUCTION.</FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <div className="sm:col-span-2">
+                                        <BrandAssetCard
+                                            asset="signature"
+                                            title="Tanda Tangan"
+                                            description="PNG berlatar transparan — langsung tersimpan setelah diunggah. Hanya dicetak di surat, tidak punya alamat publik."
+                                            url={settings.signature_url}
+                                            preview={(url) => <img src={url} alt="Tanda tangan" className="max-h-24 max-w-[85%] object-contain" />}
+                                            placeholder={<PenLine className="size-10 text-daiku-muted/50" />}
+                                        />
+                                    </div>
+                                </div>
+                            </SectionCard>
+
+                            {/* Sprint 15 K4 — default "Catatan" per RAB type (an Estimator can change it per RAB). */}
+                            <SectionCard
+                                title="Catatan Bawaan RAB"
+                                icon={NotebookText}
+                                description="Dicetak di bagian Catatan surat bila Estimator tidak menulis catatan sendiri. Kosong = teks contoh."
+                                footer={
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={!form.formState.isDirty}
+                                            onClick={() => form.reset()}
+                                        >
+                                            Batalkan
+                                        </Button>
+                                        <Button type="submit" disabled={form.formState.isSubmitting}>
+                                            Simpan Pengaturan
+                                        </Button>
+                                    </div>
+                                }
+                            >
+                                <div className="grid gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="note_survey"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>RAB Jasa Survey</FormLabel>
+                                                <FormControl>
+                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.SURVEY} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="note_desain"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>RAB Jasa Desain</FormLabel>
+                                                <FormControl>
+                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.DESAIN} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="note_proyek"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>RAB Proyek & RAB lain</FormLabel>
+                                                <FormControl>
+                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.PROYEK} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

@@ -37,6 +37,10 @@ class Quotation extends Model
         'created_by',
         'requested_by',
         'request_note',
+        'custom_name',
+        // Sprint 15 — "377/OFF/Daiku/IX/2026", given when this version is sent; the RAB's "Catatan".
+        'letter_number',
+        'client_notes',
     ];
 
     protected function casts(): array
@@ -125,6 +129,12 @@ class Quotation extends Model
         return $this->hasMany(QuotationPaymentTerm::class)->orderBy('sequence');
     }
 
+    /** Sprint 14 Sub 01 — links & photos handed over with the request (internal). */
+    public function references(): HasMany
+    {
+        return $this->hasMany(QuotationReference::class)->orderBy('id');
+    }
+
     /** Marketing who asked the Estimator for this RAB (Sprint 12 #7). */
     public function requester(): BelongsTo
     {
@@ -153,9 +163,34 @@ class Quotation extends Model
         return $query->when($status, fn (Builder $q) => $q->where('status', $status));
     }
 
+    /** `CUSTOM` (Sprint 14) = the RAB Proyek given their own name; otherwise a QuotationType value. */
     public function scopeByType(Builder $query, ?string $type): Builder
     {
-        return $query->when($type, fn (Builder $q) => $q->where('type', $type));
+        return match ($type) {
+            null, '' => $query,
+            self::FILTER_CUSTOM => $query->whereNotNull('custom_name'),
+            default => $query->where('type', $type),
+        };
+    }
+
+    /** Quotation list filter value for the custom-named RAB (Sprint 14 Sub 02). */
+    public const FILTER_CUSTOM = 'CUSTOM';
+
+    /**
+     * What this RAB is called everywhere — page titles, notifications, PDF,
+     * the client's link: its custom name (Sprint 14 "Buat RAB → Lainnya",
+     * prefixed "RAB " when missing), else "RAB Tambahan" for an addendum,
+     * else the type's label.
+     */
+    public function title(): string
+    {
+        $custom = trim((string) $this->custom_name);
+
+        return match (true) {
+            $custom !== '' => preg_match('/^rab\b/i', $custom) ? $custom : "RAB {$custom}",
+            $this->isAddendum() => 'RAB Tambahan',
+            default => ($this->type ?? QuotationType::Proyek)->label(),
+        };
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Quotation\CancelQuotationRequest;
 use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
 use App\Http\Requests\Quotation\ReviewQuotationRequest;
+use App\Http\Requests\Quotation\SaveClientNotesRequest;
 use App\Http\Requests\Quotation\SavePaymentTermsRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Design;
@@ -63,6 +64,8 @@ class QuotationController extends Controller
             'sections:id,quotation_id,name,sort_order',
             'paymentTerms',
             'requester:id,name',
+            // Sprint 14 Sub 01 — links & photos from the request (internal only).
+            'references:id,quotation_id,kind,url,original_name,size',
             // Sprint 12 #29 — an addendum's project and RAB Fix.
             'project:id,name',
             'parent:id,version,total_amount',
@@ -94,6 +97,8 @@ class QuotationController extends Controller
             // Master Satuan dropdown for the RAB builder (only editable while DRAFT).
             'units' => $quotation->status === QuotationStatus::Draft ? Unit::options() : [],
             'maxPaymentTerms' => QuotationService::MAX_PAYMENT_TERMS,
+            // Sprint 15 K4 — printed when the Estimator wrote no Catatan of their own.
+            'defaultClientNotes' => SiteSetting::current()->defaultNoteFor($quotation->type->value),
             // Sprint 12 #13 — the client's link of this version, for Marketing to copy / WhatsApp.
             'shareUrl' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN'])
                 ? $quotation->currentShareLink()?->url()
@@ -125,6 +130,14 @@ class QuotationController extends Controller
         $service->savePaymentTerms($quotation, $request->validated('terms'));
 
         return back()->with('success', 'Skema pembayaran berhasil disimpan.');
+    }
+
+    /** Sprint 15 K4 — the "Catatan" printed on the letter (DRAFT only). */
+    public function updateClientNotes(SaveClientNotesRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $service->saveClientNotes($quotation, $request->validated('client_notes'));
+
+        return back()->with('success', 'Catatan untuk klien disimpan.');
     }
 
     /** Sprint 12 #7 — the Estimator picks up a RAB Marketing asked for (DIMINTA → DRAFT). */
@@ -190,7 +203,7 @@ class QuotationController extends Controller
 
     public function exportPdf(Quotation $quotation): HttpResponse
     {
-        $quotation->load(['lead:id,client_name', 'items', 'sections', 'paymentTerms']);
+        $quotation->load(['lead:id,client_name,address', 'items.unit', 'sections', 'paymentTerms']);
 
         $pdf = Pdf::loadView('pdf.quotation', [
             'quotation' => $quotation,
@@ -198,7 +211,15 @@ class QuotationController extends Controller
             'validityDays' => QuotationService::VALIDITY_DAYS,
         ]);
 
-        return $pdf->stream("penawaran-{$quotation->lead->client_name}-v{$quotation->version}.pdf");
+        return $pdf->stream(self::pdfName($quotation));
+    }
+
+    /** "penawaran-377-OFF-Daiku-IX-2026-budi.pdf", or "-draf-v2" before it is sent (Sprint 15). */
+    public static function pdfName(Quotation $quotation): string
+    {
+        $number = $quotation->letter_number ? str_replace('/', '-', $quotation->letter_number) : "draf-v{$quotation->version}";
+
+        return 'penawaran-'.$number.'-'.str($quotation->lead->client_name)->slug().'.pdf';
     }
 
     /** Sprint 12 #11 — the RAB in the Estimator's Excel layout (App\Exports\QuotationExport). */

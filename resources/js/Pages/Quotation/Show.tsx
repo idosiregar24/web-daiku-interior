@@ -1,3 +1,4 @@
+import { RabReferenceList } from '@/Components/modules/quotation/RabReferenceList';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { Notice } from '@/Components/shared/Notice';
@@ -6,7 +7,8 @@ import { StatusChip } from '@/Components/shared/StatusChip';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
 import { CancelQuotationDialog } from '@/Components/modules/quotation/CancelQuotationDialog';
-import { QUOTATION_TYPE_LABEL } from '@/Components/modules/quotation/labels';
+import { quotationTitle } from '@/Components/modules/quotation/labels';
+import { ClientNotesCard } from '@/Components/modules/quotation/ClientNotesCard';
 import { PaymentTermsEditor } from '@/Components/modules/quotation/PaymentTermsEditor';
 import { RabBuilder } from '@/Components/modules/quotation/RabBuilder';
 import { ShareLinkPanel } from '@/Components/modules/quotation/ShareLinkPanel';
@@ -60,6 +62,8 @@ interface QuotationShowProps {
     units: UnitOption[];
     /** QuotationService::MAX_PAYMENT_TERMS */
     maxPaymentTerms: number;
+    /** Sprint 15 K4 — the type's default "Catatan" (Pengaturan Situs), used when the RAB has none. */
+    defaultClientNotes: string;
     /** Sprint 12 #13 — this version's public link (CEO / Marketing only), once sent. */
     shareUrl: string | null;
     /** Sprint 12 #20 — invoices billed from this RAB. */
@@ -108,6 +112,7 @@ export default function QuotationShow({
     validityDays,
     units,
     maxPaymentTerms,
+    defaultClientNotes,
     shareUrl,
     invoices,
     canIssueInvoice,
@@ -124,7 +129,8 @@ export default function QuotationShow({
     const editable = canManage && isDraft;
     const revisions = quotation.revisions ?? [];
     // Sprint 12 #29 — an addendum is a PROYEK quotation on top of a project's RAB Fix.
-    const typeLabel = quotation.parent_quotation_id ? 'RAB Tambahan' : QUOTATION_TYPE_LABEL[quotation.type];
+    // Sprint 14 Sub 02 — a custom name wins (Quotation::title()).
+    const typeLabel = quotationTitle(quotation);
     const canCancel = canClientDecide && !CLOSED_STATUSES.includes(status);
     // The version the Estimator is revising right now, and the items the reviewer marked ✘ on it.
     const lastRevision = isDraft ? revisions.find((revision) => revision.version === quotation.version - 1) : undefined;
@@ -204,7 +210,7 @@ export default function QuotationShow({
             {quotation.request_note && (
                 <Notice tone={isRequested ? 'warning' : 'info'} className="mb-6">
                     <span className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <span className="flex-1">
+                        <span className="flex-1 whitespace-pre-line">
                             {quotation.requester?.name ?? 'Marketing'} meminta {typeLabel}: “{quotation.request_note}”
                             {isRequested && !canManage && ' — menunggu Estimator mulai menyusun.'}
                         </span>
@@ -215,6 +221,10 @@ export default function QuotationShow({
                         )}
                     </span>
                 </Notice>
+            )}
+
+            {quotation.references && quotation.references.length > 0 && (
+                <RabReferenceList references={quotation.references} requester={quotation.requester?.name} />
             )}
 
             {lastRevision && (
@@ -266,6 +276,13 @@ export default function QuotationShow({
                     >
                         <PaymentTermsEditor quotation={quotation} editable={editable} maxTerms={maxPaymentTerms} />
                     </SectionCard>
+
+                    <ClientNotesCard
+                        quotationId={quotation.id}
+                        notes={quotation.client_notes ?? null}
+                        defaultNotes={defaultClientNotes}
+                        editable={editable}
+                    />
                 </>
             )}
 

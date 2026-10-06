@@ -78,11 +78,11 @@ class SearchController extends Controller
                 ->whereHas('lead', fn (Builder $lead) => $lead->where('client_name', 'like', $like))
                 ->latest()
                 ->limit(self::PER_KIND)
-                ->get(['id', 'lead_id', 'type', 'version', 'status'])
+                ->get(['id', 'lead_id', 'type', 'custom_name', 'parent_quotation_id', 'version', 'status'])
                 ->map(fn (Quotation $quotation) => [
                     'id' => $quotation->id,
                     'label' => $quotation->lead?->client_name ?? "Quotation #{$quotation->id}",
-                    'sublabel' => "{$quotation->type?->label()} v{$quotation->version}",
+                    'sublabel' => "{$quotation->title()} v{$quotation->version}",
                     'url' => route('quotations.show', $quotation),
                 ]));
         }

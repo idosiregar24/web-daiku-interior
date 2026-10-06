@@ -43,7 +43,7 @@ class QuotationExport implements FromArray, ShouldAutoSize, WithStyles, WithTitl
 
         $rows = [
             [$site->site_name ?? 'Daiku Interior'],
-            [$quotation->type?->label() ?? 'RAB Proyek'],
+            [$quotation->title()],
             ['Klien', $quotation->lead->client_name],
             ['Nomor', 'QUO-'.str_pad((string) $quotation->id, 5, '0', STR_PAD_LEFT)." (versi {$quotation->version})"],
             ['Tanggal Cetak', now()->translatedFormat('d F Y')],

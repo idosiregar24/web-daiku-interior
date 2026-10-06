@@ -56,6 +56,7 @@ use App\Http\Controllers\QA\QaDashboardController;
 use App\Http\Controllers\QA\QaFormController;
 use App\Http\Controllers\Quotation\QuotationController;
 use App\Http\Controllers\Quotation\QuotationDashboardController;
+use App\Http\Controllers\Quotation\QuotationReferenceController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Settings\BrandingAssetController;
 use App\Http\Controllers\Settings\SiteSettingController;
@@ -222,6 +223,13 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('show');
 
+    // Sprint 14 Sub 01 — a RAB request's reference photo (private disk),
+    // for whoever may open the quotation itself.
+    Route::get('{quotation}/references/{reference}', [QuotationReferenceController::class, 'show'])
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
+        ->scopeBindings()
+        ->name('references.show');
+
     Route::get('{quotation}/pdf', [QuotationController::class, 'exportPdf'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|FINANCE')
         ->name('pdf');
@@ -243,6 +251,11 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
     Route::put('{quotation}/payment-terms', [QuotationController::class, 'updatePaymentTerms'])
         ->middleware('role:ESTIMATOR')
         ->name('paymentTerms.update');
+
+    // Sprint 15 K4 — the RAB's "Catatan" on the letter (DRAFT only).
+    Route::put('{quotation}/client-notes', [QuotationController::class, 'updateClientNotes'])
+        ->middleware(['role:ESTIMATOR', 'throttle:60,1'])
+        ->name('clientNotes.update');
 
     Route::post('{quotation}/submit', [QuotationController::class, 'submit'])
         ->middleware('role:ESTIMATOR')
@@ -851,8 +864,9 @@ Route::middleware(['auth', 'role:CEO|SUPERADMIN'])->prefix('settings')->name('se
 
 // Brand assets are public: the login page and browser tab need them
 // before sign-in. Read-only — uploads go through settings.assets.*.
+// Not the signature (Sprint 15): it is only ever inlined into letters.
 Route::get('branding/{asset}', [BrandingAssetController::class, 'show'])
-    ->whereIn('asset', array_keys(SiteSetting::ASSETS))
+    ->whereIn('asset', SiteSetting::PUBLIC_ASSETS)
     ->name('branding.show');
 
 // Sprint 13 H7 — installable on a phone (manifest + icons drawn from the
@@ -874,6 +888,10 @@ Route::middleware('throttle:30,1')->prefix('penawaran')->name('public.quotation.
     Route::post('{token}/setujui', [PublicQuotationController::class, 'approve'])
         ->where('token', '[A-Za-z0-9]{48}')
         ->name('approve');
+    // Sprint 15 — the offer letter as PDF (current version of this link only).
+    Route::get('{token}/pdf', [PublicQuotationController::class, 'pdf'])
+        ->where('token', '[A-Za-z0-9]{48}')
+        ->name('pdf');
 });
 
 require __DIR__.'/auth.php';

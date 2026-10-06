@@ -144,6 +144,13 @@ test('the page carries no internal data — only the whitelist', function () {
     expect($keys)->toEqualCanonicalizing([
         'company', 'client', 'type', 'typeLabel', 'number', 'version', 'sentAt', 'validUntil', 'sections',
         'itemsTotal', 'discount', 'roundedTotal', 'total', 'paymentTerms', 'approvedAt',
+        // Sprint 15 — the company letter (QuotationLetter), client-facing text only.
+        'letter',
+    ]);
+
+    expect(array_keys($response->viewData('page')['props']['quotation']['letter']))->toEqualCanonicalizing([
+        'kind', 'company', 'signer', 'number', 'draft', 'date', 'subject', 'recipient', 'meta', 'intro',
+        'showGroups', 'groups', 'totals', 'total', 'totalInWords', 'notes', 'paymentTerms', 'closing', 'stamp',
     ]);
 });
 

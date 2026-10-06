@@ -21,6 +21,15 @@ class UpdateSiteSettingRequest extends FormRequest
             'company_address' => ['nullable', 'string'],
             'company_phone' => ['nullable', 'string', 'max:50'],
             'company_email' => ['nullable', 'email', 'max:255'],
+            // Sprint 15 — letterhead, signer and default RAB notes.
+            'company_instagram' => ['nullable', 'string', 'max:100'],
+            'company_legal_name' => ['nullable', 'string', 'max:150'],
+            'letter_footer' => ['nullable', 'string', 'max:200'],
+            'signer_name' => ['nullable', 'string', 'max:100'],
+            'signer_title' => ['nullable', 'string', 'max:100'],
+            'note_survey' => ['nullable', 'string', 'max:2000'],
+            'note_desain' => ['nullable', 'string', 'max:2000'],
+            'note_proyek' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
