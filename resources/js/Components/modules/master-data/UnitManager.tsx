@@ -147,7 +147,7 @@ export function UnitManager({ units }: { units: UnitRow[] }) {
                                     name="code"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Kode</FormLabel>
+                                            <FormLabel required>Kode</FormLabel>
                                             <FormControl>
                                                 <Input {...field} autoFocus placeholder="mis. lbr" />
                                             </FormControl>
@@ -174,7 +174,7 @@ export function UnitManager({ units }: { units: UnitRow[] }) {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama</FormLabel>
+                                        <FormLabel required>Nama</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="mis. Lembar" />
                                         </FormControl>

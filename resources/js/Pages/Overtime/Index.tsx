@@ -103,7 +103,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                             name="project_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Proyek</FormLabel>
+                                    <FormLabel required>Proyek</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -128,7 +128,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                                 name="hours"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jam Lembur</FormLabel>
+                                        <FormLabel required>Jam Lembur</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0.5" step="0.5" {...field} />
                                         </FormControl>
@@ -141,7 +141,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                                 name="rate_per_hour"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rate/Jam (Rp)</FormLabel>
+                                        <FormLabel required>Rate/Jam (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="1000" {...field} />
                                         </FormControl>
@@ -155,7 +155,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                             name="work_date"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Tanggal</FormLabel>
+                                    <FormLabel required>Tanggal</FormLabel>
                                     <FormControl>
                                         <DatePicker value={field.value} onChange={field.onChange} />
                                     </FormControl>
@@ -168,7 +168,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Alasan / Keterangan</FormLabel>
+                                    <FormLabel required>Alasan / Keterangan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={3} />
                                     </FormControl>
@@ -262,7 +262,7 @@ function DecisionDialog({
                                 name="bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rekening Sumber</FormLabel>
+                                        <FormLabel required>Rekening Sumber</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -287,7 +287,7 @@ function DecisionDialog({
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan {isReject ? '' : '(opsional)'}</FormLabel>
+                                    <FormLabel required={isReject}>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} autoFocus />
                                     </FormControl>

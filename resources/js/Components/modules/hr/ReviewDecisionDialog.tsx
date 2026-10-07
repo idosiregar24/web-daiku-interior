@@ -81,7 +81,7 @@ export function ReviewDecisionDialog({ open, onOpenChange, reviewId, employeeNam
                                 name="note"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Catatan untuk SDM</FormLabel>
+                                        <FormLabel required>Catatan untuk SDM</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={3} autoFocus placeholder="mis. Nilai inisiatif perlu ditinjau ulang." />
                                         </FormControl>

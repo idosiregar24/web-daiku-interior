@@ -103,7 +103,9 @@ Add to `routes/web.php` inside a role-gated group (see
 `resources/js/Pages/{Modul}/{Action}.tsx` — see
 `.claude/rules/frontend-standards.md` for the page/form/table conventions,
 and `.claude/skills/front-end-design/SKILL.md` for visual conventions.
-Zod schema for the create/edit form mirrors the Form Request from step 3.
+Zod schema for the create/edit form mirrors the Form Request from step 3,
+and every field whose rule there is `required` gets `<FormLabel required>`
+(red asterisk — dynamic for `required_if`; never write "(opsional)").
 
 ## 8. Wire up navigation
 

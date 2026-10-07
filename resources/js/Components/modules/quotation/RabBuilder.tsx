@@ -31,6 +31,7 @@ import {
     useWatch,
 } from "react-hook-form";
 import { z } from "zod";
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 const MONEY = /^\d+(\.\d{1,2})?$/;
 
@@ -540,6 +541,7 @@ function RabSection({
                         </th>
                         <th className="px-3 py-2.5 text-left font-semibold">
                             Item
+                            {editable && <RequiredMark />}
                         </th>
                         <th className="w-24 px-3 py-2.5 text-left font-semibold">
                             P
@@ -549,12 +551,15 @@ function RabSection({
                         </th>
                         <th className="w-28 px-3 py-2.5 text-left font-semibold">
                             Volume
+                            {editable && <RequiredMark />}
                         </th>
                         <th className="w-28 px-3 py-2.5 text-left font-semibold">
                             Satuan
+                            {editable && <RequiredMark />}
                         </th>
                         <th className="w-40 px-3 py-2.5 text-left font-semibold">
                             Harga
+                            {editable && <RequiredMark />}
                         </th>
                         <th className="w-36 px-3 py-2.5 text-right font-semibold">
                             Subtotal

@@ -122,7 +122,7 @@ export function MaterialSynonymManager({ synonyms }: { synonyms: MaterialSynonym
                                     name="term"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Kata</FormLabel>
+                                            <FormLabel required>Kata</FormLabel>
                                             <FormControl>
                                                 <Input {...field} autoFocus placeholder="plywood" />
                                             </FormControl>
@@ -135,7 +135,7 @@ export function MaterialSynonymManager({ synonyms }: { synonyms: MaterialSynonym
                                     name="canonical"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Dianggap sama dengan</FormLabel>
+                                            <FormLabel required>Dianggap sama dengan</FormLabel>
                                             <FormControl>
                                                 <Input {...field} placeholder="triplek" />
                                             </FormControl>

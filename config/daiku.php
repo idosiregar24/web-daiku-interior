@@ -26,4 +26,11 @@ return [
     'letter' => [
         'company_code' => env('LETTER_COMPANY_CODE', 'Daiku'),
     ],
+
+    /*
+     * Sprint 16 Sub 08 (K15) — the company's own city. A survey for a lead
+     * whose Master Kota is anything else defaults to "Luar Pekanbaru"
+     * (Lead::is_outside_home_city); CitySelect lists it first.
+     */
+    'home_city' => 'Pekanbaru',
 ];

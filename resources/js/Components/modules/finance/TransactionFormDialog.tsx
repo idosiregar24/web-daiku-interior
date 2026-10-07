@@ -178,7 +178,7 @@ export function TransactionFormDialog({
                                 name="type"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jenis</FormLabel>
+                                        <FormLabel required>Jenis</FormLabel>
                                         <Select
                                             value={field.value}
                                             onValueChange={(value) => {
@@ -208,7 +208,7 @@ export function TransactionFormDialog({
                                 name="kategori"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Kategori</FormLabel>
+                                        <FormLabel required>Kategori</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -234,7 +234,7 @@ export function TransactionFormDialog({
                                 name="bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rekening</FormLabel>
+                                        <FormLabel required>Rekening</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -258,7 +258,7 @@ export function TransactionFormDialog({
                                 name="project_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Proyek (opsional)</FormLabel>
+                                        <FormLabel>Proyek</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
@@ -288,7 +288,7 @@ export function TransactionFormDialog({
                                 name="amount"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nominal (Rp)</FormLabel>
+                                        <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="0.01" {...field} />
                                         </FormControl>
@@ -301,7 +301,7 @@ export function TransactionFormDialog({
                                 name="date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal</FormLabel>
+                                        <FormLabel required>Tanggal</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -315,7 +315,7 @@ export function TransactionFormDialog({
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Deskripsi</FormLabel>
+                                    <FormLabel required>Deskripsi</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Pembelian material kayu jati" />
                                     </FormControl>

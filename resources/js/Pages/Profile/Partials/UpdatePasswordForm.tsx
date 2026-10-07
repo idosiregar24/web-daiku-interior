@@ -66,6 +66,7 @@ export default function UpdatePasswordForm({
                     <InputLabel
                         htmlFor="current_password"
                         value="Current Password"
+                        required
                     />
 
                     <TextInput
@@ -87,7 +88,7 @@ export default function UpdatePasswordForm({
                 </div>
 
                 <div>
-                    <InputLabel htmlFor="password" value="New Password" />
+                    <InputLabel htmlFor="password" value="New Password" required />
 
                     <TextInput
                         id="password"
@@ -106,6 +107,7 @@ export default function UpdatePasswordForm({
                     <InputLabel
                         htmlFor="password_confirmation"
                         value="Confirm Password"
+                        required
                     />
 
                     <TextInput

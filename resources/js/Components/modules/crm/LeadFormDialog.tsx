@@ -25,26 +25,38 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Lead, LeadCategoryOption, LeadSourceOption, User } from '@/types';
+import { isValidPhone, normalizePhone, sanitizePhoneInput } from '@/lib/phone';
+import { CitySelect } from '@/Components/shared/CitySelect';
+import type { CityOption, Lead, LeadCategoryOption, LeadSourceOption, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'] as const;
 
+const CONTACT_REQUIRED = 'Isi No. HP atau email klien (minimal salah satu).';
+
+// Mirrors ValidatesLeadContact: phone and/or email (at least one), phone = 08 + 8–11 digits.
 const schema = z.object({
     client_name: z.string().min(1, 'Nama klien wajib diisi'),
-    contact: z.string().min(1, 'Kontak wajib diisi'),
+    phone: z
+        .string()
+        .refine((v) => v.trim() === '' || isValidPhone(normalizePhone(v)), 'No. HP hanya angka dan diawali 08 (10–13 digit), mis. 081234567890.'),
+    email: z
+        .string()
+        .trim()
+        .refine((v) => v === '' || z.email().safeParse(v).success, 'Format email tidak valid, mis. nama@gmail.com.'),
     // Mirrors StoreLeadRequest/UpdateLeadRequest: lead_source_id required,
     // lead_category_id nullable — both ids of Data Master rows (Select value = String(id)).
     lead_source_id: z.string().min(1, 'Sumber lead wajib dipilih'),
     priority: z.enum(PRIORITY_OPTIONS),
     lead_category_id: z.string().optional(),
     service: z.string().optional(),
-    city: z.string().optional(),
+    city_id: z.string().optional(),
     gender: z.string().optional(),
     order_detail: z.string().optional(),
     assigned_to: z.string().min(1, 'PIC Marketing wajib dipilih'),
@@ -58,18 +70,23 @@ const schema = z.object({
         .optional()
         .refine((v) => !v || /^https?:\/\//i.test(v), 'Link Google Maps harus diawali http:// atau https://'),
     notes: z.string().optional(),
+}).superRefine((values, ctx) => {
+    if (values.phone.trim() === '' && values.email.trim() === '') {
+        ctx.addIssue({ code: 'custom', path: ['phone'], message: CONTACT_REQUIRED });
+    }
 });
 
 type FormValues = z.infer<typeof schema>;
 
 const EMPTY_VALUES: FormValues = {
     client_name: '',
-    contact: '',
+    phone: '',
+    email: '',
     lead_source_id: '',
     priority: 'WARM',
     lead_category_id: '',
     service: '',
-    city: '',
+    city_id: '',
     gender: '',
     order_detail: '',
     assigned_to: '',
@@ -88,6 +105,8 @@ interface LeadFormDialogProps {
     marketers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
+    /** Sprint 16 Sub 08 — Master Kota (`City::options()`). */
+    cities: CityOption[];
 }
 
 /**
@@ -96,7 +115,7 @@ interface LeadFormDialogProps {
  * changes through LeadStatusDialog/ConfirmDealDialog so a PipelineLog
  * entry is never skipped (see LeadService::update()).
  */
-export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSources, leadCategories }: LeadFormDialogProps) {
+export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSources, leadCategories, cities }: LeadFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
@@ -108,12 +127,13 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
         if (editing) {
             form.reset({
                 client_name: editing.client_name,
-                contact: editing.contact,
+                phone: editing.phone ?? '',
+                email: editing.email ?? '',
                 lead_source_id: editing.lead_source_id ? String(editing.lead_source_id) : '',
                 priority: editing.priority,
                 lead_category_id: editing.lead_category_id ? String(editing.lead_category_id) : '',
                 service: editing.service ?? '',
-                city: editing.city ?? '',
+                city_id: editing.city_id ? String(editing.city_id) : '',
                 gender: editing.gender ?? '',
                 order_detail: editing.order_detail ?? '',
                 assigned_to: String(editing.assigned_to),
@@ -138,8 +158,11 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
 
         const payload = {
             ...values,
+            phone: normalizePhone(values.phone) || null,
+            email: values.email.trim().toLowerCase() || null,
             lead_source_id: Number(values.lead_source_id),
             lead_category_id: values.lead_category_id ? Number(values.lead_category_id) : null,
+            city_id: values.city_id ? Number(values.city_id) : null,
             assigned_to: Number(values.assigned_to),
             first_contacted_at: values.first_contacted_at ? format(values.first_contacted_at, 'yyyy-MM-dd') : null,
             address: values.address || null,
@@ -168,7 +191,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                             name="client_name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Klien</FormLabel>
+                                    <FormLabel required>Nama Klien</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus />
                                     </FormControl>
@@ -176,26 +199,59 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="contact"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Kontak (telepon/email)</FormLabel>
-                                    <FormControl>
-                                        <Input {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <div className="grid grid-cols-2 gap-4">
+                        <fieldset className="space-y-2">
+                            <legend className="text-sm font-medium">
+                                Kontak
+                                <RequiredMark />
+                            </legend>
+                            <div className="grid items-start gap-4 sm:grid-cols-2">
+                                <FormField
+                                    control={form.control}
+                                    name="phone"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="font-normal text-daiku-muted">No. HP</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    {...field}
+                                                    type="tel"
+                                                    inputMode="numeric"
+                                                    autoComplete="tel"
+                                                    placeholder="08xxxxxxxxxx"
+                                                    onChange={(event) => field.onChange(sanitizePhoneInput(event.target.value))}
+                                                    onBlur={() => {
+                                                        field.onChange(normalizePhone(field.value));
+                                                        field.onBlur();
+                                                    }}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="email"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="font-normal text-daiku-muted">Email</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} type="email" autoComplete="email" placeholder="nama@gmail.com" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                            <p className="text-xs text-daiku-muted">Isi No. HP, email, atau keduanya. No. HP hanya angka, diawali 08.</p>
+                        </fieldset>
+                        <div className="grid grid-cols-2 items-start gap-4">
                             <FormField
                                 control={form.control}
                                 name="lead_source_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Sumber</FormLabel>
+                                        <FormLabel required>Sumber</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -219,7 +275,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                 name="priority"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Prioritas</FormLabel>
+                                        <FormLabel required>Prioritas</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -239,7 +295,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                 )}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 items-start gap-4">
                             <FormField
                                 control={form.control}
                                 name="lead_category_id"
@@ -270,13 +326,11 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                             />
                             <FormField
                                 control={form.control}
-                                name="city"
+                                name="city_id"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Kota</FormLabel>
-                                        <FormControl>
-                                            <Input {...field} />
-                                        </FormControl>
+                                        <CitySelect value={field.value ?? ''} onChange={field.onChange} cities={cities} />
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -295,13 +349,13 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                 </FormItem>
                             )}
                         />
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 items-start gap-4">
                             <FormField
                                 control={form.control}
                                 name="assigned_to"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>PIC Marketing</FormLabel>
+                                        <FormLabel required>PIC Marketing</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">

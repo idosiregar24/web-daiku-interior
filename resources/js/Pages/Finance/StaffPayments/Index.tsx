@@ -202,7 +202,7 @@ function PayDialog({ task, bankAccounts, onOpenChange }: PayDialogProps) {
                             name="bank_account_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rekening Sumber</FormLabel>
+                                    <FormLabel required>Rekening Sumber</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">

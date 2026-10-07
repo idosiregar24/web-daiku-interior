@@ -4,6 +4,7 @@ import { Label } from '@/Components/ui/label';
 import AuthLayout from '@/Layouts/AuthLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 export default function ForgotPassword({ status }: { status?: string }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -31,7 +32,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
 
             <form onSubmit={submit} className="space-y-5">
                 <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email<RequiredMark /></Label>
                     <Input
                         id="email"
                         type="email"

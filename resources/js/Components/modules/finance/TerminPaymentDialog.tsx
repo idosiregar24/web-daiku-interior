@@ -139,7 +139,7 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                             name="type"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Jenis Pembayaran</FormLabel>
+                                    <FormLabel required>Jenis Pembayaran</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -162,7 +162,7 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                             name="amount"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nominal (Rp)</FormLabel>
+                                    <FormLabel required>Nominal (Rp)</FormLabel>
                                     <FormControl>
                                         <Input type="number" min="0" step="0.01" {...field} />
                                     </FormControl>
@@ -175,7 +175,7 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                             name="bank_account_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rekening Penerima</FormLabel>
+                                    <FormLabel required>Rekening Penerima</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -199,7 +199,7 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                             name="paid_date"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Tanggal Pembayaran</FormLabel>
+                                    <FormLabel required>Tanggal Pembayaran</FormLabel>
                                     <FormControl>
                                         <DatePicker value={field.value} onChange={field.onChange} />
                                     </FormControl>

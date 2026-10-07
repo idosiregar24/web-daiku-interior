@@ -107,7 +107,7 @@ export function LeadStatusDialog({ open, onOpenChange, lead }: LeadStatusDialogP
                             name="status"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Status Baru</FormLabel>
+                                    <FormLabel required>Status Baru</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -132,7 +132,7 @@ export function LeadStatusDialog({ open, onOpenChange, lead }: LeadStatusDialogP
                                 name="lost_reason"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Alasan Lost</FormLabel>
+                                        <FormLabel required>Alasan Lost</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={2} autoFocus />
                                         </FormControl>
@@ -146,7 +146,7 @@ export function LeadStatusDialog({ open, onOpenChange, lead }: LeadStatusDialogP
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} />
                                     </FormControl>

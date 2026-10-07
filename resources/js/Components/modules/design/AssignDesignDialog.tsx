@@ -123,7 +123,7 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
                             name="pic_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>PIC Arsitek</FormLabel>
+                                    <FormLabel required>PIC Arsitek</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -148,7 +148,7 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
                             name="assistant_ids"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Asisten Arsitek (opsional)</FormLabel>
+                                    <FormLabel>Asisten Arsitek</FormLabel>
                                     <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-border p-3">
                                         {architects.filter((architect) => String(architect.id) !== picId).length === 0 ? (
                                             <p className="text-sm text-daiku-muted">Tidak ada arsitek lain.</p>
@@ -183,7 +183,7 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
                                 name="start_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Mulai</FormLabel>
+                                        <FormLabel required>Tanggal Mulai</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -196,7 +196,7 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
                                 name="target_hari"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Target (hari)</FormLabel>
+                                        <FormLabel required>Target (hari)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min={1} max={365} {...field} />
                                         </FormControl>

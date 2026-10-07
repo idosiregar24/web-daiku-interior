@@ -84,7 +84,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama</FormLabel>
+                                        <FormLabel required>Nama</FormLabel>
                                         <FormControl>
                                             <Input {...field} />
                                         </FormControl>
@@ -97,7 +97,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel required>Email</FormLabel>
                                         <FormControl>
                                             <Input type="email" {...field} />
                                         </FormControl>
@@ -110,7 +110,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Password baru (opsional)</FormLabel>
+                                        <FormLabel>Password baru</FormLabel>
                                         <FormControl>
                                             <Input type="password" placeholder="Kosongkan jika tidak diubah" {...field} />
                                         </FormControl>
@@ -123,7 +123,7 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                 name="role"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Role</FormLabel>
+                                        <FormLabel required>Role</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">

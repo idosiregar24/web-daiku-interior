@@ -94,7 +94,7 @@ test('marketing can create a lead and it writes an initial pipeline log', functi
 
     $response = $this->actingAs($marketing)->post(route('crm.leads.store'), [
         'client_name' => 'Budi Santoso',
-        'contact' => '0812-3456-7890',
+        'phone' => '081234567890',
         'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'HOT',
         'assigned_to' => $marketing->id,
@@ -116,7 +116,7 @@ test('field staff cannot create a lead', function () {
 
     $this->actingAs($staff)->post(route('crm.leads.store'), [
         'client_name' => 'Budi Santoso',
-        'contact' => '0812-3456-7890',
+        'phone' => '081234567890',
         'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'HOT',
         'assigned_to' => $staff->id,
@@ -170,7 +170,7 @@ test('marketing can edit lead fields but the request cannot smuggle a status cha
 
     $this->actingAs($marketing)->put(route('crm.leads.update', ['lead' => $lead->id]), [
         'client_name' => 'Baru',
-        'contact' => $lead->contact,
+        'phone' => $lead->phone,
         'lead_source_id' => $lead->lead_source_id,
         'priority' => $lead->priority->value,
         'assigned_to' => $lead->assigned_to,

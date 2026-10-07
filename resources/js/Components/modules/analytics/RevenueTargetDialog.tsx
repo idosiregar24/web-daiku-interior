@@ -73,7 +73,7 @@ export function RevenueTargetDialog({ open, onOpenChange, existing }: RevenueTar
                             name="month"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Bulan</FormLabel>
+                                    <FormLabel required>Bulan</FormLabel>
                                     <FormControl>
                                         <Input
                                             type="month"
@@ -94,7 +94,7 @@ export function RevenueTargetDialog({ open, onOpenChange, existing }: RevenueTar
                             name="target_amount"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Target (Rp)</FormLabel>
+                                    <FormLabel required>Target (Rp)</FormLabel>
                                     <FormControl>
                                         <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                     </FormControl>

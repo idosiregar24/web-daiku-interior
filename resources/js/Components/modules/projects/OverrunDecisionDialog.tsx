@@ -76,7 +76,7 @@ export function OverrunDecisionDialog({ open, onOpenChange, decision, request }:
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>{approve ? 'Catatan (opsional)' : 'Catatan penolakan'}</FormLabel>
+                                    <FormLabel required={!approve}>{approve ? 'Catatan' : 'Catatan penolakan'}</FormLabel>
                                     <FormControl>
                                         <Textarea rows={3} maxLength={1000} {...field} />
                                     </FormControl>

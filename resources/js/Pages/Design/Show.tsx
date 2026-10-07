@@ -324,7 +324,7 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                                     name="pic_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>PIC Arsitek</FormLabel>
+                                            <FormLabel required>PIC Arsitek</FormLabel>
                                             <Select value={field.value} onValueChange={field.onChange} disabled={!canManage || flowManaged}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
@@ -476,7 +476,7 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                                     name="status"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Status</FormLabel>
+                                            <FormLabel required>Status</FormLabel>
                                             <Select value={field.value} onValueChange={field.onChange} disabled={!canManage || flowManaged}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">

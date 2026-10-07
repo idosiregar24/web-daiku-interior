@@ -200,7 +200,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Aset</FormLabel>
+                                    <FormLabel required>Nama Aset</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Mobil Pickup L300" />
                                     </FormControl>
@@ -214,7 +214,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                 name="category"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Kategori</FormLabel>
+                                        <FormLabel required>Kategori</FormLabel>
                                         <FormControl>
                                             <Input {...field} list="asset-categories" placeholder="Alat, Mesin, Kendaraan…" />
                                         </FormControl>
@@ -232,7 +232,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                 name="condition"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Kondisi</FormLabel>
+                                        <FormLabel required>Kondisi</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -258,7 +258,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                 name="purchase_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Beli</FormLabel>
+                                        <FormLabel required>Tanggal Beli</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -271,7 +271,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                 name="value"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nilai (Rp)</FormLabel>
+                                        <FormLabel required>Nilai (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -285,7 +285,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                             name="location"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Lokasi (opsional)</FormLabel>
+                                    <FormLabel>Lokasi</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Gudang Workshop" />
                                     </FormControl>
@@ -298,7 +298,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                             name="notes"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={3} />
                                     </FormControl>
@@ -335,7 +335,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                         name="total_install"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Total Cicilan (Rp)</FormLabel>
+                                                <FormLabel required>Total Cicilan (Rp)</FormLabel>
                                                 <FormControl>
                                                     <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                                 </FormControl>
@@ -350,7 +350,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                             name="installment_amount"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Cicilan per Bulan (opsional)</FormLabel>
+                                                    <FormLabel>Cicilan per Bulan</FormLabel>
                                                     <FormControl>
                                                         <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                                     </FormControl>
@@ -363,7 +363,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                             name="installment_due_day"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Jatuh Tempo Tgl (opsional)</FormLabel>
+                                                    <FormLabel>Jatuh Tempo Tgl</FormLabel>
                                                     <FormControl>
                                                         <Input type="number" min="1" max="28" step="1" inputMode="numeric" placeholder="1–28" {...field} />
                                                     </FormControl>

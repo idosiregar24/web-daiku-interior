@@ -132,7 +132,7 @@ export function RabReferenceFields({
     return (
         <div className="space-y-3 rounded-lg border border-border p-3">
             <div>
-                <p className="text-sm font-medium text-foreground">Referensi (opsional)</p>
+                <p className="text-sm font-medium text-foreground">Referensi</p>
                 <p className="text-xs text-muted-foreground">
                     Link (Google Drive, Pinterest, Instagram, Maps, video) dan foto lokasi/contoh dari klien — hanya untuk tim internal.
                 </p>

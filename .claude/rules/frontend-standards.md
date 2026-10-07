@@ -58,6 +58,10 @@ const form = useForm<z.infer<typeof schema>>({
   `@/Components/ui/form` (sudah ditulis manual untuk preset Nova — CLI
   shadcn saat ini tidak generate file ini untuk style project, lihat
   git blame `Components/ui/form.tsx` kalau perlu referensi ulang).
+- **Label wajib (Sprint 16):** `<FormLabel required>` untuk setiap kolom
+  yang Form Request-nya `required` (bintang dinamis untuk `required_if`).
+  Jangan tulis "(opsional)" — kolom tanpa bintang sudah berarti opsional.
+  Aturan lengkap: `design-standards.md` §2 "Kolom wajib".
 
 ## 4. Tabel: TanStack Table
 

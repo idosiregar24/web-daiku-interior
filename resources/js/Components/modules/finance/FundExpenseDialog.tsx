@@ -120,7 +120,7 @@ export function FundExpenseDialog({ open, onOpenChange, spendable, bankAccounts 
                                 name="amount"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nominal (Rp)</FormLabel>
+                                        <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="0.01" {...field} autoFocus />
                                         </FormControl>
@@ -133,7 +133,7 @@ export function FundExpenseDialog({ open, onOpenChange, spendable, bankAccounts 
                                 name="date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal</FormLabel>
+                                        <FormLabel required>Tanggal</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -147,7 +147,7 @@ export function FundExpenseDialog({ open, onOpenChange, spendable, bankAccounts 
                             name="bank_account_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rekening Sumber Dana</FormLabel>
+                                    <FormLabel required>Rekening Sumber Dana</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -171,7 +171,7 @@ export function FundExpenseDialog({ open, onOpenChange, spendable, bankAccounts 
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Keterangan</FormLabel>
+                                    <FormLabel required>Keterangan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} placeholder="mis. Acara gathering Q3 2026" />
                                     </FormControl>

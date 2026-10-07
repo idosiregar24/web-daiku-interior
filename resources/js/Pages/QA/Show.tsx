@@ -7,6 +7,7 @@ import { Checkbox } from '@/Components/ui/checkbox';
 import {
     Form,
     FormControl,
+    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -154,7 +155,8 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                             name="notes"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan Keputusan {editable && '(wajib jika reject)'}</FormLabel>
+                                    <FormLabel>Catatan Keputusan</FormLabel>
+                                    {editable && <FormDescription>Wajib diisi bila keputusan Reject.</FormDescription>}
                                     <FormControl>
                                         <Textarea {...field} disabled={!editable} rows={3} />
                                     </FormControl>

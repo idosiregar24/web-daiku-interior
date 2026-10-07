@@ -138,7 +138,7 @@ export function MaterialCategoryManager({ categories }: { categories: MaterialCa
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama</FormLabel>
+                                        <FormLabel required>Nama</FormLabel>
                                         <FormControl>
                                             <Input {...field} autoFocus placeholder="mis. Kayu & Panel" />
                                         </FormControl>
@@ -152,7 +152,7 @@ export function MaterialCategoryManager({ categories }: { categories: MaterialCa
                                     name="code_prefix"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Prefix Kode</FormLabel>
+                                            <FormLabel required>Prefix Kode</FormLabel>
                                             <FormControl>
                                                 <Input {...field} placeholder="KYP" className="uppercase" />
                                             </FormControl>

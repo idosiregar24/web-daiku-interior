@@ -99,7 +99,7 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                                 name="percentage"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Persentase (%)</FormLabel>
+                                        <FormLabel required>Persentase (%)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" max="100" {...field} autoFocus />
                                         </FormControl>
@@ -126,7 +126,7 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Deskripsi</FormLabel>
+                                    <FormLabel required>Deskripsi</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={3} placeholder="mis. Pemasangan kusen selesai, mulai finishing cat" />
                                     </FormControl>
@@ -139,7 +139,7 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                             name="ref_urls"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>URL Referensi (opsional, satu per baris)</FormLabel>
+                                    <FormLabel>URL Referensi (satu per baris)</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} placeholder="https://..." />
                                     </FormControl>

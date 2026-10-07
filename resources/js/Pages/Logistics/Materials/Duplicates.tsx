@@ -12,6 +12,7 @@ import type { Material } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { CopyX, GitMerge } from 'lucide-react';
 import { useState } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 type DuplicateMaterial = Pick<Material, 'id' | 'code' | 'name' | 'unit_id' | 'unit' | 'stock' | 'category'>;
 
@@ -120,7 +121,7 @@ export default function MaterialDuplicates({ groups, materials }: DuplicatesProp
                 <SectionCard title="Gabung manual" description="Untuk dobel yang lolos (mis. dibuat dengan alasan). Hanya barang dengan satuan sama." icon={GitMerge}>
                     <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
                         <div className="space-y-2">
-                            <Label>Barang yang digabung (jadi nonaktif)</Label>
+                            <Label>Barang yang digabung (jadi nonaktif)<RequiredMark /></Label>
                             <Select
                                 value={fromId}
                                 onValueChange={(value) => {
@@ -141,7 +142,7 @@ export default function MaterialDuplicates({ groups, materials }: DuplicatesProp
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>Digabung ke (dipertahankan)</Label>
+                            <Label>Digabung ke (dipertahankan)<RequiredMark /></Label>
                             <Select value={intoId} onValueChange={setIntoId} disabled={!from}>
                                 <SelectTrigger className="w-full">
                                     <SelectValue placeholder={from ? 'Pilih barang tujuan' : 'Pilih barang asal dulu'} />

@@ -92,7 +92,7 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     // 1. Marketing creates a lead.
     $this->actingAs($marketing)->post(route('crm.leads.store'), [
         'client_name' => 'Budi Santoso',
-        'contact' => '0812-0000-0000',
+        'phone' => '081200000000',
         'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'HOT',
         'assigned_to' => $marketing->id,
@@ -219,7 +219,7 @@ test('the presales flow survives rejections — CEO return, client reject, revis
     // 1. Lead → DEAL_DESAIN → design brief with a sub-staff member.
     $this->actingAs($marketing)->post(route('crm.leads.store'), [
         'client_name' => 'Sari Wulandari',
-        'contact' => '0812-1111-2222',
+        'phone' => '081211112222',
         'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'HOT',
         'assigned_to' => $marketing->id,

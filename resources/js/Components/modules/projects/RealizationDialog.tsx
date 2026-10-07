@@ -120,7 +120,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                                 name="qty_actual"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Qty Riil{line.unit ? ` (${line.unit})` : ''}</FormLabel>
+                                        <FormLabel required>Qty Riil{line.unit ? ` (${line.unit})` : ''}</FormLabel>
                                         <FormControl>
                                             <Input inputMode="decimal" {...field} disabled={!!overrun} />
                                         </FormControl>
@@ -133,7 +133,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                                 name="unit_cost"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Harga Modal / Satuan</FormLabel>
+                                        <FormLabel required>Harga Modal / Satuan</FormLabel>
                                         <FormControl>
                                             <Input inputMode="decimal" placeholder="mis. 250000" {...field} disabled={!!overrun} />
                                         </FormControl>
@@ -150,7 +150,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                             name="vendor_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Vendor (opsional)</FormLabel>
+                                    <FormLabel>Vendor</FormLabel>
                                     <VendorSelect value={field.value} onChange={field.onChange} vendors={vendors} allowEmpty disabled={!!overrun} />
                                     <FormMessage />
                                 </FormItem>
@@ -161,7 +161,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea rows={2} maxLength={1000} {...field} disabled={!!overrun} />
                                     </FormControl>
@@ -178,7 +178,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                                     name="reason"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Alasan untuk CEO</FormLabel>
+                                            <FormLabel required>Alasan untuk CEO</FormLabel>
                                             <FormControl>
                                                 <Textarea rows={3} maxLength={2000} autoFocus placeholder="mis. Panjang LED strip riil 7,5 m, RAB 4,15 m." {...field} />
                                             </FormControl>

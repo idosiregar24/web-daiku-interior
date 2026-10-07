@@ -5,6 +5,7 @@ namespace App\Http\Controllers\MasterData;
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\LeadCategory;
 use App\Models\LeadSource;
 use App\Models\MaterialCategory;
@@ -28,6 +29,8 @@ class MasterDataController extends Controller
             'branches' => Branch::query()->orderBy('name')->get(),
             'leadSources' => LeadSource::query()->orderBy('name')->get(),
             'leadCategories' => LeadCategory::query()->orderBy('name')->get(),
+            // Sprint 16 Sub 08 — Master Kota; `leads_count` > 0 → rename only, no delete.
+            'cities' => City::query()->ordered()->withCount('leads')->get(),
             // Saldo Saat Ini is derived (opening_balance + transactions).
             'bankAccounts' => BankAccount::query()->withBalance()->orderBy('bank_name')->get()->append('current_balance'),
             // `in_use` decides delete vs. deactivate-only (UnitController::destroy()).

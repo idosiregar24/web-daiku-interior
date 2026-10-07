@@ -319,7 +319,7 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                                                     name={`weights.${key}`}
                                                     render={({ field }) => (
                                                         <FormItem>
-                                                            <FormLabel>{label} (%)</FormLabel>
+                                                            <FormLabel required>{label} (%)</FormLabel>
                                                             <FormControl>
                                                                 <Input type="number" min="0" max="100" step="1" inputMode="numeric" {...field} />
                                                             </FormControl>
@@ -366,7 +366,7 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                                         name="notes"
                                         render={({ field }) => (
                                             <FormItem className="sm:row-span-2">
-                                                <FormLabel>Catatan (opsional)</FormLabel>
+                                                <FormLabel>Catatan</FormLabel>
                                                 <FormControl>
                                                     <Textarea {...field} rows={4} placeholder="Kekuatan, area perbaikan, target semester depan." />
                                                 </FormControl>

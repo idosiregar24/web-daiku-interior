@@ -94,7 +94,7 @@ function SubmitFormDialog({ task, open, onOpenChange }: { task: Task | null; ope
                             name="status"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Status Hari Ini</FormLabel>
+                                    <FormLabel required>Status Hari Ini</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -118,7 +118,7 @@ function SubmitFormDialog({ task, open, onOpenChange }: { task: Task | null; ope
                             name="kendala"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Kendala (opsional)</FormLabel>
+                                    <FormLabel>Kendala</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} />
                                     </FormControl>
@@ -131,7 +131,7 @@ function SubmitFormDialog({ task, open, onOpenChange }: { task: Task | null; ope
                             name="notes"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} />
                                     </FormControl>

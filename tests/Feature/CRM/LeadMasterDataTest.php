@@ -24,7 +24,7 @@ function leadPayload(array $overrides = []): array
 {
     return [
         'client_name' => 'Budi Santoso',
-        'contact' => '0812-3456-7890',
+        'phone' => '081234567890',
         'priority' => 'HOT',
         ...$overrides,
     ];
@@ -85,7 +85,7 @@ test('lead service tolerates legacy string input by resolving master rows case-i
 
     $lead = app(LeadService::class)->create([
         'client_name' => 'Siti',
-        'contact' => '0812',
+        'phone' => '081234567890',
         'source' => 'instagram',
         'priority' => 'WARM',
         'category' => 'Villa',

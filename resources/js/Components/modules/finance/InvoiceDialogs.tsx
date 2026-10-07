@@ -132,7 +132,7 @@ export function IssueInvoiceDialog({
                 name="due_date"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Jatuh Tempo</FormLabel>
+                        <FormLabel required>Jatuh Tempo</FormLabel>
                         <FormControl>
                             <DatePicker value={field.value} onChange={field.onChange} />
                         </FormControl>
@@ -178,7 +178,7 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
                 name="payment_proof_url"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Link bukti transfer</FormLabel>
+                        <FormLabel required>Link bukti transfer</FormLabel>
                         <FormControl>
                             <Input {...field} placeholder="https://drive.google.com/..." autoFocus />
                         </FormControl>
@@ -236,7 +236,7 @@ export function InvoiceVerifyDialog({
                 name="bank_account_id"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Rekening penerima</FormLabel>
+                        <FormLabel required>Rekening penerima</FormLabel>
                         <Select value={field.value} onValueChange={field.onChange}>
                             <FormControl>
                                 <SelectTrigger className="w-full">
@@ -260,7 +260,7 @@ export function InvoiceVerifyDialog({
                 name="paid_date"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Tanggal uang masuk</FormLabel>
+                        <FormLabel required>Tanggal uang masuk</FormLabel>
                         <FormControl>
                             <DatePicker value={field.value} onChange={field.onChange} />
                         </FormControl>
@@ -299,7 +299,7 @@ export function InvoiceRejectDialog({ open, onOpenChange, invoice }: { open: boo
                 name="reason"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel>Alasan</FormLabel>
+                        <FormLabel required>Alasan</FormLabel>
                         <FormControl>
                             <Textarea {...field} rows={3} autoFocus placeholder="mis. Dana belum masuk ke rekening BCA per hari ini." />
                         </FormControl>

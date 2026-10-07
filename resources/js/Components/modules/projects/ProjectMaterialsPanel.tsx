@@ -518,7 +518,7 @@ export function ProjectMaterialsPanel({
                                 name="material_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Material (katalog)</FormLabel>
+                                        <FormLabel required>Material (katalog)</FormLabel>
                                         {editing ? (
                                             <p className="rounded-md bg-daiku-gray px-3 py-2 text-sm">{editing.display_name}</p>
                                         ) : (
@@ -579,7 +579,7 @@ export function ProjectMaterialsPanel({
                                 name="source"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Sumber</FormLabel>
+                                        <FormLabel required>Sumber</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange} disabled={editing !== null}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -600,7 +600,7 @@ export function ProjectMaterialsPanel({
                                 name="qty_planned"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jumlah Kebutuhan</FormLabel>
+                                        <FormLabel required>Jumlah Kebutuhan</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="0.01" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -614,7 +614,7 @@ export function ProjectMaterialsPanel({
                                     name="vendor_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Vendor (opsional)</FormLabel>
+                                            <FormLabel>Vendor</FormLabel>
                                             <FormControl>
                                                 <VendorSelect value={field.value ?? ''} onChange={field.onChange} vendors={vendors} allowEmpty />
                                             </FormControl>

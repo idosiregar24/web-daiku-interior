@@ -2,6 +2,7 @@ import { Input } from '@/Components/ui/input';
 import { Label } from '@/Components/ui/label';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 export interface SurveyFormValues {
     scheduled_at: string;
@@ -31,7 +32,7 @@ export function SurveyFormFields({ values, onChange, errors, locationEditable, l
     return (
         <div className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="survey-scheduled-at">Jadwal Survey</Label>
+                <Label htmlFor="survey-scheduled-at">Jadwal Survey<RequiredMark /></Label>
                 <Input
                     id="survey-scheduled-at"
                     type="datetime-local"

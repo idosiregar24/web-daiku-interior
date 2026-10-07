@@ -126,7 +126,7 @@ export function PenaltyPaymentDialog({ staff, penalties, bankAccounts, onOpenCha
                             render={({ field }) => (
                                 <FormItem>
                                     <div className="flex items-center justify-between">
-                                        <FormLabel>Penalti yang dibayar</FormLabel>
+                                        <FormLabel required>Penalti yang dibayar</FormLabel>
                                         <Button
                                             type="button"
                                             variant="link"
@@ -180,7 +180,7 @@ export function PenaltyPaymentDialog({ staff, penalties, bankAccounts, onOpenCha
                                 name="bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rekening Penerima</FormLabel>
+                                        <FormLabel required>Rekening Penerima</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -204,7 +204,7 @@ export function PenaltyPaymentDialog({ staff, penalties, bankAccounts, onOpenCha
                                 name="date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Bayar</FormLabel>
+                                        <FormLabel required>Tanggal Bayar</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -218,7 +218,7 @@ export function PenaltyPaymentDialog({ staff, penalties, bankAccounts, onOpenCha
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Dibayar tunai di kantor" />
                                     </FormControl>

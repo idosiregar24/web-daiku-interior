@@ -30,6 +30,7 @@ use App\Http\Controllers\Logistics\ProjectMaterialController;
 use App\Http\Controllers\Logistics\StockMovementController;
 use App\Http\Controllers\MasterData\BankAccountController;
 use App\Http\Controllers\MasterData\BranchController;
+use App\Http\Controllers\MasterData\CityController;
 use App\Http\Controllers\MasterData\LeadCategoryController;
 use App\Http\Controllers\MasterData\LeadSourceController;
 use App\Http\Controllers\MasterData\MasterDataController;
@@ -791,6 +792,11 @@ Route::middleware(['auth', 'role:SUPERADMIN'])->prefix('master-data')->name('mas
     Route::post('lead-categories', [LeadCategoryController::class, 'store'])->name('lead-categories.store');
     Route::put('lead-categories/{lead_category}', [LeadCategoryController::class, 'update'])->name('lead-categories.update');
     Route::delete('lead-categories/{lead_category}', [LeadCategoryController::class, 'destroy'])->name('lead-categories.destroy');
+
+    // Sprint 16 Sub 08 — Master Kota; a city used by a lead is renamed, never deleted.
+    Route::post('cities', [CityController::class, 'store'])->name('cities.store');
+    Route::put('cities/{city}', [CityController::class, 'update'])->name('cities.update');
+    Route::delete('cities/{city}', [CityController::class, 'destroy'])->name('cities.destroy');
 
     Route::post('bank-accounts', [BankAccountController::class, 'store'])->name('bank-accounts.store');
     Route::put('bank-accounts/{bank_account}', [BankAccountController::class, 'update'])->name('bank-accounts.update');

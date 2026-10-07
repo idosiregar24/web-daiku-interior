@@ -78,7 +78,7 @@ export function RequestAddendumDialog({ open, onOpenChange, projectId, projectNa
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Pekerjaan yang ditambah</FormLabel>
+                                    <FormLabel required>Pekerjaan yang ditambah</FormLabel>
                                     <FormControl>
                                         <Textarea
                                             {...field}

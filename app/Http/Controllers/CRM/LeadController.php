@@ -8,6 +8,7 @@ use App\Http\Requests\CRM\StoreLeadRequest;
 use App\Http\Requests\CRM\SubmitLeadRequestRequest;
 use App\Http\Requests\CRM\UpdateLeadRequest;
 use App\Http\Requests\CRM\UpdateLeadStatusRequest;
+use App\Models\City;
 use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadFollowUp;
@@ -36,6 +37,7 @@ class LeadController extends Controller
                 'quotation:id,lead_id,status,valid_until,version',
                 'leadSource:id,name',
                 'leadCategory:id,name',
+                'city:id,name',
             ])
             // Sprint 12: next open FU date + how many FUs, for the list column.
             ->withNextFollowUp()
@@ -43,11 +45,7 @@ class LeadController extends Controller
             ->byPriority($request->string('priority')->value() ?: null)
             ->byLeadSource($request->integer('lead_source_id') ?: null)
             ->byLeadCategory($request->integer('lead_category_id') ?: null)
-            ->when($request->filled('search'), fn ($query) => $query->where(
-                'client_name',
-                'like',
-                '%'.$request->string('search').'%',
-            ))
+            ->search($request->string('search')->value())
             ->latest()
             ->paginate(15)
             ->withQueryString();
@@ -63,6 +61,8 @@ class LeadController extends Controller
             // legacy `source`/`category` strings in sync.
             'leadSources' => LeadSource::orderBy('name')->get(['id', 'name']),
             'leadCategories' => LeadCategory::orderBy('name')->get(['id', 'name']),
+            // Sprint 16 Sub 08 — Master Kota for the lead form's CitySelect.
+            'cities' => City::options(),
         ]);
     }
 
@@ -84,6 +84,7 @@ class LeadController extends Controller
             'creator:id,name',
             'leadSource:id,name',
             'leadCategory:id,name',
+            'city:id,name',
             'design:id,lead_id,pic_id,status,deadline,client_acc',
             'design.pic:id,name',
             'quotation:id,lead_id,type,custom_name,status,total_amount,version,valid_until,client_approved_at',
@@ -110,7 +111,8 @@ class LeadController extends Controller
         });
 
         return Inertia::render('CRM/Show', [
-            'lead' => $lead,
+            // Sprint 16 Sub 08 (K15): a new survey defaults to "Luar Pekanbaru" from the lead's city.
+            'lead' => $lead->append('is_outside_home_city'),
             // Flattened instead of serializing the `changedBy` relation —
             // it snake_cases to `changed_by` and would overwrite the FK
             // column of the same name (see Lead::assignee()).
@@ -140,6 +142,7 @@ class LeadController extends Controller
             'marketers' => $canManage ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canManage ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
             'leadCategories' => $canManage ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
+            'cities' => $canManage ? City::options() : [],
         ]);
     }
 

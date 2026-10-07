@@ -58,7 +58,7 @@ class QuotationController extends Controller
     public function show(Request $request, Quotation $quotation): Response
     {
         $quotation->load([
-            'lead:id,client_name,contact',
+            'lead:id,client_name,phone,email',
             'items',
             // Sprint 12 #11–#12 — bagian pekerjaan, skema DP/termin, who asked for it.
             'sections:id,quotation_id,name,sort_order',

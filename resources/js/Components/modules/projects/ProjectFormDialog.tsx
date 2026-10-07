@@ -171,7 +171,7 @@ export function ProjectFormDialog({
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Proyek</FormLabel>
+                                    <FormLabel required>Nama Proyek</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus />
                                     </FormControl>
@@ -184,7 +184,7 @@ export function ProjectFormDialog({
                             name="pm_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Project Manager</FormLabel>
+                                    <FormLabel required>Project Manager</FormLabel>
                                     {canChangePm ? (
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
@@ -248,7 +248,7 @@ export function ProjectFormDialog({
                                 name="start_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Mulai</FormLabel>
+                                        <FormLabel required>Tanggal Mulai</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -261,7 +261,7 @@ export function ProjectFormDialog({
                                 name="end_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Selesai (opsional)</FormLabel>
+                                        <FormLabel>Tanggal Selesai</FormLabel>
                                         <div className="flex gap-2">
                                             <FormControl>
                                                 <DatePicker value={field.value} onChange={field.onChange} />
@@ -282,7 +282,7 @@ export function ProjectFormDialog({
                             name="contract_value"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nilai Kontrak (Rp)</FormLabel>
+                                    <FormLabel required>Nilai Kontrak (Rp)</FormLabel>
                                     <FormControl>
                                         <Input type="number" step="0.01" min="0" disabled={hasTerminPayments} {...field} />
                                     </FormControl>
@@ -300,7 +300,7 @@ export function ProjectFormDialog({
                             name="status"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Status</FormLabel>
+                                    <FormLabel required>Status</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -326,7 +326,7 @@ export function ProjectFormDialog({
                                 name="note"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>{status === 'CANCELLED' ? 'Alasan Pembatalan' : 'Catatan Perubahan Status (opsional)'}</FormLabel>
+                                        <FormLabel required={status === 'CANCELLED'}>{status === 'CANCELLED' ? 'Alasan Pembatalan' : 'Catatan Perubahan Status'}</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={2} />
                                         </FormControl>

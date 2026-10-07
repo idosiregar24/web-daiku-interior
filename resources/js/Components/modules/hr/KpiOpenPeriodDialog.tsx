@@ -63,7 +63,7 @@ export function KpiOpenPeriodDialog({ open, onOpenChange, currentMonth }: KpiOpe
                             name="period"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Bulan</FormLabel>
+                                    <FormLabel required>Bulan</FormLabel>
                                     <FormControl>
                                         <Input type="month" max={currentMonth} {...field} />
                                     </FormControl>

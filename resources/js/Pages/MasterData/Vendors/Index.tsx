@@ -280,7 +280,7 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                                     name="name"
                                     render={({ field }) => (
                                         <FormItem className="col-span-2">
-                                            <FormLabel>Nama Vendor</FormLabel>
+                                            <FormLabel required>Nama Vendor</FormLabel>
                                             <FormControl>
                                                 <Input {...field} autoFocus placeholder="mis. Kaca Jaya" />
                                             </FormControl>
@@ -293,7 +293,7 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                                     name="type"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Jenis</FormLabel>
+                                            <FormLabel required>Jenis</FormLabel>
                                             <Select value={field.value} onValueChange={field.onChange}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
@@ -310,13 +310,13 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                                     )}
                                 />
                             </div>
-                            {textField('contact', 'Kontak (opsional)', 'No. HP / nama sales')}
+                            {textField('contact', 'Kontak', 'No. HP / nama sales')}
                             <FormField
                                 control={form.control}
                                 name="address"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Alamat (opsional)</FormLabel>
+                                        <FormLabel>Alamat</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={2} />
                                         </FormControl>
@@ -325,10 +325,10 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                                 )}
                             />
                             <div className="grid grid-cols-2 gap-4">
-                                {textField('bank_name', 'Bank (opsional)', 'mis. BCA')}
-                                {textField('bank_account_number', 'No. Rekening (opsional)')}
+                                {textField('bank_name', 'Bank', 'mis. BCA')}
+                                {textField('bank_account_number', 'No. Rekening')}
                             </div>
-                            {textField('account_holder', 'Atas Nama (opsional)')}
+                            {textField('account_holder', 'Atas Nama')}
                             <FormField
                                 control={form.control}
                                 name="is_active"

@@ -149,6 +149,16 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     from `LetterNumberService`; an offer is numbered when sent. RAB request
     references (links/photos) are internal; the signature asset is never
     served publicly (`SiteSetting::PUBLIC_ASSETS`).
+14. **Form & data lead (Sprint 16 — `plan/sprint-16-penanda-wajib.md`).**
+    Every label whose Form Request rule is `required` gets
+    `<FormLabel required>` / `<InputLabel required>` / `<RequiredMark />`
+    (dynamic for `required_if`); never write "(opsional)". A lead's contact
+    is `phone` (digits only, `08…`, through `App\Support\Phone` /
+    `lib/phone.ts` — never a hand-rolled regex or `whatsappNumber()`) and/or
+    `email`, at least one (`ValidatesLeadContact`). A lead's city is
+    `city_id` → Master Kota (`cities`, SUPERADMIN in Data Master), picked
+    through `CitySelect` / `City::options()` — never free text; the home
+    city is `config('daiku.home_city')`.
 
 ## Local environment
 

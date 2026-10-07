@@ -157,13 +157,13 @@ export function MaterialRequestDialog({
         });
     }
 
-    const text = (name: 'spec' | 'photo_link', label: string, placeholder?: string) => (
+    const text = (name: 'spec' | 'photo_link', label: string, placeholder?: string, required = false) => (
         <FormField
             control={form.control}
             name={name}
             render={({ field }) => (
                 <FormItem>
-                    <FormLabel>{label}</FormLabel>
+                    <FormLabel required={required}>{label}</FormLabel>
                     <FormControl>
                         <Input {...field} placeholder={placeholder} />
                     </FormControl>
@@ -192,7 +192,7 @@ export function MaterialRequestDialog({
                                 name="project_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Proyek</FormLabel>
+                                        <FormLabel required>Proyek</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -218,7 +218,7 @@ export function MaterialRequestDialog({
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem className="col-span-2">
-                                        <FormLabel>Nama Barang</FormLabel>
+                                        <FormLabel required>Nama Barang</FormLabel>
                                         <FormControl>
                                             <Input {...field} autoFocus placeholder="mis. Kaca tempered 8mm" />
                                         </FormControl>
@@ -231,7 +231,7 @@ export function MaterialRequestDialog({
                                 name="qty"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jumlah</FormLabel>
+                                        <FormLabel required>Jumlah</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0.01" step="0.01" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -259,14 +259,14 @@ export function MaterialRequestDialog({
                         )}
                         {!minimal && (
                             <>
-                                {text('spec', 'Spesifikasi', 'Ukuran, warna, merek…')}
+                                {text('spec', 'Spesifikasi', 'Ukuran, warna, merek…', true)}
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
                                         name="unit_id"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Satuan</FormLabel>
+                                                <FormLabel required>Satuan</FormLabel>
                                                 <FormControl>
                                                     <UnitSelect value={field.value ?? ''} onChange={field.onChange} units={units} />
                                                 </FormControl>
@@ -279,7 +279,7 @@ export function MaterialRequestDialog({
                                         name="estimated_price"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Estimasi Harga / Satuan (Rp)</FormLabel>
+                                                <FormLabel required>Estimasi Harga / Satuan (Rp)</FormLabel>
                                                 <FormControl>
                                                     <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                                 </FormControl>
@@ -293,7 +293,7 @@ export function MaterialRequestDialog({
                                     name="vendor_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Vendor (opsional)</FormLabel>
+                                            <FormLabel>Vendor</FormLabel>
                                             <FormControl>
                                                 <VendorSelect value={field.value ?? ''} onChange={field.onChange} vendors={vendors} allowEmpty />
                                             </FormControl>
@@ -301,7 +301,7 @@ export function MaterialRequestDialog({
                                         </FormItem>
                                     )}
                                 />
-                                {text('photo_link', 'Link Foto (opsional)', 'https://…')}
+                                {text('photo_link', 'Link Foto', 'https://…')}
                             </>
                         )}
                         <FormField
@@ -309,7 +309,7 @@ export function MaterialRequestDialog({
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>{minimal ? 'Catatan (opsional)' : 'Alasan tidak memakai barang katalog'}</FormLabel>
+                                    <FormLabel required={!minimal}>{minimal ? 'Catatan' : 'Alasan tidak memakai barang katalog'}</FormLabel>
                                     <FormControl>
                                         <Textarea rows={2} {...field} />
                                     </FormControl>

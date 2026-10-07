@@ -66,7 +66,7 @@ export function CancelQuotationDialog({ open, onOpenChange, quotation, label }: 
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Alasan pembatalan</FormLabel>
+                                    <FormLabel required>Alasan pembatalan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={3} autoFocus placeholder="mis. Klien batal survey, jadwal diundur ke tahun depan." />
                                     </FormControl>

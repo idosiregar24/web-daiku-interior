@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\LeadStatus;
+use App\Models\City;
 use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadSource;
@@ -43,7 +44,7 @@ class DashboardController extends Controller
                 ->whereNotIn('status', [LeadStatus::Lost->value, LeadStatus::Closing->value])
                 // Sprint 12: an open follow-up (FU-n) due within 3 days, or overdue.
                 ->whereHas('followUps', fn ($query) => $query->pending()->where('scheduled_date', '<=', now()->addDays(3)->toDateString()))
-                ->select(['id', 'client_name', 'contact', 'status', 'assigned_to'])
+                ->select(['id', 'client_name', 'phone', 'email', 'status', 'assigned_to'])
                 ->withNextFollowUp()
                 ->orderBy('next_follow_up_date')
                 ->limit(10)
@@ -57,6 +58,7 @@ class DashboardController extends Controller
             'marketers' => $canSeeFollowUps ? User::role('MARKETING')->orderBy('name')->get(['id', 'name']) : [],
             'leadSources' => $canSeeFollowUps ? LeadSource::orderBy('name')->get(['id', 'name']) : [],
             'leadCategories' => $canSeeFollowUps ? LeadCategory::orderBy('name')->get(['id', 'name']) : [],
+            'cities' => $canSeeFollowUps ? City::options() : [],
         ]);
     }
 }

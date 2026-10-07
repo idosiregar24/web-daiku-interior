@@ -75,7 +75,7 @@ export function DisciplineVoidDialog({ record, employeeName, onOpenChange }: Dis
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Alasan Pembatalan</FormLabel>
+                                    <FormLabel required>Alasan Pembatalan</FormLabel>
                                     <FormControl>
                                         <Textarea rows={3} {...field} placeholder="mis. Salah input karyawan" />
                                     </FormControl>

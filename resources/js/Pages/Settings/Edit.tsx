@@ -214,7 +214,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                                         name="site_name"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Nama Sistem</FormLabel>
+                                                <FormLabel required>Nama Sistem</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} />
                                                 </FormControl>
@@ -355,7 +355,7 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
                                         name="signer_title"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Jabatan (opsional)</FormLabel>
+                                                <FormLabel>Jabatan</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} />
                                                 </FormControl>

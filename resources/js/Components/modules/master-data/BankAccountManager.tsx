@@ -123,7 +123,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                     name="bank_name"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nama Bank</FormLabel>
+                                            <FormLabel required>Nama Bank</FormLabel>
                                             <FormControl>
                                                 <Input {...field} placeholder="mis. BCA" autoFocus />
                                             </FormControl>
@@ -136,7 +136,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                     name="account_no"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nomor Rekening</FormLabel>
+                                            <FormLabel required>Nomor Rekening</FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
@@ -149,7 +149,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                     name="label"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Label</FormLabel>
+                                            <FormLabel required>Label</FormLabel>
                                             <FormControl>
                                                 <Input {...field} placeholder='mis. "BCA 5835"' />
                                             </FormControl>

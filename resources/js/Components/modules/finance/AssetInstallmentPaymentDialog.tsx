@@ -116,7 +116,7 @@ export function AssetInstallmentPaymentDialog({ asset, bankAccounts, onOpenChang
                                 name="amount"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nominal (Rp)</FormLabel>
+                                        <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="0.01" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -129,7 +129,7 @@ export function AssetInstallmentPaymentDialog({ asset, bankAccounts, onOpenChang
                                 name="paid_at"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Bayar</FormLabel>
+                                        <FormLabel required>Tanggal Bayar</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -152,7 +152,7 @@ export function AssetInstallmentPaymentDialog({ asset, bankAccounts, onOpenChang
                             name="bank_account_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rekening Sumber</FormLabel>
+                                    <FormLabel required>Rekening Sumber</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -176,7 +176,7 @@ export function AssetInstallmentPaymentDialog({ asset, bankAccounts, onOpenChang
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Cicilan ke-5" />
                                     </FormControl>

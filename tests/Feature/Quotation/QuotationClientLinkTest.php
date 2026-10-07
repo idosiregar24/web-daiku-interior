@@ -31,7 +31,7 @@ beforeEach(function () {
     $this->lead = Lead::factory()->create([
         'status' => LeadStatus::DealDesain->value,
         'assigned_to' => $this->marketing->id,
-        'contact' => '0812-3456-7890',
+        'phone' => '081234567890',
         'address' => 'Jl. Tegal Sari 12',
     ]);
 });
@@ -276,7 +276,7 @@ test('only CEO and Marketing get the link to copy / WhatsApp', function (string 
 
     $this->actingAs(linkUser($role))->get(route('quotations.show', $quotation))
         ->assertInertia(fn (Assert $page) => $sees
-            ? $page->where('shareUrl', $quotation->currentShareLink()->url())->where('quotation.lead.contact', '0812-3456-7890')
+            ? $page->where('shareUrl', $quotation->currentShareLink()->url())->where('quotation.lead.phone', '081234567890')
             : $page->where('shareUrl', null));
 })->with([['MARKETING', true], ['CEO', true], ['ESTIMATOR', false], ['PM', false], ['FINANCE', false]]);
 

@@ -56,6 +56,10 @@ you're about to write or touch UI, not just component logic.
 6. A date input → `Components/shared/DatePicker.tsx` (already formats in
    Bahasa Indonesia via date-fns), not a raw `<Calendar>`/`<input
    type="date">`.
+7. Form labels: `<FormLabel required>` (or `<RequiredMark />` inside a
+   plain `<Label>`) on every field the Form Request marks `required` — red
+   asterisk in `text-error-ink`, dynamic for `required_if`. No "(opsional)"
+   suffixes. See `rules/design-standards.md` §2 "Kolom wajib".
 
 ## Adding/customizing a shadcn component
 

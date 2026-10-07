@@ -131,7 +131,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                                 name="from_bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Dari Rekening</FormLabel>
+                                        <FormLabel required>Dari Rekening</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -158,7 +158,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                                 name="to_bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Ke Rekening</FormLabel>
+                                        <FormLabel required>Ke Rekening</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -188,7 +188,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                                 name="amount"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nominal (Rp)</FormLabel>
+                                        <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="0.01" {...field} />
                                         </FormControl>
@@ -201,7 +201,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                                 name="date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal</FormLabel>
+                                        <FormLabel required>Tanggal</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -221,7 +221,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Keterangan</FormLabel>
+                                    <FormLabel required>Keterangan</FormLabel>
                                     <FormControl>
                                         <Input {...field} maxLength={150} placeholder="mis. Top up rekening operasional" />
                                     </FormControl>

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import type { Lead } from '@/types';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 type RequestType = 'SURVEY' | 'RAB_SURVEY' | 'RAB_DESAIN' | 'RAB_PROYEK' | 'RAB_LAINNYA';
 
@@ -42,7 +43,7 @@ const EMPTY_SURVEY: SurveyFormValues = { scheduled_at: '', address: '', maps_url
 interface SubmitLeadRequestDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    lead: Pick<Lead, 'id' | 'client_name' | 'address'>;
+    lead: Pick<Lead, 'id' | 'client_name' | 'address' | 'is_outside_home_city'>;
     /** Lead already in Pengajuan Desain/Survey — only the RAB options remain ("Buat RAB"). */
     rabOnly?: boolean;
     /** Sprint 14 Sub 02 — custom names used before, suggested for "RAB Lainnya". */
@@ -71,7 +72,8 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
     useEffect(() => {
         if (open) {
             setType(rabOnly ? 'RAB_SURVEY' : 'SURVEY');
-            setSurvey(EMPTY_SURVEY);
+            // Sprint 16 Sub 08 (K15): a lead outside the home city starts as "Luar Pekanbaru".
+            setSurvey({ ...EMPTY_SURVEY, is_outside_pekanbaru: lead.is_outside_home_city ?? false });
             setNote('');
             setCustomName('');
             setReferences(EMPTY_REFERENCES);
@@ -152,7 +154,7 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
 
                 {type === 'RAB_LAINNYA' && (
                     <div className="space-y-2">
-                        <Label htmlFor="submit-request-custom-name">Nama RAB</Label>
+                        <Label htmlFor="submit-request-custom-name">Nama RAB<RequiredMark /></Label>
                         <Input
                             id="submit-request-custom-name"
                             list="custom-rab-names"
@@ -182,7 +184,7 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
                 )}
 
                 <div className="space-y-2">
-                    <Label htmlFor="submit-request-note">{isRab ? 'Catatan untuk Estimator' : 'Catatan (opsional)'}</Label>
+                    <Label htmlFor="submit-request-note">{isRab ? 'Catatan untuk Estimator' : 'Catatan'}{isRab && <RequiredMark />}</Label>
                     <Textarea
                         id="submit-request-note"
                         rows={isRab ? 4 : 2}

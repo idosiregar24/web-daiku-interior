@@ -66,7 +66,7 @@ export function DesignRevisionDialog({ open, onOpenChange, designId, clientName,
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan Revisi</FormLabel>
+                                    <FormLabel required>Catatan Revisi</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={4} maxLength={2000} placeholder="mis. Warna kitchen set diganti putih doff…" />
                                     </FormControl>

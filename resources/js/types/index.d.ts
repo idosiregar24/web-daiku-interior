@@ -197,7 +197,9 @@ export type LeadCategory =
 export interface Lead {
     id: number;
     client_name: string;
-    contact: string;
+    /** Sprint 16 Sub 07 — digits only, `08…` (lib/phone.ts formats it). At least one of phone/email is set. */
+    phone: string | null;
+    email: string | null;
     source: string;
     priority: LeadPriority;
     /** Legacy string mirror of `lead_category.name` (kept in sync by LeadService) — any Data Master name. */
@@ -208,7 +210,11 @@ export interface Lead {
     lead_source?: Pick<LeadSourceOption, 'id' | 'name'> | null;
     lead_category?: Pick<LeadCategoryOption, 'id' | 'name'> | null;
     service: string | null;
-    city: string | null;
+    /** Sprint 16 Sub 08 — Master Kota FK (picked via CitySelect). */
+    city_id: number | null;
+    city?: Pick<CityOption, 'id' | 'name'> | null;
+    /** Lead detail only (K15): a city other than config('daiku.home_city') → survey defaults to "Luar Pekanbaru". */
+    is_outside_home_city?: boolean;
     gender: string | null;
     order_detail: string | null;
     status: LeadStatus;
@@ -1239,6 +1245,18 @@ export interface Branch {
     address: string | null;
     created_at: string;
     updated_at: string;
+}
+
+/** Sprint 16 Sub 08 — Master Kota row as sent by `City::options()`. */
+export interface CityOption {
+    id: number;
+    name: string;
+    province: string | null;
+}
+
+/** Data Master → Kota row (`leads_count` > 0 → rename only). */
+export interface CityRow extends CityOption {
+    leads_count: number;
 }
 
 export interface LeadSourceOption {

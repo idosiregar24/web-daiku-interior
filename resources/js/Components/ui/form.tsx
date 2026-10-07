@@ -12,6 +12,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/Components/ui/label"
+import { RequiredMark } from "@/Components/shared/RequiredMark"
 
 const Form = FormProvider
 
@@ -84,8 +85,13 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 
 function FormLabel({
   className,
+  required,
+  children,
   ...props
-}: React.ComponentProps<typeof Label>) {
+}: React.ComponentProps<typeof Label> & {
+  /** Sprint 16 — red asterisk; true when the Form Request rule is `required`. */
+  required?: boolean
+}) {
   const { error, formItemId } = useFormField()
 
   return (
@@ -95,7 +101,10 @@ function FormLabel({
       className={cn("data-[error=true]:text-destructive", className)}
       htmlFor={formItemId}
       {...props}
-    />
+    >
+      {children}
+      {required && <RequiredMark />}
+    </Label>
   )
 }
 

@@ -89,7 +89,7 @@ export function QuotationDecisionDialog({ open, onOpenChange, quotation, clientN
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Alasan penolakan klien</FormLabel>
+                                    <FormLabel required>Alasan penolakan klien</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={3} autoFocus placeholder="mis. Klien minta harga turun 10% dan material diganti HPL." />
                                     </FormControl>

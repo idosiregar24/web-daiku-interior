@@ -9,6 +9,7 @@ use App\Enums\MilestoneStatus;
 use App\Enums\TaskStatus;
 use App\Models\Asset;
 use App\Models\BankAccount;
+use App\Models\City;
 use App\Models\DailyTaskForm;
 use App\Models\Design;
 use App\Models\Lead;
@@ -265,12 +266,12 @@ class DemoDataSeeder extends Seeder
         // detail page suggests marking the lead Lost.
         $siti = $leadService->create([
             'client_name' => 'Siti Nurhaliza',
-            'contact' => '0812-1111-0001',
+            'phone' => '081211110001',
             'first_contacted_at' => now()->subDays(30)->toDateString(),
             'source' => 'Instagram',
             'priority' => 'HOT',
             'category' => 'RESIDENTIAL',
-            'city' => 'Pekanbaru',
+            'city_id' => City::idFor('Pekanbaru'),
             'address' => 'Jl. Tegal Sari No. 12, Pekanbaru',
             'maps_url' => 'https://maps.google.com/?q=Jl.+Tegal+Sari+Pekanbaru',
             'assigned_to' => $this->marketing->id,
@@ -288,12 +289,12 @@ class DemoDataSeeder extends Seeder
         // Decision #3: a survey outside Pekanbaru waits for the paid RAB Jasa Survey.
         $ahmad = $leadService->create([
             'client_name' => 'Ahmad Fauzi',
-            'contact' => '0812-1111-0002',
+            'phone' => '081211110002',
             'first_contacted_at' => now()->subDays(2)->toDateString(),
             'source' => 'WhatsApp',
             'priority' => 'WARM',
             'category' => 'RESIDENTIAL',
-            'city' => 'Bangkinang',
+            'city_id' => City::idFor('Bangkinang'),
             'address' => 'Jl. Prof. M. Yamin, Bangkinang, Kampar',
             'assigned_to' => $this->marketing->id,
             'follow_up_date' => now()->addDays(3)->toDateString(),
@@ -310,7 +311,7 @@ class DemoDataSeeder extends Seeder
 
         $lost = $leadService->create([
             'client_name' => 'Rina Wijaya',
-            'contact' => '0812-1111-0003',
+            'phone' => '081211110003',
             'source' => 'Website',
             'priority' => 'COLD',
             'category' => 'KOMERSIAL',
@@ -351,7 +352,7 @@ class DemoDataSeeder extends Seeder
         foreach ($specs as $i => $spec) {
             $lead = $leadService->create([
                 'client_name' => $spec['name'],
-                'contact' => '0812-2222-000'.($i + 1),
+                'phone' => '08122222000'.($i + 1),
                 'source' => $spec['source'],
                 'priority' => 'WARM',
                 'assigned_to' => $this->marketing->id,
@@ -430,7 +431,7 @@ class DemoDataSeeder extends Seeder
         ];
 
         foreach ($specs as $i => $spec) {
-            [, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '0812-3333-000'.($i + 1));
+            [, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '08123333000'.($i + 1));
 
             $quotationService->replaceItems($quotation, [
                 ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 18_000_000],
@@ -497,7 +498,7 @@ class DemoDataSeeder extends Seeder
             ['name' => 'Budi Santoso', 'source' => 'Instagram'],
             ['name' => 'Citra Lestari', 'source' => 'Website'],
         ] as $i => $spec) {
-            [$lead, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '0812-4444-000'.($i + 1));
+            [$lead, $quotation] = $this->openAccdQuotation($leadService, $designService, $spec['name'], $spec['source'], '08124444000'.($i + 1));
 
             $quotationService->replaceItems($quotation, [
                 ['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => $this->unit('set'), 'unit_price' => 20_000_000],
@@ -538,11 +539,11 @@ class DemoDataSeeder extends Seeder
      * WAITING_ACC_DESAIN → Client ACC (which itself opens the Quotation,
      * DesignService::clientAcc()).
      */
-    private function openAccdQuotation(LeadService $leadService, DesignService $designService, string $name, string $source, string $contact): array
+    private function openAccdQuotation(LeadService $leadService, DesignService $designService, string $name, string $source, string $phone): array
     {
         $lead = $leadService->create([
             'client_name' => $name,
-            'contact' => $contact,
+            'phone' => $phone,
             'source' => $source,
             'priority' => 'HOT',
             'assigned_to' => $this->marketing->id,

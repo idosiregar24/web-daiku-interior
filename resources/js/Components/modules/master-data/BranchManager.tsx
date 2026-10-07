@@ -104,7 +104,7 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
                                     name="name"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nama Cabang</FormLabel>
+                                            <FormLabel required>Nama Cabang</FormLabel>
                                             <FormControl>
                                                 <Input {...field} autoFocus />
                                             </FormControl>
@@ -117,7 +117,7 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
                                     name="code"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Kode</FormLabel>
+                                            <FormLabel required>Kode</FormLabel>
                                             <FormControl>
                                                 <Input {...field} placeholder="mis. JKT01" />
                                             </FormControl>
@@ -130,7 +130,7 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
                                     name="address"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Alamat (opsional)</FormLabel>
+                                            <FormLabel>Alamat</FormLabel>
                                             <FormControl>
                                                 <Textarea {...field} />
                                             </FormControl>

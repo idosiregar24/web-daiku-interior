@@ -14,9 +14,11 @@ import { QuotationDecisionDialog } from '@/Components/modules/quotation/Quotatio
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
+import { formatPhone } from '@/lib/phone';
 import type {
     Design,
     Lead,
+    CityOption,
     LeadCategoryOption,
     LeadFollowUp,
     LeadSourceOption,
@@ -67,6 +69,7 @@ interface LeadShowProps {
     marketers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
+    cities: CityOption[];
     /** Sprint 14 Sub 02 — custom RAB names used before ("Buat RAB → Lainnya" suggestions). */
     customRabNames: string[];
 }
@@ -84,6 +87,7 @@ export default function LeadShow({
     marketers,
     leadSources,
     leadCategories,
+    cities,
     customRabNames,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
@@ -180,8 +184,9 @@ export default function LeadShow({
                         <DetailItem label="Nama Klien" valueClassName="font-medium">
                             {lead.client_name}
                         </DetailItem>
-                        <DetailItem label="Kontak">{lead.contact}</DetailItem>
-                        <DetailItem label="Kota">{lead.city || '—'}</DetailItem>
+                        <DetailItem label="No. HP">{formatPhone(lead.phone) || '—'}</DetailItem>
+                        <DetailItem label="Email">{lead.email || '—'}</DetailItem>
+                        <DetailItem label="Kota">{lead.city?.name ?? '—'}</DetailItem>
                         <DetailItem label="Pertama Dihubungi">{formatDate(lead.first_contacted_at)}</DetailItem>
                         <DetailItem label="Masuk Sistem">{formatDate(lead.created_at)}</DetailItem>
                         <DetailItem label="Alamat" className="sm:col-span-2" valueClassName="whitespace-pre-line">
@@ -344,6 +349,7 @@ export default function LeadShow({
                         marketers={marketers}
                         leadSources={leadSources}
                         leadCategories={leadCategories}
+                        cities={cities}
                     />
                     <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={lead} />
                     <SubmitLeadRequestDialog

@@ -23,6 +23,7 @@ import { router } from '@inertiajs/react';
 import { startOfToday } from 'date-fns';
 import { CalendarCheck, MapPin, PhoneCall, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 type NoteAction =
     | { kind: 'complete-follow-up'; followUp: LeadFollowUp }
@@ -30,7 +31,7 @@ type NoteAction =
     | { kind: 'cancel-survey'; survey: LeadSurvey };
 
 interface LeadTimelineProps {
-    lead: Pick<Lead, 'id' | 'status' | 'address'> & { follow_ups: LeadFollowUp[]; surveys: LeadSurvey[] };
+    lead: Pick<Lead, 'id' | 'status' | 'address' | 'is_outside_home_city'> & { follow_ups: LeadFollowUp[]; surveys: LeadSurvey[] };
     canManage: boolean;
     /** LeadFollowUp::SUGGEST_LOST_FROM — from this FU number on, suggest marking the lead Lost. */
     suggestLostFrom: number;
@@ -75,7 +76,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
         setSurveyValues(
             survey
                 ? { scheduled_at: toDateTimeLocal(survey.scheduled_at), address: survey.address ?? '', maps_url: survey.maps_url ?? '', is_outside_pekanbaru: survey.is_outside_pekanbaru }
-                : { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: false },
+                : { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: lead.is_outside_home_city ?? false },
         );
         setSurveyDialog({ survey });
     }
@@ -287,7 +288,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
                         {suggestLost && <DialogDescription>Sudah {nextSequence - 1} kali follow-up — pertimbangkan tandai Lost.</DialogDescription>}
                     </DialogHeader>
                     <div className="space-y-2">
-                        <Label htmlFor="follow-up-date">Tanggal follow-up</Label>
+                        <Label htmlFor="follow-up-date">Tanggal follow-up<RequiredMark /></Label>
                         <Input id="follow-up-date" type="date" value={followUpDate} onChange={(event) => setFollowUpDate(event.target.value)} />
                         {errors.scheduled_date && <p className="text-sm text-destructive">{errors.scheduled_date}</p>}
                     </div>
@@ -341,7 +342,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
                                 <DialogTitle>{noteCopy[noteAction.kind].title}</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-2">
-                                <Label htmlFor="timeline-note">{noteCopy[noteAction.kind].label}</Label>
+                                <Label htmlFor="timeline-note">{noteCopy[noteAction.kind].label}<RequiredMark /></Label>
                                 <Textarea id="timeline-note" rows={3} value={note} onChange={(event) => setNote(event.target.value)} />
                                 {(errors.result_note || errors.reason) && (
                                     <p className="text-sm text-destructive">{errors.result_note ?? errors.reason}</p>

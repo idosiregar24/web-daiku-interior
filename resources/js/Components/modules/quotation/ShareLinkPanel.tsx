@@ -1,40 +1,25 @@
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
+import { whatsappNumber } from '@/lib/phone';
 import { Check, Copy, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
-
-/** "0812-3456-7890" / "+62 812…" / "812…" → "62812…" for wa.me; null when it isn't a phone number. */
-export function whatsappNumber(contact: string | null | undefined): string | null {
-    const digits = (contact ?? '').replace(/\D/g, '');
-
-    if (digits.length < 8) {
-        return null;
-    }
-    if (digits.startsWith('62')) {
-        return digits;
-    }
-    if (digits.startsWith('0')) {
-        return `62${digits.slice(1)}`;
-    }
-
-    return digits.startsWith('8') ? `62${digits}` : digits;
-}
 
 interface ShareLinkPanelProps {
     url: string;
     clientName: string;
-    contact: string | null;
+    /** The lead's mobile number (`08…`), null when it only has an email. */
+    phone: string | null;
     typeLabel: string;
     validUntil: string | null;
 }
 
 /**
  * Sprint 12 decision #13 — Marketing copies the client's link or opens
- * WhatsApp with it prefilled (number from the lead's contact).
+ * WhatsApp with it prefilled (number from the lead's No. HP).
  */
-export function ShareLinkPanel({ url, clientName, contact, typeLabel, validUntil }: ShareLinkPanelProps) {
+export function ShareLinkPanel({ url, clientName, phone: leadPhone, typeLabel, validUntil }: ShareLinkPanelProps) {
     const [copied, setCopied] = useState(false);
-    const phone = whatsappNumber(contact);
+    const phone = whatsappNumber(leadPhone);
     const message =
         `Halo ${clientName}, berikut ${typeLabel} dari kami. Silakan dibuka dan, bila sesuai, tekan "Setujui Penawaran":\n${url}` +
         (validUntil ? `\n\nPenawaran berlaku sampai ${validUntil}.` : '');
@@ -70,7 +55,7 @@ export function ShareLinkPanel({ url, clientName, contact, typeLabel, validUntil
                     </Button>
                 </div>
             </div>
-            {!phone && <p className="text-xs text-daiku-muted">Kontak lead bukan nomor HP — pilih penerima di WhatsApp.</p>}
+            {!phone && <p className="text-xs text-daiku-muted">Lead belum punya No. HP — pilih penerima di WhatsApp.</p>}
         </div>
     );
 }

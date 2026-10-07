@@ -69,7 +69,7 @@ export function BudgetPostDialog({ open, onOpenChange, projectId, post }: Budget
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Pos</FormLabel>
+                                    <FormLabel required>Nama Pos</FormLabel>
                                     <FormControl>
                                         <Input {...field} maxLength={100} autoFocus />
                                     </FormControl>

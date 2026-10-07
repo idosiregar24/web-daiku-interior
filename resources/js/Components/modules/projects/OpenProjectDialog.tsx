@@ -98,7 +98,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Proyek</FormLabel>
+                                    <FormLabel required>Nama Proyek</FormLabel>
                                     <FormControl>
                                         <Input {...field} />
                                     </FormControl>
@@ -112,7 +112,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                                 name="pm_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Project Manager</FormLabel>
+                                        <FormLabel required>Project Manager</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -136,7 +136,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                                 name="assistant_pm_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Asisten PM (opsional)</FormLabel>
+                                        <FormLabel>Asisten PM</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -162,7 +162,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                             name="start_date"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Tanggal Mulai</FormLabel>
+                                    <FormLabel required>Tanggal Mulai</FormLabel>
                                     <FormControl>
                                         <DatePicker value={field.value} onChange={field.onChange} />
                                     </FormControl>

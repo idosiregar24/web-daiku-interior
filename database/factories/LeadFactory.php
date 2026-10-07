@@ -20,7 +20,8 @@ class LeadFactory extends Factory
     {
         return [
             'client_name' => fake()->name(),
-            'contact' => fake()->phoneNumber(),
+            'phone' => '08'.fake()->numerify('##########'),
+            'email' => fake()->optional()->safeEmail(),
             'source' => fake()->randomElement(['Instagram', 'Website', 'Referral/Rekomendasi', 'Walk-in', 'WhatsApp', 'TikTok', 'Marketplace', 'Existing', 'Iklan Sosmed', 'Lainnya']),
             // Linked to (or creates) the matching Data Master row, so an
             // overridden `source`/`category` string still gets a matching FK.

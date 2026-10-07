@@ -47,6 +47,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call(RoleSeeder::class);
         $this->call(LeadSourceSeeder::class);
+        $this->call(CitySeeder::class);
         $this->call(UnitSeeder::class);
         $this->call(MaterialCatalogSeeder::class);
         $this->call(MasterDataSeeder::class);

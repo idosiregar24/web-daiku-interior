@@ -7,6 +7,7 @@ import AuthLayout from '@/Layouts/AuthLayout';
 import type { PageProps } from '@/types';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 export default function Login({
     status,
@@ -44,7 +45,7 @@ export default function Login({
 
             <form onSubmit={submit} className="space-y-5">
                 <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email<RequiredMark /></Label>
                     <Input
                         id="email"
                         type="email"
@@ -62,7 +63,7 @@ export default function Login({
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">Password<RequiredMark /></Label>
                     <PasswordInput
                         id="password"
                         name="password"

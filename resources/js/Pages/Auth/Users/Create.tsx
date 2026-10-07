@@ -67,7 +67,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama</FormLabel>
+                                        <FormLabel required>Nama</FormLabel>
                                         <FormControl>
                                             <Input {...field} />
                                         </FormControl>
@@ -80,7 +80,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email</FormLabel>
+                                        <FormLabel required>Email</FormLabel>
                                         <FormControl>
                                             <Input type="email" {...field} />
                                         </FormControl>
@@ -93,7 +93,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                 name="password"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Password</FormLabel>
+                                        <FormLabel required>Password</FormLabel>
                                         <FormControl>
                                             <Input type="password" {...field} />
                                         </FormControl>
@@ -106,7 +106,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                 name="role"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Role</FormLabel>
+                                        <FormLabel required>Role</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">

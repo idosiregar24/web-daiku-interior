@@ -194,13 +194,13 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
         });
     }
 
-    const field = (name: keyof FormValues, label: string, props: React.ComponentProps<typeof Input> = {}) => (
+    const field = (name: keyof FormValues, label: string, props: React.ComponentProps<typeof Input> = {}, required = false) => (
         <FormField
             control={form.control}
             name={name}
             render={({ field: input }) => (
                 <FormItem>
-                    <FormLabel>{label}</FormLabel>
+                    <FormLabel required={required}>{label}</FormLabel>
                     <FormControl>
                         <Input {...input} {...props} />
                     </FormControl>
@@ -303,7 +303,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                             name="decision"
                             render={({ field: input }) => (
                                 <FormItem>
-                                    <FormLabel>Keputusan</FormLabel>
+                                    <FormLabel required>Keputusan</FormLabel>
                                     <div className="grid gap-2 sm:grid-cols-2">
                                         {DECISIONS.map((option) => (
                                             <button
@@ -332,7 +332,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                 name="reject_reason"
                                 render={({ field: input }) => (
                                     <FormItem>
-                                        <FormLabel>Alasan penolakan</FormLabel>
+                                        <FormLabel required>Alasan penolakan</FormLabel>
                                         <FormControl>
                                             <Textarea rows={3} {...input} />
                                         </FormControl>
@@ -349,7 +349,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                             name="material_id"
                                             render={({ field: input }) => (
                                                 <FormItem className="sm:col-span-2">
-                                                    <FormLabel>Barang katalog</FormLabel>
+                                                    <FormLabel required>Barang katalog</FormLabel>
                                                     <Select value={input.value} onValueChange={input.onChange}>
                                                         <FormControl>
                                                             <SelectTrigger className="w-full">
@@ -373,7 +373,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                             name="source"
                                             render={({ field: input }) => (
                                                 <FormItem>
-                                                    <FormLabel>Sumber</FormLabel>
+                                                    <FormLabel required>Sumber</FormLabel>
                                                     <Select value={input.value} onValueChange={input.onChange}>
                                                         <FormControl>
                                                             <SelectTrigger className="w-full">
@@ -395,13 +395,13 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                 {decision !== 'PAKAI_KATALOG' && (
                                     <>
                                         <div className="grid gap-4 sm:grid-cols-3">
-                                            <div className="sm:col-span-2">{field('name', 'Nama barang')}</div>
+                                            <div className="sm:col-span-2">{field('name', 'Nama barang', {}, true)}</div>
                                             <FormField
                                                 control={form.control}
                                                 name="unit_id"
                                                 render={({ field: input }) => (
                                                     <FormItem>
-                                                        <FormLabel>Satuan</FormLabel>
+                                                        <FormLabel required>Satuan</FormLabel>
                                                         <FormControl>
                                                             <UnitSelect value={input.value} onChange={input.onChange} units={units} />
                                                         </FormControl>
@@ -411,8 +411,8 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                             />
                                         </div>
                                         <div className="grid gap-4 sm:grid-cols-2">
-                                            {field('spec', 'Spesifikasi (opsional)')}
-                                            {decision === 'DAFTAR_KATALOG' && field('brand', 'Merek (opsional)')}
+                                            {field('spec', 'Spesifikasi')}
+                                            {decision === 'DAFTAR_KATALOG' && field('brand', 'Merek')}
                                         </div>
                                         {decision === 'DAFTAR_KATALOG' && (
                                             <div className="grid gap-4 sm:grid-cols-3">
@@ -421,7 +421,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                                     name="material_category_id"
                                                     render={({ field: input }) => (
                                                         <FormItem>
-                                                            <FormLabel>Kategori</FormLabel>
+                                                            <FormLabel required>Kategori</FormLabel>
                                                             <FormControl>
                                                                 <MaterialCategorySelect value={input.value} onChange={input.onChange} categories={categories} />
                                                             </FormControl>
@@ -429,8 +429,8 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                                         </FormItem>
                                                     )}
                                                 />
-                                                {field('warehouse_price', 'Harga gudang (Rp)', money)}
-                                                {field('sell_price', 'Harga jual (opsional)', money)}
+                                                {field('warehouse_price', 'Harga gudang (Rp)', money, true)}
+                                                {field('sell_price', 'Harga jual', money)}
                                             </div>
                                         )}
                                         {decision === 'DAFTAR_KATALOG' && (
@@ -447,7 +447,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                                         name="similar_reason"
                                                         render={({ field: input }) => (
                                                             <FormItem>
-                                                                <FormLabel>Tetap daftarkan barang baru — alasan</FormLabel>
+                                                                <FormLabel required>Tetap daftarkan barang baru — alasan</FormLabel>
                                                                 <FormControl>
                                                                     <Textarea rows={2} {...input} />
                                                                 </FormControl>
@@ -462,7 +462,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                 )}
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    {field('qty', 'Jumlah disetujui', { type: 'number', min: '0.01', step: '0.01', inputMode: 'decimal' })}
+                                    {field('qty', 'Jumlah disetujui', { type: 'number', min: '0.01', step: '0.01', inputMode: 'decimal' }, true)}
                                     {purchased && field('unit_price', 'Harga beli / satuan (Rp)', money)}
                                 </div>
                                 {purchased && (
@@ -471,7 +471,7 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                         name="vendor_id"
                                         render={({ field: input }) => (
                                             <FormItem>
-                                                <FormLabel>Vendor (opsional)</FormLabel>
+                                                <FormLabel>Vendor</FormLabel>
                                                 <FormControl>
                                                     <VendorSelect value={input.value} onChange={input.onChange} vendors={vendors} allowEmpty />
                                                 </FormControl>

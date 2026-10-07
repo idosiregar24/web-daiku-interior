@@ -21,8 +21,9 @@ import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { useCreateParam } from '@/hooks/useCreateParam';
 import AppLayout from '@/Layouts/AppLayout';
-import type { Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
+import type { CityOption, Lead, LeadCategoryOption, LeadSourceOption, PageProps, PaginatedData, User } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { contactLabel } from '@/lib/phone';
 import { type ColumnDef } from '@tanstack/react-table';
 import { BarChart3, MoreHorizontal, Plus, Users } from 'lucide-react';
 import { useState } from 'react';
@@ -39,12 +40,13 @@ interface LeadIndexProps {
     marketers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
+    cities: CityOption[];
 }
 
 const STATUS_OPTIONS = ['FOLLOW_UP', 'DEAL_DESAIN', 'CLOSING', 'LOST'];
 const PRIORITY_OPTIONS = ['HOT', 'WARM', 'COLD'];
 
-export default function LeadIndex({ leads, filters, marketers, leadSources, leadCategories }: LeadIndexProps) {
+export default function LeadIndex({ leads, filters, marketers, leadSources, leadCategories, cities }: LeadIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const role = auth.user?.role;
     // PRD §4.1: only Marketing and CEO create/edit leads — mirrors the
@@ -101,8 +103,9 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
             ),
         },
         {
-            accessorKey: 'contact',
+            id: 'contact',
             header: 'Kontak',
+            cell: ({ row }) => contactLabel(row.original),
         },
         {
             id: 'source',
@@ -330,6 +333,7 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
                 marketers={marketers}
                 leadSources={leadSources}
                 leadCategories={leadCategories}
+                cities={cities}
             />
             <LeadStatusDialog open={statusOpen} onOpenChange={setStatusOpen} lead={activeLead} />
             {canManage && activeLead?.quotation && (

@@ -35,7 +35,7 @@ function crmUser(string $role): User
 test('a new lead keeps first-contact date, address, Maps link, and its first follow-up as FU-1', function () {
     $this->actingAs($this->marketing)->post(route('crm.leads.store'), [
         'client_name' => 'Budi',
-        'contact' => '0812',
+        'phone' => '081234567890',
         'lead_source_id' => LeadSource::findOrCreateByName('Instagram')->id,
         'priority' => 'WARM',
         'assigned_to' => $this->marketing->id,
@@ -53,7 +53,7 @@ test('a new lead keeps first-contact date, address, Maps link, and its first fol
 
 test('a Maps link that is not http/https is refused', function (string $url) {
     $this->actingAs($this->marketing)->put(route('crm.leads.update', $this->lead), [
-        ...$this->lead->only(['client_name', 'contact', 'lead_source_id', 'assigned_to']),
+        ...$this->lead->only(['client_name', 'phone', 'lead_source_id', 'assigned_to']),
         'priority' => 'WARM',
         'maps_url' => $url,
     ])->assertSessionHasErrors(['maps_url' => 'Link Google Maps harus berupa URL http/https.']);

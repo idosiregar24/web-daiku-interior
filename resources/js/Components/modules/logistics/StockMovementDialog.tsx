@@ -121,7 +121,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                 name="project_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Proyek</FormLabel>
+                                        <FormLabel required>Proyek</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -147,7 +147,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                 name="qty"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jumlah ({unitCode})</FormLabel>
+                                        <FormLabel required>Jumlah ({unitCode})</FormLabel>
                                         <FormControl>
                                             <Input
                                                 type="number"
@@ -167,7 +167,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                 name="movement_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal</FormLabel>
+                                        <FormLabel required>Tanggal</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -181,7 +181,7 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Input
                                             {...field}

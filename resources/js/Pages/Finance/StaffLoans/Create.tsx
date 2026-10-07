@@ -96,7 +96,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
                                 name="staff_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tukang</FormLabel>
+                                        <FormLabel required>Tukang</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -121,7 +121,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
                                     name="amount"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Nominal Pinjaman (Rp)</FormLabel>
+                                            <FormLabel required>Nominal Pinjaman (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="0.01" {...field} />
                                             </FormControl>
@@ -134,7 +134,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
                                     name="installment_amount"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Cicilan per Upah (Rp)</FormLabel>
+                                            <FormLabel required>Cicilan per Upah (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="0.01" {...field} />
                                             </FormControl>
@@ -151,7 +151,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
                                 name="bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rekening Sumber Dana</FormLabel>
+                                        <FormLabel required>Rekening Sumber Dana</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -175,7 +175,7 @@ export default function StaffLoanCreate({ staff, bankAccounts }: StaffLoanCreate
                                 name="description"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Keterangan (opsional)</FormLabel>
+                                        <FormLabel>Keterangan</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={3} placeholder="mis. Kasbon biaya berobat" />
                                         </FormControl>

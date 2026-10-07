@@ -113,7 +113,7 @@ export function TaskActionSheet({
                             name="status"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Status</FormLabel>
+                                    <FormLabel required>Status</FormLabel>
                                     <div role="radiogroup" aria-label="Status tugas" className="grid grid-cols-2 gap-2">
                                         {STATUS_BUTTONS.map((option) => {
                                             const selected = field.value === option.value;

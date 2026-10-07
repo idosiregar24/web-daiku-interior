@@ -133,7 +133,7 @@ export function SalaryChangeDialog({ open, onOpenChange, employees, employeeId, 
                             name="employee_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Karyawan</FormLabel>
+                                    <FormLabel required>Karyawan</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange} disabled={Boolean(employeeId)}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -161,7 +161,7 @@ export function SalaryChangeDialog({ open, onOpenChange, employees, employeeId, 
                                 name="new_salary"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Gaji Pokok Baru (Rp)</FormLabel>
+                                        <FormLabel required>Gaji Pokok Baru (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="1000" inputMode="decimal" placeholder="0" {...field} />
                                         </FormControl>
@@ -174,7 +174,7 @@ export function SalaryChangeDialog({ open, onOpenChange, employees, employeeId, 
                                 name="effective_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Berlaku</FormLabel>
+                                        <FormLabel required>Tanggal Berlaku</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -209,7 +209,7 @@ export function SalaryChangeDialog({ open, onOpenChange, employees, employeeId, 
                             name="reason"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Alasan</FormLabel>
+                                    <FormLabel required>Alasan</FormLabel>
                                     <FormControl>
                                         <Textarea rows={3} {...field} placeholder="mis. Hasil evaluasi semester 1 grade A" />
                                     </FormControl>

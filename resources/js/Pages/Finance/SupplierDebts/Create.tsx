@@ -87,7 +87,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                 name="vendor_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Vendor</FormLabel>
+                                        <FormLabel required>Vendor</FormLabel>
                                         <FormControl>
                                             <VendorSelect value={field.value} onChange={field.onChange} vendors={vendors} />
                                         </FormControl>
@@ -101,7 +101,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                     name="total_amount"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Total Hutang (Rp)</FormLabel>
+                                            <FormLabel required>Total Hutang (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="0.01" {...field} />
                                             </FormControl>
@@ -114,7 +114,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                     name="due_date"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Jatuh Tempo (opsional)</FormLabel>
+                                            <FormLabel>Jatuh Tempo</FormLabel>
                                             <FormControl>
                                                 <DatePicker
                                                     value={field.value}
@@ -132,7 +132,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                 name="project_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Proyek (opsional)</FormLabel>
+                                        <FormLabel>Proyek</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
@@ -160,7 +160,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                 name="description"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Keterangan (opsional)</FormLabel>
+                                        <FormLabel>Keterangan</FormLabel>
                                         <FormControl>
                                             <Textarea {...field} rows={3} placeholder="mis. Kaca tempered 8mm untuk partisi" />
                                         </FormControl>

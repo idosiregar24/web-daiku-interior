@@ -197,7 +197,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                             name="title"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Judul Task</FormLabel>
+                                    <FormLabel required>Judul Task</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus disabled={isLocked('title')} placeholder="mis. Pasang kusen lantai 2" />
                                     </FormControl>
@@ -210,7 +210,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Deskripsi (opsional)</FormLabel>
+                                    <FormLabel>Deskripsi</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} disabled={isLocked('description')} />
                                     </FormControl>
@@ -224,7 +224,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="assignee_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tukang</FormLabel>
+                                        <FormLabel required>Tukang</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange} disabled={isLocked('assignee_id')}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -248,7 +248,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="milestone_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Milestone (opsional)</FormLabel>
+                                        <FormLabel>Milestone</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
@@ -279,7 +279,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="due_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jatuh Tempo</FormLabel>
+                                        <FormLabel required>Jatuh Tempo</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} disabled={isLocked('due_date')} />
                                         </FormControl>
@@ -292,7 +292,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="priority"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Prioritas</FormLabel>
+                                        <FormLabel required={editing !== null}>Prioritas</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange} disabled={isLocked('priority')}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -317,7 +317,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                             name="rate_per_task"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rate per Task (Rp, opsional)</FormLabel>
+                                    <FormLabel>Rate per Task (Rp)</FormLabel>
                                     <FormControl>
                                         <Input type="number" min="0" step="0.01" disabled={isLocked('rate_per_task')} {...field} />
                                     </FormControl>

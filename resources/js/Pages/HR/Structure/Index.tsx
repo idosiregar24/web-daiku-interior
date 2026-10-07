@@ -269,7 +269,7 @@ function DivisionDialog({ open, division, onOpenChange }: { open: boolean; divis
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Divisi</FormLabel>
+                                    <FormLabel required>Nama Divisi</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus placeholder="mis. Desain" />
                                     </FormControl>
@@ -345,7 +345,7 @@ function PositionDialog({
                             name="division_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Divisi</FormLabel>
+                                    <FormLabel required>Divisi</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -371,7 +371,7 @@ function PositionDialog({
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Jabatan</FormLabel>
+                                    <FormLabel required>Nama Jabatan</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus placeholder="mis. Desainer Interior" />
                                     </FormControl>
@@ -397,7 +397,7 @@ function SortOrderField({ control }: { control: any }) {
             name="sort_order"
             render={({ field }) => (
                 <FormItem>
-                    <FormLabel>Urutan (opsional)</FormLabel>
+                    <FormLabel>Urutan</FormLabel>
                     <FormControl>
                         <Input type="number" min="0" inputMode="numeric" {...field} />
                     </FormControl>

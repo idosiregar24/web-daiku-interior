@@ -12,6 +12,7 @@ import { Check, X } from 'lucide-react';
 import { Fragment, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 type Stage = 'PM' | 'CEO';
 type Verdict = '' | 'OK' | 'SALAH';
@@ -150,7 +151,7 @@ export function QuotationReviewPanel({ quotation, stage, reviews }: QuotationRev
                                 <th className="w-28 px-3 py-2.5 text-right font-semibold">Volume</th>
                                 <th className="w-36 px-3 py-2.5 text-right font-semibold">Subtotal</th>
                                 {stage === 'CEO' && <th className="w-16 px-3 py-2.5 text-center font-semibold">PM</th>}
-                                <th className="w-28 px-3 py-2.5 text-center font-semibold">Tanda</th>
+                                <th className="w-28 px-3 py-2.5 text-center font-semibold">Tanda{stage === 'PM' && <RequiredMark />}</th>
                                 <th className="w-64 px-3 py-2.5 text-left font-semibold">Catatan</th>
                             </tr>
                         </thead>
@@ -241,7 +242,7 @@ export function QuotationReviewPanel({ quotation, stage, reviews }: QuotationRev
                     name="note"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Catatan umum (opsional)</FormLabel>
+                            <FormLabel>Catatan umum</FormLabel>
                             <FormControl>
                                 <Textarea {...field} rows={2} placeholder="mis. Skema termin perlu DP lebih besar." />
                             </FormControl>

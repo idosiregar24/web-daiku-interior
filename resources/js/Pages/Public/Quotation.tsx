@@ -18,6 +18,7 @@ import type { CompanyLetter, PageProps } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { CheckCircle2, FileDown } from 'lucide-react';
 import { useState } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 /** App\Http\Resources\PublicQuotationResource — the whitelist the client may see. */
 interface PublicQuotation {
@@ -155,6 +156,7 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                         />
                         <Label htmlFor="agree" className="leading-snug font-normal">
                             Saya telah membaca dan menyetujui penawaran ini.
+                            <RequiredMark />
                         </Label>
                     </div>
                     {form.errors.agree && <p className="text-sm text-destructive">{form.errors.agree}</p>}

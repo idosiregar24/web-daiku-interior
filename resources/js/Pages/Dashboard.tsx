@@ -15,9 +15,10 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import AppLayout, { ROLE_LABEL, useNavGroups } from '@/Layouts/AppLayout';
 import { formatDate, formatRelative } from '@/lib/format';
+import { contactLabel, whatsappNumber } from '@/lib/phone';
 import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
-import type { InboxGroup, Lead, LeadCategoryOption, LeadSourceOption, PageProps, User } from '@/types';
+import type { CityOption, InboxGroup, Lead, LeadCategoryOption, LeadSourceOption, PageProps, User } from '@/types';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { startOfToday } from 'date-fns';
 import {
@@ -37,7 +38,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'contact' | 'status' | 'next_follow_up_date' | 'follow_ups_count'> & {
+type FollowUpLead = Pick<Lead, 'id' | 'client_name' | 'phone' | 'email' | 'status' | 'next_follow_up_date' | 'follow_ups_count'> & {
     assignee?: Pick<User, 'id' | 'name'>;
 };
 
@@ -49,6 +50,7 @@ interface DashboardProps {
     marketers: Pick<User, 'id' | 'name'>[];
     leadSources: Pick<LeadSourceOption, 'id' | 'name'>[];
     leadCategories: Pick<LeadCategoryOption, 'id' | 'name'>[];
+    cities: CityOption[];
 }
 
 function greeting(hour: number) {
@@ -62,23 +64,6 @@ function greeting(hour: number) {
 /** Same rule as Lead::scopeOverdueFollowUp() — due before today, so today's follow-up isn't "terlewat" yet. */
 function isOverdue(lead: FollowUpLead) {
     return Boolean(lead.next_follow_up_date && new Date(lead.next_follow_up_date) < startOfToday());
-}
-
-/**
- * wa.me wants the number in international form without "+" or
- * separators: "0812-3456-7890" / "+62 812 3456 7890" → "6281234567890".
- * Null when the contact isn't a phone number (an email, an Instagram
- * handle), so the action is simply not offered.
- */
-function whatsappNumber(contact: string): string | null {
-    if (/[a-z@]/i.test(contact)) return null;
-
-    const digits = contact.replace(/\D/g, '');
-    if (digits.length < 9) return null;
-    if (digits.startsWith('0')) return `62${digits.slice(1)}`;
-    if (digits.startsWith('8')) return `62${digits}`;
-
-    return digits;
 }
 
 /**
@@ -115,7 +100,7 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                 <ul className="divide-y divide-border">
                     {followUps.map((lead) => {
                         const overdue = isOverdue(lead);
-                        const whatsapp = whatsappNumber(lead.contact);
+                        const whatsapp = whatsappNumber(lead.phone);
 
                         return (
                             <li
@@ -140,7 +125,7 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                                             {lead.client_name}
                                         </Link>
                                         <p className="truncate text-xs text-muted-foreground">
-                                            {lead.contact} · PIC {lead.assignee?.name ?? '—'}
+                                            {contactLabel(lead)} · PIC {lead.assignee?.name ?? '—'}
                                         </p>
                                     </div>
                                 </div>
@@ -250,7 +235,7 @@ function ModuleDirectory() {
     );
 }
 
-export default function Dashboard({ inbox, followUps, marketers, leadSources, leadCategories }: DashboardProps) {
+export default function Dashboard({ inbox, followUps, marketers, leadSources, leadCategories, cities }: DashboardProps) {
     const { auth, notifications, unreadNotificationsCount, site } = usePage<PageProps>().props;
     const role = auth.user?.role;
     // Follow-up readers are exactly the lead writers (PRD §4.1 "Marketing dan CEO").
@@ -406,6 +391,7 @@ export default function Dashboard({ inbox, followUps, marketers, leadSources, le
                     marketers={marketers}
                     leadSources={leadSources}
                     leadCategories={leadCategories}
+                    cities={cities}
                 />
             )}
         </AppLayout>

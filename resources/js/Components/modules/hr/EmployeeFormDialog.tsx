@@ -171,7 +171,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                 name="name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Nama</FormLabel>
+                                        <FormLabel required>Nama</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="mis. Icha" autoFocus />
                                         </FormControl>
@@ -184,7 +184,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                 name="position_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jabatan</FormLabel>
+                                        <FormLabel required>Jabatan</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -224,7 +224,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                     name="base_salary"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Gaji Pokok (Rp)</FormLabel>
+                                            <FormLabel required>Gaji Pokok (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                             </FormControl>
@@ -238,7 +238,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                 name="join_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Bergabung (opsional)</FormLabel>
+                                        <FormLabel>Tanggal Bergabung</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -253,7 +253,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                 name="bank_name"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Bank (opsional)</FormLabel>
+                                        <FormLabel>Bank</FormLabel>
                                         <FormControl>
                                             <Input {...field} placeholder="mis. BCA" />
                                         </FormControl>
@@ -266,7 +266,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                 name="account_no"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>No. Rekening (opsional)</FormLabel>
+                                        <FormLabel>No. Rekening</FormLabel>
                                         <FormControl>
                                             <Input {...field} inputMode="numeric" />
                                         </FormControl>
@@ -280,7 +280,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                             name="user_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Akun Sistem (opsional)</FormLabel>
+                                    <FormLabel>Akun Sistem</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -306,7 +306,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                             name="notes"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} />
                                     </FormControl>

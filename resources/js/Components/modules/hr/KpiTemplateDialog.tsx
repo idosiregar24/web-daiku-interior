@@ -171,7 +171,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                 name={`indicators.${index}.name`}
                                                 render={({ field }) => (
                                                     <FormItem className="sm:col-span-5">
-                                                        <FormLabel>Nama indikator</FormLabel>
+                                                        <FormLabel required>Nama indikator</FormLabel>
                                                         <FormControl>
                                                             <Input placeholder="mis. Kualitas gambar" {...field} />
                                                         </FormControl>
@@ -184,7 +184,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                 name={`indicators.${index}.source`}
                                                 render={({ field }) => (
                                                     <FormItem className="sm:col-span-3">
-                                                        <FormLabel>Sumber</FormLabel>
+                                                        <FormLabel required>Sumber</FormLabel>
                                                         <Select
                                                             value={field.value}
                                                             onValueChange={(value) => {
@@ -211,7 +211,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                 name={`indicators.${index}.direction`}
                                                 render={({ field }) => (
                                                     <FormItem className="sm:col-span-4">
-                                                        <FormLabel>Arah</FormLabel>
+                                                        <FormLabel required>Arah</FormLabel>
                                                         <Select value={field.value} onValueChange={field.onChange}>
                                                             <FormControl>
                                                                 <SelectTrigger className="w-full">
@@ -234,7 +234,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                     name={`indicators.${index}.metric_key`}
                                                     render={({ field }) => (
                                                         <FormItem className="sm:col-span-12">
-                                                            <FormLabel>Metrik otomatis</FormLabel>
+                                                            <FormLabel required>Metrik otomatis</FormLabel>
                                                             <Select
                                                                 value={field.value ?? NONE}
                                                                 onValueChange={(value) => {
@@ -292,7 +292,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                 name={`indicators.${index}.target`}
                                                 render={({ field }) => (
                                                     <FormItem className="sm:col-span-5">
-                                                        <FormLabel>
+                                                        <FormLabel required>
                                                             Target{metric ? ` (${metric.unit})` : ''}
                                                         </FormLabel>
                                                         <FormControl>
@@ -307,7 +307,7 @@ export function KpiTemplateDialog({ open, onOpenChange, position, divisionName, 
                                                 name={`indicators.${index}.weight`}
                                                 render={({ field }) => (
                                                     <FormItem className="sm:col-span-5">
-                                                        <FormLabel>Bobot (%)</FormLabel>
+                                                        <FormLabel required>Bobot (%)</FormLabel>
                                                         <FormControl>
                                                             <Input type="number" min="0" max="100" step="any" inputMode="decimal" {...field} />
                                                         </FormControl>

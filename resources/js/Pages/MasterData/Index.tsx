@@ -1,5 +1,6 @@
 import { BankAccountManager } from '@/Components/modules/master-data/BankAccountManager';
 import { BranchManager } from '@/Components/modules/master-data/BranchManager';
+import { CityManager } from '@/Components/modules/master-data/CityManager';
 import { NameOnlyLookupManager } from '@/Components/modules/master-data/NameOnlyLookupManager';
 import { MaterialCategoryManager } from '@/Components/modules/master-data/MaterialCategoryManager';
 import { MaterialSynonymManager } from '@/Components/modules/master-data/MaterialSynonymManager';
@@ -9,7 +10,7 @@ import { PageHeader } from '@/Components/shared/PageHeader';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
-import type { BankAccount, Branch, LeadCategoryOption, LeadSourceOption, MaterialCategory, MaterialSynonym, UnitRow } from '@/types';
+import type { BankAccount, Branch, CityRow, LeadCategoryOption, LeadSourceOption, MaterialCategory, MaterialSynonym, UnitRow } from '@/types';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
 import { Database } from 'lucide-react';
@@ -19,6 +20,7 @@ const MASTER_TAB_LABEL: Record<string, string> = {
     branches: 'Cabang',
     'lead-sources': 'Sumber Lead',
     'lead-categories': 'Kategori Customer',
+    cities: 'Kota',
     'bank-accounts': 'Rekening Bank',
     units: 'Satuan',
     'material-categories': 'Kategori Material',
@@ -29,6 +31,7 @@ interface MasterDataIndexProps {
     branches: Branch[];
     leadSources: LeadSourceOption[];
     leadCategories: LeadCategoryOption[];
+    cities: CityRow[];
     bankAccounts: BankAccount[];
     units: UnitRow[];
     materialCategories: MaterialCategory[];
@@ -39,6 +42,7 @@ export default function MasterDataIndex({
     branches,
     leadSources,
     leadCategories,
+    cities,
     bankAccounts,
     units,
     materialCategories,
@@ -65,6 +69,7 @@ export default function MasterDataIndex({
                             <TabsTrigger value="branches">Cabang</TabsTrigger>
                             <TabsTrigger value="lead-sources">Sumber Lead</TabsTrigger>
                             <TabsTrigger value="lead-categories">Kategori Customer</TabsTrigger>
+                            <TabsTrigger value="cities">Kota</TabsTrigger>
                             <TabsTrigger value="bank-accounts">Rekening Bank</TabsTrigger>
                             <TabsTrigger value="units">Satuan</TabsTrigger>
                             <TabsTrigger value="material-categories">Kategori Material</TabsTrigger>
@@ -101,6 +106,10 @@ export default function MasterDataIndex({
                                 routeParam="lead_category"
                                 emptyMessage="Belum ada kategori."
                             />
+                        </TabsContent>
+
+                        <TabsContent value="cities" className="pt-4">
+                            <CityManager cities={cities} />
                         </TabsContent>
 
                         <TabsContent value="bank-accounts" className="pt-4">

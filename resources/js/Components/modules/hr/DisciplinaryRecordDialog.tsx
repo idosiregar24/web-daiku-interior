@@ -141,7 +141,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                             name="employee_id"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Karyawan</FormLabel>
+                                    <FormLabel required>Karyawan</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange} disabled={employeeId !== undefined}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -179,7 +179,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                                 name="type"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jenis</FormLabel>
+                                        <FormLabel required>Jenis</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -207,7 +207,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                                 name="issued_on"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Terbit</FormLabel>
+                                        <FormLabel required>Tanggal Terbit</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -223,7 +223,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                                 name="valid_until"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Berlaku Sampai (opsional)</FormLabel>
+                                        <FormLabel>Berlaku Sampai</FormLabel>
                                         <FormControl>
                                             <DatePicker
                                                 value={field.value}
@@ -243,7 +243,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Uraian</FormLabel>
+                                    <FormLabel required>Uraian</FormLabel>
                                     <FormControl>
                                         <Textarea rows={3} {...field} placeholder="mis. Terlambat masuk kerja 4 kali dalam sebulan" />
                                     </FormControl>
@@ -256,7 +256,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                             name="link"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Link Dokumen (opsional)</FormLabel>
+                                    <FormLabel>Link Dokumen</FormLabel>
                                     <FormControl>
                                         <Input type="url" {...field} placeholder="https://drive.google.com/..." />
                                     </FormControl>

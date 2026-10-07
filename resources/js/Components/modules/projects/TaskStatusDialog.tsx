@@ -94,7 +94,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                             name="status"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Status</FormLabel>
+                                    <FormLabel required>Status</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">
@@ -118,7 +118,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                             name="kendala"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Kendala (opsional)</FormLabel>
+                                    <FormLabel>Kendala</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} placeholder="Hambatan yang dihadapi" />
                                     </FormControl>
@@ -131,7 +131,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Textarea {...field} rows={2} />
                                     </FormControl>

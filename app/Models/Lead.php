@@ -5,7 +5,9 @@ namespace App\Models;
 use App\Enums\LeadPriority;
 use App\Enums\LeadStatus;
 use App\Enums\QuotationType;
+use App\Support\Phone;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,7 +20,8 @@ class Lead extends Model
 
     protected $fillable = [
         'client_name',
-        'contact',
+        'phone',
+        'email',
         'first_contacted_at',
         'source',
         'lead_source_id',
@@ -26,7 +29,7 @@ class Lead extends Model
         'category',
         'lead_category_id',
         'service',
-        'city',
+        'city_id',
         'address',
         'maps_url',
         'gender',
@@ -45,6 +48,29 @@ class Lead extends Model
             'priority' => LeadPriority::class,
             'first_contacted_at' => 'date:Y-m-d',
         ];
+    }
+
+    /** Sprint 16 Sub 08 — Master Kota (picked through CitySelect, never typed). */
+    public function city(): BelongsTo
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    /**
+     * Sprint 16 Sub 08 (K15) — the lead's city is known and isn't
+     * config('daiku.home_city'): a new survey defaults to "Luar Pekanbaru".
+     * Appended by LeadController@show only.
+     */
+    protected function isOutsideHomeCity(): Attribute
+    {
+        return Attribute::get(fn () => $this->city_id !== null
+            && $this->city?->name !== config('daiku.home_city'));
+    }
+
+    /** Sprint 16 Sub 07 — "0812-3456-7890", else the email, for notification text. */
+    public function contactLabel(): string
+    {
+        return Phone::format($this->phone) ?? $this->email ?? '—';
     }
 
     /**
@@ -127,6 +153,27 @@ class Lead extends Model
     public function quotations(): HasMany
     {
         return $this->hasMany(Quotation::class)->latest('id');
+    }
+
+    /**
+     * Sprint 16 Sub 07 — lead list & topbar search: client name, email, or
+     * the phone digits ("0812-3456" and "+62 812 3456" both find 0812…).
+     */
+    public function scopeSearch(Builder $query, ?string $term): Builder
+    {
+        $term = trim((string) $term);
+
+        if ($term === '') {
+            return $query;
+        }
+
+        $like = '%'.addcslashes($term, '\%_').'%';
+        $digits = preg_replace('/\D/', '', (string) Phone::normalize($term));
+
+        return $query->where(fn (Builder $q) => $q
+            ->where('client_name', 'like', $like)
+            ->orWhere('email', 'like', $like)
+            ->when(strlen($digits) >= 4, fn (Builder $q) => $q->orWhere('phone', 'like', "%{$digits}%")));
     }
 
     public function scopeByStatus(Builder $query, ?string $status): Builder

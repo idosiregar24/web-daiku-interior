@@ -86,7 +86,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Nama Milestone</FormLabel>
+                                    <FormLabel required>Nama Milestone</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus />
                                     </FormControl>
@@ -99,7 +99,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
                             name="target_date"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Target Tanggal</FormLabel>
+                                    <FormLabel required>Target Tanggal</FormLabel>
                                     <FormControl>
                                         <DatePicker value={field.value} onChange={field.onChange} />
                                     </FormControl>

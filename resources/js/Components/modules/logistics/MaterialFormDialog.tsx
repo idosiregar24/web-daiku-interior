@@ -144,13 +144,13 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
         }
     }
 
-    const text = (name: 'base_name' | 'spec' | 'brand', label: string, placeholder: string) => (
+    const text = (name: 'base_name' | 'spec' | 'brand', label: string, placeholder: string, required = false) => (
         <FormField
             control={form.control}
             name={name}
             render={({ field }) => (
                 <FormItem>
-                    <FormLabel>{label}</FormLabel>
+                    <FormLabel required={required}>{label}</FormLabel>
                     <FormControl>
                         <Input {...field} placeholder={placeholder} />
                     </FormControl>
@@ -179,7 +179,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                 name="material_category_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Kategori</FormLabel>
+                                        <FormLabel required>Kategori</FormLabel>
                                         <FormControl>
                                             <MaterialCategorySelect value={field.value} onChange={field.onChange} categories={categories} />
                                         </FormControl>
@@ -192,7 +192,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                 name="unit_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Satuan</FormLabel>
+                                        <FormLabel required>Satuan</FormLabel>
                                         <FormControl>
                                             <UnitSelect value={field.value} onChange={field.onChange} units={units} current={material?.unit} />
                                         </FormControl>
@@ -201,10 +201,10 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                 )}
                             />
                         </div>
-                        {text('base_name', 'Nama Dasar', 'mis. Triplek')}
+                        {text('base_name', 'Nama Dasar', 'mis. Triplek', true)}
                         <div className="grid grid-cols-2 gap-4">
-                            {text('spec', 'Spesifikasi (opsional)', 'mis. 17 mm 122×244')}
-                            {text('brand', 'Merek (opsional)', 'mis. Sengon Super')}
+                            {text('spec', 'Spesifikasi', 'mis. 17 mm 122×244')}
+                            {text('brand', 'Merek', 'mis. Sengon Super')}
                         </div>
                         {preview && (
                             <p className="rounded-md bg-daiku-gray px-3 py-2 text-sm text-daiku-muted">
@@ -223,7 +223,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                         name="similar_reason"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>Tetap buat barang baru — alasan</FormLabel>
+                                                <FormLabel required>Tetap buat barang baru — alasan</FormLabel>
                                                 <FormControl>
                                                     <Textarea rows={2} {...field} placeholder="mis. Ketebalan berbeda" />
                                                 </FormControl>
@@ -241,7 +241,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                 name="cost_price"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Harga Modal / Gudang (Rp)</FormLabel>
+                                        <FormLabel required>Harga Modal / Gudang (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -254,7 +254,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                 name="sell_price"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Harga Jual (Rp)</FormLabel>
+                                        <FormLabel required>Harga Jual (Rp)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -275,7 +275,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                             name="min_stock"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Stok Minimum (batas peringatan)</FormLabel>
+                                    <FormLabel required>Stok Minimum (batas peringatan)</FormLabel>
                                     <FormControl>
                                         <Input type="number" min="0" step="0.01" inputMode="decimal" {...field} />
                                     </FormControl>

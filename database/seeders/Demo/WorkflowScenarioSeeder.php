@@ -8,6 +8,7 @@ use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Models\BankAccount;
 use App\Models\BudgetLine;
+use App\Models\City;
 use App\Models\Design;
 use App\Models\Invoice;
 use App\Models\Lead;
@@ -137,7 +138,7 @@ class WorkflowScenarioSeeder extends Seeder
         $this->leads->cancelSurvey($agus->surveys()->sole(), 'Klien sedang ke luar kota, minta dijadwalkan ulang bulan depan.', $this->marketing);
 
         // Outside Pekanbaru: RAB Jasa Survey approved and paid → survey SIAP.
-        $rahmat = $this->lead('Rahmat Hidayat', ['city' => 'Dumai', 'address' => 'Jl. Sultan Syarif Kasim, Dumai']);
+        $rahmat = $this->lead('Rahmat Hidayat', ['city_id' => City::idFor('Dumai'), 'address' => 'Jl. Sultan Syarif Kasim, Dumai']);
         $this->leads->submitRequest($rahmat, [
             'type' => 'SURVEY',
             'scheduled_at' => now()->addDays(5)->setTime(9, 0)->toDateTimeString(),
@@ -353,11 +354,11 @@ class WorkflowScenarioSeeder extends Seeder
 
         return $this->leads->create([
             'client_name' => $name,
-            'contact' => '0812-7777-'.str_pad((string) $this->contact, 4, '0', STR_PAD_LEFT),
+            'phone' => '08127777'.str_pad((string) $this->contact, 4, '0', STR_PAD_LEFT),
             'source' => 'Instagram',
             'priority' => 'WARM',
             'category' => 'RESIDENTIAL',
-            'city' => 'Pekanbaru',
+            'city_id' => City::idFor('Pekanbaru'),
             'assigned_to' => $this->marketing->id,
             ...$extra,
         ], $this->marketing);

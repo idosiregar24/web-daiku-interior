@@ -132,7 +132,7 @@ export function ReviewCreateDialog({ open, onOpenChange, mode, employees, existi
                                 name="year"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tahun</FormLabel>
+                                        <FormLabel required>Tahun</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -156,7 +156,7 @@ export function ReviewCreateDialog({ open, onOpenChange, mode, employees, existi
                                 name="semester"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Semester</FormLabel>
+                                        <FormLabel required>Semester</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -186,7 +186,7 @@ export function ReviewCreateDialog({ open, onOpenChange, mode, employees, existi
                                 name="employee_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Karyawan</FormLabel>
+                                        <FormLabel required>Karyawan</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">

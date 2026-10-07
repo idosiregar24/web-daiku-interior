@@ -105,7 +105,7 @@ export function AllocationFormDialog({ open, onOpenChange, allocation }: Allocat
                             name="label"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Label</FormLabel>
+                                    <FormLabel required>Label</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Gaji" autoFocus />
                                     </FormControl>
@@ -118,7 +118,7 @@ export function AllocationFormDialog({ open, onOpenChange, allocation }: Allocat
                             name="percentage"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Persentase dari Nilai Proyek (%)</FormLabel>
+                                    <FormLabel required>Persentase dari Nilai Proyek (%)</FormLabel>
                                     <FormControl>
                                         <Input type="number" step="0.01" min="0" max="100" {...field} />
                                     </FormControl>
@@ -131,7 +131,7 @@ export function AllocationFormDialog({ open, onOpenChange, allocation }: Allocat
                             name="kategori"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Kategori Pengeluaran</FormLabel>
+                                    <FormLabel required>Kategori Pengeluaran</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
                                             <SelectTrigger className="w-full">

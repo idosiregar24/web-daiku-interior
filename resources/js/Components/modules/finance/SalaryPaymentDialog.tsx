@@ -180,7 +180,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                                 name="bank_account_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Rekening Sumber</FormLabel>
+                                        <FormLabel required>Rekening Sumber</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -204,7 +204,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                                 name="paid_at"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Tanggal Bayar</FormLabel>
+                                        <FormLabel required>Tanggal Bayar</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} />
                                         </FormControl>
@@ -223,7 +223,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan (opsional)</FormLabel>
+                                    <FormLabel>Catatan</FormLabel>
                                     <FormControl>
                                         <Input {...field} placeholder="mis. Potongan kasbon, bonus target" />
                                     </FormControl>

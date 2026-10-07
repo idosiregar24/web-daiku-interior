@@ -40,6 +40,8 @@ email) to browse it.
 | Sprint 13 | — (di luar PRD/CSV) | — | Navigasi & UX — 12 sub-plan di `sprint-13/`: grup sidebar dilipat + urutan per role, hub bertab (Keuangan/Logistik/SDM), menu ⚙ Pengaturan, Perlu Tindakan + badge, Detail Proyek sebagai pusat, tombol "+ Buat" & pencarian, versi HP tukang (navigasi bawah, Hari Ini, PWA), HP/tablet PM, QA, Logistik | **49 selesai / 3 sebagian / 0 belum (52)** — selesai 2026-10-05; tersisa uji di HP sungguhan (Lighthouse, 390/820/1366px) dan `/security-review` penuh (Sub 07 dibatalkan) | [sprint-13-navigasi-ux.md](sprint-13-navigasi-ux.md) |
 | Sprint 14 | — (di luar PRD/CSV) | — | RAB: referensi permintaan (deskripsi + link + foto) dan "Buat RAB" dengan nama custom + Riwayat RAB per klien — 2 sub-plan di `sprint-14/` | **9 selesai / 0 sebagian / 0 belum (9)** — selesai 2026-10-06 | [sprint-14-rab-referensi-template.md](sprint-14-rab-referensi-template.md) |
 | Sprint 15 | — (di luar PRD/CSV) | — | Surat resmi RAB: kop & tanda tangan di Pengaturan, nomor surat OFF/INV, catatan & terbilang, PDF penawaran/invoice format surat, link klien format surat, riwayat RAB dengan PDF & link per RAB — 5 sub-plan di `sprint-15/` | **16 selesai / 0 sebagian / 0 belum (16)** — selesai 2026-10-06 | [sprint-15-surat-resmi-rab.md](sprint-15-surat-resmi-rab.md) |
+| Sprint 16 | — (di luar PRD/CSV) | — | Form: bintang merah `*` di label setiap field required (patokan Form Request), label "(opsional)" dihapus; data lead konsisten — No. HP angka diawali 08 + email berformat (`contact` → `phone`/`email`), kota dari master `cities` (dropdown) — 8 sub-plan di `sprint-16/` | **120 selesai / 0 sebagian / 0 belum (120)** — selesai 2026-10-07 | [sprint-16-penanda-wajib.md](sprint-16-penanda-wajib.md) |
+| Sprint 17 | — (di luar PRD/CSV) | — | Masukan uji alur klien (lead #37): salin link di HTTP + link klien lokal, survey luar kota tak berubah setelah bayar (tautan survey ↔ RAB Survey), klien ACC → antrean "terbitkan invoice" Marketing, info RAB Proyek otomatis, invoice bertata letak tagihan — 5 sub-plan di `sprint-17/`; **kerjakan sebelum Sprint 16** | 0 selesai / 0 sebagian / 32 belum (32) — rencana 2026-10-07 | [sprint-17-masukan-uji-alur.md](sprint-17-masukan-uji-alur.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -53,6 +55,8 @@ checklist-nya.
 "Kerjakan Sprint 13 Sub 1"  →  ... Sub 12       (sprint-13/01..12)
 "Kerjakan Sprint 14 Sub 1"  →  Sub 2          (sprint-14/01..02)
 "Kerjakan Sprint 15 Sub 1"  →  ... Sub 5        (sprint-15/01..05)
+"Kerjakan Sprint 17 Sub 1"  →  ... Sub 5        (sprint-17/01..05)   ← dulu
+"Kerjakan Sprint 16 Sub 1"  →  ... Sub 8        (sprint-16/01..08)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini

@@ -230,7 +230,8 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
     const priceValue = Number(form.watch('unit_price') || 0);
     const showDate = action === 'issue' || action === 'purchase' || action === 'return';
     const textLabel =
-        action === 'waste' ? 'Alasan susut' : action === 'handOver' ? 'Catatan penyerahan' : 'Catatan (opsional)';
+        action === 'waste' ? 'Alasan susut' : action === 'handOver' ? 'Catatan penyerahan' : 'Catatan';
+    const textRequired = action === 'waste' || action === 'handOver';
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
@@ -251,7 +252,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                 name="qty"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Jumlah ({unit})</FormLabel>
+                                        <FormLabel required>Jumlah ({unit})</FormLabel>
                                         <FormControl>
                                             <Input type="number" min="0.01" step="0.01" inputMode="decimal" autoFocus {...field} />
                                         </FormControl>
@@ -265,7 +266,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="date"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Tanggal</FormLabel>
+                                            <FormLabel required>Tanggal</FormLabel>
                                             <FormControl>
                                                 <DatePicker value={field.value} onChange={field.onChange} />
                                             </FormControl>
@@ -283,7 +284,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="unit_price"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Harga Beli per {unit || 'satuan'} (Rp)</FormLabel>
+                                            <FormLabel required>Harga Beli per {unit || 'satuan'} (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                             </FormControl>
@@ -317,7 +318,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                 name="return_target"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Barang custom masuk ke katalog sebagai</FormLabel>
+                                        <FormLabel required>Barang custom masuk ke katalog sebagai</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -340,7 +341,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                 name="material_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Barang katalog (satuan {unit})</FormLabel>
+                                        <FormLabel required>Barang katalog (satuan {unit})</FormLabel>
                                         <Select value={field.value} onValueChange={field.onChange}>
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
@@ -368,7 +369,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="new_name"
                                     render={({ field }) => (
                                         <FormItem className="col-span-2">
-                                            <FormLabel>Nama barang katalog baru ({unit})</FormLabel>
+                                            <FormLabel required>Nama barang katalog baru ({unit})</FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
@@ -381,7 +382,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="new_category_id"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Kategori</FormLabel>
+                                            <FormLabel required>Kategori</FormLabel>
                                             <FormControl>
                                                 <MaterialCategorySelect value={field.value ?? ''} onChange={field.onChange} categories={categories} />
                                             </FormControl>
@@ -394,7 +395,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="new_cost_price"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Harga gudang (Rp)</FormLabel>
+                                            <FormLabel required>Harga gudang (Rp)</FormLabel>
                                             <FormControl>
                                                 <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
                                             </FormControl>
@@ -407,7 +408,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="new_spec"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Spesifikasi (opsional)</FormLabel>
+                                            <FormLabel>Spesifikasi</FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
@@ -420,7 +421,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     name="new_brand"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Merek (opsional)</FormLabel>
+                                            <FormLabel>Merek</FormLabel>
                                             <FormControl>
                                                 <Input {...field} />
                                             </FormControl>
@@ -438,7 +439,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                                 name="new_similar_reason"
                                                 render={({ field }) => (
                                                     <FormItem>
-                                                        <FormLabel>Tetap daftarkan barang baru — alasan</FormLabel>
+                                                        <FormLabel required>Tetap daftarkan barang baru — alasan</FormLabel>
                                                         <FormControl>
                                                             <Textarea rows={2} {...field} />
                                                         </FormControl>
@@ -457,7 +458,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                             name="text"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>{textLabel}</FormLabel>
+                                    <FormLabel required={textRequired}>{textLabel}</FormLabel>
                                     <FormControl>
                                         {action === 'waste' || action === 'handOver' ? (
                                             <Textarea rows={2} {...field} />

@@ -65,6 +65,7 @@ Komponen gabungan modul-spesifik (`StatusChip`, `DataTable` + TanStack,
 | Tabel `<table>` manual (baris custom/editable) | bungkus `TableCard` (prop `toolbar`/`pagination` sama) + `<thead className={TABLE_HEAD_CLASS}>` |
 | Kolom pencarian | `SearchInput` (Input + ikon cari) |
 | Kolom password | `PasswordInput` (Input + tombol tampilkan/sembunyikan) |
+| Penanda kolom wajib | `<FormLabel required>` / `<InputLabel required>`; di `<Label>` shadcn biasa taruh `<RequiredMark />` di dalamnya (Sprint 16 — lihat catatan di bawah tabel) |
 | Logo perusahaan | `BrandMark` — logo yang diunggah di Pengaturan Situs (`site.logoUrl`), fallback ke mark bawaan. Nama/tagline dari prop bersama `site`, jangan hardcode "Daiku Interior" di layout |
 | Data kosong | `EmptyState` (di tabel, list, widget) |
 | Banner peringatan/info | `Notice` (`tone` info/success/warning/error) |
@@ -73,6 +74,15 @@ Komponen gabungan modul-spesifik (`StatusChip`, `DataTable` + TanStack,
 | Tab level halaman (Detail Proyek, Kinerja Saya) | `UnderlineTabsList` di dalam `<Tabs>`; tab kecil di dalam section tetap `TabsList` biasa |
 | Tab antar-halaman satu menu (hub: Penagihan, Material, ⚙ Pengaturan…) | `ModuleTabs` tepat di bawah `PageHeader` — tab, urutan & saringan role dibaca dari `NavItem.tabs` di `AppLayout.tsx`, tiap tab = route sendiri (`<Link>`). Halaman anggota hub tidak boleh punya `UnderlineTabsList` kedua: tab internalnya pakai `TabsList` kecil (lihat Termin, Penggajian, Data Master) |
 | Status | `StatusChip` (pill ber-tint polos, tanpa titik/outline; prop `tone` untuk status di luar union domain, mis. Aktif/Nonaktif user) |
+
+**Kolom wajib (Sprint 16).** Bintang merah (`text-error-ink`) hanya untuk
+kolom yang aturan Form Request-nya `required`; `required_if`/`required_with`
+→ bintang **dinamis** (`required={status === 'LOST'}`); halaman Edit
+mengikuti Update Request. Kolom tanpa bintang = opsional — **jangan**
+tulis "(opsional)" di label. Checkbox/Switch tanpa bintang (kecuali
+persetujuan `accepted`); Select ber-default tetap berbintang bila server
+`required`; tabel isian (baris RAB, item pengajuan) → bintang di header
+kolom. Tidak perlu keterangan "* wajib diisi" di form.
 
 Jangan pakai ornamen dekoratif: pill "badge" dengan titik + border kuning,
 halo/ring kuning di sekitar titik atau ikon, glow. Aksen kuning cukup

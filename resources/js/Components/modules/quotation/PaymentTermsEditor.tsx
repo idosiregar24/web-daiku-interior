@@ -13,6 +13,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { z } from 'zod';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 const PERCENT = /^\d+(\.\d{1,2})?$/;
 
@@ -179,10 +180,10 @@ export function PaymentTermsEditor({ quotation, editable, maxTerms }: PaymentTer
                         <thead className={TABLE_HEAD_CLASS}>
                             <tr>
                                 <th className="w-12 px-3 py-2.5 text-left font-semibold">No</th>
-                                <th className="px-3 py-2.5 text-left font-semibold">Termin</th>
-                                <th className="w-24 px-3 py-2.5 text-left font-semibold">%</th>
+                                <th className="px-3 py-2.5 text-left font-semibold">Termin<RequiredMark /></th>
+                                <th className="w-24 px-3 py-2.5 text-left font-semibold">%<RequiredMark /></th>
                                 <th className="w-36 px-3 py-2.5 text-right font-semibold">Nominal</th>
-                                <th className="w-52 px-3 py-2.5 text-left font-semibold">Pemicu</th>
+                                <th className="w-52 px-3 py-2.5 text-left font-semibold">Pemicu<RequiredMark /></th>
                                 <th className="w-48 px-3 py-2.5 text-left font-semibold">Detail</th>
                                 <th className="w-12 px-3 py-2.5" />
                             </tr>

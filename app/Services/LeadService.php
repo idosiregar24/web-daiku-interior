@@ -66,7 +66,7 @@ class LeadService
                     $marketing,
                     'lead_follow_up_due',
                     $isOverdue ? 'Follow-up Terlewat' : 'Follow-up Hari Ini',
-                    "Lead \"{$lead->client_name}\" ({$lead->contact}) dijadwalkan FU-{$followUp->sequence} "
+                    "Lead \"{$lead->client_name}\" ({$lead->contactLabel()}) dijadwalkan FU-{$followUp->sequence} "
                         .($isOverdue ? 'sejak '.$followUp->scheduled_date->translatedFormat('d F Y').'.' : 'hari ini.'),
                     ['lead_id' => $lead->id],
                 );

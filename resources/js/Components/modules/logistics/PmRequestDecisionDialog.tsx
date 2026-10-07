@@ -14,6 +14,7 @@ import { formatQty } from '@/lib/format';
 import type { ProjectMaterial } from '@/types';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
+import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 interface PmRequestDecisionDialogProps {
     line: ProjectMaterial | null;
@@ -75,7 +76,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
                 </DialogHeader>
                 {!approve && (
                     <div className="space-y-2">
-                        <Label htmlFor="pm-reject-reason">Alasan penolakan</Label>
+                        <Label htmlFor="pm-reject-reason">Alasan penolakan<RequiredMark /></Label>
                         <Textarea id="pm-reject-reason" rows={3} value={reason} onChange={(event) => setReason(event.target.value)} />
                     </div>
                 )}

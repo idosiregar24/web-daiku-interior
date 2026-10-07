@@ -129,7 +129,7 @@ export function SalaryDecisionDialog({ change, decision, employeeName, onOpenCha
                                 name="reject_note"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Alasan Penolakan</FormLabel>
+                                        <FormLabel required>Alasan Penolakan</FormLabel>
                                         <FormControl>
                                             <Textarea rows={3} {...field} placeholder="mis. Anggaran belum memungkinkan" />
                                         </FormControl>

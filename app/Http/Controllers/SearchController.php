@@ -60,7 +60,7 @@ class SearchController extends Controller
 
         if ($this->may($user, 'leads')) {
             $groups[] = $this->group('leads', 'Lead / Klien', Lead::query()
-                ->where('client_name', 'like', $like)
+                ->search($request->validated('q'))
                 ->latest()
                 ->limit(self::PER_KIND)
                 ->get(['id', 'client_name', 'status'])

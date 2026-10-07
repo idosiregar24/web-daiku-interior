@@ -47,7 +47,7 @@ import {
 import { type ReactNode, useState } from 'react';
 
 interface QuotationShowProps {
-    quotation: Quotation & { lead: { id: number; client_name: string; contact?: string | null } };
+    quotation: Quotation & { lead: { id: number; client_name: string; phone?: string | null; email?: string | null } };
     /** ESTIMATOR — drafts, submits and sends the final RAB to Marketing. */
     canManage: boolean;
     /** Whose item review it is for this viewer right now (QuotationService::reviewStage()), if theirs. */
@@ -360,7 +360,7 @@ export default function QuotationShow({
                             <ShareLinkPanel
                                 url={shareUrl}
                                 clientName={quotation.lead.client_name}
-                                contact={quotation.lead.contact ?? null}
+                                phone={quotation.lead.phone ?? null}
                                 typeLabel={typeLabel}
                                 validUntil={quotation.valid_until ? formatDate(quotation.valid_until) : null}
                             />
