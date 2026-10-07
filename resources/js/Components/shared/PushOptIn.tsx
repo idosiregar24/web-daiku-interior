@@ -6,6 +6,7 @@ import type { PageProps } from '@/types';
 import { usePage } from '@inertiajs/react';
 import { BellRing, Smartphone } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 const HELP: Partial<Record<PushState, string>> = {
     denied: 'Notifikasi diblokir browser. Klik ikon gembok di samping alamat situs → Notifikasi → Izinkan, lalu muat ulang halaman.',
@@ -57,7 +58,10 @@ export function PushOptIn({
         setBusy(true);
         try {
             setState(await action());
-        } catch {
+        } catch (error) {
+            // Say why — on a phone there is no console to read it from.
+            const reason = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+            toast.error('Gagal mengatur notifikasi di perangkat ini', { description: reason });
             setState(await pushState().catch(() => 'unsupported' as const));
         } finally {
             setBusy(false);

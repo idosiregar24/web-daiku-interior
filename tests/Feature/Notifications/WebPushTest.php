@@ -249,7 +249,7 @@ test('the test push reports how many devices took it', function () {
     fakePushService(sent: $sent);
 
     $this->actingAs($user)->post(route('push-subscriptions.test'))
-        ->assertSessionHas('success', 'Notifikasi uji dikirim ke 2 perangkat.');
+        ->assertSessionHas('success', 'Notifikasi uji dikirim ke 2 dari 2 perangkat.');
 
     expect($sent[0]['payload']['url'])->toBe(route('notifications.index'))
         ->and(Notification::count())->toBe(0);
@@ -296,4 +296,38 @@ test('a re-push says it is a reminder', function () {
 
     expect($sent[0]['payload']['title'])->toBe('Pengingat: Permintaan RAB')
         ->and($sent[0]['payload']['tag'])->toBe(app(WebPushService::class)->payload($notification, NotificationPriority::ClientWaiting)['tag']);
+});
+
+test('an iPhone (Apple push service) always gets aes128gcm, even if saved as aesgcm', function () {
+    $user = pushUser();
+    PushSubscription::factory()->create([
+        'user_id' => $user->id,
+        'endpoint' => 'https://web.push.apple.com/QGuQ-abc',
+        'endpoint_hash' => hash('sha256', 'https://web.push.apple.com/QGuQ-abc'),
+        'content_encoding' => 'aesgcm',
+    ]);
+    PushSubscription::factory()->create(['user_id' => $user->id, 'content_encoding' => 'aesgcm']); // a non-Apple legacy row keeps its own
+    fakePushService(sent: $sent);
+
+    app(WebPushService::class)->send(Notification::factory()->create(['user_id' => $user->id, 'type' => NotificationType::TaskAssigned->value]));
+
+    $encodings = collect($sent)->mapWithKeys(fn ($m) => [$m['subscription']->getEndpoint() => $m['subscription']->getContentEncoding()]);
+    expect($encodings['https://web.push.apple.com/QGuQ-abc'])->toBe('aes128gcm')
+        ->and($encodings->filter(fn ($e, $endpoint) => ! str_contains($endpoint, 'apple'))->first())->toBe('aesgcm');
+});
+
+test('a failed test push says what the push service answered', function () {
+    $user = pushUser();
+    $device = PushSubscription::factory()->create(['user_id' => $user->id]);
+    test()->mock(WebPush::class, function (MockInterface $mock) use ($device) {
+        $mock->shouldReceive('queueNotification');
+        $mock->shouldReceive('flush')->andReturnUsing(function () use ($device) {
+            yield new MessageSentReport(new Request('POST', $device->endpoint), new Response(403, [], '{"reason":"BadJwtToken"}'), false, 'Forbidden');
+        });
+    });
+
+    $this->actingAs($user)->post(route('push-subscriptions.test'))
+        ->assertSessionHas('error', 'Notifikasi uji gagal terkirim (403 BadJwtToken) — matikan lalu aktifkan lagi notifikasi di perangkat ini.');
+
+    expect($device->fresh())->not->toBeNull();
 });

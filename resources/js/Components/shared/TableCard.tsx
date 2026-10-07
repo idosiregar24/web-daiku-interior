@@ -25,7 +25,11 @@ export function TableCard({ toolbar, footer, pagination, className, children }: 
     return (
         <div className={cn('overflow-hidden rounded-xl border border-border bg-card shadow-xs', className)}>
             {toolbar && <div className="border-b border-border p-3">{toolbar}</div>}
-            <div className="overflow-x-auto">{children}</div>
+            {/* `relative` makes the scroller the containing block of absolutely
+                positioned descendants (Radix Select's hidden native <select>,
+                `sr-only` text) — otherwise they sit at their column's offset
+                outside this box and widen the whole page on a phone. */}
+            <div className="relative overflow-x-auto">{children}</div>
             {footer && <div className="border-t border-border px-4 py-3">{footer}</div>}
             {pagination && pagination.last_page > 1 && (
                 <div className="border-t border-border px-4 py-3">

@@ -12,6 +12,7 @@ use App\Support\DailyFormSchedule;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Minishlink\WebPush\MessageSentReport;
 use Minishlink\WebPush\Subscription;
 use Minishlink\WebPush\WebPush;
 
@@ -29,6 +30,9 @@ class WebPushService
 {
     /** Lock-screen body length; the full message is one tap away. */
     private const BODY_LIMIT = 180;
+
+    /** The first push-service refusal of the last deliver() — shown by "Kirim notifikasi uji". */
+    private ?string $lastFailure = null;
 
     public static function enabled(): bool
     {
@@ -144,14 +148,14 @@ class WebPushService
      * user's own devices, no bell row. Sent synchronously so the page can
      * say how many devices took it.
      *
-     * @return array{devices: int, delivered: int}
+     * @return array{devices: int, delivered: int, failure: string|null}
      */
     public function sendTest(User $user): array
     {
         $subscriptions = $user->pushSubscriptions()->get();
 
         if (! self::enabled() || $subscriptions->isEmpty()) {
-            return ['devices' => $subscriptions->count(), 'delivered' => 0];
+            return ['devices' => $subscriptions->count(), 'delivered' => 0, 'failure' => null];
         }
 
         $delivered = $this->deliver($subscriptions, [
@@ -165,7 +169,7 @@ class WebPushService
             'icon' => route('pwa.icon', ['size' => 192, 'purpose' => 'any']),
         ], ['TTL' => 600, 'urgency' => 'high'], ['test_for_user_id' => $user->id]);
 
-        return ['devices' => $subscriptions->count(), 'delivered' => $delivered];
+        return ['devices' => $subscriptions->count(), 'delivered' => $delivered, 'failure' => $this->lastFailure];
     }
 
     /**
@@ -178,13 +182,14 @@ class WebPushService
     {
         $client = app(WebPush::class);
         $payload = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->lastFailure = null;
 
         foreach ($subscriptions as $subscription) {
             $client->queueNotification(new Subscription(
                 $subscription->endpoint,
                 $subscription->public_key,
                 $subscription->auth_token,
-                $subscription->content_encoding,
+                self::contentEncodingFor($subscription),
             ), $payload, $options);
         }
 
@@ -201,14 +206,47 @@ class WebPushService
                 // The user revoked permission or the browser dropped it.
                 $subscription?->delete();
             } else {
+                $this->lastFailure ??= self::failureSummary($report);
                 Log::warning('Web Push gagal terkirim', $logContext + [
                     'push_subscription_id' => $subscription?->id,
+                    'push_service' => parse_url($report->getEndpoint(), PHP_URL_HOST),
+                    'status' => $report->getResponse()?->getStatusCode(),
+                    'response' => Str::limit((string) $report->getResponseContent(), 300),
                     'reason' => $report->getReason(),
                 ]);
             }
         }
 
         return $delivered;
+    }
+
+    /**
+     * Apple's push service (iPhone/iPad/Safari) accepts only aes128gcm. Rows
+     * saved before the frontend fix may say aesgcm — send them correctly
+     * anyway instead of failing every push to that device.
+     */
+    private static function contentEncodingFor(PushSubscription $subscription): string
+    {
+        $host = (string) parse_url($subscription->endpoint, PHP_URL_HOST);
+
+        return str_ends_with($host, '.push.apple.com') ? 'aes128gcm' : ($subscription->content_encoding ?: 'aes128gcm');
+    }
+
+    /**
+     * "403 BadJwtToken" / "410 Unregistered"… — what the push service said,
+     * short enough for a flash message (the full text is in the log).
+     */
+    private static function failureSummary(MessageSentReport $report): string
+    {
+        $status = $report->getResponse()?->getStatusCode();
+        $body = trim((string) $report->getResponseContent());
+        $reason = json_decode($body, true)['reason'] ?? null;
+
+        if ($status === null) {
+            return 'tidak bisa menghubungi layanan push';
+        }
+
+        return trim($status.' '.($reason ?? Str::limit($body, 60, '…')));
     }
 
     /** @return array<string, mixed> read by public/sw.js */

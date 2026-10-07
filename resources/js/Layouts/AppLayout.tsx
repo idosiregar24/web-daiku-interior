@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
 import {
     Breadcrumb,
+    BreadcrumbEllipsis,
     BreadcrumbItem,
     BreadcrumbLink,
     BreadcrumbList,
@@ -926,11 +927,11 @@ function GroupCrumb({ group, current }: { group: NavGroup; current: NavItem }) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger
-                className="-mx-1 flex items-center gap-1 rounded-md px-1 py-0.5 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                className="-mx-1 flex min-w-0 items-center gap-1 rounded-md px-1 py-0.5 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:bg-muted data-[state=open]:text-foreground"
                 aria-label={`Menu lain di ${group.label}`}
             >
-                {group.label}
-                <ChevronDown className="size-3.5" />
+                <span className="truncate">{group.label}</span>
+                <ChevronDown className="size-3.5 shrink-0" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
                 <DropdownMenuLabel className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
@@ -959,11 +960,69 @@ function GroupCrumb({ group, current }: { group: NavGroup; current: NavItem }) {
     );
 }
 
+/** The levels a narrow topbar folds away, reachable from one "…" menu. */
+function EllipsisCrumb({ crumbs, className }: { crumbs: Crumb[]; className?: string }) {
+    return (
+        <BreadcrumbItem className={cn('shrink-0', className)}>
+            <DropdownMenu>
+                <DropdownMenuTrigger
+                    className="-mx-1 flex items-center rounded-md px-1 py-0.5 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                    aria-label="Tampilkan jejak halaman"
+                >
+                    <BreadcrumbEllipsis />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                    {crumbs.map((crumb, index) => {
+                        if (crumb.kind === 'home') {
+                            return (
+                                <DropdownMenuItem key={`home-${index}`} asChild>
+                                    <Link href={route('dashboard')}>
+                                        <House className="size-4 text-muted-foreground" />
+                                        Dashboard
+                                    </Link>
+                                </DropdownMenuItem>
+                            );
+                        }
+                        if (crumb.kind === 'group') {
+                            return (
+                                <DropdownMenuLabel
+                                    key={`group-${index}`}
+                                    className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase"
+                                >
+                                    {crumb.group.label}
+                                </DropdownMenuLabel>
+                            );
+                        }
+                        const Icon = crumb.icon;
+                        const content = (
+                            <>
+                                {Icon && <Icon className="size-4 text-muted-foreground" />}
+                                <span className="truncate">{crumb.label}</span>
+                            </>
+                        );
+
+                        return crumb.href ? (
+                            <DropdownMenuItem key={`${crumb.label}-${index}`} asChild>
+                                <Link href={crumb.href}>{content}</Link>
+                            </DropdownMenuItem>
+                        ) : (
+                            <DropdownMenuItem key={`${crumb.label}-${index}`} disabled>
+                                {content}
+                            </DropdownMenuItem>
+                        );
+                    })}
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </BreadcrumbItem>
+    );
+}
+
 /**
  * 🏠 › group ▾ › menu › …page crumbs. The group/menu part comes from the
  * sidebar entry this route belongs to (useActiveNav), so every page gets
  * the same, complete trail; pages add only their own detail levels.
- * Phones show just the last two levels.
+ * lg+ shows the full trail; below lg the middle levels fold into "…"
+ * (🏠 › … › parent › page), phones keep only "… › page". One line always.
  */
 function TopbarBreadcrumb({ extra, header }: { extra: BreadcrumbEntry[]; header?: ReactNode }) {
     const active = useActiveNav();
@@ -1014,18 +1073,35 @@ function TopbarBreadcrumb({ extra, header }: { extra: BreadcrumbEntry[]; header?
         return <div className="truncate text-sm text-muted-foreground">{header}</div>;
     }
 
+    const last = crumbs.length - 1;
+    // Phones (< sm): "… › page" once there's more than 🏠 before the page.
+    const foldPhone = crumbs.length >= 3;
+    // Tablets (sm–lg): "🏠 › … › parent › page" once a middle level exists.
+    const foldTablet = crumbs.length >= 4;
+
     return (
         <Breadcrumb className="min-w-0">
-            <BreadcrumbList className="flex-nowrap gap-1.5 sm:gap-2">
+            <BreadcrumbList className="flex-nowrap gap-1.5 whitespace-nowrap sm:gap-2">
+                {foldPhone && (
+                    <>
+                        <EllipsisCrumb crumbs={crumbs.slice(0, last)} className="sm:hidden" />
+                        <BreadcrumbSeparator className="shrink-0 sm:hidden" />
+                    </>
+                )}
                 {crumbs.map((crumb, index) => {
-                    const isLast = index === crumbs.length - 1;
-                    // Phones: only the parent + current page.
-                    const mobileHidden = index < crumbs.length - 2;
+                    const isLast = index === last;
+                    const tabletHidden = foldTablet && index >= 1 && index <= last - 2;
+                    const phoneHidden = foldPhone && !isLast;
                     const key = crumb.kind === 'page' ? `${crumb.label}-${index}` : `${crumb.kind}-${index}`;
 
                     return (
                         <Fragment key={key}>
-                            <BreadcrumbItem className={cn('min-w-0', mobileHidden && 'hidden sm:inline-flex')}>
+                            <BreadcrumbItem
+                                className={cn(
+                                    crumb.kind === 'home' ? 'shrink-0' : 'min-w-0',
+                                    tabletHidden ? 'hidden lg:inline-flex' : phoneHidden && 'hidden sm:inline-flex',
+                                )}
+                            >
                                 {crumb.kind === 'home' && (
                                     <BreadcrumbLink asChild>
                                         <Link href={route('dashboard')} aria-label="Dashboard" className="flex items-center">
@@ -1044,17 +1120,28 @@ function TopbarBreadcrumb({ extra, header }: { extra: BreadcrumbEntry[]; header?
                                         <BreadcrumbLink asChild>
                                             <Link href={crumb.href} className="flex min-w-0 items-center gap-1.5">
                                                 {crumb.icon && <crumb.icon className="size-4 shrink-0" />}
-                                                <span className="max-w-48 truncate">{crumb.label}</span>
+                                                <span className="max-w-32 truncate lg:max-w-48">{crumb.label}</span>
                                             </Link>
                                         </BreadcrumbLink>
                                     ) : (
                                         <span className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
                                             {crumb.icon && <crumb.icon className="size-4 shrink-0" />}
-                                            <span className="max-w-48 truncate">{crumb.label}</span>
+                                            <span className="max-w-32 truncate lg:max-w-48">{crumb.label}</span>
                                         </span>
                                     ))}
                             </BreadcrumbItem>
-                            {!isLast && <BreadcrumbSeparator className={cn(mobileHidden && 'hidden sm:list-item')} />}
+                            {!isLast && (
+                                <BreadcrumbSeparator
+                                    className={cn('shrink-0', tabletHidden ? 'hidden lg:list-item' : phoneHidden && 'hidden sm:list-item')}
+                                />
+                            )}
+                            {/* Tablets: the folded middle levels sit right after 🏠. */}
+                            {index === 0 && foldTablet && (
+                                <>
+                                    <EllipsisCrumb crumbs={crumbs.slice(1, last - 1)} className="hidden sm:inline-flex lg:hidden" />
+                                    <BreadcrumbSeparator className="hidden shrink-0 sm:list-item lg:hidden" />
+                                </>
+                            )}
                         </Fragment>
                     );
                 })}

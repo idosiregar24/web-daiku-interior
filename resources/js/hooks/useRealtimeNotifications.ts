@@ -94,7 +94,7 @@ function announce(fresh: Announceable[]) {
  * partial reload, nothing is mirrored into local state (frontend-standards.md §7).
  */
 export function useRealtimeNotifications(userId: number | undefined) {
-    const { notifications, unreadNotificationsCount, auth } = usePage<PageProps>().props;
+    const { notifications, unreadNotificationsCount, auth, webPushKey } = usePage<PageProps>().props;
     const [connected, setConnected] = useState(false);
     preferences = auth.user?.notification_preferences;
 
@@ -103,8 +103,8 @@ export function useRealtimeNotifications(userId: number | undefined) {
 
     // Sprint 18 Sub 04 — a device already ringing follows whoever is signed in on it.
     useEffect(() => {
-        if (userId) void syncPushOwner(userId).catch(() => {});
-    }, [userId]);
+        if (userId) void syncPushOwner(userId, webPushKey).catch(() => {});
+    }, [userId, webPushKey]);
 
     // New ids in the bell props since the last look (first look only records).
     useEffect(() => {

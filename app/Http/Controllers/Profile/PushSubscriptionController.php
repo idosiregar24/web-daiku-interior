@@ -45,16 +45,21 @@ class PushSubscriptionController extends Controller
 
     public function test(Request $request, WebPushService $service): RedirectResponse
     {
-        ['devices' => $devices, 'delivered' => $delivered] = $service->sendTest($request->user());
+        ['devices' => $devices, 'delivered' => $delivered, 'failure' => $failure] = $service->sendTest($request->user());
 
         if (! WebPushService::enabled()) {
             return back()->with('error', 'Notifikasi perangkat belum dikonfigurasi di server (VAPID).');
         }
 
-        return $delivered > 0
-            ? back()->with('success', "Notifikasi uji dikirim ke {$delivered} perangkat.")
-            : back()->with('error', $devices > 0
-                ? 'Notifikasi uji gagal terkirim — coba matikan lalu aktifkan lagi di perangkat ini.'
-                : 'Belum ada perangkat yang mengaktifkan notifikasi.');
+        if ($devices === 0) {
+            return back()->with('error', 'Belum ada perangkat yang mengaktifkan notifikasi.');
+        }
+
+        if ($delivered === 0) {
+            return back()->with('error', 'Notifikasi uji gagal terkirim'.($failure ? " ({$failure})" : '').' — matikan lalu aktifkan lagi notifikasi di perangkat ini.');
+        }
+
+        // Some devices took it, some didn't (an old phone, a revoked browser…).
+        return back()->with('success', "Notifikasi uji dikirim ke {$delivered} dari {$devices} perangkat.".($failure && $delivered < $devices ? " Gagal: {$failure}." : ''));
     }
 }
