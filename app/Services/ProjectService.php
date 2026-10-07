@@ -70,6 +70,8 @@ class ProjectService
             ]);
 
             $termins = $this->terminService->createFromPaymentTerms($project, $quotation);
+            // Sprint 17 Sub 03 (K2) — the DP is billable now: straight into Marketing's "Perlu Tindakan".
+            $this->terminService->remindInvoices($project);
 
             $opening->update([
                 'status' => ProjectOpening::STATUS_OPENED,
@@ -418,6 +420,7 @@ class ProjectService
 
         $project->update(['contract_value' => round((float) $project->contract_value + (float) $addendum->total_amount, 2)]);
         $termins = $this->terminService->createFromPaymentTerms($project, $addendum->loadMissing('paymentTerms'), now()->toDateString());
+        $this->terminService->remindInvoices($project);
 
         $this->auditLogService->record('project.addendum_added', $project, ['contract_value' => $before], [
             'contract_value' => number_format((float) $project->contract_value, 2, '.', ''),

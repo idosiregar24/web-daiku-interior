@@ -1,7 +1,8 @@
 {{--
-    Sprint 15 — the company letter (offer / invoice) in the format the user
-    handed over. Fed by App\Support\Letters\{QuotationLetter, InvoiceLetter}
-    ($letter); the client's link page renders the same array.
+    Sprint 15 — the company letter (offer) in the format the user handed
+    over. Fed by App\Support\Letters\QuotationLetter ($letter); the client's
+    link page renders the same array. Since Sprint 17 an invoice has its own
+    billing layout (layouts/invoice) sharing the frame partials below.
     DomPDF renders a subset of CSS 2.1: tables and fixed boxes only, no flexbox.
 --}}
 @php
@@ -16,24 +17,7 @@
     <meta charset="utf-8">
     <title>{{ $title }} {{ $letter['number'] ?? '' }} — {{ $letter['recipient'] }}</title>
     <style>
-        @page { margin: 125px 56px 70px 56px; }
-        body { font-family: 'DejaVu Sans', sans-serif; font-size: 10.5px; color: #1a1a1a; line-height: 1.45; }
-
-        .letterhead { position: fixed; top: -125px; left: -56px; right: -56px; height: 104px; }
-        .letterhead table { width: 100%; border-collapse: collapse; }
-        .letterhead td { vertical-align: middle; padding: 0; }
-        .letterhead .brand { padding-left: 56px; height: 96px; }
-        .letterhead .brand img { height: 58px; }
-        .letterhead .brand .name { font-size: 20px; font-weight: bold; }
-        .letterhead .contact { width: 46%; background: #f5c518; text-align: right; padding: 10px 56px 10px 16px; font-size: 9.5px; color: #1a1a1a; }
-        .letterhead .contact .line { height: 17px; line-height: 17px; }
-        .letterhead .contact .icon { width: 11px; height: 11px; margin-left: 5px; vertical-align: middle; }
-        .letterhead .rule { height: 6px; background: #1a1a1a; }
-
-        .footer { position: fixed; bottom: -70px; left: -56px; right: -56px; height: 22px; background: #1a1a1a; color: #ffffff;
-            text-align: center; font-size: 9px; font-weight: bold; letter-spacing: 0.4px; padding-top: 8px; }
-
-        .watermark { position: fixed; top: 210px; left: 90px; width: 420px; opacity: 0.06; }
+        @include('pdf.layouts.partials.frame-css')
 
         .date { text-align: right; margin: 0 0 14px; }
         .meta { border-collapse: collapse; margin-bottom: 14px; }
@@ -60,43 +44,11 @@
         ol.notes li { margin-bottom: 3px; }
 
         .closing { font-size: 9.5px; margin-top: 10px; }
-        .sign { width: 100%; margin-top: 18px; }
-        .sign td { vertical-align: top; }
-        .sign .slot { width: 210px; }
-        .sign .signature { height: 64px; margin: 4px 0 2px; }
-        .sign .name { font-weight: bold; }
         .stamp { display: inline-block; border: 2px solid #067647; color: #067647; font-weight: bold; padding: 2px 10px; letter-spacing: 2px; }
     </style>
 </head>
 <body>
-    <div class="letterhead">
-        <table>
-            <tr>
-                <td class="brand">
-                    @if($company['logo'])
-                        <img src="{{ $company['logo'] }}" alt="">
-                    @else
-                        <span class="name">{{ $company['name'] }}</span>
-                    @endif
-                </td>
-                <td class="contact">
-                    {{-- Text, then its icon — as on the company's letter. --}}
-                    @foreach(['address', 'email', 'phone', 'instagram'] as $field)
-                        @if($company[$field])
-                            <div class="line">{{ $company[$field] }} <img class="icon" src="{{ $company['icons'][$field] }}" alt=""></div>
-                        @endif
-                    @endforeach
-                </td>
-            </tr>
-        </table>
-        <div class="rule"></div>
-    </div>
-
-    <div class="footer">{{ $company['footer'] }}</div>
-
-    @if($company['logo'])
-        <img class="watermark" src="{{ $company['logo'] }}" alt="">
-    @endif
+    @include('pdf.layouts.partials.letterhead', ['company' => $company])
 
     <p class="date">{{ $letter['date'] }}</p>
 
@@ -221,22 +173,6 @@
 
     <p class="closing">{{ $letter['closing'] }}</p>
 
-    <table class="sign">
-        <tr>
-            <td></td>
-            <td class="slot">
-                Hormat kami,<br>
-                @if($signer['signature'])
-                    <img class="signature" src="{{ $signer['signature'] }}" alt=""><br>
-                @elseif($company['logo'])
-                    <img class="signature" src="{{ $company['logo'] }}" alt="" style="height: 40px; margin: 14px 0 8px;"><br>
-                @else
-                    <br><br><br>
-                @endif
-                <span class="name">{{ $signer['name'] ?: $company['name'] }}</span>
-                @if($signer['title'])<br>{{ $signer['title'] }}@endif
-            </td>
-        </tr>
-    </table>
+    @include('pdf.layouts.partials.signature', ['company' => $company, 'signer' => $signer])
 </body>
 </html>

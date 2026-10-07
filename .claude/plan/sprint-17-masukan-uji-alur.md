@@ -1,6 +1,6 @@
 # Sprint 17 — Masukan Uji Alur Klien
 
-> Status: **rencana 2026-10-07** — belum dikerjakan.
+> Status: **selesai 2026-10-07** (Sub 01–05; K1–K4 dijalankan sesuai usulan karena belum dijawab user).
 > Sumber: hasil uji alur oleh rekan user (mengikuti
 > [`simulasi-alur-klien.md`](simulasi-alur-klien.md)) dengan lead #37
 > "Ido Refael Siregar". Bentuknya 6 temuan, terdiri dari 3 bug dan 3

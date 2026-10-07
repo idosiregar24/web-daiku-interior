@@ -19,6 +19,7 @@ use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\Termin;
 use App\Models\User;
+use App\Services\ActionInboxService;
 use App\Services\InvoiceService;
 use App\Services\ProjectService;
 use App\Services\QuotationService;
@@ -230,8 +231,8 @@ test('Marketing is reminded once per termin when its trigger is reached', functi
     $service = app(TerminService::class);
     $reminded = fn () => Notification::where('user_id', $this->marketing->id)->where('type', 'termin_invoice_due')->count();
 
-    // Day 1: only the DP (di muka).
-    expect($service->remindInvoices())->toBe(1)->and($reminded())->toBe(1);
+    // Day 1: only the DP (di muka) — already at "Buka Proyek" (Sprint 17 Sub 03), not again by the job.
+    expect($reminded())->toBe(1);
     expect($service->remindInvoices())->toBe(0);
 
     // The "Produksi" milestone completes → termin 2, linked to it.
@@ -248,6 +249,32 @@ test('Marketing is reminded once per termin when its trigger is reached', functi
     (new TerminInvoiceReminderJob)->handle($service);
 
     expect($reminded())->toBe(4)->and($service->remindInvoices())->toBe(0);
+});
+
+test('Buka Proyek puts the DP straight into Marketing\'s "termin-invoice" queue, the client approval only notifies (K2)', function () {
+    $quotation = approvedProjectRab($this);
+
+    // Approved RAB Proyek: a notification, no queue item — nothing to bill before the project exists.
+    expect(Notification::where('user_id', $this->marketing->id)->where('type', 'project_rab_awaiting_opening')->sole()->message)
+        ->toContain('Menunggu CEO Buka Proyek')
+        ->and(collect(app(ActionInboxService::class)->for($this->marketing, fresh: true))->pluck('key'))
+        ->not->toContain('quotation-invoice')
+        ->not->toContain('termin-invoice');
+
+    $project = openProject($this, $quotation);
+    $dp = $project->termins()->where('termin_number', 1)->sole();
+
+    expect($dp->invoice_reminded_at)->not->toBeNull()
+        ->and($project->termins()->whereNotNull('invoice_reminded_at')->count())->toBe(1);
+
+    // The cache Marketing already had was dropped — no `fresh` needed.
+    $group = collect(app(ActionInboxService::class)->for($this->marketing))->firstWhere('key', 'termin-invoice');
+    expect($group['count'])->toBe(1)
+        ->and($group['items'][0]['id'])->toBe("termin-invoice-{$dp->id}");
+
+    // Issuing the DP invoice empties it.
+    app(InvoiceService::class)->issueForTermin($dp, ['due_date' => '2026-10-20'], $this->marketing);
+    expect(collect(app(ActionInboxService::class)->for($this->marketing))->pluck('key'))->not->toContain('termin-invoice');
 });
 
 test('an already invoiced termin is not reminded', function () {

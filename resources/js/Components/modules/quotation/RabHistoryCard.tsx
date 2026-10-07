@@ -1,6 +1,7 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { copyText } from '@/lib/clipboard';
 import { formatDate, formatRupiah } from '@/lib/format';
 import type { Quotation } from '@/types';
 import { Button } from '@/Components/ui/button';
@@ -17,11 +18,13 @@ type HistoryQuotation = Pick<Quotation, 'id' | 'type' | 'custom_name' | 'parent_
     client_url?: string | null;
 };
 
-function copyLink(url: string) {
-    navigator.clipboard
-        .writeText(url)
-        .then(() => toast.success('Link klien disalin.'))
-        .catch(() => toast.error('Gagal menyalin — buka link lalu salin dari browser.'));
+/** Sprint 17 Sub 01 — `copyText` also works on plain HTTP (no `navigator.clipboard` there). */
+async function copyLink(url: string) {
+    if (await copyText(url)) {
+        toast.success('Link klien disalin.');
+    } else {
+        toast.error('Gagal menyalin — buka link lalu salin dari browser.');
+    }
 }
 
 /** Fixed sections first, in the order a client usually goes through them; custom names after, A–Z. */

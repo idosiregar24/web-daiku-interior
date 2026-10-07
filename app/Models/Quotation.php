@@ -36,6 +36,8 @@ class Quotation extends Model
         'version',
         'created_by',
         'requested_by',
+        // Sprint 17 Sub 04 — self::VIA_DESIGN_ACC when asked for automatically, null = by a person.
+        'requested_via',
         'request_note',
         'custom_name',
         // Sprint 15 — "377/OFF/Daiku/IX/2026", given when this version is sent; the RAB's "Catatan".
@@ -175,6 +177,60 @@ class Quotation extends Model
 
     /** Quotation list filter value for the custom-named RAB (Sprint 14 Sub 02). */
     public const FILTER_CUSTOM = 'CUSTOM';
+
+    /** Sprint 17 Sub 04 — `requested_via` of the RAB Proyek asked for by the design's client approval. */
+    public const VIA_DESIGN_ACC = 'DESIGN_ACC';
+
+    /**
+     * Sprint 17 Sub 03 — a Jasa Survey / Jasa Desain RAB the client approved
+     * whose invoice nobody issued yet (one invoice per service RAB, D4 —
+     * InvoiceService::issueForQuotation()). With `$marketing`: only on that
+     * Marketing's own leads, or on leads without a Marketing (same rule as
+     * the termin-invoice queue) — read by the "Perlu Tindakan" queue and
+     * the Quotation list's `awaiting_invoice` filter.
+     */
+    public function scopeAwaitingInvoice(Builder $query, ?User $marketing = null): Builder
+    {
+        return $query
+            ->where('status', QuotationStatus::ClientApproved->value)
+            ->whereIn('type', [QuotationType::Survey->value, QuotationType::Desain->value])
+            ->whereDoesntHave('invoices')
+            ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
+                ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
+    }
+
+    /**
+     * Sprint 17 Sub 04 — the lead's RAB Proyek still running (QuotationService::request()
+     * refuses a second one meanwhile), as the lead & design pages show it.
+     * `pending_auto` = asked for automatically on the design's approval and
+     * still waiting for / being drafted by the Estimator.
+     *
+     * @return array{id: int, title: string, status: string, requested_at: string|null, auto: bool, pending_auto: bool}|null
+     */
+    public static function runningProjectRabSummary(int $leadId): ?array
+    {
+        $running = self::query()
+            ->where('lead_id', $leadId)
+            ->where('type', QuotationType::Proyek->value)
+            ->whereNotIn('status', QuotationStatus::closedValues())
+            ->latest('id')
+            ->first();
+
+        if ($running === null) {
+            return null;
+        }
+
+        $auto = $running->requested_via === self::VIA_DESIGN_ACC;
+
+        return [
+            'id' => $running->id,
+            'title' => $running->title(),
+            'status' => $running->status->value,
+            'requested_at' => $running->created_at?->toIso8601String(),
+            'auto' => $auto,
+            'pending_auto' => $auto && in_array($running->status, [QuotationStatus::Diminta, QuotationStatus::Draft], true),
+        ];
+    }
 
     /**
      * What this RAB is called everywhere — page titles, notifications, PDF,

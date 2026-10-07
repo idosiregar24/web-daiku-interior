@@ -9,6 +9,7 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
 import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
+import { AutoProjectRabNotice, type RunningProjectRab } from '@/Components/modules/quotation/AutoProjectRabNotice';
 import { RabHistoryCard } from '@/Components/modules/quotation/RabHistoryCard';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
@@ -72,6 +73,8 @@ interface LeadShowProps {
     cities: CityOption[];
     /** Sprint 14 Sub 02 — custom RAB names used before ("Buat RAB → Lainnya" suggestions). */
     customRabNames: string[];
+    /** Sprint 17 Sub 04 — the lead's running RAB Proyek, if any. */
+    projectRab: RunningProjectRab | null;
 }
 
 /**
@@ -89,6 +92,7 @@ export default function LeadShow({
     leadCategories,
     cities,
     customRabNames,
+    projectRab,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -296,6 +300,7 @@ export default function LeadShow({
 
             {/* Sprint 14 Sub 02 — every RAB of this client, one section per kind. */}
             <div className="mt-6">
+                <AutoProjectRabNotice rab={projectRab} className="mb-4" />
                 <RabHistoryCard quotations={lead.quotations} />
             </div>
 
@@ -320,7 +325,8 @@ export default function LeadShow({
                                 >
                                     <div className="min-w-0 space-y-1">
                                         <div className="flex flex-wrap items-center gap-1.5">
-                                            {log.from_status && (
+                                            {/* A note-only entry (e.g. Sprint 17 "Desain disetujui klien") keeps the status: one chip. */}
+                                            {log.from_status && log.from_status !== log.to_status && (
                                                 <>
                                                     <StatusChip status={log.from_status} />
                                                     <ArrowRight className="size-3.5 text-muted-foreground" aria-label="menjadi" />
@@ -358,6 +364,7 @@ export default function LeadShow({
                         lead={lead}
                         rabOnly={rabOnly}
                         customRabNames={customRabNames}
+                        projectRab={projectRab}
                     />
                     {lead.quotation && (
                         <QuotationDecisionDialog

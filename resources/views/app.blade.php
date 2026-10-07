@@ -19,7 +19,9 @@
         <link rel="apple-touch-icon" href="{{ route('pwa.icon', ['size' => 180, 'purpose' => 'any']) }}">
 
         <!-- Scripts -->
-        @routes
+        {{-- Sprint 17 Sub 01 — public pages (client offer link) get only the
+             `public` Ziggy group (config/ziggy.php), not the internal route map. --}}
+        @routes(request()->routeIs('public.*') ? 'public' : null)
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/Pages/{$page['component']}.tsx"])
         @inertiaHead

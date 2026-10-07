@@ -95,6 +95,9 @@ class LeadController extends Controller
             // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
             'followUps.creator:id,name',
             'surveys.creator:id,name',
+            // Sprint 17 Sub 02 — where an outside-Pekanbaru survey's payment is stuck.
+            'surveys.quotation:id,type,status,version',
+            'surveys.quotation.invoices:id,quotation_id,number,status',
         ]);
 
         // Sprint 15 Sub 05 — each RAB's own client link in "Riwayat RAB", for
@@ -131,6 +134,9 @@ class LeadController extends Controller
                     ])
                 : null,
             'canManage' => $canManage,
+            // Sprint 17 Sub 04 — the running RAB Proyek: notice when it was requested
+            // automatically, and "Buat RAB → RAB Proyek/Lainnya" disabled meanwhile.
+            'projectRab' => Quotation::runningProjectRabSummary($lead->id),
             // Sprint 14 Sub 02 — suggestions for "Buat RAB → Lainnya", so one job keeps one spelling.
             'customRabNames' => $canManage
                 ? Quotation::query()->whereNotNull('custom_name')->distinct()->orderBy('custom_name')->limit(50)->pluck('custom_name')

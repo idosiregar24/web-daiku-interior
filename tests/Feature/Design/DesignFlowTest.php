@@ -4,6 +4,7 @@ use App\Enums\DesignStatus;
 use App\Enums\InvoiceType;
 use App\Enums\LeadStatus;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\Design;
@@ -15,6 +16,7 @@ use App\Models\Quotation;
 use App\Models\User;
 use App\Services\DesignService;
 use App\Services\InvoiceService;
+use App\Services\QuotationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -317,7 +319,9 @@ test('a revision can only be asked while the client is looking at the design', f
 test('the client approving the design asks the Estimator for the RAB Proyek', function () {
     $design = workedDesign($this, DesignStatus::WaitingAccDesain);
 
-    $this->actingAs($this->marketing)->post(route('design.markClientApproved', $design))->assertSessionHasNoErrors();
+    $this->actingAs($this->marketing)->post(route('design.markClientApproved', $design))
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Desain disetujui klien. Permintaan RAB Proyek otomatis dikirim ke Estimator.');
 
     $design->refresh();
     $projectRab = Quotation::where('lead_id', $this->lead->id)->where('type', 'PROYEK')->sole();
@@ -326,18 +330,59 @@ test('the client approving the design asks the Estimator for the RAB Proyek', fu
         ->and($design->acc_date->toDateString())->toBe('2026-10-05')
         ->and($projectRab->status)->toBe(QuotationStatus::Diminta)
         ->and($projectRab->requested_by)->toBe($this->marketing->id)
+        ->and($projectRab->requested_via)->toBe(Quotation::VIA_DESIGN_ACC)
         ->and(Notification::where('user_id', $this->estimator->id)->where('type', 'quotation_requested')->exists())->toBeTrue()
-        ->and(AuditLog::where('action', 'design.client_approved')->exists())->toBeTrue();
+        ->and(AuditLog::where('action', 'design.client_approved')->exists())->toBeTrue()
+        // Sprint 17 Sub 04 — a lasting trace on the lead; the Marketing pressed it, so no notification to themself.
+        ->and($this->lead->pipelineLogs()->latest('id')->first()->note)->toBe('Desain disetujui klien — RAB Proyek otomatis diminta ke Estimator.')
+        ->and(Notification::where('user_id', $this->marketing->id)->where('type', 'project_rab_auto_requested')->exists())->toBeFalse();
+});
+
+test("another Marketing approving tells the lead's Marketing; both pages show the request until the Estimator submits", function () {
+    $design = workedDesign($this, DesignStatus::WaitingAccDesain);
+    $colleague = designFlowUser('MARKETING');
+
+    $this->actingAs($colleague)->post(route('design.markClientApproved', $design))->assertSessionHasNoErrors();
+
+    $projectRab = Quotation::where('lead_id', $this->lead->id)->where('type', 'PROYEK')->sole();
+    expect(Notification::where('user_id', $this->marketing->id)->where('type', 'project_rab_auto_requested')->sole()->metadata)
+        ->toMatchArray(['quotation_id' => $projectRab->id, 'lead_id' => $this->lead->id]);
+
+    $assertNotice = fn (Assert $page) => $page
+        ->where('projectRab.id', $projectRab->id)
+        ->where('projectRab.status', 'DIMINTA')
+        ->where('projectRab.auto', true)
+        ->where('projectRab.pending_auto', true);
+    $this->actingAs($this->marketing)->get(route('crm.leads.show', $this->lead))->assertInertia($assertNotice);
+    $this->actingAs($this->marketing)->get(route('design.show', $design))->assertInertia($assertNotice);
+
+    // The server keeps refusing a second RAB Proyek meanwhile (the button is disabled on the lead page).
+    expect(fn () => app(QuotationService::class)->request($this->lead->fresh(), QuotationType::Proyek, 'Lagi', $this->marketing))
+        ->toThrow(ValidationException::class);
+
+    // Submitted for review: still running (no new request), but the notice is gone.
+    $projectRab->update(['status' => QuotationStatus::Submitted->value]);
+    $this->actingAs($this->marketing)->get(route('crm.leads.show', $this->lead))
+        ->assertInertia(fn (Assert $page) => $page->where('projectRab.pending_auto', false)->where('projectRab.auto', true));
 });
 
 test('an already running RAB Proyek is not requested twice', function () {
     $design = workedDesign($this, DesignStatus::WaitingAccDesain);
-    Quotation::factory()->create(['lead_id' => $this->lead->id, 'type' => 'PROYEK', 'status' => QuotationStatus::Draft->value]);
+    $running = Quotation::factory()->create(['lead_id' => $this->lead->id, 'type' => 'PROYEK', 'status' => QuotationStatus::Draft->value]);
 
-    $this->actingAs($this->marketing)->post(route('design.markClientApproved', $design))->assertSessionHasNoErrors();
+    $this->actingAs($this->marketing)->post(route('design.markClientApproved', $design))
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Desain disetujui klien. RAB Proyek untuk klien ini sudah berjalan (DRAFT) — tidak diminta ulang.');
 
     expect(Quotation::where('lead_id', $this->lead->id)->where('type', 'PROYEK')->count())->toBe(1)
-        ->and(Notification::where('user_id', $this->estimator->id)->where('type', 'design_acc')->exists())->toBeTrue();
+        ->and($running->fresh()->requested_via)->toBeNull()
+        ->and(Notification::where('user_id', $this->estimator->id)->where('type', 'design_acc')->exists())->toBeTrue()
+        ->and(Notification::where('type', 'project_rab_auto_requested')->exists())->toBeFalse()
+        ->and($this->lead->pipelineLogs()->latest('id')->first()->note)->toBe('Desain disetujui klien — RAB Proyek sudah berjalan, tidak diminta ulang.');
+
+    // Asked for by a person, not automatically: no "already requested automatically" notice.
+    $this->actingAs($this->marketing)->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('projectRab.auto', false)->where('projectRab.pending_auto', false));
 });
 
 test('only Marketing sends, asks revisions and records the approval', function (string $role) {

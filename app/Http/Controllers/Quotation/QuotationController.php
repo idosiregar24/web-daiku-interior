@@ -40,18 +40,23 @@ class QuotationController extends Controller
 {
     public function index(Request $request): Response
     {
+        $user = $request->user();
+
         $quotations = Quotation::query()
             ->with(['lead:id,client_name', 'requester:id,name'])
             ->byStatus($request->string('status')->value() ?: null)
             // Sprint 12 #6 — RAB Jasa Survey / Jasa Desain / Proyek.
             ->byType($request->string('type')->value() ?: null)
+            // Sprint 17 Sub 03 — "Lihat semua" of the Perlu Tindakan queue
+            // (ActionInboxService::invoiceToIssue()): a Marketing sees their own leads' only.
+            ->when($request->boolean('awaiting_invoice'), fn ($query) => $query->awaitingInvoice($user->hasRole('MARKETING') ? $user : null))
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('Quotation/Index', [
             'quotations' => $quotations,
-            'filters' => $request->only(['status', 'type']),
+            'filters' => $request->only(['status', 'type', 'awaiting_invoice']),
         ]);
     }
 

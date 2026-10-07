@@ -152,6 +152,8 @@ export type PageProps<
     pendingProjectOpenings?: PendingProjectOpenings | null;
     /** Sprint 13 #5 — menu route name → items waiting there ("Perlu Tindakan", cached 60 s per user). */
     navBadges: Record<string, number>;
+    /** Sprint 17 Sub 01 — APP_URL is a local host (`.test`, `.local`, localhost, 127.*): client links won't open on a client's phone. */
+    appUrlIsLocal: boolean;
 };
 
 /** Sprint 12 #19 — App\Models\ProjectOpening. */
@@ -269,6 +271,8 @@ export interface LeadSurvey {
     maps_url: string | null;
     is_outside_pekanbaru: boolean;
     quotation_id: number | null;
+    /** Lead detail (Sprint 17 Sub 02) — the RAB Jasa Survey paying for it and its invoices. */
+    quotation?: (Pick<Quotation, 'id' | 'type' | 'status' | 'version'> & { invoices: Pick<Invoice, 'id' | 'number' | 'status'>[] }) | null;
     status: LeadSurveyStatus;
     result_note: string | null;
     cancel_reason: string | null;

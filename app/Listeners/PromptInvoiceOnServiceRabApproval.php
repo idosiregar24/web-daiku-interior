@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Enums\InvoiceType;
 use App\Events\QuotationClientApproved;
+use App\Services\ActionInboxService;
 use App\Services\NotificationService;
 
 /**
@@ -12,6 +13,11 @@ use App\Services\NotificationService;
  * to issue its invoice. The linked outside-Pekanbaru survey already waits
  * in MENUNGGU_BAYAR since it was scheduled (Sub 2) and stays there until
  * the invoice is verified (MarkSurveyReadyOnInvoiceVerified).
+ *
+ * Sprint 17 Sub 03 — the RAB also enters the Marketing's "Perlu Tindakan"
+ * (ActionInboxService::invoiceToIssue()) until the invoice is issued; the
+ * client approved on a public link, so no request of the Marketing's own
+ * drops their cached queue — it's dropped here.
  */
 class PromptInvoiceOnServiceRabApproval
 {
@@ -33,5 +39,7 @@ class PromptInvoiceOnServiceRabApproval
             "Klien \"{$quotation->lead->client_name}\" menyetujui {$quotation->type->label()} — terbitkan invoice-nya.",
             ['quotation_id' => $quotation->id, 'lead_id' => $quotation->lead_id],
         );
+
+        ActionInboxService::forgetMarketingOf($quotation->lead->assignee);
     }
 }

@@ -1,7 +1,7 @@
 # Sprint 17 · 02 — Survey ↔ RAB Jasa Survey (Urutan Bebas)
 
 > Induk: [`../sprint-17-masukan-uji-alur.md`](../sprint-17-masukan-uji-alur.md) · Temuan T5 · Keputusan K4
-> Status: **belum dikerjakan**
+> Status: **selesai 2026-10-07**
 
 ## Masalah (lead #37)
 Survey #6 (luar Pekanbaru) tetap `MENUNGGU_BAYAR` walau invoice Jasa
@@ -37,14 +37,36 @@ Listener `MarkSurveyReadyOnInvoiceVerified` mencari survey lewat
   sekali saat deploy.
 
 ## Checklist
-- [ ] **[Backend]** `linkSurveyToRab()` + panggil dari `request()` dan
+- [x] **[Backend]** `linkSurveyToRab()` + panggil dari `request()` dan
       `scheduleSurvey()`; SIAP langsung bila invoice sudah terverifikasi
-- [ ] **[Backend]** Listener mencari lewat kedua kolom tautan
-- [ ] **[Backend]** Command `daiku:relink-surveys` (+ `--dry-run`)
-- [ ] **[UI]** Kartu Survey: baris status pembayaran + link RAB/invoice
-- [ ] **[Test]** Urutan A (survey → RAB → bayar) dan urutan B (RAB → survey
+- [x] **[Backend]** Listener mencari lewat kedua kolom tautan
+- [x] **[Backend]** Command `daiku:relink-surveys` (+ `--dry-run`)
+- [x] **[UI]** Kartu Survey: baris status pembayaran + link RAB/invoice
+- [x] **[Test]** Urutan A (survey → RAB → bayar) dan urutan B (RAB → survey
       → bayar) sama-sama berakhir SIAP; urutan C (RAB → bayar → survey)
       langsung SIAP; RAB dibatalkan melepas tautan (sudah ada, tetap lulus)
-- [ ] **[Data]** Jalankan command di lokal → survey #6 lead #37 menjadi SIAP
-- [ ] **[Build]** `php artisan test` + `npm run build` lulus; kartu survey
+- [x] **[Data]** Jalankan command di lokal → survey #6 lead #37 menjadi SIAP
+- [x] **[Build]** `php artisan test` + `npm run build` lulus; kartu survey
       lead #37 dicek di browser
+
+## Catatan pelaksanaan (2026-10-07)
+- K4 dijalankan sesuai usulan (user tidak menjawab).
+- `linkSurveyToRab()` ditaruh di **`QuotationService`** (bukan
+  `LeadService`), karena `LeadService` sudah bergantung pada
+  `QuotationService` — kebalikannya akan melingkar. Dipanggil dari
+  `request()` (RAB Survey) dan `LeadService::scheduleSurvey()` (survey luar
+  kota). RAB yang dibatalkan/ditolak tidak ditautkan; RAB yang survey-nya
+  BATAL boleh dipakai survey baru.
+- `LeadService::settleSurveyPayment()` / `isSurveyPaid()`: survey yang baru
+  tertaut ke RAB yang invoice-nya sudah TERVERIFIKASI langsung SIAP.
+- Listener `MarkSurveyReadyOnInvoiceVerified` menautkan dulu bila belum,
+  lalu mencari survey lewat kedua kolom tautan.
+- `php artisan daiku:relink-surveys {--dry-run}` — dry run membatalkan
+  semua perubahan dan tidak mengirim notifikasi. Dijalankan di lokal:
+  lead #37 survey #1 (id 6) → RAB #34 → **SIAP**.
+- Kartu Survey: baris "Belum bisa berangkat: …" menyebut langkah yang
+  macet (belum ada RAB / RAB belum disetujui / invoice belum terbit /
+  menunggu bukti bayar / menunggu verifikasi Finance) + link ke RAB.
+  `LeadController@show` memuat `surveys.quotation` + `invoices`.
+- Test: `tests/Feature/CRM/SurveyRabLinkTest.php` (urutan A/B/C, RAB batal,
+  survey dalam kota, command dry-run/jalan/idempoten, props kartu).

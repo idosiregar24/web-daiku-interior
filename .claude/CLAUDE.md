@@ -172,6 +172,15 @@ status): [`plan/README.md`](plan/README.md). Source task list:
   `public/`) — only once Laragon's PHP is switched to 8.4 (Menu → PHP →
   Version). Otherwise `php artisan serve --port=8010` (port 8000 is used
   by another local project on this machine).
+  **Known 500 on the vhost (Sprint 17 Sub 01):** Laragon's Apache loads PHP
+  as a thread-safe `mod_php` module (`D:\laragon\etc\apache2\mod_php.conf`,
+  still pointing at 8.3 as of 2026-10-07). Under concurrent requests the
+  `.env` values set by one thread can vanish for another (phpdotenv/putenv
+  is not thread-safe) → sporadic `production.ERROR: No application
+  encryption key has been specified`. Prefer `php artisan serve` (or a
+  non-threaded PHP setup) for client-link demos. Do **not** "fix" it with
+  `config:cache` locally — a cached config makes `php artisan test` ignore
+  `phpunit.xml` (SQLite) and run against the dev MySQL database.
 - DB: MySQL 8.4 via Laragon, `root` / no password, database `daiku_interior`.
   `php artisan migrate:fresh --seed` = full demo data (every role:
   `{role}@daikuinterior.com` / `password`). Production uses

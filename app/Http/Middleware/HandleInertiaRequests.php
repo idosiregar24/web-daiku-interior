@@ -93,7 +93,26 @@ class HandleInertiaRequests extends Middleware
             'unreadNotificationsCount' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->count()
                 : 0,
+            // Sprint 17 Sub 01 (K1) — client links are built from APP_URL; a
+            // local host can't be opened from a client's phone, so the share
+            // panel warns about it. Decided here, never guessed in the browser.
+            'appUrlIsLocal' => fn () => self::appUrlIsLocal(),
         ];
+    }
+
+    /** True when APP_URL's host is only reachable from this machine/LAN dev setup. */
+    public static function appUrlIsLocal(): bool
+    {
+        $host = strtolower((string) parse_url((string) config('app.url'), PHP_URL_HOST));
+
+        return $host === ''
+            || $host === 'localhost'
+            || str_ends_with($host, '.localhost')
+            || str_ends_with($host, '.test')
+            || str_ends_with($host, '.local')
+            || str_starts_with($host, '127.')
+            || $host === '[::1]'
+            || $host === '::1';
     }
 
     /** @return array{openings: mixed, projectManagers: mixed, assistantPms: mixed}|null */

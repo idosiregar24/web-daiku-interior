@@ -1,4 +1,5 @@
 import { SurveyFormFields, type SurveyFormValues } from '@/Components/modules/crm/SurveyFormFields';
+import { type RunningProjectRab, runningProjectRabReason } from '@/Components/modules/quotation/AutoProjectRabNotice';
 import { EMPTY_REFERENCES, RabReferenceFields, type RabReferences, referencePayload } from '@/Components/modules/quotation/RabReferenceFields';
 import { Button } from '@/Components/ui/button';
 import {
@@ -48,7 +49,16 @@ interface SubmitLeadRequestDialogProps {
     rabOnly?: boolean;
     /** Sprint 14 Sub 02 — custom names used before, suggested for "RAB Lainnya". */
     customRabNames?: string[];
+    /**
+     * Sprint 17 Sub 04 — the lead's running RAB Proyek: "RAB Proyek" and
+     * "RAB Lainnya" (also PROYEK) are unavailable meanwhile, as the server
+     * refuses a second one (QuotationService::request()).
+     */
+    projectRab?: RunningProjectRab | null;
 }
+
+/** Options that ask for a PROYEK quotation. */
+const PROJECT_RAB_TYPES: RequestType[] = ['RAB_PROYEK', 'RAB_LAINNYA'];
 
 /**
  * Sprint 12 decision #5 — "Ajukan Desain/Survey" replaces "Deal Desain".
@@ -57,8 +67,10 @@ interface SubmitLeadRequestDialogProps {
  * for that RAB (decision #7 — the note is required). Mirrors
  * SubmitLeadRequestRequest.
  */
-export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = false, customRabNames = [] }: SubmitLeadRequestDialogProps) {
+export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = false, customRabNames = [], projectRab = null }: SubmitLeadRequestDialogProps) {
     const options = rabOnly ? OPTIONS.filter((option) => option.rab) : OPTIONS;
+    const blockedReason = (value: RequestType): string | null =>
+        projectRab && PROJECT_RAB_TYPES.includes(value) ? runningProjectRabReason(projectRab) : null;
     const [type, setType] = useState<RequestType>(options[0].value);
     const [survey, setSurvey] = useState<SurveyFormValues>(EMPTY_SURVEY);
     const [note, setNote] = useState('');
@@ -136,20 +148,26 @@ export function SubmitLeadRequestDialog({ open, onOpenChange, lead, rabOnly = fa
                 </DialogHeader>
 
                 <div className="grid gap-2">
-                    {options.map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setType(option.value)}
-                            className={cn(
-                                'rounded-lg border p-3 text-left text-sm transition-colors',
-                                type === option.value ? 'border-daiku-yellow bg-daiku-yellow-light' : 'border-border hover:bg-daiku-gray/60',
-                            )}
-                        >
-                            <p className="font-medium text-daiku-dark">{option.label}</p>
-                            <p className="text-xs text-daiku-muted">{option.hint}</p>
-                        </button>
-                    ))}
+                    {options.map((option) => {
+                        const blocked = blockedReason(option.value);
+
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                disabled={blocked !== null}
+                                title={blocked ?? undefined}
+                                onClick={() => setType(option.value)}
+                                className={cn(
+                                    'rounded-lg border p-3 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                                    type === option.value ? 'border-daiku-yellow bg-daiku-yellow-light' : 'border-border hover:bg-daiku-gray/60 disabled:hover:bg-transparent',
+                                )}
+                            >
+                                <p className="font-medium text-daiku-dark">{option.label}</p>
+                                <p className="text-xs text-daiku-muted">{blocked ?? option.hint}</p>
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {type === 'RAB_LAINNYA' && (

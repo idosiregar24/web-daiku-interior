@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\InvoiceStatus;
 use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
 use App\Enums\QuotationType;
+use App\Models\Invoice;
 use App\Models\Lead;
 use App\Models\LeadCategory;
 use App\Models\LeadFollowUp;
@@ -311,7 +313,7 @@ class LeadService
             $this->ensureOpen($lead, 'scheduled_at');
             $outside = (bool) ($data['is_outside_pekanbaru'] ?? false);
 
-            return $lead->surveys()->create([
+            $survey = $lead->surveys()->create([
                 'sequence' => (int) $lead->surveys()->max('sequence') + 1,
                 'scheduled_at' => $data['scheduled_at'],
                 'address' => filled($data['address'] ?? null) ? $data['address'] : $lead->address,
@@ -320,7 +322,36 @@ class LeadService
                 'status' => ($outside ? LeadSurveyStatus::MenungguBayar : LeadSurveyStatus::Dijadwalkan)->value,
                 'created_by' => $actor->id,
             ]);
+
+            // Sprint 17 Sub 02 — the RAB Jasa Survey may have been asked for
+            // (or even paid) before this survey was scheduled.
+            if ($outside && $this->quotationService->linkSurveyToRab($lead)?->is($survey)) {
+                $this->settleSurveyPayment($survey->refresh());
+            }
+
+            return $survey;
         });
+    }
+
+    /**
+     * Sprint 17 Sub 02 — a survey waiting for payment whose RAB Jasa Survey
+     * already has a verified invoice goes SIAP now: InvoiceVerified fired
+     * before the two were linked, so MarkSurveyReadyOnInvoiceVerified never
+     * saw it. Used after linking and by `daiku:relink-surveys`.
+     */
+    public function settleSurveyPayment(LeadSurvey $survey): LeadSurvey
+    {
+        return $this->isSurveyPaid($survey) ? $this->markSurveyReady($survey) : $survey;
+    }
+
+    /** Waiting for payment, linked to a RAB Jasa Survey, and that RAB's invoice is verified. */
+    public function isSurveyPaid(LeadSurvey $survey): bool
+    {
+        return $survey->status === LeadSurveyStatus::MenungguBayar
+            && $survey->quotation_id !== null
+            && Invoice::where('quotation_id', $survey->quotation_id)
+                ->where('status', InvoiceStatus::Terverifikasi->value)
+                ->exists();
     }
 
     /** Reschedule / correct the place of a survey that's still open. Inside/outside Pekanbaru is fixed. */

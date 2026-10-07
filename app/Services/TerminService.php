@@ -368,14 +368,20 @@ class TerminService
      * project's milestone of that name is COMPLETED (it gets linked then),
      * PROYEK_SELESAI once the project is COMPLETED. Once per termin
      * (`invoice_reminded_at`), so re-runs never notify twice.
+     *
+     * Sprint 17 Sub 03 — also run for one `$project` right after its
+     * termins are created (Buka Proyek, RAB Tambahan), so the DP ("di
+     * muka") reaches Marketing's "Perlu Tindakan" at once instead of at
+     * the next morning's job.
      */
-    public function remindInvoices(): int
+    public function remindInvoices(?Project $project = null): int
     {
         $today = now('Asia/Jakarta')->toDateString();
         $sent = 0;
 
         $termins = Termin::query()
             ->with(['project.lead.assignee', 'project.milestones:id,project_id,name,status'])
+            ->when($project, fn ($query) => $query->where('project_id', $project->id))
             ->whereNotNull('trigger')
             ->whereNull('invoice_id')
             ->whereNull('invoice_reminded_at')
@@ -412,6 +418,7 @@ class TerminService
             $marketing
                 ? $this->notificationService->notifyMany([$marketing], 'termin_invoice_due', $title, $message, $metadata)
                 : $this->notificationService->notifyRoles(['MARKETING'], 'termin_invoice_due', $title, $message, $metadata);
+            ActionInboxService::forgetMarketingOf($marketing);
             $sent++;
         }
 

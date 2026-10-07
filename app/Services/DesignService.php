@@ -11,8 +11,10 @@ use App\Models\Design;
 use App\Models\DesignDiscussion;
 use App\Models\Invoice;
 use App\Models\Lead;
+use App\Models\PipelineLog;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Support\DesignApproval;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -269,7 +271,7 @@ class DesignService
         }
 
         if ($design->isFlowManaged()) {
-            return $this->markClientApproved($design, $actor);
+            return $this->markClientApproved($design, $actor)->design;
         }
 
         return DB::transaction(function () use ($design, $actor) {
@@ -480,8 +482,14 @@ class DesignService
      * design's own work is done) and the Estimator is asked for the RAB
      * Proyek built on it (decision #18) — a DIMINTA quotation, unless one
      * is already running or the lead is closed.
+     *
+     * Sprint 17 Sub 04 — returns what happened (DesignApproval) for an
+     * honest message; the automatic request is marked `requested_via =
+     * DESIGN_ACC` (the lead & design pages show it until the Estimator
+     * submits it), written to the lead's pipeline log and announced to the
+     * lead's Marketing when someone else pressed the button.
      */
-    public function markClientApproved(Design $design, User $actor): Design
+    public function markClientApproved(Design $design, User $actor): DesignApproval
     {
         return DB::transaction(function () use ($design, $actor) {
             $design = $this->lockedFlowDesign($design, [DesignStatus::WaitingAccDesain], 'Desain hanya bisa disetujui saat menunggu persetujuan klien.');
@@ -498,13 +506,16 @@ class DesignService
             ], $actor);
 
             $lead = $design->lead;
-            $projectRabRunning = $lead->quotations()
+            $running = $lead->quotations()
                 ->where('type', QuotationType::Proyek->value)
                 ->whereNotIn('status', QuotationStatus::closedValues())
-                ->exists();
+                ->latest('id')
+                ->first();
+            $requested = null;
 
-            if (! $projectRabRunning && ! in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
-                $this->quotationService->request($lead, QuotationType::Proyek, "Desain disetujui klien — susun RAB Proyek dari desain ini (revisi {$design->revision_count}x).", $actor);
+            if ($running === null && ! in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
+                $requested = $this->quotationService->request($lead, QuotationType::Proyek, "Desain disetujui klien — susun RAB Proyek dari desain ini (revisi {$design->revision_count}x).", $actor);
+                $requested->update(['requested_via' => Quotation::VIA_DESIGN_ACC]);
             } else {
                 $this->notificationService->notifyRoles(
                     ['ESTIMATOR'],
@@ -515,9 +526,32 @@ class DesignService
                 );
             }
 
+            // A lasting trace on the lead's timeline (no status change: from = to).
+            PipelineLog::create([
+                'lead_id' => $lead->id,
+                'from_status' => $lead->status->value,
+                'to_status' => $lead->status->value,
+                'changed_by' => $actor->id,
+                'note' => match (true) {
+                    $requested !== null => 'Desain disetujui klien — RAB Proyek otomatis diminta ke Estimator.',
+                    $running !== null => "Desain disetujui klien — {$running->title()} sudah berjalan, tidak diminta ulang.",
+                    default => 'Desain disetujui klien.',
+                },
+            ]);
+
+            if ($requested !== null && $lead->assignee && $lead->assignee->id !== $actor->id) {
+                $this->notificationService->notify(
+                    $lead->assignee,
+                    'project_rab_auto_requested',
+                    'RAB Proyek Otomatis Diminta',
+                    "Desain \"{$lead->client_name}\" disetujui klien — permintaan RAB Proyek otomatis dikirim ke Estimator. Tidak perlu meminta lagi.",
+                    ['quotation_id' => $requested->id, 'lead_id' => $lead->id],
+                );
+            }
+
             $this->notifyTeam($design, $actor, 'design_client_approved', 'Desain Disetujui Klien', "Desain \"{$lead->client_name}\" disetujui klien.");
 
-            return $design;
+            return new DesignApproval($design, $requested, $running);
         });
     }
 

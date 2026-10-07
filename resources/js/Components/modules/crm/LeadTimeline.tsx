@@ -19,7 +19,7 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Lead, LeadFollowUp, LeadSurvey } from '@/types';
-import { router } from '@inertiajs/react';
+import { Link, router } from '@inertiajs/react';
 import { startOfToday } from 'date-fns';
 import { CalendarCheck, MapPin, PhoneCall, Plus } from 'lucide-react';
 import { useState } from 'react';
@@ -35,6 +35,38 @@ interface LeadTimelineProps {
     canManage: boolean;
     /** LeadFollowUp::SUGGEST_LOST_FROM — from this FU number on, suggest marking the lead Lost. */
     suggestLostFrom: number;
+}
+
+/**
+ * Sprint 17 Sub 02 — where an outside-Pekanbaru survey's payment stands,
+ * so a stuck survey says why instead of waiting silently.
+ */
+function SurveyPaymentStep({ survey }: { survey: LeadSurvey }) {
+    const quotation = survey.quotation;
+    const invoice = quotation?.invoices.find((row) => row.status !== 'TERVERIFIKASI') ?? quotation?.invoices[0];
+    const rabLink = quotation && (
+        <Link href={route('quotations.show', { quotation: quotation.id })} className="underline decoration-daiku-yellow underline-offset-2">
+            RAB Jasa Survey
+        </Link>
+    );
+
+    let step: React.ReactNode;
+    if (!quotation) {
+        step = 'Belum ada RAB Jasa Survey — minta RAB Jasa Survey agar klien bisa membayar survey.';
+    } else if (!invoice) {
+        step =
+            quotation.status === 'CLIENT_APPROVED' ? (
+                <>{rabLink} sudah disetujui klien — terbitkan invoice-nya.</>
+            ) : (
+                <>{rabLink} masih diproses (belum disetujui klien).</>
+            );
+    } else if (invoice.status === 'DITERBITKAN') {
+        step = <>Invoice {invoice.number} terbit — menunggu bukti bayar klien ({rabLink}).</>;
+    } else {
+        step = <>Invoice {invoice.number} — menunggu verifikasi pembayaran oleh Finance ({rabLink}).</>;
+    }
+
+    return <p className="text-xs text-warning-ink">Belum bisa berangkat: {step}</p>;
 }
 
 /**
@@ -237,11 +269,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
                                         </div>
                                         <StatusChip status={survey.status} />
                                     </div>
-                                    {survey.status === 'MENUNGGU_BAYAR' && (
-                                        <p className="text-xs text-warning-ink">
-                                            Menunggu pembayaran RAB Jasa Survey diverifikasi Finance sebelum berangkat.
-                                        </p>
-                                    )}
+                                    {survey.status === 'MENUNGGU_BAYAR' && <SurveyPaymentStep survey={survey} />}
                                     {survey.result_note && <p className="text-sm whitespace-pre-line">{survey.result_note}</p>}
                                     {survey.cancel_reason && <p className="text-sm text-daiku-muted">Dibatalkan: {survey.cancel_reason}</p>}
                                     {canWrite && open && (

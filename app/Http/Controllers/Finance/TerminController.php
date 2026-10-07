@@ -87,9 +87,21 @@ class TerminController extends Controller
         return back()->with('success', 'Pembayaran termin berhasil dicatat.');
     }
 
-    public function exportPdf(Termin $termin): HttpResponse
+    /**
+     * Sprint 17 Sub 05 — an invoiced termin streams its invoice (the same
+     * document Marketing sends); one not invoiced yet streams the same
+     * billing layout marked DRAF (pdf/termin, InvoiceLetter::forTermin()).
+     */
+    public function exportPdf(Request $request, Termin $termin): HttpResponse
     {
-        $termin->load(['project:id,name', 'project.lead:id,client_name', 'milestone:id,name']);
+        // An invoiced termin streams its invoice — but only to the roles of
+        // `finance.invoices.pdf` (CEO/FINANCE here; PM reaches this route but
+        // never the invoice itself, it keeps the termin bill below).
+        if ($termin->invoice !== null && $request->user()->hasAnyRole(['CEO', 'FINANCE', 'SUPERADMIN'])) {
+            return InvoiceController::streamPdf($termin->invoice);
+        }
+
+        $termin->load(['project:id,name,lead_id,quotation_id', 'project.lead:id,client_name,phone,email,address,city_id', 'project.lead.city:id,name', 'project.quotation', 'quotation', 'paymentTerm']);
 
         $pdf = Pdf::loadView('pdf.termin', [
             'termin' => $termin,

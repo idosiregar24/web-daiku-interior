@@ -96,10 +96,49 @@ class QuotationService
     }
 
     /**
+     * Sprint 17 Sub 02 — pairs the lead's outside-Pekanbaru survey waiting
+     * for payment with its RAB Jasa Survey, whichever was created first
+     * (Marketing may ask for the RAB before scheduling the survey). The RAB
+     * must not be cancelled/rejected nor already pay for another live
+     * survey. Called from request() and LeadService::scheduleSurvey();
+     * returns the survey it linked, or null when there's nothing to pair.
+     */
+    public function linkSurveyToRab(Lead $lead): ?LeadSurvey
+    {
+        $survey = $lead->surveys()
+            ->where('status', LeadSurveyStatus::MenungguBayar->value)
+            ->whereNull('quotation_id')
+            ->latest('id')
+            ->first();
+
+        if ($survey === null) {
+            return null;
+        }
+
+        $quotation = $lead->quotations()
+            ->where('type', QuotationType::Survey->value)
+            ->whereNotIn('status', [QuotationStatus::Cancelled->value, QuotationStatus::Rejected->value])
+            ->where(fn ($query) => $query
+                ->whereNull('lead_survey_id')
+                ->orWhereHas('leadSurvey', fn ($linked) => $linked->where('status', LeadSurveyStatus::Batal->value)))
+            ->first();
+
+        if ($quotation === null) {
+            return null;
+        }
+
+        $survey->update(['quotation_id' => $quotation->id]);
+        $quotation->update(['lead_survey_id' => $survey->id]);
+
+        return $survey;
+    }
+
+    /**
      * Sprint 12 decision #7 — Marketing asks the Estimator for a RAB Jasa
      * Survey, Jasa Desain or Proyek (a note is required). One running
      * quotation per type per lead; a RAB Jasa Survey pays for the lead's
-     * outside-Pekanbaru survey waiting for payment, if there is one.
+     * outside-Pekanbaru survey waiting for payment, if there is one
+     * (Sprint 17: in either order — see linkSurveyToRab()).
      * Sprint 14 Sub 01: reference links and photos may ride along.
      * Sprint 14 Sub 02: a RAB Proyek may carry its own name ("Buat RAB →
      * Lainnya", e.g. "Renovasi Pagar") — same flow, only the title differs.
@@ -125,22 +164,20 @@ class QuotationService
         }
 
         return DB::transaction(function () use ($lead, $type, $note, $actor, $links, $photos, $customName) {
-            $survey = $type === QuotationType::Survey
-                ? $lead->surveys()->where('status', LeadSurveyStatus::MenungguBayar->value)->whereNull('quotation_id')->latest('id')->first()
-                : null;
-
             $quotation = Quotation::create([
                 'lead_id' => $lead->id,
                 'type' => $type->value,
                 'custom_name' => $customName,
-                'lead_survey_id' => $survey?->id,
                 'status' => QuotationStatus::Diminta->value,
                 'created_by' => $actor->id,
                 'requested_by' => $actor->id,
                 'request_note' => trim($note),
             ]);
 
-            $survey?->update(['quotation_id' => $quotation->id]);
+            if ($type === QuotationType::Survey && $this->linkSurveyToRab($lead)) {
+                $quotation->refresh();
+            }
+
             $attached = $this->attachReferences($quotation, $links, $photos, $actor);
 
             $this->notificationService->notifyRoles(

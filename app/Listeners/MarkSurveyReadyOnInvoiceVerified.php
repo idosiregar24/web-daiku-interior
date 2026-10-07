@@ -6,15 +6,21 @@ use App\Enums\InvoiceType;
 use App\Events\InvoiceVerified;
 use App\Models\LeadSurvey;
 use App\Services\LeadService;
+use App\Services\QuotationService;
 
 /**
  * Sprint 12 decision #3 — an outside-Pekanbaru survey only goes ahead once
  * its RAB Jasa Survey is paid: Finance verifying that invoice is the only
  * way the survey becomes SIAP (LeadService::markSurveyReady() has no route).
+ * Sprint 17 Sub 02: a survey not yet paired with the RAB is paired first,
+ * and the survey is found through either side of the link.
  */
 class MarkSurveyReadyOnInvoiceVerified
 {
-    public function __construct(private LeadService $leadService) {}
+    public function __construct(
+        private LeadService $leadService,
+        private QuotationService $quotationService,
+    ) {}
 
     public function handle(InvoiceVerified $event): void
     {
@@ -24,7 +30,16 @@ class MarkSurveyReadyOnInvoiceVerified
             return;
         }
 
-        LeadSurvey::where('quotation_id', $invoice->quotation_id)
+        $quotation = $invoice->quotation;
+
+        if ($quotation?->lead !== null) {
+            $this->quotationService->linkSurveyToRab($quotation->lead);
+            $quotation->refresh();
+        }
+
+        LeadSurvey::query()
+            ->where('quotation_id', $invoice->quotation_id)
+            ->when($quotation?->lead_survey_id, fn ($query, int $surveyId) => $query->orWhere('id', $surveyId))
             ->get()
             ->each(fn (LeadSurvey $survey) => $this->leadService->markSurveyReady($survey));
     }

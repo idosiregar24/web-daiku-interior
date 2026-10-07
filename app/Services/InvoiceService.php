@@ -79,6 +79,10 @@ class InvoiceService
 
             $this->auditLogService->record('finance.invoice_issued', $invoice, null, $invoice->only(['number', 'type', 'amount', 'due_date', 'quotation_id', 'lead_id']), $actor);
 
+            // Sprint 17 Sub 03 — the RAB leaves the "terbitkan invoice" queue (the issuer's own
+            // cache is dropped by ForgetActionInbox; the lead's Marketing may be someone else).
+            ActionInboxService::forgetMarketingOf($quotation->lead?->assignee);
+
             return $invoice;
         });
     }
@@ -137,6 +141,8 @@ class InvoiceService
             ]));
 
             $this->auditLogService->record('finance.invoice_issued', $invoice, null, $invoice->only(['number', 'type', 'amount', 'due_date', 'termin_id', 'project_id']), $actor);
+
+            ActionInboxService::forgetMarketingOf($termin->project->lead?->assignee);
 
             return $invoice;
         });

@@ -34,6 +34,7 @@ use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Sprint 13 #4/#5 — "Perlu Tindakan": what is waiting for THIS user right
@@ -93,6 +94,25 @@ class ActionInboxService
         Cache::forget(self::cacheKey($user));
     }
 
+    /**
+     * Sprint 17 Sub 03 — something entered or left a Marketing queue
+     * without that Marketing making the request (the client approving on
+     * the public link, a scheduled job, a colleague issuing the invoice):
+     * drop the lead owner's cache, or every Marketing's when the lead has
+     * no owner (those items show in every Marketing's queue). After the
+     * surrounding transaction commits, so the rebuilt queue sees the change.
+     */
+    public static function forgetMarketingOf(?User $assignee): void
+    {
+        DB::afterCommit(function () use ($assignee) {
+            $users = $assignee ? [$assignee] : User::role('MARKETING')->get(['id']);
+
+            foreach ($users as $user) {
+                self::forget($user);
+            }
+        });
+    }
+
     private static function cacheKey(User $user): string
     {
         return "inbox:{$user->id}";
@@ -136,6 +156,7 @@ class ActionInboxService
         if ($user->hasRole('MARKETING')) {
             $groups[] = $this->dueFollowUps($user);
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
+            $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
         }
 
@@ -406,6 +427,28 @@ class ActionInboxService
                 'subtitle' => 'Follow-up '.Carbon::parse($lead->next_follow_up_date)->translatedFormat('d M Y'),
                 'at' => null,
                 'href' => route('crm.leads.show', $lead),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 17 Sub 03 (T3) — Jasa Survey / Jasa Desain RABs the client
+     * approved, invoice not issued yet (Quotation::awaitingInvoice(), same
+     * as the Quotation list's `awaiting_invoice` filter), oldest approval
+     * first. Each item opens the RAB with its "Terbitkan Invoice" dialog.
+     */
+    private function invoiceToIssue(User $user): ?array
+    {
+        return $this->group(
+            'quotation-invoice', 'RAB disetujui klien — terbitkan invoice', 'Klien sudah setuju; terbitkan invoice agar bisa dibayar.', 'invoice', 'quotations.index',
+            route('quotations.index', ['awaiting_invoice' => 1]),
+            Quotation::query()->awaitingInvoice($user)->with('lead:id,client_name')->oldest('client_approved_at')->oldest('id'),
+            fn (Quotation $q) => [
+                'id' => $q->id,
+                'title' => $q->lead?->client_name ?? "Quotation #{$q->id}",
+                'subtitle' => "{$q->title()} v{$q->version} · {$this->rupiah($q->total_amount)}",
+                'at' => $q->client_approved_at,
+                'href' => route('quotations.show', ['quotation' => $q->id, 'action' => 'invoice']),
             ],
         );
     }

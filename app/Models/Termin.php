@@ -68,6 +68,12 @@ class Termin extends Model
         return $this->belongsTo(Quotation::class);
     }
 
+    /** Sprint 12 #12 — the row of the RAB's payment scheme this termin came from ("DP", "Pelunasan"…). */
+    public function paymentTerm(): BelongsTo
+    {
+        return $this->belongsTo(QuotationPaymentTerm::class, 'payment_term_id');
+    }
+
     /** Sprint 12 #20 — the invoice Marketing issued for this termin. */
     public function invoice(): BelongsTo
     {

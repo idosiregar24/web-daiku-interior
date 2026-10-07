@@ -2,6 +2,7 @@ import { formatDate, formatRupiah } from '@/lib/format';
 import { QUOTATION_TYPE_LABEL, quotationTitle } from '@/Components/modules/quotation/labels';
 import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpiryNotice';
 import { DataTable } from '@/Components/shared/DataTable';
+import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import {
@@ -20,7 +21,8 @@ import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLi
 
 interface QuotationIndexProps {
     quotations: PaginatedData<Quotation & { lead: { id: number; client_name: string } }>;
-    filters: { status?: string; type?: string };
+    /** `awaiting_invoice` — Sprint 17 Sub 03, the "RAB disetujui klien — terbitkan invoice" queue's full list. */
+    filters: { status?: string; type?: string; awaiting_invoice?: string };
 }
 
 const STATUS_OPTIONS: QuotationStatus[] = [
@@ -105,6 +107,19 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                 description="Daftar RAB Jasa Survey, Jasa Desain, dan Proyek — diminta Marketing dari halaman lead atau dibuka saat desain di-ACC klien."
                 actions={<DashboardLinkButton routeName="quotations.dashboard" label="Dashboard Quotation" icon={BarChart3} roles={['CEO', 'ESTIMATOR']} />}
             />
+
+            {filters.awaiting_invoice && (
+                <Notice tone="info" className="mb-4">
+                    Menampilkan RAB Jasa Survey/Desain yang sudah disetujui klien tetapi invoice-nya belum diterbitkan.{' '}
+                    <button
+                        type="button"
+                        className="font-medium underline decoration-daiku-yellow underline-offset-2"
+                        onClick={() => applyFilter({ awaiting_invoice: undefined })}
+                    >
+                        Tampilkan semua RAB
+                    </button>
+                </Notice>
+            )}
 
             <DataTable
                 columns={columns}

@@ -153,7 +153,7 @@ test('a draft offer prints DRAF instead of a number', function () {
     expect($html)->toContain('DRAF')->toContain('nomor diterbitkan saat penawaran dikirim');
 });
 
-test('the invoice PDF is the company letter with the INV number', function () {
+test('the invoice PDF carries the INV number on the company letterhead, as a bill (Sprint 17 K3)', function () {
     $quotation = readyDesignRab($this, ['status' => QuotationStatus::ClientApproved->value]);
     $invoice = Invoice::create([
         'number' => '12/INV/Daiku/IX/2026', 'lead_id' => $this->lead->id, 'quotation_id' => $quotation->id,
@@ -163,10 +163,12 @@ test('the invoice PDF is the company letter with the INV number', function () {
 
     $html = view('pdf.invoice', ['invoice' => $invoice, 'siteSettings' => SiteSetting::current(), 'bankAccounts' => collect()])->render();
 
+    // Sprint 17 Sub 05 — a summary row, not the RAB's items (they stay in the offer).
     expect($html)->toContain('12/INV/Daiku/IX/2026')
         ->toContain('Invoice Jasa Desain Egika Desla')
-        ->toContain('JASA DESAIN SHOWROOM')
-        ->toContain('TERBILANG: LIMA JUTA RUPIAH');
+        ->toContain('Jasa Desain')
+        ->not->toContain('JASA DESAIN SHOWROOM')
+        ->toContain('LIMA JUTA RUPIAH');
 
     $this->actingAs($this->marketing)->get(route('finance.invoices.pdf', $invoice))->assertOk()->assertHeader('Content-Type', 'application/pdf');
 });

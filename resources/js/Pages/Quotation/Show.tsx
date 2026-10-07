@@ -44,7 +44,7 @@ import {
     Send,
     Wallet,
 } from 'lucide-react';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 interface QuotationShowProps {
     quotation: Quotation & { lead: { id: number; client_name: string; phone?: string | null; email?: string | null } };
@@ -122,6 +122,13 @@ export default function QuotationShow({
     const [cancelOpen, setCancelOpen] = useState(false);
     const [issueOpen, setIssueOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
+
+    // Sprint 17 Sub 03 — "Perlu Tindakan → RAB disetujui klien" links here with ?action=invoice.
+    useEffect(() => {
+        if (canIssueInvoice && new URLSearchParams(window.location.search).get('action') === 'invoice') {
+            setIssueOpen(true);
+        }
+    }, [quotation.id, canIssueInvoice]);
 
     const status = quotation.status;
     const isRequested = status === 'DIMINTA';

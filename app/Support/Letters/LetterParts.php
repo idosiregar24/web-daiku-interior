@@ -9,8 +9,9 @@ use Illuminate\Support\Carbon;
 
 /**
  * Sprint 15 — the pieces every company letter shares (offer, invoice): the
- * letterhead, the signer, the bank line of the "Catatan". One place, so the
- * PDF (pdf/layouts/letter.blade.php) and the client's link page agree.
+ * letterhead, the signer, the bank accounts. One place, so the offer
+ * (pdf/layouts/letter, the client's link page) and the invoice
+ * (pdf/layouts/invoice, Sprint 17) carry one company identity.
  */
 final class LetterParts
 {
@@ -75,9 +76,8 @@ final class LetterParts
      */
     public static function paymentLine(string $what, float|int|string $amount, SiteSetting $site): string
     {
-        $accounts = BankAccount::query()->where('is_active', true)->orderBy('label')->get(['bank_name', 'account_no']);
-        $via = $accounts
-            ->map(fn (BankAccount $account) => trim("{$account->bank_name} {$account->account_no}"))
+        $via = collect(self::bankAccounts())
+            ->map(fn (array $account) => trim("{$account['bank']} {$account['accountNo']}"))
             ->implode(' atau ');
 
         return trim(sprintf(
@@ -88,6 +88,20 @@ final class LetterParts
             $via !== '' ? " dapat dibayarkan via {$via}" : '',
             $via !== '' && $site->company_legal_name ? " a.n. {$site->company_legal_name}" : '',
         ));
+    }
+
+    /**
+     * Every active company account a client may pay into (Data Master →
+     * Rekening): the offer's payment line and the invoice's "Cara
+     * Pembayaran" box read this one list.
+     *
+     * @return list<array{bank: string, accountNo: string}>
+     */
+    public static function bankAccounts(): array
+    {
+        return BankAccount::query()->where('is_active', true)->orderBy('label')->get(['bank_name', 'account_no'])
+            ->map(fn (BankAccount $account) => ['bank' => (string) $account->bank_name, 'accountNo' => (string) $account->account_no])
+            ->values()->all();
     }
 
     /** One "Catatan" line per non-empty line of free text. @return list<string> */

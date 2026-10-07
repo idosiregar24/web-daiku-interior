@@ -9,6 +9,7 @@ use App\Http\Requests\Design\RequestDesignRevisionRequest;
 use App\Http\Requests\Design\StoreDesignDiscussionRequest;
 use App\Http\Requests\Design\UpdateDesignRequest;
 use App\Models\Design;
+use App\Models\Quotation;
 use App\Models\User;
 use App\Services\DesignService;
 use Illuminate\Http\RedirectResponse;
@@ -79,6 +80,8 @@ class DesignController extends Controller
                 && $design->status !== DesignStatus::MenungguBayar,
             'canMarketingActions' => $flow && $isMarketing,
             'discussion' => $service->threadFor($design, $user),
+            // Sprint 17 Sub 04 — the lead's running RAB Proyek ("already requested automatically").
+            'projectRab' => Quotation::runningProjectRabSummary($design->lead_id),
             // `is_active` lets the sub-staff picker offer active designers
             // only (UpdateDesignRequest's rule) while still naming a
             // deactivated one already on the team.
@@ -119,19 +122,21 @@ class DesignController extends Controller
 
     public function markClientApproved(Request $request, Design $design, DesignService $service): RedirectResponse
     {
-        $service->markClientApproved($design, $request->user());
+        // Sprint 17 Sub 04 — says whether the RAB Proyek was requested now or was already running.
+        $approval = $service->markClientApproved($design, $request->user());
 
-        return back()->with('success', 'Desain disetujui klien — Estimator diminta menyusun RAB Proyek.');
+        return back()->with('success', $approval->message());
     }
 
     /** Pre-Sprint-12 designs: Client ACC opens the project quotation (PRD §4.2). */
     public function clientAcc(Request $request, Design $design, DesignService $service): RedirectResponse
     {
-        $design = $service->clientAcc($design, $request->user());
-
+        // Sprint 12 designs go through the new approval (same as DesignService::clientAcc()).
         if ($design->isFlowManaged()) {
-            return back()->with('success', 'Desain disetujui klien — Estimator diminta menyusun RAB Proyek.');
+            return back()->with('success', $service->markClientApproved($design, $request->user())->message());
         }
+
+        $design = $service->clientAcc($design, $request->user());
 
         // Quotation is a sibling of Design via lead_id, not a direct
         // relation on Design — go through the Lead (Lead::quotation()).

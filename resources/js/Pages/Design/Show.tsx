@@ -28,6 +28,7 @@ import { AssignDesignDialog } from '@/Components/modules/design/AssignDesignDial
 import { DesignConfirmDialog } from '@/Components/modules/design/DesignConfirmDialog';
 import { DesignDiscussionPanel } from '@/Components/modules/design/DesignDiscussionPanel';
 import { DesignRevisionDialog } from '@/Components/modules/design/DesignRevisionDialog';
+import { AutoProjectRabNotice, type RunningProjectRab } from '@/Components/modules/quotation/AutoProjectRabNotice';
 import { Notice } from '@/Components/shared/Notice';
 import { formatRupiah } from '@/lib/format';
 import AppLayout from '@/Layouts/AppLayout';
@@ -55,6 +56,8 @@ interface DesignShowProps {
     discussion: DesignDiscussionThread | null;
     /** Every DESIGNER — `is_active` decides who can still be added as sub-staff. */
     designers: Pick<User, 'id' | 'name' | 'is_active'>[];
+    /** Sprint 17 Sub 04 — the lead's running RAB Proyek, if any. */
+    projectRab: RunningProjectRab | null;
 }
 
 /**
@@ -161,7 +164,7 @@ function toFormValues(design: DesignDetail): FormValues {
  * Client-ACC status guard (Sprint 9). Reached from the CRM Lead index's
  * "Buka Desain" action or the Desain list.
  */
-export default function DesignShow({ design, canManage, canClientAcc, canAssign, canMarketingActions, discussion, designers }: DesignShowProps) {
+export default function DesignShow({ design, canManage, canClientAcc, canAssign, canMarketingActions, discussion, designers, projectRab }: DesignShowProps) {
     const [accOpen, setAccOpen] = useState(false);
     const [assignOpen, setAssignOpen] = useState(false);
     const [revisionOpen, setRevisionOpen] = useState(false);
@@ -313,6 +316,7 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                     Unggah link desain (Drive / Figma) di form brief, lalu Marketing mengirimkannya ke klien.
                 </Notice>
             )}
+            <AutoProjectRabNotice rab={projectRab} className="mb-6" />
 
             <div className="grid gap-6 lg:grid-cols-3">
                 <SectionCard title="Brief Desain" icon={PenLine} className="lg:col-span-2">
@@ -757,7 +761,11 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                         open={confirm === 'approve'}
                         onOpenChange={(open) => !open && setConfirm(null)}
                         title="Desain Disetujui Klien"
-                        description={`Klien "${design.lead.client_name}" menyetujui desain ini. Estimator diminta menyusun RAB Proyek dari desain ini.`}
+                        description={
+                            projectRab
+                                ? `Klien "${design.lead.client_name}" menyetujui desain ini. ${projectRab.title} klien ini sudah berjalan, jadi tidak diminta ulang.`
+                                : `Klien "${design.lead.client_name}" menyetujui desain ini. Permintaan RAB Proyek otomatis dikirim ke Estimator.`
+                        }
                         confirmLabel="Konfirmasi"
                         action={route('design.markClientApproved', { design: design.id })}
                     />

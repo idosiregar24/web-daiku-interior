@@ -14,6 +14,7 @@ use App\Models\Quotation;
 use App\Models\SiteSetting;
 use App\Models\Termin;
 use App\Services\InvoiceService;
+use App\Support\Letters\InvoiceLetter;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -76,13 +77,21 @@ class InvoiceController extends Controller
 
     public function exportPdf(Invoice $invoice): HttpResponse
     {
-        // Sprint 15 — the whole quotation: the letter repeats a service RAB's lines, title, notes and number.
-        $invoice->load(['lead:id,client_name,address', 'quotation', 'quotation.items.unit', 'quotation.sections', 'termin']);
+        return self::streamPdf($invoice);
+    }
+
+    /**
+     * Sprint 17 Sub 05 — the invoice's billing layout (InvoiceLetter: the
+     * client's contact, the RAB groups or termin, the bank accounts). Also
+     * what an invoiced termin's PDF streams (TerminController::exportPdf()).
+     */
+    public static function streamPdf(Invoice $invoice): HttpResponse
+    {
+        $invoice->load(InvoiceLetter::RELATIONS);
 
         return Pdf::loadView('pdf.invoice', [
             'invoice' => $invoice,
             'siteSettings' => SiteSetting::current(),
-            'bankAccounts' => BankAccount::where('is_active', true)->orderBy('label')->get(),
             // "1/INV/Daiku/X/2026" → "invoice-1-INV-Daiku-X-2026.pdf" (no slashes in a file name).
         ])->stream('invoice-'.str_replace('/', '-', $invoice->number).'.pdf');
     }

@@ -23,6 +23,8 @@ use App\Models\Quotation;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\ActionInboxService;
+use App\Services\InvoiceService;
+use App\Services\QuotationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -195,6 +197,80 @@ test("Marketing's follow-ups: own live leads due today or earlier", function () 
     Lead::factory()->followUpOn(now()->subDay()->toDateString())->create();
 
     expect(inboxGroup($marketing, 'follow-up')['count'])->toBe(2);
+});
+
+test("a RAB Desain the client approves goes to its Marketing's queue until the invoice is issued", function () {
+    $marketing = inboxUser('MARKETING');
+    $colleague = inboxUser('MARKETING');
+    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value, 'assigned_to' => $marketing->id, 'client_name' => 'Bu Sinta']);
+    $rab = Quotation::factory()->create([
+        'lead_id' => $lead->id,
+        'type' => 'DESAIN',
+        'status' => QuotationStatus::SentToClient->value,
+        'total_amount' => 5_000_000,
+        'valid_until' => now()->addWeek()->toDateString(),
+    ]);
+    $inbox = app(ActionInboxService::class);
+
+    // Both queues are cached before the client acts on the public link.
+    expect(collect($inbox->for($marketing))->pluck('key'))->not->toContain('quotation-invoice');
+    $inbox->for($colleague);
+
+    app(QuotationService::class)->clientApprove(shareLinkFor($rab, $marketing), true, '10.0.0.1', 'Test');
+
+    // No `fresh`: the approval dropped the owner's cache.
+    $group = collect($inbox->for($marketing))->firstWhere('key', 'quotation-invoice');
+    expect($group['count'])->toBe(1)
+        ->and($group['label'])->toBe('RAB disetujui klien — terbitkan invoice')
+        ->and($group['routeName'])->toBe('quotations.index')
+        ->and($group['items'][0]['title'])->toBe('Bu Sinta')
+        ->and($group['items'][0]['href'])->toBe(route('quotations.show', ['quotation' => $rab->id, 'action' => 'invoice']))
+        ->and(inboxGroup($colleague, 'quotation-invoice'))->toBeNull()
+        ->and($inbox->badges($marketing)['quotations.index'])->toBe(1);
+
+    // "Lihat semua" lists exactly the queue for this Marketing.
+    $this->actingAs($marketing)
+        ->get(route('quotations.index', ['awaiting_invoice' => 1]))
+        ->assertInertia(fn (Assert $page) => $page->where('quotations.total', 1)->where('quotations.data.0.id', $rab->id));
+    $this->actingAs($marketing)
+        ->get(route('quotations.show', ['quotation' => $rab->id, 'action' => 'invoice']))
+        ->assertInertia(fn (Assert $page) => $page->where('canIssueInvoice', true));
+
+    // Issued by a colleague: the owner's cache is dropped too.
+    app(InvoiceService::class)->issueForQuotation($rab, ['due_date' => now()->addDays(3)->toDateString()], $colleague);
+
+    expect(collect($inbox->for($marketing))->pluck('key'))->not->toContain('quotation-invoice');
+});
+
+test('the invoice queue: approved service RABs without an invoice, own leads only, oldest approval first', function () {
+    $marketing = inboxUser('MARKETING');
+    $other = inboxUser('MARKETING');
+    $own = Lead::factory()->create(['assigned_to' => $marketing->id]);
+    $approved = ['status' => QuotationStatus::ClientApproved->value, 'client_approved_at' => now()];
+
+    $survey = Quotation::factory()->create(['lead_id' => $own->id, 'type' => 'SURVEY', ...$approved]);
+    $older = Quotation::factory()->create(['lead_id' => Lead::factory()->create(['assigned_to' => $marketing->id])->id, 'type' => 'DESAIN', ...$approved, 'client_approved_at' => now()->subDays(2)]);
+    Quotation::factory()->create(['lead_id' => $own->id, 'type' => 'PROYEK', ...$approved]);
+    Quotation::factory()->create(['lead_id' => $own->id, 'type' => 'DESAIN', 'status' => QuotationStatus::SentToClient->value]);
+    Quotation::factory()->create(['lead_id' => Lead::factory()->create(['assigned_to' => $other->id])->id, 'type' => 'DESAIN', ...$approved]);
+    $invoiced = Quotation::factory()->create(['lead_id' => $own->id, 'type' => 'DESAIN', ...$approved]);
+    Invoice::create([
+        'number' => 'INV-INBOX-Q',
+        'lead_id' => $own->id,
+        'quotation_id' => $invoiced->id,
+        'type' => 'JASA_DESAIN',
+        'amount' => 1_000_000,
+        'due_date' => now()->toDateString(),
+        'status' => InvoiceStatus::Diterbitkan->value,
+        'issued_by' => $marketing->id,
+        'issued_at' => now(),
+    ]);
+
+    $group = inboxGroup($marketing, 'quotation-invoice');
+
+    expect($group['count'])->toBe(2)
+        ->and(collect($group['items'])->pluck('id')->all())->toBe(["quotation-invoice-{$older->id}", "quotation-invoice-{$survey->id}"])
+        ->and(inboxGroup($other, 'quotation-invoice')['count'])->toBe(1);
 });
 
 test('the Estimator sees requested RABs and versions returned for revision', function () {
