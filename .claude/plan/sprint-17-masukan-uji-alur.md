@@ -1,6 +1,6 @@
 # Sprint 17 — Masukan Uji Alur Klien
 
-> Status: **selesai 2026-10-07** (Sub 01–05; K1–K4 dijalankan sesuai usulan karena belum dijawab user).
+> Status: **selesai 2026-10-07** (Sub 01–07; K2 dijawab user → Sub 06; masukan bukti bayar → Sub 07; K1, K3, K4 dijalankan sesuai usulan).
 > Sumber: hasil uji alur oleh rekan user (mengikuti
 > [`simulasi-alur-klien.md`](simulasi-alur-klien.md)) dengan lead #37
 > "Ido Refael Siregar". Bentuknya 6 temuan, terdiri dari 3 bug dan 3
@@ -36,7 +36,7 @@ sistem internal ikut terbuka. Halaman publik cukup memuat route publik.
 | # | Pertanyaan | Usulan |
 |---|---|---|
 | K1 | T2: link akan dibuka klien dari mana selama uji? | ✱ Uji dari HP butuh alamat yang bisa dijangkau HP: server staging (Sprint 9: deploy/HTTPS) **atau** sementara Laragon → *Share* (ngrok) / `php artisan serve --host=0.0.0.0` lewat IP LAN dengan `APP_URL` disesuaikan. Sistem menampilkan peringatan bila `APP_URL` masih lokal. |
-| K2 | T3: RAB **Proyek** yang di-ACC klien juga masuk antrean Marketing? | ✱ Tidak langsung jadi "terbitkan invoice", karena invoice DP baru ada setelah CEO "Buka Proyek". Marketing mendapat notifikasi "menunggu CEO Buka Proyek", lalu termin DP masuk antrean `termin-invoice` yang sudah ada (diverifikasi di Sub 03). |
+| K2 | T3: RAB **Proyek** yang di-ACC klien juga masuk antrean Marketing? | **Dijawab user 2026-10-07: langsung** — Marketing diarahkan menerbitkan invoice DP sambil menunggu CEO Buka Proyek; invoice itu menempel ke termin DP saat proyek dibuka → [Sub 06](sprint-17/06-invoice-dp-lebih-awal.md). (Usulan awal ✱ — hanya notifikasi, DP dari termin — dikerjakan di Sub 03 lalu diganti.) |
 | K3 | T4: seperti apa invoice yang "berbeda"? | ✱ Penawaran tetap format surat (Sprint 15). Invoice memakai **tata letak tagihan**: judul besar **INVOICE**, kotak "Ditagihkan kepada" + No./Tanggal/Jatuh Tempo/Ref. Penawaran, tabel **ringkas** (1 baris per kelompok/termin, bukan rincian item RAB), kotak **Total Tagihan**, kotak **Cara Pembayaran** (rekening), cap **BELUM DIBAYAR / LUNAS**, tanpa kalimat "Demikian penawaran…". |
 | K4 | T5: data lama (lead #37) diperbaiki bagaimana? | ✱ Perintah sekali jalan `daiku:relink-surveys` (idempoten, `--dry-run`): tautkan survey `MENUNGGU_BAYAR` tanpa RAB ke RAB Jasa Survey lead yang sama, lalu tandai SIAP bila invoice-nya sudah terverifikasi. |
 
@@ -49,6 +49,8 @@ sistem internal ikut terbuka. Halaman publik cukup memuat route publik.
 | 03 | [Klien ACC → Perlu Tindakan Marketing](sprint-17/03-klien-acc-perlu-tindakan.md) | Antrean "Terbitkan invoice", notifikasi RAB Proyek, cek termin DP setelah Buka Proyek | 6 |
 | 04 | [Info RAB Proyek otomatis](sprint-17/04-info-rab-proyek-otomatis.md) | Notice di lead & desain, notifikasi + log pipeline untuk Marketing, pesan toast yang jujur | 6 |
 | 05 | [Invoice berbeda dari penawaran](sprint-17/05-format-invoice.md) | Tata letak tagihan (K3) untuk invoice jasa & termin, PDF + tampilan web | 6 |
+| 06 | [Invoice DP lebih awal](sprint-17/06-invoice-dp-lebih-awal.md) | K2 direvisi: DP RAB Proyek ditagih begitu klien ACC, menempel ke termin DP saat Buka Proyek | 8 |
+| 07 | [Akses Kirim Bukti Bayar](sprint-17/07-akses-bukti-bayar.md) | Tombol "Kirim Bukti Bayar" di halaman RAB & proyek, antrean "Invoice menunggu bukti bayar", notifikasi tolak membuka dialog | 7 |
 
 Cara menyuruh: **"Kerjakan Sprint 17 Sub 1"** … **Sub 5**. Sub 01–04
 saling lepas. Sub 05 menunggu jawaban K3.

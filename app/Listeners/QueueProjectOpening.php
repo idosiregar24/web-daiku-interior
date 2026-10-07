@@ -5,6 +5,8 @@ namespace App\Listeners;
 use App\Enums\QuotationType;
 use App\Events\QuotationClientApproved;
 use App\Models\ProjectOpening;
+use App\Models\Quotation;
+use App\Services\ActionInboxService;
 use App\Services\NotificationService;
 
 /**
@@ -41,15 +43,25 @@ class QueueProjectOpening
             ['project_opening_id' => $opening->id, 'lead_id' => $quotation->lead_id],
         );
 
-        // Sprint 17 Sub 03 (K2) — nothing for Marketing to do yet (the DP is
-        // billed from the project's termin once the CEO opens it, then it
-        // shows in their Perlu Tindakan as "Termin perlu diterbitkan invoice").
+        // Sprint 17 Sub 06 (K2, user's decision) — Marketing bills the DP right
+        // away while the CEO opens the project (it's in their Perlu Tindakan
+        // as "RAB disetujui klien — terbitkan invoice"). A scheme without a
+        // "di muka" payment has nothing to bill yet: just the heads-up.
+        $billable = Quotation::query()->whereKey($quotation->id)->billableUpfront()->exists();
+        $client = $quotation->lead->client_name;
+
         $this->notificationService->notifyMany(
             [$quotation->lead->assignee ?? $event->link->sender],
-            'project_rab_awaiting_opening',
-            'RAB Proyek Disetujui Klien — Menunggu CEO Buka Proyek',
-            "Klien \"{$quotation->lead->client_name}\" menyetujui {$quotation->title()}. Menunggu CEO Buka Proyek; tagihan DP muncul di Perlu Tindakan setelah proyek dibuka.",
+            $billable ? 'invoice_to_issue' : 'project_rab_awaiting_opening',
+            $billable ? 'Terbitkan Invoice DP' : 'RAB Proyek Disetujui Klien — Menunggu CEO Buka Proyek',
+            $billable
+                ? "Klien \"{$client}\" menyetujui {$quotation->title()} — terbitkan invoice DP sekarang; CEO sedang membuka proyeknya."
+                : "Klien \"{$client}\" menyetujui {$quotation->title()}. Menunggu CEO Buka Proyek; tagihan termin muncul di Perlu Tindakan setelah waktunya.",
             ['quotation_id' => $quotation->id, 'lead_id' => $quotation->lead_id],
         );
+
+        if ($billable) {
+            ActionInboxService::forgetMarketingOf($quotation->lead->assignee);
+        }
     }
 }

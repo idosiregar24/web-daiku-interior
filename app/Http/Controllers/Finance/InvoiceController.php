@@ -44,14 +44,14 @@ class InvoiceController extends Controller
     {
         $invoice = $service->issueForQuotation($quotation, $request->validated(), $request->user());
 
-        return back()->with('success', "Invoice {$invoice->number} diterbitkan — kirim ke klien bersama PDF-nya.");
+        return back()->with('success', "Invoice {$invoice->number} diterbitkan — kirim PDF-nya ke klien. Setelah klien membayar, tekan \"Kirim Bukti Bayar\" di baris invoice ini.");
     }
 
     public function storeForTermin(IssueInvoiceRequest $request, Termin $termin, InvoiceService $service): RedirectResponse
     {
         $invoice = $service->issueForTermin($termin, $request->validated(), $request->user());
 
-        return back()->with('success', "Invoice {$invoice->number} diterbitkan untuk termin {$termin->termin_number}.");
+        return back()->with('success', "Invoice {$invoice->number} diterbitkan untuk termin {$termin->termin_number} — setelah klien membayar, tekan \"Kirim Bukti Bayar\" di baris termin ini.");
     }
 
     public function submitProof(SubmitInvoiceProofRequest $request, Invoice $invoice, InvoiceService $service): RedirectResponse
@@ -100,9 +100,14 @@ class InvoiceController extends Controller
     {
         $user = $request->user();
         $canVerify = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
+        $canSubmitProof = $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']);
+        // Sprint 17 Sub 07 — "Invoice menunggu bukti bayar" (same scope as the Perlu Tindakan queue).
+        $awaitingProof = $mode === 'all' && $request->boolean('awaiting_proof');
+        $marketingScope = $user->hasRole('MARKETING') && ! $user->hasAnyRole(['CEO', 'FINANCE', 'SUPERADMIN']) ? $user : null;
 
         $invoices = Invoice::query()
             ->with(['lead:id,client_name', 'project:id,name', 'quotation:id,type,version', 'issuer:id,name', 'verifier:id,name', 'bankAccount:id,label'])
+            ->when($awaitingProof, fn ($query) => $query->awaitingProof($marketingScope))
             ->byStatus($status)
             ->byType($request->string('type')->value() ?: null)
             ->when($request->filled('search'), fn ($query) => $query->where(fn ($q) => $q
@@ -115,9 +120,16 @@ class InvoiceController extends Controller
         return Inertia::render('Finance/Invoices/Index', [
             'mode' => $mode,
             'invoices' => $invoices,
-            'filters' => $request->only(['status', 'type', 'search']),
+            'filters' => $request->only(['status', 'type', 'search', 'awaiting_proof']),
             'canVerify' => $canVerify,
-            'canSubmitProof' => $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']),
+            'canSubmitProof' => $canSubmitProof,
+            // Sprint 17 Sub 07 — `?proof={id}` (Perlu Tindakan, "bukti ditolak" notification)
+            // opens "Kirim Bukti Bayar" for that invoice, whatever page of the list it is on.
+            'proofInvoice' => $canSubmitProof && $request->integer('proof') > 0
+                ? Invoice::query()->with('lead:id,client_name')->whereKey($request->integer('proof'))
+                    ->where('status', InvoiceStatus::Diterbitkan->value)
+                    ->first(['id', 'number', 'amount', 'lead_id', 'reject_reason'])
+                : null,
             'bankAccounts' => $canVerify ? BankAccount::where('is_active', true)->orderBy('label')->get(['id', 'label']) : [],
         ]);
     }

@@ -118,7 +118,10 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     from the CEO's "Buka Proyek" on an approved RAB Proyek; its termins come
     from the approved payment scheme; a RAB Tambahan (`parent_quotation_id`)
     adds to the project instead. Marketing issues every invoice, Finance
-    alone verifies it (`InvoiceService` books the income once). Designs are
+    alone verifies it (`InvoiceService` books the income once). A RAB
+    Proyek's DP is billed right after the client's approval, before Buka
+    Proyek, and attached to the DP termin when the project opens
+    (`TerminService::attachUpfrontInvoice()`, Sprint 17 Sub 06). Designs are
     locked until their Jasa Desain invoice is verified, then assigned by a
     Kepala Desain. "Alokasi Dana Proyek" (`ProjectBudgetService`) and
     realisations (`BudgetRealizationService`, over-budget → CEO) are the

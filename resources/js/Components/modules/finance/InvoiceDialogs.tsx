@@ -18,7 +18,8 @@ import type { BankAccount, Invoice, InvoiceType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { type ReactNode, useEffect } from 'react';
+import { Upload } from 'lucide-react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { type FieldValues, type Path, type UseFormReturn, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -187,6 +188,37 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
                 )}
             />
         </DialogShell>
+    );
+}
+
+/**
+ * Sprint 17 Sub 07 — "Kirim Bukti Bayar" right where an invoice is shown
+ * (RAB page, project termins & documents), not only on the Invoice menu.
+ * Renders nothing unless the invoice still waits for the proof; a proof
+ * Finance sent back shows its reason above the button.
+ */
+export function InvoiceProofButton({
+    invoice,
+    canSubmit,
+}: {
+    invoice: InvoiceRef & Pick<Invoice, 'status'> & Partial<Pick<Invoice, 'reject_reason'>>;
+    canSubmit: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+
+    if (!canSubmit || invoice.status !== 'DITERBITKAN') {
+        return null;
+    }
+
+    return (
+        <span className="inline-flex flex-wrap items-center gap-2">
+            {invoice.reject_reason && <span className="text-xs text-error-ink">Bukti ditolak Finance: {invoice.reject_reason}</span>}
+            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+                <Upload className="size-4" />
+                Kirim Bukti Bayar
+            </Button>
+            {open && <InvoiceProofDialog open onOpenChange={setOpen} invoice={invoice} />}
+        </span>
     );
 }
 

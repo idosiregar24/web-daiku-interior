@@ -104,4 +104,19 @@ class Invoice extends Model
     {
         return $query->when($type, fn (Builder $q) => $q->where('type', $type));
     }
+
+    /**
+     * Sprint 17 Sub 07 — issued, the client's payment proof not sent yet
+     * (or sent back by Finance: reject() returns it to DITERBITKAN with a
+     * reason). With `$marketing`: only that Marketing's own leads, or leads
+     * without one — the "Perlu Tindakan" queue and the invoice list's
+     * `awaiting_proof` filter.
+     */
+    public function scopeAwaitingProof(Builder $query, ?User $marketing = null): Builder
+    {
+        return $query
+            ->where('status', InvoiceStatus::Diterbitkan->value)
+            ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
+                ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
+    }
 }

@@ -70,6 +70,8 @@ class ProjectService
             ]);
 
             $termins = $this->terminService->createFromPaymentTerms($project, $quotation);
+            // Sprint 17 Sub 06 (K2) — a DP already billed from the RAB becomes the DP termin's invoice.
+            $this->terminService->attachUpfrontInvoice($project, $quotation, $termins, $actor);
             // Sprint 17 Sub 03 (K2) — the DP is billable now: straight into Marketing's "Perlu Tindakan".
             $this->terminService->remindInvoices($project);
 

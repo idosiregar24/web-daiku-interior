@@ -1,4 +1,5 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { Notice } from '@/Components/shared/Notice';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SearchInput } from '@/Components/shared/SearchInput';
@@ -24,9 +25,11 @@ interface InvoiceIndexProps {
     /** `verification` = Finance's queue (MENUNGGU_VERIFIKASI only). */
     mode: 'all' | 'verification';
     invoices: PaginatedData<Invoice>;
-    filters: { status?: string; type?: string; search?: string };
+    filters: { status?: string; type?: string; search?: string; awaiting_proof?: string };
     canVerify: boolean;
     canSubmitProof: boolean;
+    /** Sprint 17 Sub 07 — `?proof={id}`: open "Kirim Bukti Bayar" for this invoice right away. */
+    proofInvoice: (Pick<Invoice, 'id' | 'number' | 'amount' | 'reject_reason'> & { lead?: { client_name: string } }) | null;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
 
@@ -44,8 +47,10 @@ type Action = { kind: 'proof' | 'verify' | 'reject'; invoice: Invoice };
  * payment proof; "Verifikasi Pembayaran": Finance's queue, oldest proof
  * first — verify (books the income) or reject with a reason.
  */
-export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSubmitProof, bankAccounts }: InvoiceIndexProps) {
+export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSubmitProof, proofInvoice, bankAccounts }: InvoiceIndexProps) {
     const [action, setAction] = useState<Action | null>(null);
+    // Sprint 17 Sub 07 — arrived from Perlu Tindakan / a "bukti ditolak" notification.
+    const [linkedProof, setLinkedProof] = useState(proofInvoice);
     const [search, setSearch] = useState(filters.search ?? '');
     const isQueue = mode === 'verification';
     const routeName = isQueue ? 'finance.invoices.verification' : 'finance.invoices.index';
@@ -71,6 +76,17 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
             />
 
             <ModuleTabs />
+
+            {filters.awaiting_proof && (
+                <Notice tone="info" className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <span>Menampilkan invoice yang menunggu bukti bayar klien — tekan "Kirim Bukti Bayar" setelah klien membayar.</span>
+                        <Button size="sm" variant="outline" onClick={() => applyFilter({ awaiting_proof: undefined })}>
+                            Tampilkan semua invoice
+                        </Button>
+                    </div>
+                </Notice>
+            )}
 
             <TableCard
                 pagination={invoices}
@@ -219,6 +235,7 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
             </TableCard>
 
             {action?.kind === 'proof' && <InvoiceProofDialog open onOpenChange={close} invoice={action.invoice} />}
+            {linkedProof && <InvoiceProofDialog open onOpenChange={(open) => !open && setLinkedProof(null)} invoice={linkedProof} />}
             {action?.kind === 'verify' && <InvoiceVerifyDialog open onOpenChange={close} invoice={action.invoice} bankAccounts={bankAccounts} />}
             {action?.kind === 'reject' && <InvoiceRejectDialog open onOpenChange={close} invoice={action.invoice} />}
         </AppLayout>

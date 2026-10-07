@@ -1,6 +1,6 @@
 import { RabReferenceList } from '@/Components/modules/quotation/RabReferenceList';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
-import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
+import { INVOICE_TYPE_LABEL, InvoiceProofButton, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -67,9 +67,13 @@ interface QuotationShowProps {
     /** Sprint 12 #13 — this version's public link (CEO / Marketing only), once sent. */
     shareUrl: string | null;
     /** Sprint 12 #20 — invoices billed from this RAB. */
-    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status'>[];
-    /** Marketing, on an approved Jasa Survey / Jasa Desain RAB without an invoice yet. */
+    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status' | 'reject_reason'>[];
+    /** Sprint 17 Sub 07 — "Kirim Bukti Bayar" on the invoice rows (Marketing / Finance). */
+    canSubmitProof: boolean;
+    /** Marketing, on an approved Jasa Survey / Jasa Desain RAB without an invoice yet — or (Sprint 17 Sub 06) a RAB Proyek's DP before the project is opened. */
     canIssueInvoice: boolean;
+    /** What "Terbitkan Invoice" bills (InvoiceService::issuableFor()). */
+    issuableInvoice: { label: string; amount: string } | null;
     /** Sprint 12 #18 / D6 — the lead's Arsitek ↔ Estimator thread (null without a design / access). */
     discussion: DesignDiscussionThread | null;
 }
@@ -115,7 +119,9 @@ export default function QuotationShow({
     defaultClientNotes,
     shareUrl,
     invoices,
+    canSubmitProof,
     canIssueInvoice,
+    issuableInvoice,
     discussion,
 }: QuotationShowProps) {
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
@@ -390,6 +396,11 @@ export default function QuotationShow({
                         )}{' '}
                         {quotation.type !== 'PROYEK' &&
                             (invoices.length > 0 ? 'Pembayarannya ditagih lewat invoice di bawah.' : 'Terbitkan invoice-nya untuk ditagihkan ke klien.')}
+                        {/* Sprint 17 Sub 06 (K2) — the DP is billed while the CEO opens the project. */}
+                        {quotation.type === 'PROYEK' && canIssueInvoice && 'Terbitkan invoice DP sekarang sambil menunggu CEO membuka proyek. '}
+                        {quotation.type === 'PROYEK' &&
+                            invoices.length > 0 &&
+                            'Invoice DP sudah terbit — saat proyek dibuka, invoice ini otomatis menjadi tagihan termin DP. '}
                         {quotation.type === 'PROYEK' && (
                             <Link
                                 href={route('crm.leads.show', { lead: quotation.lead.id })}
@@ -417,12 +428,13 @@ export default function QuotationShow({
                                     >
                                         Unduh PDF
                                     </a>
+                                    <InvoiceProofButton invoice={{ ...invoice, lead: quotation.lead }} canSubmit={canSubmitProof} />
                                 </div>
                             ))}
                             {canIssueInvoice && (
                                 <Button size="sm" className="w-fit" onClick={() => setIssueOpen(true)}>
                                     <ReceiptText className="size-4" />
-                                    Terbitkan Invoice
+                                    {quotation.type === 'PROYEK' ? 'Terbitkan Invoice DP' : 'Terbitkan Invoice'}
                                 </Button>
                             )}
                         </div>
@@ -475,13 +487,13 @@ export default function QuotationShow({
                 role="CLIENT"
                 decision="reject"
             />
-            {canIssueInvoice && (
+            {canIssueInvoice && issuableInvoice && (
                 <IssueInvoiceDialog
                     open={issueOpen}
                     onOpenChange={setIssueOpen}
                     action={route('quotations.invoices.store', { quotation: quotation.id })}
-                    label={quotation.type === 'SURVEY' ? 'Jasa Survey' : 'Jasa Desain'}
-                    amount={quotation.total_amount}
+                    label={issuableInvoice.label}
+                    amount={issuableInvoice.amount}
                 />
             )}
             <CancelQuotationDialog open={cancelOpen} onOpenChange={setCancelOpen} quotation={quotation} label={typeLabel} />

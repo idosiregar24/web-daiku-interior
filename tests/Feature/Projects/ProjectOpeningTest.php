@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\InvoiceStatus;
+use App\Enums\InvoiceType;
 use App\Enums\LeadStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
@@ -251,16 +252,17 @@ test('Marketing is reminded once per termin when its trigger is reached', functi
     expect($reminded())->toBe(4)->and($service->remindInvoices())->toBe(0);
 });
 
-test('Buka Proyek puts the DP straight into Marketing\'s "termin-invoice" queue, the client approval only notifies (K2)', function () {
+test('the client approving a RAB Proyek sends Marketing straight to the DP invoice; unbilled, Buka Proyek moves it to "termin-invoice" (Sub 06 K2)', function () {
     $quotation = approvedProjectRab($this);
 
-    // Approved RAB Proyek: a notification, no queue item — nothing to bill before the project exists.
-    expect(Notification::where('user_id', $this->marketing->id)->where('type', 'project_rab_awaiting_opening')->sole()->message)
-        ->toContain('Menunggu CEO Buka Proyek')
-        ->and(collect(app(ActionInboxService::class)->for($this->marketing, fresh: true))->pluck('key'))
-        ->not->toContain('quotation-invoice')
-        ->not->toContain('termin-invoice');
+    // Sprint 17 Sub 06 (K2, user's decision) — bill the DP now, while the CEO opens the project.
+    $inbox = collect(app(ActionInboxService::class)->for($this->marketing));
+    expect(Notification::where('user_id', $this->marketing->id)->where('type', 'invoice_to_issue')->sole()->message)
+        ->toContain('terbitkan invoice DP sekarang')
+        ->and($inbox->firstWhere('key', 'quotation-invoice')['items'][0]['subtitle'])->toBe('DP RAB Proyek · Rp 30.000.000')
+        ->and($inbox->pluck('key'))->not->toContain('termin-invoice');
 
+    // Marketing didn't bill it before the CEO opened the project: the DP termin takes over.
     $project = openProject($this, $quotation);
     $dp = $project->termins()->where('termin_number', 1)->sole();
 
@@ -275,6 +277,78 @@ test('Buka Proyek puts the DP straight into Marketing\'s "termin-invoice" queue,
     // Issuing the DP invoice empties it.
     app(InvoiceService::class)->issueForTermin($dp, ['due_date' => '2026-10-20'], $this->marketing);
     expect(collect(app(ActionInboxService::class)->for($this->marketing))->pluck('key'))->not->toContain('termin-invoice');
+});
+
+test('a DP billed and paid before Buka Proyek becomes the DP termin\'s invoice — booked once, attached to the project (Sub 06)', function () {
+    $quotation = approvedProjectRab($this);
+    $invoices = app(InvoiceService::class);
+
+    $invoice = $invoices->issueForQuotation($quotation, ['due_date' => '2026-10-12'], $this->marketing);
+    expect($invoice->type)->toBe(InvoiceType::Dp)
+        ->and((float) $invoice->amount)->toBe(30_000_000.0)
+        ->and($invoice->project_id)->toBeNull()
+        ->and(collect(app(ActionInboxService::class)->for($this->marketing))->pluck('key'))->not->toContain('quotation-invoice');
+    expect(fn () => $invoices->issueForQuotation($quotation, ['due_date' => '2026-10-12'], $this->marketing))->toThrow(ValidationException::class);
+
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $account = BankAccount::factory()->create(['is_active' => true]);
+    $invoices->submitProof($invoice, 'https://drive.google.com/bukti', $this->marketing);
+    $invoice = $invoices->verify($invoice, ['bank_account_id' => $account->id, 'paid_date' => '2026-10-06'], $finance);
+    expect(FinanceTransaction::find($invoice->finance_transaction_id)->project_id)->toBeNull();
+
+    $project = openProject($this, $quotation);
+    $dp = $project->termins()->where('termin_number', 1)->sole();
+    $invoice->refresh();
+
+    expect($dp->invoice_id)->toBe($invoice->id)
+        ->and($dp->status)->toBe(TerminStatus::Paid)
+        ->and($invoice->termin_id)->toBe($dp->id)
+        ->and($invoice->project_id)->toBe($project->id)
+        ->and(FinanceTransaction::where('reference_id', $invoice->id)->sole()->project_id)->toBe($project->id)
+        ->and(Invoice::count())->toBe(1)
+        ->and(collect(app(ActionInboxService::class)->for($this->marketing, fresh: true))->pluck('key'))->not->toContain('termin-invoice');
+    expect(fn () => $invoices->issueForTermin($dp, ['due_date' => '2026-10-20'], $this->marketing))->toThrow(ValidationException::class);
+});
+
+test('a DP billed but unpaid at Buka Proyek leaves the termin INVOICED and settles it when verified (Sub 06)', function () {
+    $quotation = approvedProjectRab($this);
+    $invoices = app(InvoiceService::class);
+    $invoice = $invoices->issueForQuotation($quotation, ['due_date' => '2026-10-12'], $this->marketing);
+
+    $dp = openProject($this, $quotation)->termins()->where('termin_number', 1)->sole();
+    expect($dp->status)->toBe(TerminStatus::Invoiced)->and($dp->invoice_id)->toBe($invoice->id);
+
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $invoices->submitProof($invoice->fresh(), 'https://drive.google.com/bukti', $this->marketing);
+    $invoices->verify($invoice->fresh(), ['bank_account_id' => BankAccount::factory()->create(['is_active' => true])->id, 'paid_date' => '2026-10-11'], $finance);
+
+    expect($dp->fresh()->status)->toBe(TerminStatus::Paid)
+        ->and(FinanceTransaction::where('reference_id', $invoice->id)->sole()->project_id)->toBe($dp->project_id);
+});
+
+test('no early DP invoice without a "di muka" payment, nor once the project is opened (Sub 06)', function () {
+    $quotation = approvedProjectRab($this);
+    openProject($this, $quotation);
+
+    expect(fn () => app(InvoiceService::class)->issueForQuotation($quotation->fresh(), ['due_date' => '2026-10-12'], $this->marketing))
+        ->toThrow(ValidationException::class, 'Proyek sudah dibuka')
+        ->and(app(InvoiceService::class)->issuableFor($quotation->fresh()))->toBeNull();
+});
+
+test('Marketing gets the DP amount on the RAB page and can issue it there (Sub 06)', function () {
+    $quotation = approvedProjectRab($this);
+
+    $this->actingAs($this->marketing)->get(route('quotations.show', $quotation))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('canIssueInvoice', true)
+            ->where('issuableInvoice.label', 'DP')
+            ->where('issuableInvoice.amount', '30000000.00'));
+
+    $this->actingAs($this->marketing)->post(route('quotations.invoices.store', $quotation), ['due_date' => '2026-10-12'])
+        ->assertSessionHasNoErrors();
+    expect(Invoice::sole()->type)->toBe(InvoiceType::Dp);
 });
 
 test('an already invoiced termin is not reminded', function () {

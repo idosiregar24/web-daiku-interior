@@ -60,8 +60,22 @@ function reviewHref(metadata: Metadata): string {
     return review ? route('hr.reviews.show', { performance_review: review }) : route('hr.reviews.index');
 }
 
+/**
+ * Sprint 17 Sub 07 — invoice payment steps: a rejected proof reopens the
+ * "Kirim Bukti Bayar" dialog on the invoice list (Marketing), a sent proof
+ * goes to Finance's verification queue.
+ */
+const INVOICE_TARGETS: Record<string, (metadata: Metadata) => string | null> = {
+    invoice_rejected: (metadata) => {
+        const invoice = num(metadata, 'invoice_id');
+
+        return route('finance.invoices.index', invoice ? { awaiting_proof: 1, proof: invoice } : { awaiting_proof: 1 });
+    },
+    invoice_awaiting_verification: () => route('finance.invoices.verification'),
+};
+
 export function notificationHref(notification: AppNotification): string | null {
-    const sdmTarget = SDM_TARGETS[notification.type];
+    const sdmTarget = SDM_TARGETS[notification.type] ?? INVOICE_TARGETS[notification.type];
 
     if (sdmTarget) {
         return sdmTarget(notification.metadata as Metadata);

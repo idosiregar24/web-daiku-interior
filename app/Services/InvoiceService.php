@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Enums\TerminStatus;
 use App\Events\InvoiceVerified;
 use App\Models\BankAccount;
@@ -41,17 +42,53 @@ class InvoiceService
     ) {}
 
     /**
+     * What `quotations.invoices.store` would bill for this RAB right now —
+     * `['label' => …, 'amount' => …]` — or null when nothing can be issued
+     * from the RAB itself (the Quotation page's "Terbitkan Invoice").
+     *
+     * @return array{label: string, amount: string}|null
+     */
+    public function issuableFor(Quotation $quotation): ?array
+    {
+        if ($quotation->status !== QuotationStatus::ClientApproved || $quotation->invoices()->exists()) {
+            return null;
+        }
+
+        if (($type = InvoiceType::forQuotation($quotation->type)) !== null) {
+            return ['label' => $type->label(), 'amount' => (string) $quotation->total_amount];
+        }
+
+        $term = Quotation::query()->whereKey($quotation->id)->billableUpfront()->exists()
+            ? $quotation->loadMissing('paymentTerms')->upfrontTerm()
+            : null;
+
+        if ($term === null) {
+            return null;
+        }
+
+        // "DP", or "DP — Uang Muka" when the scheme row has its own name.
+        $label = preg_match('/^dp\b/i', (string) $term->label) ? InvoiceType::Dp->label() : InvoiceType::Dp->label().' — '.$term->label;
+
+        return ['label' => $label, 'amount' => (string) $term->amount];
+    }
+
+    /**
      * The one invoice of a Jasa Survey / Jasa Desain RAB the client
      * approved — the full total, due on `due_date`.
+     * Sprint 17 Sub 06 (K2): a main RAB Proyek bills its DP ("di muka" row
+     * of the scheme) here too, right after the client's approval — before
+     * the CEO opens the project. Opening attaches it to the DP termin
+     * (TerminService::attachUpfrontInvoice()), so it's never billed twice.
      *
      * @param  array{due_date: string}  $data
      */
     public function issueForQuotation(Quotation $quotation, array $data, User $actor): Invoice
     {
-        $type = InvoiceType::forQuotation($quotation->type);
+        $type = InvoiceType::forQuotation($quotation->type)
+            ?? ($quotation->type === QuotationType::Proyek ? InvoiceType::Dp : null);
 
         if ($type === null) {
-            throw ValidationException::withMessages(['quotation' => 'Invoice RAB Proyek (DP / termin) diterbitkan dari termin proyek setelah proyek dibuka.']);
+            throw ValidationException::withMessages(['quotation' => 'RAB ini tidak ditagih lewat invoice.']);
         }
 
         return DB::transaction(function () use ($quotation, $type, $data, $actor) {
@@ -65,12 +102,24 @@ class InvoiceService
                 throw ValidationException::withMessages(['quotation' => "Invoice {$type->label()} untuk RAB ini sudah diterbitkan."]);
             }
 
+            $amount = $quotation->total_amount;
+
+            if ($type === InvoiceType::Dp) {
+                if (! Quotation::query()->whereKey($quotation->id)->billableUpfront()->exists()) {
+                    throw ValidationException::withMessages(['quotation' => $quotation->parent_quotation_id !== null || $quotation->openedProject()->exists()
+                        ? 'Proyek sudah dibuka — terbitkan invoice dari termin proyek (tab Finance).'
+                        : 'Skema pembayaran RAB ini tidak punya pembayaran di muka — DP ditagih dari termin setelah proyek dibuka.']);
+                }
+
+                $amount = $quotation->load('paymentTerms')->upfrontTerm()->amount;
+            }
+
             $invoice = Invoice::create([
                 'number' => $this->nextNumber(),
                 'lead_id' => $quotation->lead_id,
                 'quotation_id' => $quotation->id,
                 'type' => $type->value,
-                'amount' => $quotation->total_amount,
+                'amount' => $amount,
                 'due_date' => $data['due_date'],
                 'status' => InvoiceStatus::Diterbitkan->value,
                 'issued_by' => $actor->id,
@@ -171,6 +220,9 @@ class InvoiceService
                 ['invoice_id' => $invoice->id],
             );
 
+            // Sprint 17 Sub 07 — Finance may send it for the lead's Marketing.
+            ActionInboxService::forgetMarketingOf($invoice->lead->assignee);
+
             return $invoice->fresh();
         });
     }
@@ -261,6 +313,9 @@ class InvoiceService
                 "Finance menolak bukti bayar invoice {$invoice->number} (\"{$invoice->lead->client_name}\"): ".trim($reason),
                 ['invoice_id' => $invoice->id],
             );
+
+            // Sprint 17 Sub 07 — back in the lead Marketing's "Invoice menunggu bukti bayar".
+            ActionInboxService::forgetMarketingOf($invoice->lead->assignee);
 
             return $invoice->fresh();
         });

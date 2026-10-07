@@ -24,7 +24,7 @@ import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
 import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
-import { INVOICE_TYPE_LABEL, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
+import { INVOICE_TYPE_LABEL, InvoiceProofButton, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { ProjectOvertimeTab } from '@/Components/modules/projects/ProjectOvertimeTab';
 import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
@@ -113,6 +113,8 @@ interface ProjectShowProps {
     canViewFinanceSummary: boolean;
     canIssueTerminInvoices: boolean;
     canMarkTerminPaid: boolean;
+    /** Sprint 17 Sub 07 — "Kirim Bukti Bayar" on invoice rows (Marketing / Finance). */
+    canSubmitInvoiceProof: boolean;
     /** Sprint 12 #21 — RAB Fix + invoices (null without access). */
     documents: ProjectDocuments | null;
     /** Sprint 12 #23–#26 — Alokasi Dana Proyek (CEO / Finance / PM; null otherwise). */
@@ -140,7 +142,7 @@ interface ProjectDocuments {
     quotation: { id: number; version: number; total_amount: string; client_approved_at: string | null } | null;
     /** Sprint 12 #29 — RAB Tambahan of this project, any status. */
     addenda: Pick<Quotation, 'id' | 'version' | 'status' | 'total_amount' | 'request_note' | 'client_approved_at' | 'created_at'>[];
-    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status' | 'paid_date'>[];
+    invoices: Pick<Invoice, 'id' | 'number' | 'type' | 'amount' | 'due_date' | 'status' | 'paid_date' | 'reject_reason'>[];
 }
 
 function formatDate(value: string | null) {
@@ -615,6 +617,7 @@ function FinanceTab({
     canViewSummary,
     canIssueInvoices,
     canMarkPaid,
+    canSubmitProof,
     allocationBreakdown,
     supplierDebts,
 }: {
@@ -626,6 +629,7 @@ function FinanceTab({
     /** Marketing — "Terbitkan Invoice" per termin (Sprint 12 #20). */
     canIssueInvoices: boolean;
     canMarkPaid: boolean;
+    canSubmitProof: boolean;
     allocationBreakdown: FinanceAllocationLine[];
     supplierDebts: SupplierDebt[];
 }) {
@@ -704,6 +708,12 @@ function FinanceTab({
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex flex-wrap items-center justify-end gap-2">
+                                                {termin.invoice && (
+                                                    <InvoiceProofButton
+                                                        invoice={{ ...termin.invoice, amount: termin.invoice.amount ?? termin.amount }}
+                                                        canSubmit={canSubmitProof}
+                                                    />
+                                                )}
                                                 {termin.invoice_id ? (
                                                     <Button variant="outline" size="icon-sm" asChild>
                                                         <a href={route('finance.invoices.pdf', { invoice: termin.invoice_id })} target="_blank" rel="noopener noreferrer" aria-label="PDF invoice">
@@ -756,10 +766,12 @@ function DocumentsTab({
     project,
     documents,
     canRequestAddendum,
+    canSubmitProof,
 }: {
     project: Project;
     documents: ProjectDocuments | null;
     canRequestAddendum: boolean;
+    canSubmitProof: boolean;
 }) {
     const [requestOpen, setRequestOpen] = useState(false);
 
@@ -866,8 +878,9 @@ function DocumentsTab({
                                         {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)}
                                     </span>
                                 </span>
-                                <span className="flex items-center gap-2">
+                                <span className="flex flex-wrap items-center gap-2">
                                     <StatusChip status={invoice.status} />
+                                    <InvoiceProofButton invoice={invoice} canSubmit={canSubmitProof} />
                                     <a
                                         href={route('finance.invoices.pdf', { invoice: invoice.id })}
                                         target="_blank"
@@ -1033,6 +1046,7 @@ export default function ProjectShow({
     canViewFinanceSummary,
     canIssueTerminInvoices,
     canMarkTerminPaid,
+    canSubmitInvoiceProof,
     documents,
     budget,
     canManageBudget,
@@ -1241,6 +1255,7 @@ export default function ProjectShow({
                         canViewSummary={canViewFinanceSummary}
                         canIssueInvoices={canIssueTerminInvoices}
                         canMarkPaid={canMarkTerminPaid}
+                        canSubmitProof={canSubmitInvoiceProof}
                         allocationBreakdown={allocationBreakdown}
                         supplierDebts={supplierDebts}
                     />
@@ -1258,7 +1273,7 @@ export default function ProjectShow({
                 )}
                 {documents && (
                     <TabsContent value="documents" className="mt-6">
-                        <DocumentsTab project={project} documents={documents} canRequestAddendum={canRequestAddendum} />
+                        <DocumentsTab project={project} documents={documents} canRequestAddendum={canRequestAddendum} canSubmitProof={canSubmitInvoiceProof} />
                     </TabsContent>
                 )}
                 {canViewMaterials && (

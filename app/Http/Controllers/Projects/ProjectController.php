@@ -184,12 +184,14 @@ class ProjectController extends Controller
             'canOpenOvertimeList' => $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']),
             'canManageProgressLogs' => $canManageProgressLogs,
             'termins' => $canViewTermins
-                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status'])->orderBy('termin_number')->get()
+                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status,amount,reject_reason'])->orderBy('termin_number')->get()
                 : [],
             'canViewTermins' => $canViewTermins,
             'canIssueTerminInvoices' => $canIssueTerminInvoices,
             'canViewFinanceSummary' => $canViewFinanceSummary,
             'canMarkTerminPaid' => $canMarkTerminPaid,
+            // Sprint 17 Sub 07 — "Kirim Bukti Bayar" on termin & document invoice rows.
+            'canSubmitInvoiceProof' => $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']),
             'documents' => $canViewDocuments ? [
                 'quotation' => $project->quotation()->first(['id', 'type', 'version', 'total_amount', 'client_approved_at', 'status']),
                 // Sprint 12 #29 — RAB Tambahan of this project, any status.
@@ -197,7 +199,7 @@ class ProjectController extends Controller
                 'invoices' => Invoice::query()
                     ->where(fn ($query) => $query->where('project_id', $project->id)->orWhere('lead_id', $project->lead_id))
                     ->orderBy('issued_at')
-                    ->get(['id', 'number', 'type', 'amount', 'due_date', 'status', 'issued_at', 'paid_date']),
+                    ->get(['id', 'number', 'type', 'amount', 'due_date', 'status', 'issued_at', 'paid_date', 'reject_reason']),
             ] : null,
             'budget' => $canViewBudget ? $budgetService->overview($project) : null,
             'canManageBudget' => $canViewBudget && $user->can('manageBudget', $project) && ! $project->isClosed(),

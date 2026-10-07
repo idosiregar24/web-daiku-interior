@@ -52,6 +52,17 @@ final class InvoiceLetter
         [$rows, $adjustments] = match (true) {
             $isService && $quotation && $quotation->items->isNotEmpty() => self::serviceRows($quotation, $job),
             $termin !== null => self::terminRows($termin, $quotation, $amount),
+            // Sprint 17 Sub 06 (K2) — a DP billed from the RAB before the project (and its termin) exists.
+            $invoice->type === InvoiceType::Dp && ($term = $quotation?->loadMissing('paymentTerms')->upfrontTerm()) !== null => [[self::row(
+                1,
+                trim(implode(' ', array_filter([
+                    preg_match('/^termin\b/i', (string) $term->label) ? 'DP' : $term->label,
+                    self::percent($term->percentage).'%',
+                    'dari '.trim($quotation->title().' '.$quotation->letter_number),
+                ]))),
+                null,
+                $amount,
+            )], []],
             default => [[self::row(1, $job, null, $amount)], []],
         };
 

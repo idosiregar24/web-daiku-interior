@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 
 class Quotation extends Model
@@ -193,10 +195,41 @@ class Quotation extends Model
     {
         return $query
             ->where('status', QuotationStatus::ClientApproved->value)
-            ->whereIn('type', [QuotationType::Survey->value, QuotationType::Desain->value])
             ->whereDoesntHave('invoices')
+            ->where(fn (Builder $kind) => $kind
+                ->whereIn('type', [QuotationType::Survey->value, QuotationType::Desain->value])
+                // Sprint 17 Sub 06 (K2) — a RAB Proyek's DP is billed right away, before the CEO opens the project.
+                ->orWhere(fn (Builder $project) => $project->billableUpfront()))
             ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
                 ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
+    }
+
+    /**
+     * Sprint 17 Sub 06 (K2) — a main RAB Proyek (not a RAB Tambahan) whose
+     * project isn't opened yet and whose scheme has a "di muka" payment:
+     * its DP invoice can be issued now (InvoiceService::issueForQuotation()),
+     * and is attached to the DP termin when the CEO opens the project
+     * (TerminService::attachUpfrontInvoice()).
+     */
+    public function scopeBillableUpfront(Builder $query): Builder
+    {
+        return $query
+            ->where('type', QuotationType::Proyek->value)
+            ->whereNull('parent_quotation_id')
+            ->whereDoesntHave('openedProject')
+            ->whereHas('paymentTerms', fn (Builder $term) => $term->where('trigger', PaymentTermTrigger::DiMuka->value));
+    }
+
+    /** The scheme's first "di muka" row — what the early DP invoice bills. */
+    public function upfrontTerm(): ?QuotationPaymentTerm
+    {
+        return $this->paymentTerms->first(fn (QuotationPaymentTerm $term) => $term->trigger === PaymentTermTrigger::DiMuka);
+    }
+
+    /** The project opened from this RAB Fix (`projects.quotation_id`), if the CEO opened it. */
+    public function openedProject(): HasOne
+    {
+        return $this->hasOne(Project::class, 'quotation_id');
     }
 
     /**

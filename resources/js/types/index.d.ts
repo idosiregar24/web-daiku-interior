@@ -964,7 +964,7 @@ export interface Termin {
     milestone_name?: string | null;
     /** Sprint 12 #20 — the invoice Marketing issued for it. */
     invoice_id?: number | null;
-    invoice?: Pick<Invoice, 'id' | 'number' | 'status'> | null;
+    invoice?: (Pick<Invoice, 'id' | 'number' | 'status'> & Partial<Pick<Invoice, 'amount' | 'reject_reason'>>) | null;
     termin_number: number;
     /** DECIMAL(5,2) since Sprint 12 — a scheme row may be 33,33 %. */
     percentage: string | number;

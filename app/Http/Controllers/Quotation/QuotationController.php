@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Quotation;
 
-use App\Enums\InvoiceType;
 use App\Enums\QuotationStatus;
 use App\Exports\QuotationExport;
 use App\Http\Controllers\Controller;
@@ -18,6 +17,7 @@ use App\Models\QuotationItemReview;
 use App\Models\SiteSetting;
 use App\Models\Unit;
 use App\Services\DesignService;
+use App\Services\InvoiceService;
 use App\Services\QuotationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
@@ -109,11 +109,14 @@ class QuotationController extends Controller
                 ? $quotation->currentShareLink()?->url()
                 : null,
             // Sprint 12 #20 — the invoice of an approved Jasa Survey / Jasa Desain RAB.
-            'invoices' => $quotation->invoices()->get(['id', 'quotation_id', 'number', 'type', 'amount', 'due_date', 'status']),
-            'canIssueInvoice' => $user->hasAnyRole(['MARKETING', 'SUPERADMIN'])
-                && $quotation->status === QuotationStatus::ClientApproved
-                && InvoiceType::forQuotation($quotation->type) !== null
-                && ! $quotation->invoices()->exists(),
+            'invoices' => $quotation->invoices()->get(['id', 'quotation_id', 'number', 'type', 'amount', 'due_date', 'status', 'reject_reason']),
+            // Sprint 17 Sub 07 — "Kirim Bukti Bayar" on the invoice rows here.
+            'canSubmitProof' => $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']),
+            // Sprint 17 Sub 06 (K2) — also a RAB Proyek's DP before the project is opened.
+            'issuableInvoice' => $issuable = $user->hasAnyRole(['MARKETING', 'SUPERADMIN'])
+                ? app(InvoiceService::class)->issuableFor($quotation)
+                : null,
+            'canIssueInvoice' => $issuable !== null,
             // Sprint 12 #18 / D6 — the lead's Arsitek ↔ Estimator thread, when it has a design.
             'discussion' => ($design = Design::where('lead_id', $quotation->lead_id)->first())
                 ? app(DesignService::class)->threadFor($design, $user)

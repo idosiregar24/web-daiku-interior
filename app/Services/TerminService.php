@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\FinanceCategory;
 use App\Enums\FinanceTransactionType;
+use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\MilestoneStatus;
 use App\Enums\PaymentTermTrigger;
@@ -358,6 +359,55 @@ class TerminService
 
             return $locked->fresh();
         });
+    }
+
+    /**
+     * Sprint 17 Sub 06 (K2) — "Buka Proyek" after Marketing already billed
+     * the DP from the approved RAB Proyek (InvoiceService::issueForQuotation()):
+     * that invoice becomes the DP termin's invoice instead of a second one.
+     * The termin is INVOICED (and already reminded, so it never enters the
+     * termin-invoice queue); a payment Finance verified before the project
+     * existed is attached to the project and settles the termin — the
+     * income itself was booked once, at verification.
+     *
+     * @param  Collection<int, Termin>  $termins  the project's freshly created termins
+     */
+    public function attachUpfrontInvoice(Project $project, Quotation $quotation, Collection $termins, User $actor): ?Invoice
+    {
+        $invoice = Invoice::query()
+            ->where('quotation_id', $quotation->id)
+            ->where('type', InvoiceType::Dp->value)
+            ->whereNull('termin_id')
+            ->lockForUpdate()
+            ->first();
+        $termin = $termins->firstWhere('payment_term_id', $quotation->loadMissing('paymentTerms')->upfrontTerm()?->id);
+
+        if ($invoice === null || $termin === null) {
+            return null;
+        }
+
+        $termin->update([
+            'invoice_id' => $invoice->id,
+            'status' => TerminStatus::Invoiced->value,
+            'invoice_reminded_at' => now(),
+        ]);
+        $invoice->update(['project_id' => $project->id, 'termin_id' => $termin->id]);
+
+        if ($invoice->finance_transaction_id !== null) {
+            FinanceTransaction::whereKey($invoice->finance_transaction_id)->whereNull('project_id')->update(['project_id' => $project->id]);
+        }
+
+        $this->auditLogService->record('finance.invoice_attached_to_termin', $invoice, ['termin_id' => null, 'project_id' => null], [
+            'termin_id' => $termin->id,
+            'project_id' => $project->id,
+            'finance_transaction_id' => $invoice->finance_transaction_id,
+        ], $actor);
+
+        if ($invoice->status === InvoiceStatus::Terverifikasi) {
+            $this->settleFromInvoice($termin, $invoice, $invoice->verifier ?? $actor);
+        }
+
+        return $invoice;
     }
 
     /**

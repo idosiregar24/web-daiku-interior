@@ -11,6 +11,7 @@ use App\Enums\MaterialRequestStatus;
 use App\Enums\OvertimeStatus;
 use App\Enums\QaStatus;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Enums\ReviewStatus;
 use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
@@ -158,6 +159,7 @@ class ActionInboxService
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
             $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
+            $groups[] = $this->invoicesAwaitingProof($user);
         }
 
         if ($user->hasRole('FINANCE')) {
@@ -442,13 +444,39 @@ class ActionInboxService
         return $this->group(
             'quotation-invoice', 'RAB disetujui klien — terbitkan invoice', 'Klien sudah setuju; terbitkan invoice agar bisa dibayar.', 'invoice', 'quotations.index',
             route('quotations.index', ['awaiting_invoice' => 1]),
-            Quotation::query()->awaitingInvoice($user)->with('lead:id,client_name')->oldest('client_approved_at')->oldest('id'),
+            Quotation::query()->awaitingInvoice($user)->with(['lead:id,client_name', 'paymentTerms'])->oldest('client_approved_at')->oldest('id'),
             fn (Quotation $q) => [
                 'id' => $q->id,
                 'title' => $q->lead?->client_name ?? "Quotation #{$q->id}",
-                'subtitle' => "{$q->title()} v{$q->version} · {$this->rupiah($q->total_amount)}",
+                // Sprint 17 Sub 06 (K2) — a RAB Proyek bills its DP, not the whole RAB.
+                'subtitle' => $q->type === QuotationType::Proyek
+                    ? "DP {$q->title()} · {$this->rupiah($q->upfrontTerm()?->amount)}"
+                    : "{$q->title()} v{$q->version} · {$this->rupiah($q->total_amount)}",
                 'at' => $q->client_approved_at,
                 'href' => route('quotations.show', ['quotation' => $q->id, 'action' => 'invoice']),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 17 Sub 07 — issued invoices still waiting for the client's
+     * payment proof (incl. ones Finance sent back), nearest due date first.
+     * The item opens the "Kirim Bukti Bayar" dialog on the invoice list.
+     */
+    private function invoicesAwaitingProof(User $user): ?array
+    {
+        return $this->group(
+            'invoice-proof', 'Invoice menunggu bukti bayar', 'Setelah klien membayar, upload link bukti transfernya untuk diverifikasi Finance.', 'invoice', 'finance.invoices.index',
+            route('finance.invoices.index', ['awaiting_proof' => 1]),
+            Invoice::query()->awaitingProof($user)->with('lead:id,client_name')->orderBy('due_date')->orderBy('id'),
+            fn (Invoice $invoice) => [
+                'id' => $invoice->id,
+                'title' => $invoice->lead?->client_name ?? $invoice->number,
+                'subtitle' => $invoice->reject_reason
+                    ? "{$invoice->number} · ditolak Finance: {$invoice->reject_reason}"
+                    : "{$invoice->number} · {$this->rupiah($invoice->amount)} · jatuh tempo ".$invoice->due_date?->translatedFormat('d M Y'),
+                'at' => $invoice->rejected_at ?? $invoice->issued_at,
+                'href' => route('finance.invoices.index', ['awaiting_proof' => 1, 'proof' => $invoice->id]),
             ],
         );
     }
