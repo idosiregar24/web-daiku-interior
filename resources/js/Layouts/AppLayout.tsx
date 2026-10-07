@@ -1193,7 +1193,14 @@ function NotificationBell() {
                     )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-88 p-0">
+            {/* On a phone: the screen's width minus an 8px gutter each side (the
+                fixed 22rem left it hugging the left edge); header & footer stay
+                put, only the list scrolls, sized to the visible viewport. */}
+            <DropdownMenuContent
+                align="end"
+                collisionPadding={8}
+                className="flex w-[calc(100vw-1rem)] flex-col overflow-hidden p-0 sm:w-88"
+            >
                 <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
                     <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
                         Notifikasi
@@ -1224,7 +1231,7 @@ function NotificationBell() {
                         <p className="text-sm text-muted-foreground">Belum ada notifikasi.</p>
                     </div>
                 ) : (
-                    <div className="scrollbar-thin flex max-h-96 flex-col overflow-y-auto p-1">
+                    <div className="scrollbar-thin flex max-h-[min(24rem,60dvh)] min-h-0 flex-col overflow-y-auto overscroll-contain p-1">
                         {notifications.map((notification) => (
                             <button
                                 key={notification.id}
