@@ -17,7 +17,7 @@ import { formatDateTime, formatRupiah } from '@/lib/format';
 import type { CompanyLetter, PageProps } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { CheckCircle2, FileDown } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RequiredMark } from '@/Components/shared/RequiredMark';
 
 /** App\Http\Resources\PublicQuotationResource — the whitelist the client may see. */
@@ -87,10 +87,25 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
     const [confirmOpen, setConfirmOpen] = useState(false);
     const form = useForm<{ agree: boolean }>({ agree: false });
 
+    function closeConfirm() {
+        setConfirmOpen(false);
+        form.reset();
+        form.clearErrors();
+    }
+
+    // The dialog only makes sense while the offer can still be approved. Once
+    // the page reloads as approved — by this click, or because the client had
+    // already approved it from another tab/phone (the server then answers
+    // "sudah disetujui") — or the link went stale, close it at once: the
+    // page's own notice says what happened.
+    useEffect(() => {
+        if (state !== 'open') closeConfirm();
+    }, [state]);
+
     function approve() {
         form.post(route('public.quotation.approve', token), {
             preserveScroll: true,
-            onSuccess: () => setConfirmOpen(false),
+            onSuccess: closeConfirm,
         });
     }
 
@@ -133,13 +148,7 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                 </div>
             </div>
 
-            <Dialog
-                open={confirmOpen}
-                onOpenChange={(open) => {
-                    setConfirmOpen(open);
-                    if (!open) form.reset();
-                }}
-            >
+            <Dialog open={confirmOpen && state === 'open'} onOpenChange={(open) => (open ? setConfirmOpen(true) : closeConfirm())}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Setujui Penawaran</DialogTitle>
