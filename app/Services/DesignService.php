@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\DesignStatus;
 use App\Enums\InvoiceType;
 use App\Enums\LeadStatus;
+use App\Enums\NotificationType;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Models\Design;
@@ -286,13 +287,12 @@ class DesignService
             // PRD §4.9 "Desain ACC oleh klien → Estimator, PM". No Project
             // (and so no assigned PM) exists yet at this stage, so every
             // PM is told — same division-level addressing as Finance/QA.
-            $this->notificationService->notifyRoles(
-                ['ESTIMATOR', 'PM'],
-                'design_acc',
-                'Desain di-ACC Klien',
-                "Desain untuk \"{$design->lead->client_name}\" sudah di-ACC klien — draft quotation (RAB) siap disusun.",
-                ['design_id' => $design->id, 'quotation_id' => $quotation->id, 'lead_id' => $design->lead_id],
-            );
+            // Two types (Sprint 18): the Estimator now owes the client a
+            // RAB (P1), the PMs are only being kept informed (P3).
+            $metadata = ['design_id' => $design->id, 'quotation_id' => $quotation->id, 'lead_id' => $design->lead_id];
+            $message = "Desain untuk \"{$design->lead->client_name}\" sudah di-ACC klien — draft quotation (RAB) siap disusun.";
+            $this->notificationService->notifyRoles(['ESTIMATOR'], NotificationType::DesignAcc, 'Desain di-ACC Klien', $message, $metadata);
+            $this->notificationService->notifyRoles(['PM'], NotificationType::DesignAccPm, 'Desain di-ACC Klien', $message, $metadata);
 
             return $design->fresh();
         });
@@ -322,7 +322,7 @@ class DesignService
 
         $this->notificationService->notifyRoles(
             ['KEPALA_DESAIN'],
-            'design_awaiting_payment',
+            NotificationType::DesignAwaitingPayment,
             'Desain Disetujui Klien — Belum Bayar',
             "Klien \"{$quotation->lead->client_name}\" menyetujui RAB Jasa Desain. Desain terkunci sampai pembayarannya diverifikasi Finance.",
             ['design_id' => $design->id, 'lead_id' => $design->lead_id],
@@ -352,7 +352,7 @@ class DesignService
 
         $this->notificationService->notifyRoles(
             ['KEPALA_DESAIN'],
-            'design_ready_to_assign',
+            NotificationType::DesignReadyToAssign,
             'Desain Siap Dikerjakan',
             "Pembayaran jasa desain \"{$design->lead->client_name}\" sudah diverifikasi — tugaskan arsiteknya.",
             ['design_id' => $design->id, 'lead_id' => $design->lead_id],
@@ -420,7 +420,7 @@ class DesignService
 
             $this->notificationService->notifyMany(
                 User::whereIn('id', [...$assistantIds->all(), $picId])->where('id', '!=', $actor->id)->get(),
-                'design_assigned',
+                NotificationType::DesignAssigned,
                 'Desain Ditugaskan',
                 "{$actor->name} menugaskan Anda pada desain \"{$design->lead->client_name}\" — deadline {$design->deadline->translatedFormat('d M Y')}.",
                 ['design_id' => $design->id],
@@ -442,7 +442,7 @@ class DesignService
 
             $design->update(['status' => DesignStatus::WaitingAccDesain->value, 'sent_to_client_at' => now()]);
 
-            $this->notifyTeam($design, $actor, 'design_sent_to_client', 'Desain Dikirim ke Klien', "{$actor->name} mengirim desain \"{$design->lead->client_name}\" ke klien.");
+            $this->notifyTeam($design, $actor, NotificationType::DesignSentToClient, 'Desain Dikirim ke Klien', "{$actor->name} mengirim desain \"{$design->lead->client_name}\" ke klien.");
 
             return $design;
         });
@@ -471,7 +471,7 @@ class DesignService
                 'note' => trim($note),
             ], $actor);
 
-            $this->notifyTeam($design, $actor, 'design_revision_requested', "Revisi Desain #{$count}", "Klien \"{$design->lead->client_name}\" minta revisi: ".trim($note));
+            $this->notifyTeam($design, $actor, NotificationType::DesignRevisionRequested, "Revisi Desain #{$count}", "Klien \"{$design->lead->client_name}\" minta revisi: ".trim($note));
 
             return $design;
         });
@@ -519,7 +519,7 @@ class DesignService
             } else {
                 $this->notificationService->notifyRoles(
                     ['ESTIMATOR'],
-                    'design_acc',
+                    NotificationType::DesignAcc,
                     'Desain Disetujui Klien',
                     "Desain \"{$lead->client_name}\" disetujui klien — dasar RAB Proyek.",
                     ['design_id' => $design->id, 'lead_id' => $lead->id],
@@ -542,14 +542,14 @@ class DesignService
             if ($requested !== null && $lead->assignee && $lead->assignee->id !== $actor->id) {
                 $this->notificationService->notify(
                     $lead->assignee,
-                    'project_rab_auto_requested',
+                    NotificationType::ProjectRabAutoRequested,
                     'RAB Proyek Otomatis Diminta',
                     "Desain \"{$lead->client_name}\" disetujui klien — permintaan RAB Proyek otomatis dikirim ke Estimator. Tidak perlu meminta lagi.",
                     ['quotation_id' => $requested->id, 'lead_id' => $lead->id],
                 );
             }
 
-            $this->notifyTeam($design, $actor, 'design_client_approved', 'Desain Disetujui Klien', "Desain \"{$lead->client_name}\" disetujui klien.");
+            $this->notifyTeam($design, $actor, NotificationType::DesignClientApproved, 'Desain Disetujui Klien', "Desain \"{$lead->client_name}\" disetujui klien.");
 
             return new DesignApproval($design, $requested, $running);
         });
@@ -594,7 +594,7 @@ class DesignService
                     ->merge($previousWriters)
                     ->merge($estimators)
                     ->filter(fn (?User $user) => $user && $user->id !== $actor->id && $user->is_active),
-                'design_discussion',
+                NotificationType::DesignDiscussion,
                 "Diskusi Desain — {$design->lead->client_name}",
                 "{$actor->name}: ".str($message->body)->limit(120),
                 ['design_id' => $design->id, 'quotation_id' => $quotationId],
@@ -652,7 +652,7 @@ class DesignService
     }
 
     /** The design's architects (PIC + assistants), minus whoever acted. */
-    private function notifyTeam(Design $design, User $actor, string $type, string $title, string $message): void
+    private function notifyTeam(Design $design, User $actor, NotificationType $type, string $title, string $message): void
     {
         $this->notificationService->notifyMany(
             collect([$design->pic])->merge($design->staff)->filter(fn (?User $user) => $user && $user->id !== $actor->id),

@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\KpiIndicatorSource;
 use App\Enums\KpiPeriodStatus;
 use App\Enums\LeadStatus;
+use App\Enums\LeadSurveyStatus;
 use App\Enums\MaterialRequestStatus;
 use App\Enums\OvertimeStatus;
 use App\Enums\QaStatus;
@@ -20,6 +21,7 @@ use App\Models\Design;
 use App\Models\Invoice;
 use App\Models\KpiScore;
 use App\Models\Lead;
+use App\Models\LeadSurvey;
 use App\Models\OvertimeRequest;
 use App\Models\PerformanceReview;
 use App\Models\ProjectMaterial;
@@ -156,6 +158,7 @@ class ActionInboxService
 
         if ($user->hasRole('MARKETING')) {
             $groups[] = $this->dueFollowUps($user);
+            $groups[] = $this->surveysReady($user);
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
             $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
@@ -170,6 +173,13 @@ class ActionInboxService
 
         if ($user->hasRole('KEPALA_DESAIN')) {
             $groups[] = $this->designsToAssign($user);
+        }
+
+        // Sprint 18 Sub 06 — the architect had no queue at all, so a client's
+        // revision request (P1) vanished once its notification was read.
+        if ($user->hasRole('DESIGNER')) {
+            $groups[] = $this->ownDesigns($user, [DesignStatus::RevisiDesain], 'design-revision', 'Revisi desain diminta klien', 'Perbaiki desain sesuai catatan klien lalu kirim lagi.');
+            $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain], 'design-work', 'Desain sedang Anda kerjakan', 'Desain yang ditugaskan ke Anda dan belum dikirim ke klien.');
         }
 
         if ($user->hasRole('LOGISTICS')) {
@@ -434,6 +444,32 @@ class ActionInboxService
     }
 
     /**
+     * Sprint 18 Sub 06 — paid surveys ("Survey Siap Berangkat", P1) on this
+     * Marketing user's leads, until the survey is done or cancelled.
+     */
+    private function surveysReady(User $user): ?array
+    {
+        return $this->group(
+            'survey-ready', 'Survey siap berangkat', 'Survey sudah dibayar klien — jadwalkan & berangkat.', 'followup', 'crm.leads.index',
+            route('crm.leads.index'),
+            LeadSurvey::query()
+                ->where('status', LeadSurveyStatus::Siap->value)
+                ->whereHas('lead', fn (Builder $q) => $q->where('assigned_to', $user->id))
+                ->with('lead:id,client_name')
+                ->orderBy('scheduled_at'),
+            fn (LeadSurvey $survey) => [
+                'id' => $survey->id,
+                'title' => $survey->lead?->client_name ?? "Survey #{$survey->id}",
+                'subtitle' => $survey->scheduled_at
+                    ? 'Jadwal '.Carbon::parse($survey->scheduled_at)->translatedFormat('d M Y H:i')
+                    : 'Belum dijadwalkan',
+                'at' => $survey->updated_at,
+                'href' => route('crm.leads.show', $survey->lead_id),
+            ],
+        );
+    }
+
+    /**
      * Sprint 17 Sub 03 (T3) — Jasa Survey / Jasa Desain RABs the client
      * approved, invoice not issued yet (Quotation::awaitingInvoice(), same
      * as the Quotation list's `awaiting_invoice` filter), oldest approval
@@ -552,6 +588,35 @@ class ActionInboxService
             'design-assign', 'Desain menunggu penugasan', 'Jasa Desain sudah dibayar — tugaskan arsitek.', 'design', 'design.index',
             route('design.index', ['status' => DesignStatus::MenungguPenugasan->value]),
             Design::query()->visibleTo($user)->byStatus(DesignStatus::MenungguPenugasan->value)->with('lead:id,client_name')->oldest('updated_at'),
+            fn (Design $design) => [
+                'id' => $design->id,
+                'title' => $design->lead?->client_name ?? "Desain #{$design->id}",
+                'subtitle' => $design->jenis_project,
+                'at' => $design->updated_at,
+                'href' => route('design.show', $design),
+            ],
+        );
+    }
+
+    /**
+     * Designs where this architect is PIC or on the team (Design::visibleTo's
+     * own-design rule, applied even to a Kepala Desain — this is *their* work,
+     * not the division's), oldest first.
+     *
+     * @param  list<DesignStatus>  $statuses
+     */
+    private function ownDesigns(User $user, array $statuses, string $key, string $label, string $description): ?array
+    {
+        return $this->group(
+            $key, $label, $description, 'design', 'design.index',
+            route('design.index'),
+            Design::query()
+                ->where(fn (Builder $q) => $q
+                    ->where('pic_id', $user->id)
+                    ->orWhereHas('staff', fn (Builder $staff) => $staff->whereKey($user->id)))
+                ->whereIn('status', array_map(fn (DesignStatus $status) => $status->value, $statuses))
+                ->with('lead:id,client_name')
+                ->oldest('updated_at'),
             fn (Design $design) => [
                 'id' => $design->id,
                 'title' => $design->lead?->client_name ?? "Desain #{$design->id}",

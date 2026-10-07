@@ -14,11 +14,10 @@ COPY . .
 # docker-compose.yml bind-mounts the host checkout, public/build included.
 ARG VITE_APP_NAME="Daiku Interior"
 ARG VITE_BROADCAST_CONNECTION=log
-ARG VITE_PUSHER_APP_KEY=
-ARG VITE_PUSHER_HOST=
-ARG VITE_PUSHER_PORT=443
-ARG VITE_PUSHER_SCHEME=https
-ARG VITE_PUSHER_APP_CLUSTER=mt1
+ARG VITE_REVERB_APP_KEY=
+ARG VITE_REVERB_HOST=
+ARG VITE_REVERB_PORT=443
+ARG VITE_REVERB_SCHEME=https
 RUN npm run build
 
 # --- Stage 2: nginx serving the built public/ (docker-compose.prod.yml) ---

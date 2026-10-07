@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Notification;
 use App\Services\NotificationService;
+use App\Support\NotificationTarget;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -12,8 +13,8 @@ use Inertia\Response;
 /**
  * PRD §7.1 "Notification (own)" row — every role gets R on their own
  * notifications only, enforced here (not a Policy — every query is
- * scoped to the current user, plus a plain ownership check on the one
- * per-row action).
+ * scoped to the current user, plus a plain ownership check on the
+ * per-row actions).
  */
 class NotificationController extends Controller
 {
@@ -35,20 +36,33 @@ class NotificationController extends Controller
         ]);
     }
 
-    public function markAsRead(Request $request, Notification $notification): RedirectResponse
+    /**
+     * Sprint 18 — a GET so a device push can open it straight from the
+     * service worker. Marking one's own notification read is the only side
+     * effect, and the redirect target always comes from route(), never from
+     * the request, so it can't be turned into an open redirect.
+     */
+    public function open(Request $request, Notification $notification, NotificationService $service): RedirectResponse
     {
         abort_unless($notification->user_id === $request->user()->id, 403);
 
-        $notification->update(['is_read' => true]);
+        $service->markAsRead($notification);
+
+        return redirect()->to(NotificationTarget::for($notification));
+    }
+
+    public function markAsRead(Request $request, Notification $notification, NotificationService $service): RedirectResponse
+    {
+        abort_unless($notification->user_id === $request->user()->id, 403);
+
+        $service->markAsRead($notification);
 
         return back();
     }
 
-    public function markAllAsRead(Request $request): RedirectResponse
+    public function markAllAsRead(Request $request, NotificationService $service): RedirectResponse
     {
-        Notification::where('user_id', $request->user()->id)
-            ->where('is_read', false)
-            ->update(['is_read' => true]);
+        $service->markAllAsRead($request->user());
 
         return back()->with('success', 'Semua notifikasi ditandai sudah dibaca.');
     }

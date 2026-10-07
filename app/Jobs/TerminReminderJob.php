@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\NotificationType;
 use App\Enums\TerminStatus;
 use App\Models\Termin;
 use App\Models\User;
@@ -42,7 +43,7 @@ class TerminReminderJob implements ShouldQueue
         foreach ($dueTermins as $termin) {
             $notificationService->notifyMany(
                 $financeUsers,
-                'termin_reminder',
+                NotificationType::TerminReminder,
                 'Termin Jatuh Tempo H-3',
                 "Termin #{$termin->termin_number} proyek \"{$termin->project->name}\" dijadwalkan {$termin->scheduled_date->translatedFormat('d F Y')} (3 hari lagi).",
                 ['termin_id' => $termin->id, 'project_id' => $termin->project_id],

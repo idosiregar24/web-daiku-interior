@@ -1,6 +1,7 @@
 import '../css/app.css';
 import './bootstrap';
 
+import { withUnread } from '@/lib/unreadTitle';
 import type { SiteBranding } from '@/types';
 import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
@@ -23,9 +24,11 @@ function syncFavicon(props: Record<string, unknown>) {
     }
 }
 
-// Sprint 13 H7 — installable as an app (public/sw.js caches nothing).
-// Production only: in dev a worker would only get in Vite's way.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// Sprint 13 H7 — installable as an app (public/sw.js caches nothing and
+// has no fetch handler, so it never gets in Vite's way). Sprint 18: it
+// also receives Web Push, hence registered in dev too (http://localhost
+// counts as a secure context; a plain-http .test host does not).
+if (window.isSecureContext && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(() => {
             // Not installable then — the site works exactly the same.
@@ -34,7 +37,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 }
 
 createInertiaApp({
-    title: (title) => (title ? `${title} - ${siteName}` : siteName),
+    // Sprint 18 — prefixed with the unread notification count (lib/unreadTitle).
+    title: (title) => withUnread(title ? `${title} - ${siteName}` : siteName),
     resolve: (name) =>
         resolvePageComponent(
             `./Pages/${name}.tsx`,

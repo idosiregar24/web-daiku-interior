@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Telescope\TelescopeApplicationServiceProvider;
+use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,17 @@ class AppServiceProvider extends ServiceProvider
         if (class_exists(TelescopeApplicationServiceProvider::class)) {
             $this->app->register(TelescopeServiceProvider::class);
         }
+
+        // Sprint 18 Sub 04 — the Web Push client, built from config only when
+        // asked for (WebPushService checks the keys first); bound here so
+        // tests can swap it for a fake push service.
+        $this->app->bind(WebPush::class, fn () => new WebPush([
+            'VAPID' => [
+                'subject' => config('services.webpush.subject'),
+                'publicKey' => config('services.webpush.public_key'),
+                'privateKey' => config('services.webpush.private_key'),
+            ],
+        ], ['TTL' => 24 * 3600]));
     }
 
     /**

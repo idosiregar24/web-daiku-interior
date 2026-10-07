@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Models\BudgetLine;
 use App\Models\BudgetOverrunRequest;
 use App\Models\BudgetPost;
@@ -123,7 +124,7 @@ class BudgetRealizationService
 
             $this->notificationService->notifyRoles(
                 ['CEO'],
-                'budget_overrun_requested',
+                NotificationType::BudgetOverrunRequested,
                 'Persetujuan Overrun Anggaran',
                 "{$actor->name} minta persetujuan realisasi \"{$line->description}\" di pos {$post->name} ({$post->project->name}) — melebihi anggaran {$this->rupiah($overCents)}.",
                 ['project_id' => $post->project_id, 'overrun_request_id' => $request->id],
@@ -167,7 +168,7 @@ class BudgetRealizationService
 
             $this->notificationService->notifyMany(
                 [$request->requester],
-                $approve ? 'budget_overrun_approved' : 'budget_overrun_rejected',
+                $approve ? NotificationType::BudgetOverrunApproved : NotificationType::BudgetOverrunRejected,
                 $approve ? 'Overrun Anggaran Disetujui' : 'Overrun Anggaran Ditolak',
                 $approve
                     ? "CEO menyetujui realisasi \"{$request->line->description}\" di pos {$post->name} — sudah tercatat."

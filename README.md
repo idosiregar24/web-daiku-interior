@@ -15,7 +15,7 @@ Finance, Logistik, Notifikasi, dan Analytics dalam satu platform.
 | Backend | Laravel 11 (**PHP 8.4+**), MySQL 8.0/8.4, Spatie Permission (RBAC) |
 | Frontend | Inertia v2 + React 18 + TypeScript, Tailwind CSS v4, shadcn/ui |
 | Queue/Cache | Redis (Predis) — `database` driver dipakai selama Redis lokal belum aktif |
-| Real-time | Laravel Echo + Soketi (self-hosted, Pusher-protocol) |
+| Real-time | Laravel Echo + Laravel Reverb (self-hosted, Pusher-protocol — menggantikan Soketi sejak Sprint 18) |
 | Ops/Debug | Laravel Horizon, Laravel Telescope (dev) |
 | Export | DomPDF, Laravel Excel |
 | Testing | Pest PHP |
@@ -94,15 +94,22 @@ Login awal (dari seeder, ganti password setelah login pertama — semua akun pak
   02:00 — lihat
   `routes/console.php`): production butuh cron
   `* * * * * php artisan schedule:run`; lokal: `php artisan schedule:work`.
-- **Notifikasi real-time**: set `BROADCAST_CONNECTION=pusher` (otomatis
-  diteruskan ke frontend lewat `VITE_BROADCAST_CONNECTION`) + Soketi jalan
-  (`docker compose up -d soketi`), lalu `npm run build`. Dengan `log`
-  (default lokal) notifikasi tetap tersimpan & tampil saat navigasi, hanya
-  tidak live.
+- **Notifikasi real-time** (Sprint 18): `BROADCAST_CONNECTION=reverb`
+  (otomatis diteruskan ke frontend lewat `VITE_BROADCAST_CONNECTION`) +
+  `php artisan reverb:start` (port 8080) + queue worker
+  (`php artisan queue:listen --queue=notifications,default`) — `composer dev`
+  menjalankan semuanya. Tanpa Reverb/worker notifikasi tetap tersimpan;
+  lonceng mengecek ulang tiap 60 detik, hanya tidak seketika.
+- **Notifikasi ke HP/laptop (Web Push)**: isi `VAPID_PUBLIC_KEY` /
+  `VAPID_PRIVATE_KEY` dari `php artisan daiku:vapid-keys`, lalu tiap orang
+  menekan "Aktifkan" di lonceng → Izinkan. Hanya lewat HTTPS (atau
+  `http://localhost`); iPhone hanya bila Daiku ditambahkan ke Layar Utama
+  (iOS 16.4+). Di Windows, worker yang mengirim push butuh env
+  `OPENSSL_CONF` → `<folder php>\extras\ssl\openssl.cnf`.
 - **Docker Compose** (belum divalidasi jalan penuh di semua mesin — lihat
   catatan di `.claude/plan/README.md`): `docker compose up -d`.
-- Semua service dalam satu perintah (server + queue listener + log tail +
-  vite dev): `composer run dev`.
+- Semua service dalam satu perintah (server :8010 + queue listener +
+  scheduler + Reverb + log tail + vite dev): `composer run dev`.
 
 ## Produksi
 
@@ -137,9 +144,10 @@ memakai dua file: `docker-compose.yml` + `docker-compose.prod.yml`:
   `/.well-known/acme-challenge/`) dengan sertifikat Let's Encrypt, HSTS +
   security header (`docker/nginx/production.conf`). Laravel memaksa URL
   `https` saat `APP_ENV=production` (`AppServiceProvider`).
-- MySQL, Redis, Soketi **tidak** membuka port ke host. Browser terhubung ke
-  Soketi lewat `wss://APP_DOMAIN/app/...` (di-proxy nginx); Laravel memakai
-  `soketi:6001` di jaringan internal.
+- MySQL, Redis, Reverb **tidak** membuka port ke host. Browser terhubung ke
+  Reverb lewat `wss://APP_DOMAIN/app/...` (di-proxy nginx); Laravel memakai
+  `reverb:8080` di jaringan internal (`REVERB_HOST=reverb`,
+  `REVERB_ALLOWED_ORIGINS=<APP_DOMAIN>`).
 
 Setup pertama di server:
 

@@ -2,6 +2,7 @@ import { TaskActionSheet } from '@/Components/modules/tasks/TaskActionSheet';
 import { type FieldTask, TaskCard } from '@/Components/modules/tasks/TaskCard';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Notice } from '@/Components/shared/Notice';
+import { PushOptIn } from '@/Components/shared/PushOptIn';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PageProps } from '@/types';
 import { Head, usePage } from '@inertiajs/react';
@@ -65,6 +66,9 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                     {greeting(new Date().getHours())}, {firstName}
                 </h1>
             </div>
+
+            {/* Sprint 18 — a Tukang's phone rings for new tasks and the 21:00 form deadline. */}
+            <PushOptIn hideWhenOn className="mb-4" />
 
             {isWorkDay ? (
                 <>

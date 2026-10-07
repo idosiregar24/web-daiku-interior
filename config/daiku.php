@@ -21,6 +21,19 @@ return [
     ],
 
     /*
+     * Sprint 18 Sub 06 (K3) — an unopened "klien menunggu" (P1) notification
+     * rings the devices once more after `after_minutes`, only on working
+     * days (daily_form.work_days) between `from` and `until` WIB. Older than
+     * `max_age_hours` is left to "Perlu Tindakan" (RepushClientWaitingJob).
+     */
+    'notification_repush' => [
+        'after_minutes' => 60,
+        'from' => '08:00',
+        'until' => '17:00',
+        'max_age_hours' => 24,
+    ],
+
+    /*
      * Sprint 15 K2 — letter numbers "377/OFF/Daiku/IX/2026" (LetterNumberService).
      */
     'letter' => [

@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\MilestoneStatus;
+use App\Enums\NotificationType;
 use App\Enums\QaStatus;
 use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
 use App\Events\NotificationCreated;
 use App\Jobs\DailyFormReminderJob;
+use App\Jobs\DeliverNotificationJob;
 use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
 use App\Models\Milestone;
@@ -30,6 +32,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(fn () => $this->seed(RoleSeeder::class));
@@ -121,7 +124,7 @@ test('notify broadcasts NotificationCreated on the recipient private channel', f
     Event::fake([NotificationCreated::class]);
     $user = userWithRole('PM');
 
-    app(NotificationService::class)->notify($user, 'test', 'Judul', 'Pesan');
+    app(NotificationService::class)->notify($user, NotificationType::TaskAssigned, 'Judul', 'Pesan');
 
     Event::assertDispatched(
         NotificationCreated::class,
@@ -135,7 +138,7 @@ test('notifications inside a rolled-back transaction are neither kept nor broadc
 
     try {
         DB::transaction(function () use ($user) {
-            app(NotificationService::class)->notify($user, 'test', 'Judul', 'Pesan');
+            app(NotificationService::class)->notify($user, NotificationType::TaskAssigned, 'Judul', 'Pesan');
 
             throw new RuntimeException('rollback');
         });
@@ -150,15 +153,85 @@ test('a broadcast failure never breaks the action that notified', function () {
     Broadcast::shouldReceive('event')->andThrow(new RuntimeException('Soketi down'));
     $user = userWithRole('PM');
 
-    $notification = app(NotificationService::class)->notify($user, 'test', 'Judul', 'Pesan');
+    $notification = app(NotificationService::class)->notify($user, NotificationType::TaskAssigned, 'Judul', 'Pesan');
 
     expect($notification->exists)->toBeTrue();
+});
+
+test('a real trigger (submitting a RAB) still succeeds while the WebSocket server is down', function () {
+    Broadcast::shouldReceive('event')->andThrow(new RuntimeException('Reverb down'));
+    $pm = userWithRole('PM');
+    $quotation = Quotation::factory()->create();
+    QuotationItem::factory()->create(['quotation_id' => $quotation->id]);
+
+    app(QuotationService::class)->submit($quotation);
+
+    expect($quotation->fresh()->status->value)->toBe('SUBMITTED')
+        ->and(notificationsFor($pm, 'quotation_submitted'))->toHaveCount(1);
+});
+
+test('delivery is queued on the notifications queue, one job per stored row', function () {
+    Queue::fake();
+    $pm = userWithRole('PM');
+    $ceo = userWithRole('CEO');
+
+    app(NotificationService::class)->notifyMany([$pm, $ceo, $pm], NotificationType::TaskAssigned, 'Judul', 'Pesan');
+
+    Queue::assertPushedOn('notifications', DeliverNotificationJob::class);
+    Queue::assertPushed(DeliverNotificationJob::class, 2);
+    Queue::assertPushed(
+        DeliverNotificationJob::class,
+        fn (DeliverNotificationJob $job) => $job->notification->user_id === $pm->id,
+    );
+});
+
+test('delivery waits for the transaction and is dropped on rollback', function () {
+    Queue::fake();
+    $user = userWithRole('PM');
+
+    DB::transaction(function () use ($user) {
+        app(NotificationService::class)->notify($user, NotificationType::TaskAssigned, 'Judul', 'Pesan');
+
+        Queue::assertNothingPushed();
+    });
+    Queue::assertPushed(DeliverNotificationJob::class, 1);
+
+    try {
+        DB::transaction(function () use ($user) {
+            app(NotificationService::class)->notify($user, NotificationType::TaskAssigned, 'Lagi', 'Pesan');
+
+            throw new RuntimeException('rollback');
+        });
+    } catch (RuntimeException) {
+    }
+
+    Queue::assertPushed(DeliverNotificationJob::class, 1);
+});
+
+test('the delivery job broadcasts the stored row and never writes a new one', function () {
+    Event::fake([NotificationCreated::class]);
+    $notification = Notification::factory()->create();
+
+    (new DeliverNotificationJob($notification))->handle();
+    (new DeliverNotificationJob($notification))->handle();
+
+    Event::assertDispatchedTimes(NotificationCreated::class, 2);
+    expect(Notification::count())->toBe(1);
+});
+
+test('a failed broadcast makes the delivery job throw so the worker retries it', function () {
+    Broadcast::shouldReceive('event')->andThrow(new RuntimeException('Reverb down'));
+    $job = new DeliverNotificationJob(Notification::factory()->create());
+
+    expect(fn () => $job->handle())->toThrow(RuntimeException::class)
+        ->and($job->tries)->toBe(3)
+        ->and($job->backoff())->toBe([5, 30, 120]);
 });
 
 test('notifyMany sends one row per person even if listed twice', function () {
     $user = userWithRole('CEO');
 
-    app(NotificationService::class)->notifyMany([$user, $user, null], 'test', 'Judul', 'Pesan');
+    app(NotificationService::class)->notifyMany([$user, $user, null], NotificationType::TaskAssigned, 'Judul', 'Pesan');
 
     expect(notificationsFor($user))->toHaveCount(1);
 });
@@ -168,7 +241,7 @@ test('notifyRoles skips deactivated users', function () {
     $inactive = userWithRole('FINANCE');
     $inactive->update(['is_active' => false]);
 
-    app(NotificationService::class)->notifyRoles(['FINANCE'], 'test', 'Judul', 'Pesan');
+    app(NotificationService::class)->notifyRoles(['FINANCE'], NotificationType::TaskAssigned, 'Judul', 'Pesan');
 
     expect(notificationsFor($active))->toHaveCount(1)
         ->and(notificationsFor($inactive))->toHaveCount(0);
@@ -195,8 +268,8 @@ test('trigger: a returned RAB notifies its estimator; a final RAB notifies the l
 
     reviewQuotation($quotation, userWithRole('CEO'), [], 'Harga terlalu tinggi');
 
-    expect(notificationsFor($quotation->creator, 'quotation_rejected'))->toHaveCount(1)
-        ->and(notificationsFor($quotation->lead->assignee, 'quotation_rejected'))->toHaveCount(0);
+    expect(notificationsFor($quotation->creator, 'quotation_returned'))->toHaveCount(1)
+        ->and(notificationsFor($quotation->lead->assignee, 'quotation_returned'))->toHaveCount(0);
 
     $final = Quotation::factory()->create(['status' => 'APPROVED_INTERNAL']);
     app(QuotationService::class)->sendToMarketing($final, userWithRole('ESTIMATOR'));
@@ -289,7 +362,7 @@ test('trigger: the overtime chain notifies PM, then staff and Finance, then staf
 
     $service->pmDecision($overtime, 'approve', $pm);
     expect(notificationsFor($staff, 'overtime_approved_pm'))->toHaveCount(1)
-        ->and(notificationsFor($finance, 'overtime_approved_pm'))->toHaveCount(1);
+        ->and(notificationsFor($finance, 'overtime_awaiting_finance'))->toHaveCount(1);
 
     $service->financeDecision($overtime->fresh(), 'approve', $finance, null, BankAccount::factory()->create()->id);
     expect(notificationsFor($staff, 'overtime_approved_finance'))->toHaveCount(1);

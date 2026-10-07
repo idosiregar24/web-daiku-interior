@@ -42,6 +42,7 @@ email) to browse it.
 | Sprint 15 | — (di luar PRD/CSV) | — | Surat resmi RAB: kop & tanda tangan di Pengaturan, nomor surat OFF/INV, catatan & terbilang, PDF penawaran/invoice format surat, link klien format surat, riwayat RAB dengan PDF & link per RAB — 5 sub-plan di `sprint-15/` | **16 selesai / 0 sebagian / 0 belum (16)** — selesai 2026-10-06 | [sprint-15-surat-resmi-rab.md](sprint-15-surat-resmi-rab.md) |
 | Sprint 16 | — (di luar PRD/CSV) | — | Form: bintang merah `*` di label setiap field required (patokan Form Request), label "(opsional)" dihapus; data lead konsisten — No. HP angka diawali 08 + email berformat (`contact` → `phone`/`email`), kota dari master `cities` (dropdown) — 8 sub-plan di `sprint-16/` | **120 selesai / 0 sebagian / 0 belum (120)** — selesai 2026-10-07 | [sprint-16-penanda-wajib.md](sprint-16-penanda-wajib.md) |
 | Sprint 17 | — (di luar PRD/CSV) | — | Masukan uji alur klien (lead #37): salin link di HTTP + link klien lokal, survey luar kota tak berubah setelah bayar (tautan survey ↔ RAB Survey), klien ACC → antrean "terbitkan invoice" Marketing, info RAB Proyek otomatis, invoice bertata letak tagihan, invoice DP langsung setelah klien ACC, tombol Kirim Bukti Bayar di tempat invoice — 7 sub-plan di `sprint-17/` | **46 selesai / 0 sebagian / 1 belum (47)** — selesai 2026-10-07; uji link dari HP sungguhan (K1) & cek browser Sub 07 belum | [sprint-17-masukan-uji-alur.md](sprint-17-masukan-uji-alur.md) |
+| Sprint 18 | — (di luar PRD/CSV) | — | Notifikasi yang benar-benar sampai: pengiriman lewat antrean (tidak memblokir request), scheduler jalan di lokal, katalog 70+ tipe dengan prioritas P1–P4 (P1 = klien menunggu), tujuan klik di backend, real-time Laravel Reverb (toast, bunyi, judul tab), Web Push ke HP/laptop, Pengaturan Notifikasi, audit trigger + push ulang P1 — 6 sub (WA/email tidak dipakai, jam tenang ditunda) | **48 selesai / 0 sebagian / 3 belum (51)** — selesai 2026-10-07; tersisa uji push di HP/laptop sungguhan (klik Izinkan; HP butuh HTTPS) | [sprint-18-notifikasi.md](sprint-18-notifikasi.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -57,6 +58,7 @@ checklist-nya.
 "Kerjakan Sprint 15 Sub 1"  →  ... Sub 5        (sprint-15/01..05)
 "Kerjakan Sprint 17 Sub 1"  →  ... Sub 7        (sprint-17/01..07)
 "Kerjakan Sprint 16 Sub 1"  →  ... Sub 8        (sprint-16/01..08)
+"Kerjakan Sprint 18 Sub 1"  →  ... Sub 6        (sprint-18-notifikasi.md §5)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini
@@ -73,6 +75,7 @@ dan checklist sub-plan untuk menemukan sub berikutnya yang belum selesai.
 - **Role & auth foundation** (Telescope, Horizon, DomPDF, Laravel Excel, Predis) sudah ter-install lebih awal sebagai bagian instalasi stack (PRD §3.2), meski tidak ada baris CSV khusus untuk itu.
 - **TanStack Table:** di-pin ke **v8.21.3** (bukan v9 yang ter-install otomatis oleh `npm install` saat "Latest"). v9 adalah major rewrite dengan API berbeda total (`createCoreRowModel` dkk., bukan lagi `useReactTable`/`getCoreRowModel`) dan dokumentasi/tutorial komunitas masih sangat minim saat ini — v8 dipilih supaya tim developer bisa mengikuti dokumentasi resmi & tutorial yang sudah mapan.
 - **CRM – Lead write access:** PRD §7.1's matrix cell says MARKETING has CRUD and CEO only R, but §4.1's business rules explicitly say "Hanya Marketing/Sales dan CEO yang bisa membuat/edit lead" — the more specific prose rule was followed (`role:CEO|MARKETING` on the write routes), not the summary matrix cell.
+- **Real-time: Laravel Reverb, bukan Soketi** (Sprint 18 K1): PRD §4.9 menyebut Soketi, tetapi Soketi tidak jalan di mesin dev Windows tanpa Docker. Reverb (first-party, PHP murni, protokol Pusher yang sama) menggantikannya di lokal, `docker-compose.yml` dan `docker-compose.prod.yml`; nginx `/app/` → `reverb:8080`. Ditambah Web Push (VAPID, `minishlink/web-push`) yang tidak ada di PRD.
 - **`bank_account_id` on `finance_transactions`:** PRD §4.7 requires every transaction to reference a bank account, but no `bank_accounts` table exists in §5.1's schema sketch. Deferred to a follow-up migration in Sprint 4 when the Finance module actually designs that table, rather than guessing its shape now.
 
 ## SUPERADMIN role + Data Master module (added 2026-08-15, outside the CSV/PRD)

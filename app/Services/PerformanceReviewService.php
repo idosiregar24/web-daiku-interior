@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DisciplinaryType;
+use App\Enums\NotificationType;
 use App\Enums\ReviewGrade;
 use App\Enums\ReviewStatus;
 use App\Models\DisciplinaryRecord;
@@ -256,7 +257,7 @@ class PerformanceReviewService
 
             $this->notificationService->notifyRoles(
                 ['CEO'],
-                'review_submitted',
+                NotificationType::ReviewSubmitted,
                 'Evaluasi Menunggu Persetujuan',
                 "Evaluasi {$review->periodLabel()} untuk {$review->employee->name} diajukan SDM dan menunggu persetujuan Anda.",
                 ['performance_review_id' => $review->id, 'employee_id' => $review->employee_id],
@@ -286,7 +287,7 @@ class PerformanceReviewService
             if ($employeeUser && $employeeUser->is_active) {
                 $this->notificationService->notify(
                     $employeeUser,
-                    'review_approved',
+                    NotificationType::ReviewApproved,
                     'Evaluasi Kinerja Tersedia',
                     "Evaluasi kinerja {$review->periodLabel()} Anda sudah disetujui. Silakan baca dan konfirmasi.",
                     $metadata,
@@ -296,7 +297,7 @@ class PerformanceReviewService
             if ($review->reviewer && $review->reviewer->is_active && $review->reviewer->id !== $employeeUser?->id) {
                 $this->notificationService->notify(
                     $review->reviewer,
-                    'review_approved_reviewer',
+                    NotificationType::ReviewApprovedReviewer,
                     'Evaluasi Disetujui CEO',
                     "Evaluasi {$review->periodLabel()} untuk {$review->employee->name} disetujui CEO.",
                     $metadata,
@@ -328,7 +329,7 @@ class PerformanceReviewService
             if ($review->reviewer && $review->reviewer->is_active) {
                 $this->notificationService->notify(
                     $review->reviewer,
-                    'review_returned',
+                    NotificationType::ReviewReturned,
                     'Evaluasi Dikembalikan CEO',
                     "Evaluasi {$review->periodLabel()} untuk {$review->employee->name} dikembalikan: {$review->return_note}",
                     ['performance_review_id' => $review->id, 'employee_id' => $review->employee_id],

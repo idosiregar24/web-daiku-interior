@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MaterialRequestStatus;
+use App\Enums\NotificationType;
 use App\Enums\ProjectMaterialSource;
 use App\Enums\ProjectStatus;
 use App\Enums\StockMovementType;
@@ -118,7 +119,7 @@ class StockService
             if (! $wasLow && $locked->fresh()->is_low_stock) {
                 $this->notificationService->notifyRoles(
                     ['LOGISTICS'],
-                    'material_low_stock',
+                    NotificationType::MaterialLowStock,
                     'Stok Material Menipis',
                     "Stok {$locked->name} tinggal {$locked->quantityLabel(Quantity::fromHundredths($newStock))} (minimum {$locked->quantityLabel($locked->min_stock)}).",
                     ['material_id' => $locked->id],

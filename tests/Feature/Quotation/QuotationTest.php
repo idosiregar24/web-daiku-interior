@@ -272,7 +272,7 @@ test('a ✘ forces the RAB back to the Estimator as a new version', function () 
         ->and($quotation->version)->toBe(2)
         ->and($wrong->only(['version', 'stage', 'item_description', 'note']))->toBe(['version' => 1, 'stage' => 'PM', 'item_description' => 'Meja', 'note' => 'Harga terlalu tinggi'])
         ->and(AuditLog::where('action', 'quotation.pm_returned')->sole()->new_values['items_wrong'])->toBe(1)
-        ->and(Notification::where('user_id', $quotation->created_by)->where('type', 'quotation_rejected')->exists())->toBeTrue();
+        ->and(Notification::where('user_id', $quotation->created_by)->where('type', 'quotation_returned')->exists())->toBeTrue();
 });
 
 test('a return without any ✘ needs a note', function () {

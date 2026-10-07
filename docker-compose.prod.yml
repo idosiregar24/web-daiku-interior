@@ -12,9 +12,9 @@
 #   volume (uploads, logs, sessions, db:backup files) are mounted.
 # - nginx serves HTTPS on 80/443 with Let's Encrypt (docker/nginx/
 #   production.conf); certbot is a run-on-demand tool service.
-# - MySQL, Redis and Soketi publish no host ports. Browsers reach Soketi only
+# - MySQL, Redis and Reverb publish no host ports. Browsers reach Reverb only
 #   through nginx at wss://APP_DOMAIN/app/…; Laravel reaches it internally at
-#   soketi:6001.
+#   reverb:8080 (REVERB_HOST=reverb).
 # - worker/scheduler run as www-data so files they create in `storage` stay
 #   writable for php-fpm. Run one-off artisan commands the same way:
 #   `docker compose … exec --user www-data app php artisan …`.
@@ -24,11 +24,10 @@
 x-vite-build-args: &vite-build-args
   VITE_APP_NAME: ${APP_NAME:-Daiku Interior}
   VITE_BROADCAST_CONNECTION: ${BROADCAST_CONNECTION:-log}
-  VITE_PUSHER_APP_KEY: ${PUSHER_APP_KEY:-}
-  VITE_PUSHER_HOST: ${APP_DOMAIN:-}
-  VITE_PUSHER_PORT: '443'
-  VITE_PUSHER_SCHEME: https
-  VITE_PUSHER_APP_CLUSTER: ${PUSHER_APP_CLUSTER:-mt1}
+  VITE_REVERB_APP_KEY: ${REVERB_APP_KEY:-}
+  VITE_REVERB_HOST: ${APP_DOMAIN:-}
+  VITE_REVERB_PORT: '443'
+  VITE_REVERB_SCHEME: https
 
 services:
   app:
@@ -83,9 +82,16 @@ services:
       timeout: 3s
       retries: 10
 
-  soketi:
+  reverb:
+    build:
+      target: app
+      args: *vite-build-args
+    user: www-data
     environment:
-      SOKETI_DEBUG: '0'
+      APP_ENV: ${APP_ENV:-production}
+    volumes: !override
+      - ./.env:/var/www/html/.env:ro
+      - daiku_storage:/var/www/html/storage
     ports: !reset []
 
   nginx:
@@ -106,7 +112,7 @@ services:
       - daiku_certbot_www:/var/www/certbot:ro
     depends_on:
       - app
-      - soketi
+      - reverb
 
   # Not started by `up` (profile). Used via `docker compose … run --rm
   # certbot …` for the first certificate and the renewal cron — see README.

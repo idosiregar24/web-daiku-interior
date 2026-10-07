@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MilestoneStatus;
+use App\Enums\NotificationType;
 use App\Models\Milestone;
 use App\Models\Project;
 use Illuminate\Validation\ValidationException;
@@ -44,7 +45,7 @@ class MilestoneService
 
             $this->notificationService->notifyMany(
                 [$project->pm],
-                'milestone_overdue',
+                NotificationType::MilestoneOverdue,
                 'Milestone Melewati Target',
                 'Milestone '.$milestones->pluck('name')->map(fn ($name) => "\"{$name}\"")->implode(', ')
                     ." di proyek \"{$project->name}\" melewati target tanggal.",

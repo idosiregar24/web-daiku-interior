@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\FinanceTransactionType;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
+use App\Enums\NotificationType;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
@@ -214,7 +215,7 @@ class InvoiceService
 
             $this->notificationService->notifyRoles(
                 ['FINANCE'],
-                'invoice_awaiting_verification',
+                NotificationType::InvoiceAwaitingVerification,
                 'Pembayaran Menunggu Verifikasi',
                 "Invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\", ".$this->rupiah($invoice->amount).') sudah dibayar — mohon verifikasi.',
                 ['invoice_id' => $invoice->id],
@@ -274,7 +275,7 @@ class InvoiceService
 
             $this->notificationService->notifyMany(
                 collect([$invoice->issuer, $invoice->lead->assignee])->filter()->unique('id'),
-                'invoice_verified',
+                NotificationType::InvoiceVerified,
                 'Pembayaran Terverifikasi',
                 "Pembayaran invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\") sudah diverifikasi Finance.",
                 ['invoice_id' => $invoice->id, 'lead_id' => $invoice->lead_id],
@@ -308,7 +309,7 @@ class InvoiceService
             $invoice->loadMissing(['issuer', 'lead.assignee']);
             $this->notificationService->notifyMany(
                 collect([$invoice->issuer, $invoice->lead->assignee, User::find($invoice->proof_submitted_by)])->filter()->unique('id'),
-                'invoice_rejected',
+                NotificationType::InvoiceRejected,
                 'Bukti Bayar Ditolak',
                 "Finance menolak bukti bayar invoice {$invoice->number} (\"{$invoice->lead->client_name}\"): ".trim($reason),
                 ['invoice_id' => $invoice->id],

@@ -9,6 +9,7 @@ use App\Jobs\MaterialRequestReminderJob;
 use App\Jobs\MilestoneOverdueJob;
 use App\Jobs\OpenKpiPeriodJob;
 use App\Jobs\PruneNotificationsJob;
+use App\Jobs\RepushClientWaitingJob;
 use App\Jobs\TaskOverdueJob;
 use App\Jobs\TerminInvoiceReminderJob;
 use App\Jobs\TerminOverdueJob;
@@ -83,6 +84,15 @@ Schedule::job(new DailyFormReminderJob)
 Schedule::job(new MaterialRequestReminderJob)
     ->days([1, 2, 3, 4, 5, 6])
     ->at('09:00')
+    ->timezone('Asia/Jakarta');
+
+// Sprint 18 Sub 06 (K3) — an unopened "klien menunggu" (P1) rings the
+// devices once more after 60 minutes; working days and hours only
+// (config/daiku.php `notification_repush`, also guarded in the service).
+Schedule::job(new RepushClientWaitingJob)
+    ->everyFifteenMinutes()
+    ->days(DailyFormSchedule::workDays())
+    ->between(config('daiku.notification_repush.from'), config('daiku.notification_repush.until'))
     ->timezone('Asia/Jakarta');
 
 // PRD §4.9 "Riwayat notifikasi tersimpan 90 hari".

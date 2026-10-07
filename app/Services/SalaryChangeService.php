@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\SalaryChangeStatus;
 use App\Models\Employee;
 use App\Models\PerformanceReview;
@@ -104,7 +105,7 @@ class SalaryChangeService
 
             $this->notificationService->notifyRoles(
                 ['CEO'],
-                'salary_change_requested',
+                NotificationType::SalaryChangeRequested,
                 'Pengajuan perubahan gaji',
                 "SDM mengajukan perubahan gaji pokok {$locked->name}: ".self::rupiah($oldCents).' → '.self::rupiah($newCents).'.',
                 ['employee_id' => $locked->id, 'salary_change_id' => $change->id],
@@ -440,7 +441,7 @@ class SalaryChangeService
         if ($requester && $requester->is_active) {
             $this->notificationService->notify(
                 $requester,
-                'salary_change_decided',
+                NotificationType::SalaryChangeDecided,
                 $change->status === SalaryChangeStatus::Approved ? 'Perubahan gaji disetujui' : 'Perubahan gaji ditolak',
                 $message,
                 ['employee_id' => $employee->id, 'salary_change_id' => $change->id],

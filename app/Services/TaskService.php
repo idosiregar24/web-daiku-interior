@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Models\Penalty;
@@ -136,6 +137,10 @@ class TaskService
 
             if (in_array('assignee_id', $changed, true)) {
                 $this->notifyAssignee($locked, $locked->project);
+            } elseif (! $isDone && array_intersect($changed, ['title', 'description', 'due_date']) !== []) {
+                // Sprint 18 Sub 06 — the Tukang can't edit these (PRD §4.5),
+                // so a PM change to their work or deadline must reach them.
+                $this->notifyAssigneeOfChange($locked, $locked->project, in_array('due_date', $changed, true) ? $before['due_date'] : null);
             }
 
             if (array_intersect($changed, ['rate_per_task', 'assignee_id']) !== []) {
@@ -280,7 +285,7 @@ class TaskService
 
             $this->notificationService->notifyMany(
                 [$project->pm],
-                'task_overdue',
+                NotificationType::TaskOverdue,
                 'Task Melewati Deadline',
                 "{$tasks->count()} task di proyek \"{$project->name}\" melewati deadline: {$titles}{$more}.",
                 ['project_id' => $project->id],
@@ -309,9 +314,29 @@ class TaskService
 
         $this->notificationService->notify(
             $task->assignee,
-            'task_assigned',
+            NotificationType::TaskAssigned,
             'Task Baru',
             "Anda mendapat task \"{$task->title}\" di proyek \"{$project->name}\", deadline {$task->due_date->translatedFormat('d F Y')}.",
+            ['task_id' => $task->id, 'project_id' => $project->id],
+        );
+    }
+
+    private function notifyAssigneeOfChange(Task $task, Project $project, ?string $previousDueDate): void
+    {
+        if (! $task->assignee) {
+            return;
+        }
+
+        $deadline = $task->due_date->translatedFormat('d F Y');
+        $message = $previousDueDate
+            ? "Deadline task \"{$task->title}\" di proyek \"{$project->name}\" diubah PM: ".Carbon::parse($previousDueDate)->translatedFormat('d F Y')." → {$deadline}."
+            : "PM mengubah isi task \"{$task->title}\" di proyek \"{$project->name}\" (deadline {$deadline}). Cek lagi sebelum bekerja.";
+
+        $this->notificationService->notify(
+            $task->assignee,
+            NotificationType::TaskUpdated,
+            'Task Diubah',
+            $message,
             ['task_id' => $task->id, 'project_id' => $project->id],
         );
     }

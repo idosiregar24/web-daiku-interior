@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    // Sprint 18 Sub 04 — Web Push (VAPID). Generate a pair with
+    // `php artisan daiku:vapid-keys`. Empty public key = push switched off
+    // (the bell, live toast and "Perlu Tindakan" still work).
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        'subject' => env('VAPID_SUBJECT', 'mailto:admin@daikuinterior.com'),
+    ],
+
 ];

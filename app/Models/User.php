@@ -49,7 +49,26 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_active' => 'boolean',
             'nav_preferences' => 'array',
+            'notification_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Sprint 18 Sub 05 — categories whose device push this user switched
+     * off (Pengaturan Notifikasi). The bell still records them; a P1 in a
+     * muted category still arrives, only silently (WebPushService).
+     *
+     * @return list<string>
+     */
+    public function mutedNotificationCategories(): array
+    {
+        return array_values($this->notification_preferences['muted_categories'] ?? []);
+    }
+
+    /** Chime in the open app for P1/P2 (default on). */
+    public function wantsNotificationSound(): bool
+    {
+        return (bool) ($this->notification_preferences['sound'] ?? true);
     }
 
     /** Tasks assigned to this user (Field Staff) — used by PenaltyService's "punya task aktif" check. */
@@ -62,6 +81,12 @@ class User extends Authenticatable
     public function dailyTaskForms(): HasMany
     {
         return $this->hasMany(DailyTaskForm::class, 'staff_id');
+    }
+
+    /** Sprint 18 — devices that receive this user's Web Push notifications. */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\LeadStatus;
 use App\Enums\MilestoneStatus;
+use App\Enums\NotificationType;
 use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\TerminStatus;
@@ -143,7 +144,7 @@ class ProjectService
                 ->push($project->pm, $project->assistantPm, $lead->assignee)
                 ->filter()
                 ->unique('id'),
-            'project_opened',
+            NotificationType::ProjectOpened,
             'Proyek Dibuka',
             "Proyek \"{$project->name}\" untuk \"{$lead->client_name}\" dibuka dengan PM {$project->pm->name}.",
             ['project_id' => $project->id, 'lead_id' => $lead->id],
@@ -297,7 +298,7 @@ class ProjectService
 
                 $this->notificationService->notifyMany(
                     User::role('LOGISTICS')->where('is_active', true)->get()->push($project->pm)->filter(),
-                    'project_material_leftover',
+                    NotificationType::ProjectMaterialLeftover,
                     'Proyek Tertahan: Material',
                     "Semua milestone proyek \"{$project->name}\" lolos QA, tetapi proyek belum bisa COMPLETED karena "
                         .implode('; ', $reasons).'. Selesaikan di tab Material.',
@@ -319,7 +320,7 @@ class ProjectService
 
         $this->notificationService->notifyMany(
             User::role('CEO')->where('is_active', true)->get()->push($project->pm)->filter(),
-            'project_completed',
+            NotificationType::ProjectCompleted,
             'Proyek Selesai',
             "Semua milestone proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
             ['project_id' => $project->id],
@@ -434,7 +435,7 @@ class ProjectService
         $this->notificationService->notifyMany(
             collect([$project->pm, $project->assistantPm, $project->lead?->assignee])
                 ->merge(User::role('FINANCE')->where('is_active', true)->get()),
-            'project_addendum_added',
+            NotificationType::ProjectAddendumAdded,
             'RAB Tambahan Disetujui Klien',
             "Klien menyetujui RAB Tambahan proyek \"{$project->name}\" (Rp ".number_format((float) $addendum->total_amount, 0, ',', '.').') — termin & item baru sudah ditambahkan.',
             ['project_id' => $project->id, 'quotation_id' => $addendum->id],
@@ -488,7 +489,7 @@ class ProjectService
         if ($new) {
             $this->notificationService->notify(
                 $new,
-                'project_assistant_assigned',
+                NotificationType::ProjectAssistantAssigned,
                 'Ditunjuk sebagai Asisten PM',
                 "Anda ditunjuk sebagai Asisten PM proyek \"{$project->name}\" oleh {$actor->name}.",
                 ['project_id' => $project->id],
@@ -498,7 +499,7 @@ class ProjectService
         if ($previous) {
             $this->notificationService->notify(
                 $previous,
-                'project_assistant_unassigned',
+                NotificationType::ProjectAssistantUnassigned,
                 'Pergantian Asisten PM',
                 "Anda bukan lagi Asisten PM proyek \"{$project->name}\".",
                 ['project_id' => $project->id],
@@ -511,7 +512,7 @@ class ProjectService
     {
         $this->notificationService->notify(
             $newPm,
-            'project_pm_assigned',
+            NotificationType::ProjectPmAssigned,
             'Ditunjuk sebagai Project Manager',
             "Anda ditunjuk sebagai Project Manager proyek \"{$project->name}\" oleh {$actor->name}.",
             ['project_id' => $project->id],
@@ -520,7 +521,7 @@ class ProjectService
         if ($previousPm) {
             $this->notificationService->notify(
                 $previousPm,
-                'project_pm_unassigned',
+                NotificationType::ProjectPmUnassigned,
                 'Pergantian Project Manager',
                 "Proyek \"{$project->name}\" kini dipegang {$newPm->name} — Anda bukan lagi Project Manager proyek ini.",
                 ['project_id' => $project->id],

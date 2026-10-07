@@ -17,8 +17,8 @@ status): [`plan/README.md`](plan/README.md). Source task list:
   (RBAC), Laravel Horizon, Telescope (dev), DomPDF, Laravel Excel, Predis.
 - **Frontend:** Inertia v2 + React 18 + TypeScript, Tailwind CSS **v4**,
   shadcn/ui (Radix + "Nova" preset), Recharts, Laravel Echo + pusher-js
-  (Soketi), React Hook Form + Zod, TanStack Table, date-fns, Ziggy.
-- **Infra:** Docker Compose scaffold (mysql/redis/app/worker/soketi/nginx)
+  (Laravel Reverb — replaced Soketi in Sprint 18), React Hook Form + Zod, TanStack Table, date-fns, Ziggy.
+- **Infra:** Docker Compose scaffold (mysql/redis/app/worker/scheduler/reverb/nginx)
   — written but untested locally (no Docker on this dev machine); local
   dev runs natively on Laragon (MySQL + nginx already running,
   `daiku-interior.test` vhost).
@@ -189,12 +189,25 @@ status): [`plan/README.md`](plan/README.md). Source task list:
   `{role}@daikuinterior.com` / `password`). Production uses
   `ProductionSeeder` instead — `DatabaseSeeder` refuses demo data when
   `APP_ENV=production`.
-- Real-time: `BROADCAST_CONNECTION=log` locally (no Soketi without
-  Docker). The frontend mirrors it via `VITE_BROADCAST_CONNECTION`, so
-  flipping both to `pusher` turns the live notification bell on.
+- Real-time: `BROADCAST_CONNECTION=reverb` + `php artisan reverb:start`
+  (:8080, runs natively on Windows — no Docker needed). The frontend mirrors
+  it via `VITE_BROADCAST_CONNECTION`; any other value (`log`) leaves the
+  bell on its 60 s fallback poll.
 - No local Redis — `CACHE_STORE`/`QUEUE_CONNECTION` are `database` for
   now (documented inline in `.env`); flip to `redis` once
   `docker compose up -d redis` (or a native install) is available.
+- **Notifications & reminders need the worker + scheduler** (Sprint 18):
+  `composer dev` runs server (:8010) + `queue:listen --queue=notifications,default`
+  + `schedule:work` + pail + vite. Without a worker a notification is still
+  stored (bell, "Perlu Tindakan") but never pushed live; without the
+  scheduler no reminder/overdue job fires. Tests force
+  `BROADCAST_CONNECTION=null` (`phpunit.xml`).
+- **Web Push (Sprint 18 Sub 04)** needs `VAPID_*` in `.env`
+  (`php artisan daiku:vapid-keys`) and a secure origin — `http://localhost:8010`
+  works, the plain-http `.test` vhost does not. On Windows the PHP that
+  *sends* pushes (the queue worker) needs the env var
+  `OPENSSL_CONF=<php dir>\extras\ssl\openssl.cnf`, or EC key creation fails
+  ("Unable to create the key"). Tests mock `Minishlink\WebPush\WebPush`.
 - `npm run build` = `tsc && vite build` — must pass clean; this is also
   what CI (`.github/workflows/ci.yml`) runs.
 - `php artisan test` (Pest) — target ≥70% coverage per PRD §10.3.

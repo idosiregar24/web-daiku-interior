@@ -8,8 +8,8 @@ import { formatDateTime, formatRelative } from '@/lib/format';
 import { openNotification } from '@/lib/notificationHref';
 import { cn } from '@/lib/utils';
 import type { AppNotification, PageProps, PaginatedData } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Bell, CheckCheck, Settings2 } from 'lucide-react';
 
 interface NotificationIndexProps {
     items: PaginatedData<AppNotification>;
@@ -39,15 +39,23 @@ export default function NotificationIndex({ items, filters }: NotificationIndexP
                 icon={Bell}
                 description="Riwayat notifikasi 90 hari terakhir."
                 actions={
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={unreadNotificationsCount === 0}
-                        onClick={() => router.patch(route('notifications.markAllAsRead'), {}, { preserveScroll: true })}
-                    >
-                        <CheckCheck className="size-4" />
-                        Tandai semua dibaca
-                    </Button>
+                    <>
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={route('profile.notifications.edit')}>
+                                <Settings2 className="size-4" />
+                                Pengaturan
+                            </Link>
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={unreadNotificationsCount === 0}
+                            onClick={() => router.patch(route('notifications.markAllAsRead'), {}, { preserveScroll: true })}
+                        >
+                            <CheckCheck className="size-4" />
+                            Tandai semua dibaca
+                        </Button>
+                    </>
                 }
             />
 

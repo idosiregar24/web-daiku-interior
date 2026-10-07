@@ -7,6 +7,7 @@ use App\Enums\FinanceTransactionType;
 use App\Enums\InvoiceStatus;
 use App\Enums\InvoiceType;
 use App\Enums\MilestoneStatus;
+use App\Enums\NotificationType;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\ProjectStatus;
 use App\Enums\TerminStatus;
@@ -132,7 +133,7 @@ class TerminService
 
             $this->notificationService->notifyRoles(
                 ['FINANCE', 'CEO'],
-                'termin_overdue',
+                NotificationType::TerminOverdue,
                 'Termin Overdue',
                 "Termin #{$termin->termin_number} proyek \"{$termin->project->name}\" (sisa piutang Rp "
                     .number_format((float) $termin->sisa_piutang, 0, ',', '.')
@@ -466,8 +467,8 @@ class TerminService
             $metadata = ['termin_id' => $termin->id, 'project_id' => $project->id];
 
             $marketing
-                ? $this->notificationService->notifyMany([$marketing], 'termin_invoice_due', $title, $message, $metadata)
-                : $this->notificationService->notifyRoles(['MARKETING'], 'termin_invoice_due', $title, $message, $metadata);
+                ? $this->notificationService->notifyMany([$marketing], NotificationType::TerminInvoiceDue, $title, $message, $metadata)
+                : $this->notificationService->notifyRoles(['MARKETING'], NotificationType::TerminInvoiceDue, $title, $message, $metadata);
             ActionInboxService::forgetMarketingOf($marketing);
             $sent++;
         }

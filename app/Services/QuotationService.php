@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
+use App\Enums\NotificationType;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
@@ -182,7 +183,7 @@ class QuotationService
 
             $this->notificationService->notifyRoles(
                 ['ESTIMATOR'],
-                'quotation_requested',
+                NotificationType::QuotationRequested,
                 "Permintaan {$quotation->title()}",
                 "{$actor->name} meminta {$quotation->title()} untuk \"{$lead->client_name}\": ".trim($note).$attached,
                 ['quotation_id' => $quotation->id, 'lead_id' => $lead->id],
@@ -232,7 +233,7 @@ class QuotationService
 
             $this->notificationService->notifyRoles(
                 ['ESTIMATOR'],
-                'quotation_requested',
+                NotificationType::QuotationRequested,
                 'Permintaan RAB Tambahan',
                 "{$actor->name} meminta RAB Tambahan untuk proyek \"{$project->name}\": ".trim($note).$attached,
                 ['quotation_id' => $quotation->id, 'project_id' => $project->id],
@@ -254,7 +255,7 @@ class QuotationService
 
             $this->notificationService->notifyMany(
                 [$quotation->requester],
-                'quotation_started',
+                NotificationType::QuotationStarted,
                 "{$quotation->title()} Mulai Disusun",
                 "{$actor->name} mulai menyusun {$quotation->title()} \"{$quotation->lead->client_name}\".",
                 ['quotation_id' => $quotation->id],
@@ -433,7 +434,7 @@ class QuotationService
 
             $this->notificationService->notifyRoles(
                 self::REVIEW_ROLES[QuotationItemReview::STAGE_PM],
-                'quotation_submitted',
+                NotificationType::QuotationSubmitted,
                 "{$this->typeLabel($quotation)} Menunggu Review",
                 "{$this->typeLabel($quotation)} \"{$quotation->lead->client_name}\" versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') menunggu review item oleh PM / Asisten PM.',
                 ['quotation_id' => $quotation->id],
@@ -559,9 +560,9 @@ class QuotationService
                 $recipients = collect([$quotation->lead->assignee, $quotation->requester])->filter()->unique('id');
 
                 if ($recipients->isEmpty()) {
-                    $this->notificationService->notifyRoles(['MARKETING'], 'quotation_ready_to_send', ...$this->readyToSendMessage($quotation, $actor));
+                    $this->notificationService->notifyRoles(['MARKETING'], NotificationType::QuotationReadyToSend, ...$this->readyToSendMessage($quotation, $actor));
                 } else {
-                    $this->notificationService->notifyMany($recipients, 'quotation_ready_to_send', ...$this->readyToSendMessage($quotation, $actor));
+                    $this->notificationService->notifyMany($recipients, NotificationType::QuotationReadyToSend, ...$this->readyToSendMessage($quotation, $actor));
                 }
             });
     }
@@ -625,7 +626,7 @@ class QuotationService
             $quotation->loadMissing(['creator', 'lead']);
             $this->notificationService->notifyMany(
                 collect([$quotation->creator])->filter()->reject(fn (User $user) => $user->is($actor)),
-                'quotation_cancelled',
+                NotificationType::QuotationCancelled,
                 "{$this->typeLabel($quotation)} Dibatalkan",
                 "{$actor->name} membatalkan {$this->typeLabel($quotation)} \"{$quotation->lead->client_name}\": ".trim($reason),
                 ['quotation_id' => $quotation->id],
@@ -681,7 +682,7 @@ class QuotationService
             $quotation->loadMissing(['creator', 'lead.assignee']);
             $this->notificationService->notifyMany(
                 collect([$quotation->creator, $quotation->lead->assignee])->filter()->unique('id')->reject(fn (User $user) => $user->is($actor)),
-                'quotation_rejected',
+                NotificationType::QuotationClientRejected,
                 'Penawaran Ditolak Klien',
                 "Klien menolak penawaran \"{$quotation->lead->client_name}\" versi {$oldVersion} — quotation kembali ke DRAFT sebagai versi {$quotation->version} untuk direvisi: {$note}",
                 ['quotation_id' => $quotation->id],
@@ -763,7 +764,7 @@ class QuotationService
             $quotation->loadMissing(['creator', 'requester', 'lead.assignee', 'lead']);
             $this->notificationService->notifyMany(
                 collect([$quotation->creator, $quotation->requester, $quotation->lead->assignee, $link->sender])->filter()->unique('id'),
-                'quotation_client_approved',
+                NotificationType::QuotationClientApproved,
                 "{$this->typeLabel($quotation)} Disetujui Klien",
                 "Klien \"{$quotation->lead->client_name}\" menyetujui {$this->typeLabel($quotation)} versi {$quotation->version} (".$this->rupiah($quotation->total_amount).') lewat link penawaran.',
                 ['quotation_id' => $quotation->id, 'lead_id' => $quotation->lead_id],
@@ -1012,7 +1013,7 @@ class QuotationService
         if ($decision === 'return') {
             $this->notificationService->notifyMany(
                 $estimator,
-                'quotation_rejected',
+                NotificationType::QuotationReturned,
                 "{$label} Dikembalikan",
                 "{$label} \"{$client}\" versi {$reviewedVersion} dikembalikan {$by} ({$actor->name}) dan dibuka lagi sebagai versi {$quotation->version}: {$summary}",
                 $metadata,
@@ -1024,7 +1025,7 @@ class QuotationService
         if ($quotation->status === QuotationStatus::WaitingCeo) {
             $this->notificationService->notifyRoles(
                 self::REVIEW_ROLES[QuotationItemReview::STAGE_CEO],
-                'quotation_awaiting_ceo',
+                NotificationType::QuotationAwaitingCeo,
                 'RAB Proyek Menunggu Approval CEO',
                 "RAB Proyek \"{$client}\" (".$this->rupiah($quotation->total_amount).") sudah di-ACC {$actor->name} dan menunggu keputusan Anda.",
                 $metadata,
@@ -1035,7 +1036,7 @@ class QuotationService
 
         $this->notificationService->notifyMany(
             $estimator,
-            'quotation_approved',
+            NotificationType::QuotationApproved,
             "{$label} Disetujui",
             "{$label} \"{$client}\" disetujui {$by} — kirim RAB final ke Marketing.",
             $metadata,

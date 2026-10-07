@@ -199,7 +199,9 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default'],
+            // Sprint 18: notifications first — a live push is only useful
+            // while it's fresh (DeliverNotificationJob).
+            'queue' => ['notifications', 'default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
             'maxProcesses' => 1,

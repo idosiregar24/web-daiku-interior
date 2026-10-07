@@ -1,7 +1,9 @@
 import { BottomNav } from '@/Components/shared/BottomNav';
 import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import { CommandMenu } from '@/Components/shared/CommandMenu';
+import { PushOptIn } from '@/Components/shared/PushOptIn';
 import { type QuickCreateItem, QuickCreateMenu } from '@/Components/shared/QuickCreateMenu';
+import { StatusChip } from '@/Components/shared/StatusChip';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
 import {
@@ -43,6 +45,7 @@ import {
     Banknote,
     BarChart3,
     Bell,
+    BellRing,
     BellOff,
     CalendarCheck,
     CalendarClock,
@@ -88,6 +91,7 @@ import {
     UserCog,
     Database,
     Settings,
+    Settings2,
     Store,
     Wallet,
     WalletCards,
@@ -839,6 +843,12 @@ function UserMenuContent({ user, align }: { user: User; align: 'start' | 'end' }
                     Profil Saya
                 </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+                <Link href={route('profile.notifications.edit')}>
+                    <BellRing className="size-4" />
+                    Pengaturan Notifikasi
+                </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem asChild variant="destructive">
                 <Link href={route('logout')} method="post" as="button" className="w-full">
                     <LogOut className="size-4" />
@@ -1087,7 +1097,7 @@ function NotificationBell() {
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="relative" aria-label="Notifikasi">
                     <Bell className="size-4" />
-                    {/* Live via useRealtimeNotifications when Soketi is on,
+                    {/* Live via useRealtimeNotifications (Reverb, or its 60 s poll),
                         otherwise refreshed on every Inertia visit. */}
                     {unreadNotificationsCount > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-error px-1 text-[10px] font-semibold text-background ring-2 ring-background">
@@ -1117,6 +1127,8 @@ function NotificationBell() {
                         </button>
                     )}
                 </div>
+                {/* Sprint 18 Sub 04 — only while this device isn't ringing yet. */}
+                <PushOptIn variant="compact" />
                 {notifications.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
                         <span className="flex size-9 items-center justify-center rounded-full bg-daiku-gray text-daiku-muted">
@@ -1133,8 +1145,17 @@ function NotificationBell() {
                                 onClick={() => openNotification(notification)}
                                 className="flex gap-3 rounded-md p-2.5 text-left text-sm transition-colors hover:bg-daiku-yellow-light/70"
                             >
-                                <span className="mt-1.5 size-2 shrink-0 rounded-full bg-daiku-yellow" />
+                                <span
+                                    className={cn(
+                                        'mt-1.5 size-2 shrink-0 rounded-full',
+                                        notification.priority === 'CLIENT_WAITING' ? 'bg-error' : 'bg-daiku-yellow',
+                                    )}
+                                />
                                 <span className="min-w-0 flex-1">
+                                    {/* Sprint 18 — P1 sorts first (HandleInertiaRequests) and says why. */}
+                                    {notification.priority === 'CLIENT_WAITING' && (
+                                        <StatusChip status="CLIENT_WAITING" label="Segera · klien menunggu" tone="error" className="mb-1" />
+                                    )}
                                     <span className="block font-medium text-foreground">{notification.title}</span>
                                     <span className="line-clamp-2 block text-xs text-muted-foreground">
                                         {notification.message}
@@ -1147,10 +1168,15 @@ function NotificationBell() {
                         ))}
                     </div>
                 )}
-                <div className="border-t border-border p-1">
-                    <DropdownMenuItem asChild>
+                <div className="flex border-t border-border p-1">
+                    <DropdownMenuItem asChild className="flex-1">
                         <Link href={route('notifications.index')} className="justify-center text-sm font-medium">
                             Lihat semua notifikasi
+                        </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href={route('profile.notifications.edit')} aria-label="Pengaturan Notifikasi" title="Pengaturan Notifikasi">
+                            <Settings2 className="size-4" />
                         </Link>
                     </DropdownMenuItem>
                 </div>

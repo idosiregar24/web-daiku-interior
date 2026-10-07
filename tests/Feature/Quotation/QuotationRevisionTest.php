@@ -150,7 +150,7 @@ test('a client rejection records a CLIENT approval row, a revision snapshot, an 
         ->and($log->new_values['valid_until'])->toBeNull();
 
     foreach ([$quotation->creator, $quotation->lead->assignee] as $recipient) {
-        $notification = Notification::where('user_id', $recipient->id)->where('type', 'quotation_rejected')->sole();
+        $notification = Notification::where('user_id', $recipient->id)->where('type', 'quotation_client_rejected')->sole();
         expect($notification->title)->toBe('Penawaran Ditolak Klien')
             ->and($notification->metadata['quotation_id'])->toBe($quotation->id);
     }
@@ -164,7 +164,7 @@ test('the marketing user who records the rejection is not notified about their o
     app(QuotationService::class)->clientReject($quotation, $marketing, 'Klien menunda.');
 
     expect(Notification::where('user_id', $marketing->id)->exists())->toBeFalse()
-        ->and(Notification::where('user_id', $quotation->created_by)->where('type', 'quotation_rejected')->exists())->toBeTrue();
+        ->and(Notification::where('user_id', $quotation->created_by)->where('type', 'quotation_client_rejected')->exists())->toBeTrue();
 });
 
 test('a second client rejection of the same version is refused', function () {

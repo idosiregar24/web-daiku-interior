@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\DisciplinaryType;
+use App\Enums\NotificationType;
 use App\Models\DisciplinaryRecord;
 use App\Models\Employee;
 use App\Models\User;
@@ -114,7 +115,7 @@ class DisciplineService
             if ($user && $user->is_active) {
                 $this->notificationService->notify(
                     $user,
-                    'disciplinary_issued',
+                    NotificationType::DisciplinaryIssued,
                     $type->spLevel() !== null ? "{$type->label()} diterbitkan" : "{$type->label()} dicatat",
                     $type->spLevel() !== null
                         ? "SDM menerbitkan {$type->label()} untuk Anda, berlaku sampai {$record->valid_until->translatedFormat('d F Y')}."

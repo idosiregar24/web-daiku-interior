@@ -2,6 +2,7 @@
 
 namespace App\Listeners;
 
+use App\Enums\NotificationType;
 use App\Enums\QuotationType;
 use App\Events\QuotationClientApproved;
 use App\Models\ProjectOpening;
@@ -37,7 +38,7 @@ class QueueProjectOpening
 
         $this->notificationService->notifyRoles(
             ['CEO'],
-            'project_opening_pending',
+            NotificationType::ProjectOpeningPending,
             'Buka Proyek',
             "Klien \"{$quotation->lead->client_name}\" menyetujui RAB Proyek (".'Rp '.number_format((float) $quotation->total_amount, 0, ',', '.').') — tentukan PM dan buka proyeknya.',
             ['project_opening_id' => $opening->id, 'lead_id' => $quotation->lead_id],
@@ -52,7 +53,7 @@ class QueueProjectOpening
 
         $this->notificationService->notifyMany(
             [$quotation->lead->assignee ?? $event->link->sender],
-            $billable ? 'invoice_to_issue' : 'project_rab_awaiting_opening',
+            $billable ? NotificationType::InvoiceToIssue : NotificationType::ProjectRabAwaitingOpening,
             $billable ? 'Terbitkan Invoice DP' : 'RAB Proyek Disetujui Klien — Menunggu CEO Buka Proyek',
             $billable
                 ? "Klien \"{$client}\" menyetujui {$quotation->title()} — terbitkan invoice DP sekarang; CEO sedang membuka proyeknya."

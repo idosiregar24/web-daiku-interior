@@ -39,6 +39,13 @@ export interface User {
     has_employee?: boolean;
     /** Sprint 13 Sub 01 — sidebar groups this user folded (shared auth user only). */
     nav_preferences?: { collapsed_groups: string[] };
+    /** Sprint 18 Sub 05 — Pengaturan Notifikasi (shared auth user only). */
+    notification_preferences?: NotificationPreferences;
+}
+
+export interface NotificationPreferences {
+    muted_categories: NotificationCategory[];
+    sound: boolean;
 }
 
 /** Sprint 13 #4 — one row of a "Perlu Tindakan" queue (ActionInboxService). */
@@ -154,6 +161,8 @@ export type PageProps<
     navBadges: Record<string, number>;
     /** Sprint 17 Sub 01 — APP_URL is a local host (`.test`, `.local`, localhost, 127.*): client links won't open on a client's phone. */
     appUrlIsLocal: boolean;
+    /** Sprint 18 Sub 04 — VAPID public key for Web Push; null when the server has none (device push off). */
+    webPushKey: string | null;
 };
 
 /** Sprint 12 #19 — App\Models\ProjectOpening. */
@@ -1223,6 +1232,25 @@ export interface AuditLog {
     created_at: string;
 }
 
+/**
+ * Sprint 18 (K3) — mirrors App\Enums\NotificationPriority: P1 a client is
+ * waiting, P2 a colleague/project is waiting, P3 news, P4 bell only.
+ */
+export type NotificationPriority = 'CLIENT_WAITING' | 'ACTION_REQUIRED' | 'UPDATE' | 'INFO';
+
+/** Mirrors App\Enums\NotificationCategory — the groups muted in Pengaturan Notifikasi. */
+export type NotificationCategory =
+    | 'CRM'
+    | 'DESIGN'
+    | 'QUOTATION'
+    | 'FINANCE'
+    | 'PROJECT'
+    | 'TASK'
+    | 'OVERTIME'
+    | 'QA'
+    | 'LOGISTICS'
+    | 'HR';
+
 /** PRD 5.1 — Notifications */
 export interface AppNotification {
     id: number;
@@ -1231,7 +1259,11 @@ export interface AppNotification {
     title: string;
     message: string;
     is_read: boolean;
+    read_at: string | null;
     metadata: Record<string, unknown> | null;
+    priority: NotificationPriority;
+    /** null for a type no longer known (an old row). */
+    category: NotificationCategory | null;
     created_at: string;
 }
 

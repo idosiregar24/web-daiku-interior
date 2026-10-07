@@ -2,12 +2,16 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\NotificationPriority;
+use App\Enums\NotificationType;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\ProjectOpening;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\ActionInboxService;
+use App\Services\WebPushService;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Inertia\Middleware;
@@ -59,6 +63,11 @@ class HandleInertiaRequests extends Middleware
                     'nav_preferences' => [
                         'collapsed_groups' => $user->nav_preferences['collapsed_groups'] ?? [],
                     ],
+                    // Sprint 18 Sub 05 — the live toast's chime follows these too.
+                    'notification_preferences' => [
+                        'muted_categories' => $user->mutedNotificationCategories(),
+                        'sound' => $user->wantsNotificationSound(),
+                    ],
                 ] : null,
             ],
             // Every controller redirects with `->with('success', ...)` —
@@ -78,11 +87,11 @@ class HandleInertiaRequests extends Middleware
             // the login page is branded.
             'site' => fn () => SiteSetting::current()->branding(),
             // Refreshed on every Inertia visit, and live between visits:
-            // AppLayout's bell partial-reloads just these two props when
-            // a NotificationCreated event lands on the user's Echo channel.
-            'notifications' => $user
-                ? Notification::where('user_id', $user->id)->where('is_read', false)->latest('created_at')->limit(10)->get()
-                : [],
+            // AppLayout's bell partial-reloads these (+ navBadges) when a
+            // NotificationCreated event lands on the user's Echo channel,
+            // or every 60 s while the socket is down. Unread "klien
+            // menunggu" (P1) first, so an older one is never pushed out.
+            'notifications' => $user ? $this->unreadNotifications($user) : [],
             // Sprint 12 #19 — the CEO's "Buka Proyek" pop-up, on every page.
             'pendingProjectOpenings' => fn () => $user?->hasAnyRole(['CEO', 'SUPERADMIN'])
                 ? $this->pendingOpenings()
@@ -93,6 +102,9 @@ class HandleInertiaRequests extends Middleware
             'unreadNotificationsCount' => $user
                 ? Notification::where('user_id', $user->id)->where('is_read', false)->count()
                 : 0,
+            // Sprint 18 Sub 04 — the VAPID *public* key the browser needs to
+            // subscribe (null = Web Push not configured on this server).
+            'webPushKey' => fn () => $user && WebPushService::enabled() ? config('services.webpush.public_key') : null,
             // Sprint 17 Sub 01 (K1) — client links are built from APP_URL; a
             // local host can't be opened from a client's phone, so the share
             // panel warns about it. Decided here, never guessed in the browser.
@@ -113,6 +125,21 @@ class HandleInertiaRequests extends Middleware
             || str_starts_with($host, '127.')
             || $host === '[::1]'
             || $host === '::1';
+    }
+
+    /** @return Collection<int, Notification> */
+    private function unreadNotifications(User $user): Collection
+    {
+        $clientWaiting = NotificationType::storedValuesOf(NotificationPriority::ClientWaiting);
+        $placeholders = implode(',', array_fill(0, count($clientWaiting), '?'));
+
+        return Notification::where('user_id', $user->id)
+            ->where('is_read', false)
+            ->orderByRaw("CASE WHEN type IN ({$placeholders}) THEN 0 ELSE 1 END", $clientWaiting)
+            ->latest('created_at')
+            ->latest('id')
+            ->limit(10)
+            ->get();
     }
 
     /** @return array{openings: mixed, projectManagers: mixed, assistantPms: mixed}|null */

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\FinanceCategory;
 use App\Enums\FinanceTransactionType;
+use App\Enums\NotificationType;
 use App\Enums\OvertimeStatus;
 use App\Models\FinanceTransaction;
 use App\Models\OvertimeRequest;
@@ -52,7 +53,7 @@ class OvertimeService
         // PRD §4.9 "Pengajuan lembur masuk → PM proyek tukang tersebut".
         $this->notificationService->notifyMany(
             [$overtime->project->pm],
-            'overtime_submitted',
+            NotificationType::OvertimeSubmitted,
             'Pengajuan Lembur Baru',
             "{$actor->name} mengajukan lembur {$overtime->hours} jam ({$this->workDate($overtime)}) di proyek \"{$overtime->project->name}\".",
             ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
@@ -79,16 +80,16 @@ class OvertimeService
 
             if ($decision === 'approve') {
                 // PRD §4.9 "Lembur approve oleh PM → Tukang + Finance".
-                $this->notifyStaff($overtime, 'overtime_approved_pm', 'Lembur Disetujui PM', 'disetujui PM dan menunggu approval Finance.');
+                $this->notifyStaff($overtime, NotificationType::OvertimeApprovedPm, 'Lembur Disetujui PM', 'disetujui PM dan menunggu approval Finance.');
                 $this->notificationService->notifyRoles(
                     ['FINANCE'],
-                    'overtime_approved_pm',
+                    NotificationType::OvertimeAwaitingFinance,
                     'Lembur Menunggu Approval Finance',
                     "Lembur {$overtime->staff->name} {$overtime->hours} jam ({$this->workDate($overtime)}) disetujui PM — menunggu approval Anda.",
                     ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
                 );
             } else {
-                $this->notifyStaff($overtime, 'overtime_rejected', 'Lembur Ditolak', "ditolak PM: {$note}");
+                $this->notifyStaff($overtime, NotificationType::OvertimeRejected, 'Lembur Ditolak', "ditolak PM: {$note}");
             }
 
             return $overtime->fresh();
@@ -138,13 +139,13 @@ class OvertimeService
 
                 // PRD §4.9 "Lembur approve oleh Finance → Tukang" (table row
                 // is implied by the §6.6 flow; CSV Sprint 5 lists it explicitly).
-                $this->notifyStaff($overtime, 'overtime_approved_finance', 'Lembur Disetujui Finance', 'disetujui Finance dan dicatat untuk pembayaran.');
+                $this->notifyStaff($overtime, NotificationType::OvertimeApprovedFinance, 'Lembur Disetujui Finance', 'disetujui Finance dan dicatat untuk pembayaran.');
             } else {
                 // PRD §6.6 "Finance Review → REJECT → notif PM + tukang".
-                $this->notifyStaff($overtime, 'overtime_rejected', 'Lembur Ditolak', "ditolak Finance: {$note}");
+                $this->notifyStaff($overtime, NotificationType::OvertimeRejected, 'Lembur Ditolak', "ditolak Finance: {$note}");
                 $this->notificationService->notifyMany(
                     [$overtime->project->pm],
-                    'overtime_rejected',
+                    NotificationType::OvertimeRejected,
                     'Lembur Ditolak Finance',
                     "Lembur {$overtime->staff->name} {$overtime->hours} jam ({$this->workDate($overtime)}) di proyek \"{$overtime->project->name}\" ditolak Finance: {$note}",
                     ['overtime_id' => $overtime->id, 'project_id' => $overtime->project_id],
@@ -183,7 +184,7 @@ class OvertimeService
         );
     }
 
-    private function notifyStaff(OvertimeRequest $overtime, string $type, string $title, string $outcome): void
+    private function notifyStaff(OvertimeRequest $overtime, NotificationType $type, string $title, string $outcome): void
     {
         $this->notificationService->notify(
             $overtime->staff,

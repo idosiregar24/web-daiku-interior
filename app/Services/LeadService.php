@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\InvoiceStatus;
 use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
+use App\Enums\NotificationType;
 use App\Enums\QuotationType;
 use App\Models\Invoice;
 use App\Models\Lead;
@@ -56,7 +57,7 @@ class LeadService
             ->each(function (Lead $lead) use (&$sent) {
                 $marketing = $lead->assignee;
 
-                if (! $marketing || $this->notificationService->alreadySentToday($marketing, 'lead_follow_up_due', 'lead_id', $lead->id)) {
+                if (! $marketing || $this->notificationService->alreadySentToday($marketing, NotificationType::LeadFollowUpDue, 'lead_id', $lead->id)) {
                     return;
                 }
 
@@ -66,7 +67,7 @@ class LeadService
 
                 $this->notificationService->notify(
                     $marketing,
-                    'lead_follow_up_due',
+                    NotificationType::LeadFollowUpDue,
                     $isOverdue ? 'Follow-up Terlewat' : 'Follow-up Hari Ini',
                     "Lead \"{$lead->client_name}\" ({$lead->contactLabel()}) dijadwalkan FU-{$followUp->sequence} "
                         .($isOverdue ? 'sejak '.$followUp->scheduled_date->translatedFormat('d F Y').'.' : 'hari ini.'),
@@ -255,7 +256,7 @@ class LeadService
 
         $this->notificationService->notifyMany(
             User::role('PM')->where('is_active', true)->get(),
-            'deal_confirmed',
+            NotificationType::DealConfirmed,
             'Deal — RAB Proyek Disetujui Klien',
             "Klien \"{$lead->client_name}\" menyetujui RAB Proyek (".'Rp '.number_format((float) $quotation->total_amount, 0, ',', '.').') — proyeknya menunggu dibuka CEO.',
             ['lead_id' => $lead->id, 'quotation_id' => $quotation->id],
@@ -424,7 +425,7 @@ class LeadService
 
         $this->notificationService->notifyMany(
             [$survey->lead->assignee],
-            'lead_survey_ready',
+            NotificationType::LeadSurveyReady,
             'Survey Siap Berangkat',
             "Pembayaran survey \"{$survey->lead->client_name}\" sudah diverifikasi — survey #{$survey->sequence} siap berangkat.",
             ['lead_id' => $survey->lead_id],

@@ -47,9 +47,11 @@ grep -Eq '^APP_KEY=.+' .env || die "APP_KEY di .env masih kosong — isi dulu (p
 grep -Eq '^APP_DOMAIN=.+' .env || die "APP_DOMAIN di .env masih kosong."
 grep -Eiq '^APP_DEBUG=(true|1)\s*$' .env && die "APP_DEBUG=true di .env — matikan di server (membocorkan stack trace & konfigurasi)."
 grep -Eq '^BACKUP_ENCRYPTION_KEY=.+' .env || die "BACKUP_ENCRYPTION_KEY di .env masih kosong — PRD §9.5 mewajibkan backup terenkripsi (README \"Backup & Restore\")."
-if grep -Eq '^PUSHER_APP_SECRET="?daiku_app_secret"?\s*$' .env; then
-    die "PUSHER_APP_SECRET masih nilai contoh — ganti dengan string acak (dipakai menandatangani private channel)."
+if grep -Eq '^REVERB_APP_(SECRET="?daiku_reverb_secret|KEY="?daiku_reverb_key)"?\s*$' .env || ! grep -Eq '^REVERB_APP_SECRET=.+' .env; then
+    die "REVERB_APP_KEY/REVERB_APP_SECRET masih kosong atau nilai contoh — ganti dengan string acak (dipakai menandatangani private channel)."
 fi
+grep -Eq '^REVERB_ALLOWED_ORIGINS=.+' .env && ! grep -Eq '^REVERB_ALLOWED_ORIGINS="?\*"?\s*$' .env ||
+    die "REVERB_ALLOWED_ORIGINS di .env harus berisi domain Daiku (APP_DOMAIN), bukan * ."
 
 compose_version="$(docker compose version --short 2>/dev/null || true)"
 compose_version="${compose_version#v}"

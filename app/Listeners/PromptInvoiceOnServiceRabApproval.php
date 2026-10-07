@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Enums\InvoiceType;
+use App\Enums\NotificationType;
 use App\Events\QuotationClientApproved;
 use App\Services\ActionInboxService;
 use App\Services\NotificationService;
@@ -34,7 +35,7 @@ class PromptInvoiceOnServiceRabApproval
 
         $this->notificationService->notifyMany(
             [$quotation->lead->assignee ?? $event->link->sender],
-            'invoice_to_issue',
+            NotificationType::InvoiceToIssue,
             "Terbitkan Invoice {$type->label()}",
             "Klien \"{$quotation->lead->client_name}\" menyetujui {$quotation->type->label()} — terbitkan invoice-nya.",
             ['quotation_id' => $quotation->id, 'lead_id' => $quotation->lead_id],

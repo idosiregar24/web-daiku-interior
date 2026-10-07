@@ -15,11 +15,10 @@ use Illuminate\Queue\SerializesModels;
  * channel routes/channels.php already authorizes (owner only — never a
  * public channel, frontend-standards.md §5).
  *
- * `ShouldBroadcastNow` (not queued): delivery doesn't depend on a queue
- * worker running, which matters locally where QUEUE_CONNECTION=database
- * has no worker by default. Dispatched only after the surrounding
- * transaction commits, and failure-tolerant — see
- * NotificationService::broadcast().
+ * `ShouldBroadcastNow` because it is only ever fired from inside
+ * DeliverNotificationJob, which is already queued (after the caller's
+ * transaction commits) and owns the retries — queuing the broadcast again
+ * would just add a second hop. See NotificationService::deliver().
  */
 class NotificationCreated implements ShouldBroadcastNow
 {
@@ -39,6 +38,6 @@ class NotificationCreated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return $this->notification->only(['id', 'type', 'title', 'message', 'metadata', 'created_at']);
+        return $this->notification->only(['id', 'type', 'title', 'message', 'metadata', 'priority', 'category', 'created_at']);
     }
 }

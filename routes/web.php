@@ -42,6 +42,8 @@ use App\Http\Controllers\MoreController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Overtime\OvertimeController;
 use App\Http\Controllers\Profile\NavPreferenceController;
+use App\Http\Controllers\Profile\NotificationPreferenceController;
+use App\Http\Controllers\Profile\PushSubscriptionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Projects\MilestoneController;
 use App\Http\Controllers\Projects\ProgressLogController;
@@ -98,15 +100,35 @@ Route::middleware('auth')->group(function () {
     // (ownership enforced in NotificationController, not a role check).
     Route::get('/notifications', [NotificationController::class, 'index'])
         ->name('notifications.index');
+    // Sprint 18 Sub 05 — Pengaturan Notifikasi (own account only).
+    Route::get('/profile/notifications', [NotificationPreferenceController::class, 'edit'])
+        ->name('profile.notifications.edit');
     Route::middleware('throttle:60,1')->group(function () {
         // Sprint 13 Sub 01 — sidebar groups folded by this user (own row only).
         Route::patch('/profile/nav-preferences', [NavPreferenceController::class, 'update'])
             ->name('profile.nav-preferences.update');
+        Route::patch('/profile/notifications', [NotificationPreferenceController::class, 'update'])
+            ->name('profile.notifications.update');
         Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
             ->name('notifications.markAllAsRead');
         Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
             ->name('notifications.markAsRead');
+        // Sprint 18 — one link for the bell, the live toast and a device
+        // push: marks it read, then redirects to NotificationTarget.
+        Route::get('/notifications/{notification}/open', [NotificationController::class, 'open'])
+            ->name('notifications.open');
+        // Sprint 18 Sub 04 — devices that receive Web Push (own rows only).
+        Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])
+            ->name('push-subscriptions.store');
+        Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'unsubscribe'])
+            ->name('push-subscriptions.unsubscribe');
+        Route::delete('/push-subscriptions/{pushSubscription}', [PushSubscriptionController::class, 'destroy'])
+            ->name('push-subscriptions.destroy');
     });
+    // Each test push hits the browser vendors' push services — kept tight.
+    Route::post('/push-subscriptions/test', [PushSubscriptionController::class, 'test'])
+        ->middleware('throttle:5,1')
+        ->name('push-subscriptions.test');
 });
 
 // CRM — PRD §4.1 / §7.1. Read access matches the RBAC matrix's CRM–Lead

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\MaterialRequestStatus;
+use App\Enums\NotificationType;
 use App\Enums\ProjectMaterialSource;
 use App\Enums\ProjectStatus;
 use App\Models\Material;
@@ -99,7 +100,7 @@ class MaterialRequestService
                 // Sprint 12 #22/#31 — the PM and the Asisten PM of the project may approve.
                 $this->notificationService->notifyMany(
                     [$project->pm, $project->assistantPm],
-                    'material_request_pm_pending',
+                    NotificationType::MaterialRequestPmPending,
                     'Pengajuan Barang dari Tukang',
                     "{$what}. Setujui atau tolak sebelum diteruskan ke Logistik.",
                     ['project_id' => $project->id, 'project_material_id' => $line->id],
@@ -284,7 +285,7 @@ class MaterialRequestService
         if ($atLogistics->isNotEmpty()) {
             $this->notificationService->notifyRoles(
                 ['LOGISTICS'],
-                'material_request_reminder',
+                NotificationType::MaterialRequestReminder,
                 'Pengajuan Barang Belum Ditinjau',
                 $atLogistics->count().' pengajuan barang menunggu tinjauan Logistik lebih dari 1 hari kerja: '.$this->listText($atLogistics).'.',
                 ['project_material_ids' => $atLogistics->pluck('id')->all()],
@@ -294,7 +295,7 @@ class MaterialRequestService
         $atPm->groupBy(fn (ProjectMaterial $line) => $line->project->pm_id.'-'.$line->project->assistant_pm_id)->each(function (Collection $lines) {
             $this->notificationService->notifyMany(
                 [$lines->first()->project->pm, $lines->first()->project->assistantPm],
-                'material_request_reminder',
+                NotificationType::MaterialRequestReminder,
                 'Pengajuan Tukang Menunggu Anda',
                 $lines->count().' pengajuan barang dari Tukang menunggu persetujuan Anda lebih dari 1 hari kerja: '.$this->listText($lines).'.',
                 ['project_material_ids' => $lines->pluck('id')->all()],
@@ -303,7 +304,7 @@ class MaterialRequestService
 
         $this->notificationService->notifyRoles(
             ['CEO'],
-            'material_request_summary',
+            NotificationType::MaterialRequestSummary,
             'Ringkasan Pengajuan Barang Tertunda',
             "{$due->count()} pengajuan barang tertunda lebih dari 1 hari kerja — {$atLogistics->count()} di Logistik, {$atPm->count()} di PM.",
             ['project_material_ids' => $due->pluck('id')->all()],
@@ -402,7 +403,7 @@ class MaterialRequestService
     {
         $this->notificationService->notifyRoles(
             ['LOGISTICS'],
-            'material_request_submitted',
+            NotificationType::MaterialRequestSubmitted,
             'Pengajuan Barang Baru',
             $message.' Tinjau di menu Pengajuan Barang.',
             ['project_id' => $line->project_id, 'project_material_id' => $line->id],
@@ -414,7 +415,7 @@ class MaterialRequestService
     {
         $this->notificationService->notifyMany(
             [$line->requester, $line->project->pm],
-            'material_request_decided',
+            NotificationType::MaterialRequestDecided,
             $title,
             $message,
             ['project_id' => $line->project_id, 'project_material_id' => $line->id],

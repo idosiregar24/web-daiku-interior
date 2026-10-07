@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\TaskStatus;
 use App\Models\FamilyGatheringFund;
 use App\Models\Penalty;
@@ -79,7 +80,7 @@ class PenaltyService
                 // PRD §4.9 / §6.5 "Penalti dijatuhkan → Tukang + Finance".
                 $this->notificationService->notify(
                     $staff,
-                    'penalty_issued',
+                    NotificationType::PenaltyIssued,
                     'Penalti Form Harian',
                     'Anda dikenakan penalti Rp 50.000 karena form harian tanggal '
                         .Carbon::parse($today)->translatedFormat('d F Y').' belum diisi sampai 21:00 WIB.',
@@ -88,7 +89,7 @@ class PenaltyService
 
                 $this->notificationService->notifyRoles(
                     ['FINANCE'],
-                    'penalty_issued',
+                    NotificationType::PenaltyIssued,
                     'Penalti Dijatuhkan',
                     "{$staff->name} dikenakan penalti Rp 50.000 (form harian {$today} kosong) — masuk Dana Family Gathering.",
                     ['penalty_id' => $penalty->id],
@@ -111,13 +112,13 @@ class PenaltyService
         $sent = 0;
 
         foreach ($this->staffMissingDailyForm($date ?? now('Asia/Jakarta')) as $staff) {
-            if ($this->notificationService->alreadySentToday($staff, 'daily_form_reminder', 'staff_id', $staff->id)) {
+            if ($this->notificationService->alreadySentToday($staff, NotificationType::DailyFormReminder, 'staff_id', $staff->id)) {
                 continue;
             }
 
             $this->notificationService->notify(
                 $staff,
-                'daily_form_reminder',
+                NotificationType::DailyFormReminder,
                 'Form Harian Belum Diisi',
                 'Isi form harian sebelum 21:00 WIB untuk menghindari penalti Rp 50.000.',
                 ['staff_id' => $staff->id],
