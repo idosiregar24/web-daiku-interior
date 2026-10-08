@@ -47,6 +47,7 @@ class CheckWebPush extends Command
         }
 
         $this->checkKeys($publicKey, $privateKey, $subject);
+        $this->checkClient();
         $this->checkClock();
 
         if ($email = $this->argument('email')) {
@@ -119,6 +120,21 @@ class CheckWebPush extends Command
         );
     }
 
+    /** The client the app really sends with — it must carry the VAPID identity. */
+    private function checkClient(): void
+    {
+        $bound = app(WebPush::class);
+        $this->check(
+            WebPushService::signsWithVapid(WebPushService::client()),
+            'Client pengirim memakai kunci VAPID',
+            'client dibuat tanpa VAPID — request ke Apple/Google tanpa header Authorization',
+        );
+
+        if ($bound::class === WebPush::class && ! WebPushService::signsWithVapid($bound)) {
+            $this->warn('  ! Binding WebPush di AppServiceProvider tidak terbaca (opcache lama?) — sudah ditangani otomatis; restart PHP/opcache tetap disarankan.');
+        }
+    }
+
     /** A JWT from a server clock that is off is refused (exp in the past / > 24 h ahead). */
     private function checkClock(): void
     {
@@ -159,7 +175,7 @@ class CheckWebPush extends Command
         $this->line("Perangkat {$email}: {$subscriptions->count()}");
 
         foreach ($subscriptions as $subscription) {
-            $client = app(WebPush::class);
+            $client = WebPushService::client();
             $encoding = WebPushService::contentEncodingFor($subscription);
             $client->queueNotification(
                 new Subscription($subscription->endpoint, $subscription->public_key, $subscription->auth_token, $encoding),

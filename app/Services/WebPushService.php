@@ -39,6 +39,36 @@ class WebPushService
         return filled(config('services.webpush.public_key')) && filled(config('services.webpush.private_key'));
     }
 
+    /** A client signed with this server's VAPID keys (AppServiceProvider binds it; tests swap in a fake). */
+    public static function makeClient(): WebPush
+    {
+        return new WebPush([
+            'VAPID' => [
+                'subject' => config('services.webpush.subject'),
+                'publicKey' => config('services.webpush.public_key'),
+                'privateKey' => config('services.webpush.private_key'),
+            ],
+        ], ['TTL' => 24 * 3600]);
+    }
+
+    /**
+     * The container's client — unless it came out without VAPID (on one
+     * server the binding was missing, so it was autowired bare and every
+     * push went out with no Authorization header: Apple 403
+     * BadAuthorizationHeader). A fake from a test is used as is.
+     */
+    public static function client(): WebPush
+    {
+        $client = app(WebPush::class);
+
+        return $client::class === WebPush::class && ! self::signsWithVapid($client) ? self::makeClient() : $client;
+    }
+
+    public static function signsWithVapid(WebPush $client): bool
+    {
+        return (fn () => isset($this->auth['VAPID']))->call($client);
+    }
+
     /** Worth queuing a push for this row at all? (Checked before dispatching PushNotificationJob.) */
     public static function shouldPush(Notification $notification, User $user): bool
     {
@@ -180,7 +210,7 @@ class WebPushService
      */
     private function deliver(Collection $subscriptions, array $payload, array $options, array $logContext): int
     {
-        $client = app(WebPush::class);
+        $client = self::client();
         $payload = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $this->lastFailure = null;
 

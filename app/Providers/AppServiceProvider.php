@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\WebPushService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Vite;
@@ -26,13 +27,7 @@ class AppServiceProvider extends ServiceProvider
         // Sprint 18 Sub 04 — the Web Push client, built from config only when
         // asked for (WebPushService checks the keys first); bound here so
         // tests can swap it for a fake push service.
-        $this->app->bind(WebPush::class, fn () => new WebPush([
-            'VAPID' => [
-                'subject' => config('services.webpush.subject'),
-                'publicKey' => config('services.webpush.public_key'),
-                'privateKey' => config('services.webpush.private_key'),
-            ],
-        ], ['TTL' => 24 * 3600]));
+        $this->app->bind(WebPush::class, fn () => WebPushService::makeClient());
     }
 
     /**

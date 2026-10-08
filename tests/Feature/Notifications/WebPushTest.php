@@ -351,3 +351,12 @@ test('other throttled requests do not use up the test push limit', function () {
 
     $this->actingAs($user)->post(route('push-subscriptions.test'))->assertTooManyRequests();
 });
+
+test('a Web Push client built without VAPID is replaced by one signed with the server keys', function () {
+    config(['services.webpush.public_key' => 'BOXHC7pUlT2HEmAUTfamVjSUaLjztuC5PAN6WP4-pkhqMcZJMkuk939SX9HeXHWfLcQlt_NZEfGNKPO5zeJ3vIA']);
+    config(['services.webpush.private_key' => str_repeat('A', 42).'E']);
+    app()->bind(WebPush::class, fn () => new WebPush); // what an unbound container autowires
+
+    expect(WebPushService::signsWithVapid(app(WebPush::class)))->toBeFalse()
+        ->and(WebPushService::signsWithVapid(WebPushService::client()))->toBeTrue();
+});
