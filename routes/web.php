@@ -103,7 +103,9 @@ Route::middleware('auth')->group(function () {
     // Sprint 18 Sub 05 — Pengaturan Notifikasi (own account only).
     Route::get('/profile/notifications', [NotificationPreferenceController::class, 'edit'])
         ->name('profile.notifications.edit');
-    Route::middleware('throttle:60,1')->group(function () {
+    // Own throttle buckets ("…,prefix"): a plain throttle:N,1 counts every
+    // throttled route of the user together, so browsing used up the test's 5.
+    Route::middleware('throttle:60,1,notifications')->group(function () {
         // Sprint 13 Sub 01 — sidebar groups folded by this user (own row only).
         Route::patch('/profile/nav-preferences', [NavPreferenceController::class, 'update'])
             ->name('profile.nav-preferences.update');
@@ -127,7 +129,7 @@ Route::middleware('auth')->group(function () {
     });
     // Each test push hits the browser vendors' push services — kept tight.
     Route::post('/push-subscriptions/test', [PushSubscriptionController::class, 'test'])
-        ->middleware('throttle:5,1')
+        ->middleware('throttle:5,1,push-test')
         ->name('push-subscriptions.test');
 });
 
@@ -903,7 +905,7 @@ Route::get('manifest.webmanifest', [PwaController::class, 'manifest'])->name('pw
 Route::get('pwa/icon-{size}-{purpose}.png', [PwaController::class, 'icon'])
     ->whereNumber('size')
     ->whereIn('purpose', PwaController::PURPOSES)
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:60,1,pwa-icon')
     ->name('pwa.icon');
 
 // Sprint 12 decisions #13–#14 — the client's offer page, opened from the

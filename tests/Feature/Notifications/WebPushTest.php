@@ -331,3 +331,23 @@ test('a failed test push says what the push service answered', function () {
 
     expect($device->fresh())->not->toBeNull();
 });
+
+test('other throttled requests do not use up the test push limit', function () {
+    $user = pushUser();
+    PushSubscription::factory()->create(['user_id' => $user->id]);
+    fakePushService();
+
+    // Browsing before the tap: marking notifications read, the app icon…
+    foreach (range(1, 8) as $ignored) {
+        $this->actingAs($user)->patch(route('notifications.markAllAsRead'))->assertRedirect();
+        $this->actingAs($user)->get(route('pwa.icon', ['size' => 192, 'purpose' => 'any']))->assertSuccessful();
+    }
+
+    $this->actingAs($user)->post(route('push-subscriptions.test'))->assertSessionHas('success');
+
+    foreach (range(1, 4) as $ignored) {
+        $this->actingAs($user)->post(route('push-subscriptions.test'));
+    }
+
+    $this->actingAs($user)->post(route('push-subscriptions.test'))->assertTooManyRequests();
+});
