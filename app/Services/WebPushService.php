@@ -225,7 +225,7 @@ class WebPushService
      * saved before the frontend fix may say aesgcm — send them correctly
      * anyway instead of failing every push to that device.
      */
-    private static function contentEncodingFor(PushSubscription $subscription): string
+    public static function contentEncodingFor(PushSubscription $subscription): string
     {
         $host = (string) parse_url($subscription->endpoint, PHP_URL_HOST);
 

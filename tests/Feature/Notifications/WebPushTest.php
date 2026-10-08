@@ -327,7 +327,7 @@ test('a failed test push says what the push service answered', function () {
     });
 
     $this->actingAs($user)->post(route('push-subscriptions.test'))
-        ->assertSessionHas('error', 'Notifikasi uji gagal terkirim (403 BadJwtToken) — matikan lalu aktifkan lagi notifikasi di perangkat ini.');
+        ->assertSessionHas('error', 'Notifikasi uji gagal terkirim (403 BadJwtToken) — matikan lalu aktifkan lagi notifikasi di perangkat ini. Bila tetap gagal, admin server menjalankan php artisan daiku:push-check.');
 
     expect($device->fresh())->not->toBeNull();
 });

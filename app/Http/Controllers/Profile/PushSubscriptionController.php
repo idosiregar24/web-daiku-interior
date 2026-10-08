@@ -56,7 +56,10 @@ class PushSubscriptionController extends Controller
         }
 
         if ($delivered === 0) {
-            return back()->with('error', 'Notifikasi uji gagal terkirim'.($failure ? " ({$failure})" : '').' — matikan lalu aktifkan lagi notifikasi di perangkat ini.');
+            // 403 = the push service refused our VAPID identity (key pair, subject, clock or a
+            // device subscribed with an older key) — `daiku:push-check` tells which.
+            return back()->with('error', 'Notifikasi uji gagal terkirim'.($failure ? " ({$failure})" : '').' — matikan lalu aktifkan lagi notifikasi di perangkat ini.'
+                .(str_starts_with((string) $failure, '403') ? ' Bila tetap gagal, admin server menjalankan php artisan daiku:push-check.' : ''));
         }
 
         // Some devices took it, some didn't (an old phone, a revoked browser…).
