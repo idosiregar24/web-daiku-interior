@@ -58,8 +58,9 @@ composer install --no-dev --optimize-autoloader
 php artisan migrate --force
 
 # 5. Hanya bila ada perubahan tampilan (resources/js, resources/css)
-#    public/build tidak ada di Git, jadi wajib dibuild di server
-npm ci
+#    public/build tidak ada di Git, jadi wajib dibuild di server.
+#    --include=dev: TypeScript & Vite adalah devDependencies, wajib ada untuk build.
+npm ci --include=dev
 npm run build
 
 # 6. Selalu
@@ -194,7 +195,8 @@ Di **iPhone**: buka Safari, tekan Bagikan, pilih **Tambahkan ke Layar Utama**, l
 | Notifikasi uji: `403 BadAuthorizationHeader` / `BadJwtToken` | Kunci VAPID / konfigurasi server | `php artisan daiku:push-check <email>`, lalu perbaiki yang bertanda ✗ |
 | Notifikasi uji: `429 Too Many Requests` | Terlalu sering ditekan (maks 5×/menit) | Tunggu 1 menit |
 | `push-check`: `Perangkat …: 0` | HP belum mengaktifkan notifikasi untuk akun itu | Di HP: Matikan, lalu Aktifkan, lalu Izinkan |
-| Tampilan tidak berubah setelah deploy | Frontend belum dibuild | `npm ci && npm run build`, lalu refresh keras browser |
+| Tampilan tidak berubah setelah deploy | Frontend belum dibuild | `npm ci --include=dev && npm run build`, lalu refresh keras browser |
+| `npm run build`: `tsc: command not found` | Paket Node (devDependencies) belum terpasang | `npm ci --include=dev`, lalu `npm run build`. Butuh Node ≥ 20 (`node -v`) |
 | Pengingat harian tidak pernah muncul | Scheduler tidak jalan | Cek Cron aaPanel (bagian 4b) |
 
 Log aplikasi: `storage/logs/laravel.log`, contohnya:
