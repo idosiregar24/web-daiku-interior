@@ -44,6 +44,8 @@ email) to browse it.
 | Sprint 17 | — (di luar PRD/CSV) | — | Masukan uji alur klien (lead #37): salin link di HTTP + link klien lokal, survey luar kota tak berubah setelah bayar (tautan survey ↔ RAB Survey), klien ACC → antrean "terbitkan invoice" Marketing, info RAB Proyek otomatis, invoice bertata letak tagihan, invoice DP langsung setelah klien ACC, tombol Kirim Bukti Bayar di tempat invoice — 7 sub-plan di `sprint-17/` | **46 selesai / 0 sebagian / 1 belum (47)** — selesai 2026-10-07; uji link dari HP sungguhan (K1) & cek browser Sub 07 belum | [sprint-17-masukan-uji-alur.md](sprint-17-masukan-uji-alur.md) |
 | Sprint 18 | — (di luar PRD/CSV) | — | Notifikasi yang benar-benar sampai: pengiriman lewat antrean (tidak memblokir request), scheduler jalan di lokal, katalog 70+ tipe dengan prioritas P1–P4 (P1 = klien menunggu), tujuan klik di backend, real-time Laravel Reverb (toast, bunyi, judul tab), Web Push ke HP/laptop, Pengaturan Notifikasi, audit trigger + push ulang P1 — 6 sub (WA/email tidak dipakai, jam tenang ditunda) | **48 selesai / 0 sebagian / 3 belum (51)** — selesai 2026-10-07; tersisa uji push di HP/laptop sungguhan (klik Izinkan; HP butuh HTTPS) | [sprint-18-notifikasi.md](sprint-18-notifikasi.md) |
 | Sprint 19 | — (di luar PRD/CSV) | — | Konfirmasi bayar & jadwal survey tanpa pindah menu: "Tandai Klien Sudah Bayar" (link bukti opsional + catatan), notifikasi verifikasi P2 + P1 "Survey Lunas — Jadwalkan", dialog jadwal survey di detail RAB, notifikasi jadwal survey ke CEO + semua PM, kartu tahap RAB di lead — 6 sub | **34 selesai / 0 sebagian / 3 belum (37)** — kode selesai 2026-10-08; tersisa uji alur & deploy di server | [sprint-19-bayar-survey.md](sprint-19-bayar-survey.md) |
+| Sprint 20 | — (di luar PRD/CSV) | — | Company profile publik di `/` (Blade, SEO lokal "interior Pekanbaru"): tamu melihat profile, user login tetap dialihkan, PWA pindah ke `/app`, token warna dipisah ke `tokens.css`, kontak hanya WhatsApp, portofolio & testimoni dari ⚙ Pengaturan, halaman per layanan `/layanan/{slug}` — 7 sub | **belum dikerjakan** — rencana disimpan 2026-10-08 (0 / 7 sub) | [sprint-20-company-profile.md](sprint-20-company-profile.md) |
+| Sprint 21 | — (di luar PRD/CSV) | — | Login dengan username: akun didaftarkan CEO dengan username, email, atau keduanya (minimal satu); username huruf kecil + angka, unik, dicek langsung saat mengetik; login "Email atau Username"; staf mengatur username (sekali per 40 hari) & email sendiri di Profil Saya; akun tanpa email direset CEO + wajib ganti password — 6 sub | **belum dikerjakan** — rencana 2026-10-08, K1–K5 sudah dijawab (0 / 6 sub) | [sprint-21-login-username.md](sprint-21-login-username.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -61,6 +63,8 @@ checklist-nya.
 "Kerjakan Sprint 16 Sub 1"  →  ... Sub 8        (sprint-16/01..08)
 "Kerjakan Sprint 18 Sub 1"  →  ... Sub 6        (sprint-18-notifikasi.md §5)
 "Kerjakan Sprint 19 Sub 1"  →  ... Sub 6        (sprint-19-bayar-survey.md §3)
+"Kerjakan Sprint 20 Sub 1"  →  ... Sub 7        (sprint-20-company-profile.md §3)
+"Kerjakan Sprint 21 Sub 1"  →  ... Sub 6        (sprint-21-login-username.md §3)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini
