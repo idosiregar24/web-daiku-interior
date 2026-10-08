@@ -39,8 +39,11 @@ class AppServiceProvider extends ServiceProvider
 
         // PRD §9.5 "HTTPS wajib": production sits behind nginx TLS
         // (docker/nginx/production.conf), so every generated URL/redirect
-        // must be https even if a request reached PHP marked as http.
-        if ($this->app->isProduction()) {
+        // must be https even if a request reached PHP marked as http. Also
+        // whenever APP_URL is https (a proxy in front of `php artisan serve`
+        // with APP_ENV still local): http links there = mixed content, the
+        // login form posts nowhere.
+        if ($this->app->isProduction() || str_starts_with((string) config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
 
