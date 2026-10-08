@@ -446,6 +446,8 @@ export interface Invoice {
     issuer?: Pick<User, 'id' | 'name'>;
     issued_at: string;
     payment_proof_url: string | null;
+    /** Sprint 19 Sub 01 — note left with "Tandai Klien Sudah Bayar". */
+    payment_note: string | null;
     proof_submitted_at: string | null;
     bank_account_id: number | null;
     bank_account?: Pick<BankAccount, 'id' | 'label'> | null;
@@ -1987,4 +1989,19 @@ export interface QaDashboardStats {
     avgReviewHours: number | null;
     reviewSample: number;
     reviewWindowDays: number;
+}
+
+/**
+ * Sprint 19 Sub 05 (K4) — LeadController::show `activeQuotations`: per RAB
+ * kind the newest one that isn't cancelled (never a RAB Tambahan), ordered
+ * Proyek > Desain > Survey. `title` comes from Quotation::title().
+ */
+export interface LeadActiveQuotation {
+    id: number;
+    type: QuotationType;
+    title: string;
+    version: number;
+    status: QuotationStatus;
+    total_amount: string;
+    valid_until: string | null;
 }

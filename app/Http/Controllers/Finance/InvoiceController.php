@@ -44,21 +44,21 @@ class InvoiceController extends Controller
     {
         $invoice = $service->issueForQuotation($quotation, $request->validated(), $request->user());
 
-        return back()->with('success', "Invoice {$invoice->number} diterbitkan — kirim PDF-nya ke klien. Setelah klien membayar, tekan \"Kirim Bukti Bayar\" di baris invoice ini.");
+        return back()->with('success', "Invoice {$invoice->number} diterbitkan — kirim PDF-nya ke klien. Setelah klien membayar, tekan \"Tandai Klien Sudah Bayar\" di baris invoice ini.");
     }
 
     public function storeForTermin(IssueInvoiceRequest $request, Termin $termin, InvoiceService $service): RedirectResponse
     {
         $invoice = $service->issueForTermin($termin, $request->validated(), $request->user());
 
-        return back()->with('success', "Invoice {$invoice->number} diterbitkan untuk termin {$termin->termin_number} — setelah klien membayar, tekan \"Kirim Bukti Bayar\" di baris termin ini.");
+        return back()->with('success', "Invoice {$invoice->number} diterbitkan untuk termin {$termin->termin_number} — setelah klien membayar, tekan \"Tandai Klien Sudah Bayar\" di baris termin ini.");
     }
 
     public function submitProof(SubmitInvoiceProofRequest $request, Invoice $invoice, InvoiceService $service): RedirectResponse
     {
-        $service->submitProof($invoice, $request->validated('payment_proof_url'), $request->user());
+        $service->submitProof($invoice, $request->validated(), $request->user());
 
-        return back()->with('success', 'Bukti bayar dikirim — menunggu verifikasi Finance.');
+        return back()->with('success', 'Invoice ditandai sudah dibayar klien — menunggu verifikasi Finance.');
     }
 
     public function verify(VerifyInvoiceRequest $request, Invoice $invoice, InvoiceService $service): RedirectResponse
@@ -101,7 +101,7 @@ class InvoiceController extends Controller
         $user = $request->user();
         $canVerify = $user->hasAnyRole(['FINANCE', 'SUPERADMIN']);
         $canSubmitProof = $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']);
-        // Sprint 17 Sub 07 — "Invoice menunggu bukti bayar" (same scope as the Perlu Tindakan queue).
+        // Sprint 17 Sub 07 — "Invoice menunggu konfirmasi bayar" (same scope as the Perlu Tindakan queue).
         $awaitingProof = $mode === 'all' && $request->boolean('awaiting_proof');
         $marketingScope = $user->hasRole('MARKETING') && ! $user->hasAnyRole(['CEO', 'FINANCE', 'SUPERADMIN']) ? $user : null;
 
@@ -124,7 +124,7 @@ class InvoiceController extends Controller
             'canVerify' => $canVerify,
             'canSubmitProof' => $canSubmitProof,
             // Sprint 17 Sub 07 — `?proof={id}` (Perlu Tindakan, "bukti ditolak" notification)
-            // opens "Kirim Bukti Bayar" for that invoice, whatever page of the list it is on.
+            // opens "Tandai Klien Sudah Bayar" for that invoice, whatever page of the list it is on.
             'proofInvoice' => $canSubmitProof && $request->integer('proof') > 0
                 ? Invoice::query()->with('lead:id,client_name')->whereKey($request->integer('proof'))
                     ->where('status', InvoiceStatus::Diterbitkan->value)

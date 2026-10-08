@@ -204,7 +204,7 @@ test('verifying a termin invoice pays the termin, booking the income once', func
     $service = app(InvoiceService::class);
 
     $invoice = $service->issueForTermin($termin, ['due_date' => '2026-10-20'], $this->marketing);
-    $service->submitProof($invoice, 'https://drive.google.com/bukti', $this->marketing);
+    $service->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
     $service->verify($invoice, ['bank_account_id' => $this->account->id, 'paid_date' => '2026-10-05'], $this->finance);
 
     $termin->refresh();
@@ -293,7 +293,7 @@ test('a DP billed and paid before Buka Proyek becomes the DP termin\'s invoice â
     $finance = User::factory()->create();
     $finance->assignRole('FINANCE');
     $account = BankAccount::factory()->create(['is_active' => true]);
-    $invoices->submitProof($invoice, 'https://drive.google.com/bukti', $this->marketing);
+    $invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
     $invoice = $invoices->verify($invoice, ['bank_account_id' => $account->id, 'paid_date' => '2026-10-06'], $finance);
     expect(FinanceTransaction::find($invoice->finance_transaction_id)->project_id)->toBeNull();
 
@@ -321,7 +321,7 @@ test('a DP billed but unpaid at Buka Proyek leaves the termin INVOICED and settl
 
     $finance = User::factory()->create();
     $finance->assignRole('FINANCE');
-    $invoices->submitProof($invoice->fresh(), 'https://drive.google.com/bukti', $this->marketing);
+    $invoices->submitProof($invoice->fresh(), ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
     $invoices->verify($invoice->fresh(), ['bank_account_id' => BankAccount::factory()->create(['is_active' => true])->id, 'paid_date' => '2026-10-11'], $finance);
 
     expect($dp->fresh()->status)->toBe(TerminStatus::Paid)

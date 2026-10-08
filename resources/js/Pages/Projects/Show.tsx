@@ -113,7 +113,7 @@ interface ProjectShowProps {
     canViewFinanceSummary: boolean;
     canIssueTerminInvoices: boolean;
     canMarkTerminPaid: boolean;
-    /** Sprint 17 Sub 07 — "Kirim Bukti Bayar" on invoice rows (Marketing / Finance). */
+    /** Sprint 17 Sub 07 — "Tandai Klien Sudah Bayar" on invoice rows (Marketing / Finance). */
     canSubmitInvoiceProof: boolean;
     /** Sprint 12 #21 — RAB Fix + invoices (null without access). */
     documents: ProjectDocuments | null;

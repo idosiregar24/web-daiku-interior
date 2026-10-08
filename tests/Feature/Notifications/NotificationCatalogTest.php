@@ -51,7 +51,10 @@ test('K3: priority follows who is kept waiting', function (NotificationType $typ
     'tugas tukang' => [NotificationType::TaskAssigned, NotificationPriority::ActionRequired],
     'antrean Finance lembur' => [NotificationType::OvertimeAwaitingFinance, NotificationPriority::ActionRequired],
     'kabar ke tukang' => [NotificationType::OvertimeApprovedPm, NotificationPriority::Update],
-    'pembayaran terverifikasi' => [NotificationType::InvoiceVerified, NotificationPriority::Update],
+    'pembayaran terverifikasi berbunyi (Sprint 19)' => [NotificationType::InvoiceVerified, NotificationPriority::ActionRequired],
+    'survey lunas belum dijadwalkan' => [NotificationType::SurveyToSchedule, NotificationPriority::ClientWaiting],
+    'jadwal survey ke CEO & PM' => [NotificationType::SurveyScheduled, NotificationPriority::ActionRequired],
+    'survey jadi berangkat' => [NotificationType::SurveyConfirmed, NotificationPriority::Update],
     'proyek selesai' => [NotificationType::ProjectCompleted, NotificationPriority::Info],
 ]);
 

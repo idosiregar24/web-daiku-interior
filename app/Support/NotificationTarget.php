@@ -91,6 +91,10 @@ class NotificationTarget
                 ? ['awaiting_proof' => 1, 'proof' => $id('invoice_id')]
                 : ['awaiting_proof' => 1]),
             NotificationType::InvoiceAwaitingVerification => route('finance.invoices.verification'),
+            // Sprint 19 — straight into the "Jadwalkan Survey" dialog on the paid RAB.
+            NotificationType::SurveyToSchedule => $id('quotation_id')
+                ? route('quotations.show', ['quotation' => $id('quotation_id'), 'survey' => 'new'])
+                : null,
             default => null,
         };
     }

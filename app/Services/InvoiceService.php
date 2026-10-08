@@ -198,26 +198,45 @@ class InvoiceService
         });
     }
 
-    /** The client's transfer proof (a link) — the invoice goes to Finance's queue. */
-    public function submitProof(Invoice $invoice, string $url, User $actor): Invoice
+    /**
+     * "Tandai Klien Sudah Bayar" — the invoice goes to Finance's queue.
+     * Sprint 19 Sub 01: the transfer proof link is optional (a client may
+     * only phone in the payment) and a short note may come with it; Finance
+     * still matches the money against the bank statement before verify().
+     *
+     * @param  array{payment_proof_url?: ?string, payment_note?: ?string}  $data
+     */
+    public function submitProof(Invoice $invoice, array $data, User $actor): Invoice
     {
-        return DB::transaction(function () use ($invoice, $url, $actor) {
-            $invoice = $this->locked($invoice, InvoiceStatus::Diterbitkan, 'Bukti bayar hanya bisa dikirim untuk invoice yang belum diverifikasi.');
+        $url = trim((string) ($data['payment_proof_url'] ?? '')) ?: null;
+        $note = trim((string) ($data['payment_note'] ?? '')) ?: null;
+
+        return DB::transaction(function () use ($invoice, $url, $note, $actor) {
+            $invoice = $this->locked($invoice, InvoiceStatus::Diterbitkan, 'Pembayaran hanya bisa ditandai untuk invoice yang belum diverifikasi.');
 
             $invoice->update([
                 'status' => InvoiceStatus::MenungguVerifikasi->value,
-                'payment_proof_url' => trim($url),
+                'payment_proof_url' => $url,
+                'payment_note' => $note,
                 'proof_submitted_by' => $actor->id,
                 'proof_submitted_at' => now(),
             ]);
 
-            $this->auditLogService->record('finance.invoice_proof_submitted', $invoice, ['status' => InvoiceStatus::Diterbitkan], ['status' => $invoice->status, 'payment_proof_url' => $invoice->payment_proof_url], $actor);
+            $this->auditLogService->record('finance.invoice_proof_submitted', $invoice, ['status' => InvoiceStatus::Diterbitkan], ['status' => $invoice->status, 'payment_proof_url' => $url, 'payment_note' => $note], $actor);
+
+            $message = "Invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\", ".$this->rupiah($invoice->amount).') sudah dibayar — mohon verifikasi.';
+            if ($url === null) {
+                $message .= ' Tanpa link bukti — cocokkan dengan mutasi rekening.';
+            }
+            if ($note !== null) {
+                $message .= " Catatan: {$note}";
+            }
 
             $this->notificationService->notifyRoles(
                 ['FINANCE'],
                 NotificationType::InvoiceAwaitingVerification,
                 'Pembayaran Menunggu Verifikasi',
-                "Invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\", ".$this->rupiah($invoice->amount).') sudah dibayar — mohon verifikasi.',
+                $message,
                 ['invoice_id' => $invoice->id],
             );
 
@@ -277,7 +296,7 @@ class InvoiceService
                 collect([$invoice->issuer, $invoice->lead->assignee])->filter()->unique('id'),
                 NotificationType::InvoiceVerified,
                 'Pembayaran Terverifikasi',
-                "Pembayaran invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\") sudah diverifikasi Finance.",
+                "Pembayaran invoice {$invoice->number} ({$invoice->type->label()} \"{$invoice->lead->client_name}\") sudah diverifikasi Finance.".self::nextStepAfterPayment($invoice),
                 ['invoice_id' => $invoice->id, 'lead_id' => $invoice->lead_id],
             );
 
@@ -285,6 +304,17 @@ class InvoiceService
 
             return $invoice->fresh();
         });
+    }
+
+    /** Sprint 19 — what Marketing does next, in the "Pembayaran Terverifikasi" message. */
+    private static function nextStepAfterPayment(Invoice $invoice): string
+    {
+        return match ($invoice->type) {
+            InvoiceType::JasaSurvey => ' Survey bisa berangkat — pastikan jadwalnya sudah dibuat.',
+            InvoiceType::JasaDesain => ' Desain dibuka untuk ditugaskan Kepala Desain.',
+            InvoiceType::Dp => $invoice->project_id === null ? ' Menunggu CEO membuka proyek.' : '',
+            default => '',
+        };
     }
 
     /** The proof doesn't match a real payment — back to DITERBITKAN, Marketing is told why. */

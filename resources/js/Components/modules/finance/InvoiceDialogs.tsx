@@ -14,11 +14,12 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import type { BankAccount, Invoice, InvoiceType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Upload } from 'lucide-react';
+import { Banknote, ExternalLink } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { type FieldValues, type Path, type UseFormReturn, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -145,31 +146,34 @@ export function IssueInvoiceDialog({
     );
 }
 
-// ── Bukti bayar (Marketing / Finance) ────────────────────────────────────
+// ── Tandai klien sudah bayar (Marketing / Finance) ───────────────────────
 
-// Mirrors SubmitInvoiceProofRequest (http/https only).
+// Mirrors SubmitInvoiceProofRequest (Sprint 19 Sub 01): both optional, the link http/https only.
 const proofSchema = z.object({
     payment_proof_url: z
         .string()
         .trim()
-        .min(1, 'Link bukti bayar wajib diisi')
-        .max(500)
-        .refine((v) => /^https?:\/\/\S+$/i.test(v), 'Link bukti bayar harus berupa URL http/https'),
+        .max(500, 'Link bukti bayar maksimal 500 karakter')
+        .refine((v) => v === '' || /^https?:\/\/\S+$/i.test(v), 'Link bukti bayar harus berupa URL http/https'),
+    payment_note: z.string().trim().max(500, 'Catatan pembayaran maksimal 500 karakter'),
 });
 
 export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: boolean; onOpenChange: (open: boolean) => void; invoice: InvoiceRef }) {
-    const form = useForm<z.infer<typeof proofSchema>>({ resolver: zodResolver(proofSchema), defaultValues: { payment_proof_url: '' } });
+    const form = useForm<z.infer<typeof proofSchema>>({
+        resolver: zodResolver(proofSchema),
+        defaultValues: { payment_proof_url: '', payment_note: '' },
+    });
 
     useEffect(() => {
-        if (open) form.reset({ payment_proof_url: '' });
+        if (open) form.reset({ payment_proof_url: '', payment_note: '' });
     }, [open]);
 
     return (
         <DialogShell
             open={open}
             onOpenChange={onOpenChange}
-            title="Kirim Bukti Bayar"
-            description={describe(invoice)}
+            title="Tandai Klien Sudah Bayar"
+            description={<>{describe(invoice)} — Finance mencocokkannya dengan mutasi rekening sebelum verifikasi.</>}
             form={form}
             onSubmit={(values) => post(route('finance.invoices.proof', { invoice: invoice.id }), values, form, () => onOpenChange(false))}
             submitLabel="Kirim ke Finance"
@@ -179,9 +183,22 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
                 name="payment_proof_url"
                 render={({ field }) => (
                     <FormItem>
-                        <FormLabel required>Link bukti transfer</FormLabel>
+                        <FormLabel>Link bukti bayar</FormLabel>
                         <FormControl>
                             <Input {...field} placeholder="https://drive.google.com/..." autoFocus />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
+            <FormField
+                control={form.control}
+                name="payment_note"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Catatan pembayaran</FormLabel>
+                        <FormControl>
+                            <Textarea {...field} rows={2} placeholder="mis. Transfer BCA a.n. Budi, 12 Okt" />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -192,10 +209,50 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
 }
 
 /**
- * Sprint 17 Sub 07 — "Kirim Bukti Bayar" right where an invoice is shown
- * (RAB page, project termins & documents), not only on the Invoice menu.
- * Renders nothing unless the invoice still waits for the proof; a proof
- * Finance sent back shows its reason above the button.
+ * Sprint 19 Sub 01 — what came with "Tandai Klien Sudah Bayar": the proof
+ * link (or a reminder that there is none, so Finance checks the bank
+ * statement) and the payment note. Shown on Finance's list & verify dialog.
+ */
+export function InvoicePaymentInfo({
+    invoice,
+    showMissingLink = true,
+    className,
+}: {
+    invoice: Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note'>>;
+    /** false once verified — the bank statement was already checked. */
+    showMissingLink?: boolean;
+    className?: string;
+}) {
+    return (
+        <div className={cn('space-y-1 text-xs', className)}>
+            {invoice.payment_proof_url ? (
+                <a
+                    href={invoice.payment_proof_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium underline decoration-daiku-yellow underline-offset-4"
+                >
+                    Bukti bayar
+                    <ExternalLink className="size-3" aria-hidden />
+                </a>
+            ) : (
+                showMissingLink && <p className="text-warning-ink">Tidak ada link bukti — cocokkan dengan mutasi rekening.</p>
+            )}
+            {invoice.payment_note && (
+                <p className="whitespace-pre-line text-daiku-muted">
+                    <span className="font-medium text-foreground">Catatan:</span> {invoice.payment_note}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Sprint 17 Sub 07 — "Tandai Klien Sudah Bayar" (Sprint 19 Sub 01 name)
+ * right where an invoice is shown (RAB page, project termins & documents),
+ * not only on the Invoice menu. Renders nothing unless the invoice still
+ * waits for the client's payment; a confirmation Finance sent back shows
+ * its reason above the button.
  */
 export function InvoiceProofButton({
     invoice,
@@ -212,10 +269,10 @@ export function InvoiceProofButton({
 
     return (
         <span className="inline-flex flex-wrap items-center gap-2">
-            {invoice.reject_reason && <span className="text-xs text-error-ink">Bukti ditolak Finance: {invoice.reject_reason}</span>}
+            {invoice.reject_reason && <span className="text-xs text-error-ink">Ditolak Finance: {invoice.reject_reason}</span>}
             <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-                <Upload className="size-4" />
-                Kirim Bukti Bayar
+                <Banknote className="size-4" />
+                Tandai Klien Sudah Bayar
             </Button>
             {open && <InvoiceProofDialog open onOpenChange={setOpen} invoice={invoice} />}
         </span>
@@ -237,7 +294,7 @@ export function InvoiceVerifyDialog({
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    invoice: InvoiceRef;
+    invoice: InvoiceRef & Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note'>>;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }) {
     const form = useForm<z.infer<typeof verifySchema>>({ resolver: zodResolver(verifySchema), defaultValues: { bank_account_id: '' } });
@@ -263,6 +320,7 @@ export function InvoiceVerifyDialog({
             }
             submitLabel="Verifikasi"
         >
+            <InvoicePaymentInfo invoice={invoice} className="rounded-lg bg-daiku-gray px-3.5 py-3" />
             <FormField
                 control={form.control}
                 name="bank_account_id"

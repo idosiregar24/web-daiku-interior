@@ -185,11 +185,11 @@ class WorkflowScenarioSeeder extends Seeder
     {
         $siska = $this->rab($this->lead('Siska Amelia'), QuotationType::Desain, 'approved');
         $invoice = $this->invoices->issueForQuotation($siska, ['due_date' => now()->addDays(3)->toDateString()], $this->marketing);
-        $this->invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-siska', $this->marketing);
+        $this->invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/demo-bukti-siska'], $this->marketing);
 
         $robert = $this->rab($this->lead('Robert Tan'), QuotationType::Desain, 'approved');
         $invoice = $this->invoices->issueForQuotation($robert, ['due_date' => now()->addDays(3)->toDateString()], $this->marketing);
-        $this->invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-robert', $this->marketing);
+        $this->invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/demo-bukti-robert'], $this->marketing);
         $this->invoices->reject($invoice, 'Nominal transfer Rp 500.000 kurang dari tagihan — minta klien transfer kekurangannya.', $this->finance);
     }
 
@@ -469,7 +469,7 @@ class WorkflowScenarioSeeder extends Seeder
     /** Invoice → proof → Finance verifies it. */
     private function pay(Invoice $invoice): void
     {
-        $this->invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-'.$invoice->id, $this->marketing);
+        $this->invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/demo-bukti-'.$invoice->id], $this->marketing);
         $this->invoices->verify($invoice, ['bank_account_id' => BankAccount::firstOrFail()->id, 'paid_date' => now()->toDateString()], $this->finance);
     }
 

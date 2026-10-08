@@ -27,7 +27,7 @@ class LeadSurveyController extends Controller
 
     public function update(LeadSurveyRequest $request, LeadSurvey $survey, LeadService $service): RedirectResponse
     {
-        $service->updateSurvey($survey, $request->validated());
+        $service->updateSurvey($survey, $request->validated(), $request->user());
 
         return back()->with('success', 'Jadwal survey diperbarui.');
     }

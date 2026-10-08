@@ -159,7 +159,7 @@ test('a push job is queued only for P1–P3 rows of users with a device, when co
     $service = app(NotificationService::class);
 
     $service->notify($withDevice, NotificationType::QuotationRequested, 'P1', 'Pesan');   // pushed
-    $service->notify($withDevice, NotificationType::InvoiceVerified, 'P3', 'Pesan');      // pushed (silent)
+    $service->notify($withDevice, NotificationType::QuotationApproved, 'P3', 'Pesan');    // pushed (silent)
     $service->notify($withDevice, NotificationType::ProjectCompleted, 'P4', 'Pesan');     // bell only
     $service->notify($without, NotificationType::QuotationRequested, 'P1', 'Pesan');      // no device
 
@@ -206,7 +206,7 @@ test('a P3 push arrives silently; a P4 is never pushed', function () {
     fakePushService(sent: $sent);
     $service = app(WebPushService::class);
 
-    $service->send(Notification::factory()->create(['user_id' => $user->id, 'type' => NotificationType::InvoiceVerified->value]));
+    $service->send(Notification::factory()->create(['user_id' => $user->id, 'type' => NotificationType::QuotationApproved->value]));
     expect($sent[0]['payload']['silent'])->toBeTrue()
         ->and($sent[0]['payload']['requireInteraction'])->toBeFalse()
         ->and($sent[0]['options']['urgency'])->toBe('low');

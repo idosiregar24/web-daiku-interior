@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\InvoiceStatus;
+use App\Enums\LeadSurveyStatus;
 use App\Enums\PaymentTermTrigger;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
@@ -200,6 +202,25 @@ class Quotation extends Model
                 ->whereIn('type', [QuotationType::Survey->value, QuotationType::Desain->value])
                 // Sprint 17 Sub 06 (K2) — a RAB Proyek's DP is billed right away, before the CEO opens the project.
                 ->orWhere(fn (Builder $project) => $project->billableUpfront()))
+            ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
+                ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
+    }
+
+    /**
+     * Sprint 19 — a RAB Jasa Survey Finance verified the payment of, with no
+     * survey on it yet (never linked, or its survey was cancelled): Marketing
+     * still has to schedule it. A done survey stays linked, so it never comes
+     * back. With `$marketing`: the same ownership rule as awaitingInvoice().
+     */
+    public function scopeSurveyToSchedule(Builder $query, ?User $marketing = null): Builder
+    {
+        return $query
+            ->where('type', QuotationType::Survey->value)
+            ->whereNotIn('status', [QuotationStatus::Cancelled->value, QuotationStatus::Rejected->value])
+            ->whereHas('invoices', fn (Builder $invoice) => $invoice->where('status', InvoiceStatus::Terverifikasi->value))
+            ->where(fn (Builder $open) => $open
+                ->whereNull('lead_survey_id')
+                ->orWhereHas('leadSurvey', fn (Builder $survey) => $survey->where('status', LeadSurveyStatus::Batal->value)))
             ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
                 ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
     }

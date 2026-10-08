@@ -14,6 +14,7 @@ import { RabBuilder } from '@/Components/modules/quotation/RabBuilder';
 import { ShareLinkPanel } from '@/Components/modules/quotation/ShareLinkPanel';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
 import { QuotationExpiryNotice } from '@/Components/modules/quotation/QuotationExpiryNotice';
+import { QuotationNextStepCard, type QuotationSurveyPanel } from '@/Components/modules/quotation/QuotationNextStepCard';
 import { QuotationReviewPanel } from '@/Components/modules/quotation/QuotationReviewPanel';
 import { QuotationRevisionHistory } from '@/Components/modules/quotation/QuotationRevisionHistory';
 import { DesignDiscussionPanel } from '@/Components/modules/design/DesignDiscussionPanel';
@@ -76,6 +77,10 @@ interface QuotationShowProps {
     issuableInvoice: { label: string; amount: string } | null;
     /** Sprint 12 #18 / D6 — the lead's Arsitek ↔ Estimator thread (null without a design / access). */
     discussion: DesignDiscussionThread | null;
+    /** Sprint 19 — the lead page is one of this viewer's menus. */
+    canOpenLead: boolean;
+    /** Sprint 19 Sub 03 — a RAB Jasa Survey's survey (CEO / Marketing only). */
+    surveyPanel: QuotationSurveyPanel | null;
 }
 
 const REVISION_REASON_TEXT: Record<QuotationRevisionReason, string> = {
@@ -123,6 +128,8 @@ export default function QuotationShow({
     canIssueInvoice,
     issuableInvoice,
     discussion,
+    canOpenLead,
+    surveyPanel,
 }: QuotationShowProps) {
     const [clientRejectOpen, setClientRejectOpen] = useState(false);
     const [cancelOpen, setCancelOpen] = useState(false);
@@ -441,6 +448,9 @@ export default function QuotationShow({
                     )}
                 </SectionCard>
             )}
+
+            {/* Sprint 19 Sub 03 — back to the lead; a paid RAB Jasa Survey schedules its survey here. */}
+            <QuotationNextStepCard quotationId={quotation.id} lead={quotation.lead} canOpenLead={canOpenLead} surveyPanel={surveyPanel} />
 
             {quotation.approvals && quotation.approvals.length > 0 && (
                 <SectionCard title="Riwayat Approval" icon={History} className="mt-6" contentClassName="space-y-3">

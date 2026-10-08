@@ -28,6 +28,7 @@ class Invoice extends Model
         'issued_by',
         'issued_at',
         'payment_proof_url',
+        'payment_note',
         'proof_submitted_by',
         'proof_submitted_at',
         'bank_account_id',

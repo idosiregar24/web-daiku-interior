@@ -16,6 +16,7 @@ use App\Models\LeadSurvey;
 use App\Models\PipelineLog;
 use App\Models\Quotation;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -327,8 +328,14 @@ class LeadService
             // Sprint 17 Sub 02 — the RAB Jasa Survey may have been asked for
             // (or even paid) before this survey was scheduled.
             if ($outside && $this->quotationService->linkSurveyToRab($lead)?->is($survey)) {
-                $this->settleSurveyPayment($survey->refresh());
+                $survey = $this->settleSurveyPayment($survey->refresh(), announce: false);
             }
+
+            // Sprint 19 — the CEO and every PM learn the plan; Marketing's
+            // "survey lunas, belum dijadwalkan" queue empties.
+            $survey->setRelation('lead', $lead);
+            $this->announceSurvey($survey, NotificationType::SurveyScheduled, 'Survey Dijadwalkan', $actor);
+            ActionInboxService::forgetMarketingOf($lead->assignee);
 
             return $survey;
         });
@@ -340,9 +347,9 @@ class LeadService
      * before the two were linked, so MarkSurveyReadyOnInvoiceVerified never
      * saw it. Used after linking and by `daiku:relink-surveys`.
      */
-    public function settleSurveyPayment(LeadSurvey $survey): LeadSurvey
+    public function settleSurveyPayment(LeadSurvey $survey, bool $announce = true): LeadSurvey
     {
-        return $this->isSurveyPaid($survey) ? $this->markSurveyReady($survey) : $survey;
+        return $this->isSurveyPaid($survey) ? $this->markSurveyReady($survey, $announce) : $survey;
     }
 
     /** Waiting for payment, linked to a RAB Jasa Survey, and that RAB's invoice is verified. */
@@ -356,15 +363,22 @@ class LeadService
     }
 
     /** Reschedule / correct the place of a survey that's still open. Inside/outside Pekanbaru is fixed. */
-    public function updateSurvey(LeadSurvey $survey, array $data): LeadSurvey
+    public function updateSurvey(LeadSurvey $survey, array $data, ?User $actor = null): LeadSurvey
     {
         $this->ensureSurveyOpen($survey);
+        $before = $survey->scheduled_at;
 
         $survey->update([
             'scheduled_at' => $data['scheduled_at'],
             'address' => $data['address'] ?? $survey->address,
             'maps_url' => $data['maps_url'] ?? $survey->maps_url,
         ]);
+
+        // Sprint 19 — only a real change of time or place is worth a ring.
+        if ($survey->wasChanged(['scheduled_at', 'address'])) {
+            $was = $survey->wasChanged('scheduled_at') && $before ? ' (sebelumnya '.$this->surveyTime($before).')' : '';
+            $this->announceSurvey($survey, NotificationType::SurveyRescheduled, 'Jadwal Survey Diubah', $actor, $was);
+        }
 
         return $survey;
     }
@@ -384,6 +398,8 @@ class LeadService
                 'sequence' => $survey->sequence,
                 'reason' => $survey->cancel_reason,
             ], $actor);
+
+            $this->announceSurvey($survey, NotificationType::SurveyCancelled, 'Survey Dibatalkan', $actor, ' Alasan: '.$survey->cancel_reason);
 
             return $survey;
         });
@@ -415,13 +431,19 @@ class LeadService
      * go ahead. Called by Sub 6's listener only — there is no route; a
      * manual "siap" by Marketing doesn't exist (decision #3).
      */
-    public function markSurveyReady(LeadSurvey $survey): LeadSurvey
+    public function markSurveyReady(LeadSurvey $survey, bool $announce = true): LeadSurvey
     {
         if ($survey->status !== LeadSurveyStatus::MenungguBayar) {
             return $survey;
         }
 
         $survey->update(['status' => LeadSurveyStatus::Siap->value]);
+
+        // Sprint 19 — the CEO/PM were told "menunggu pembayaran"; now it's on.
+        // Not when it is scheduled already paid: that announcement says so.
+        if ($announce) {
+            $this->announceSurvey($survey, NotificationType::SurveyConfirmed, 'Survey Jadi Berangkat', null, ' Pembayaran sudah diverifikasi Finance.');
+        }
 
         $this->notificationService->notifyMany(
             [$survey->lead->assignee],
@@ -487,6 +509,33 @@ class LeadService
                 $field => 'Lead ini sudah '.$lead->status->value.' — tidak bisa menambah follow-up atau survey.',
             ]);
         }
+    }
+
+    /**
+     * Sprint 19 (K1) — a survey's schedule goes to the CEO and every active
+     * PM (the lead has no PM yet at this stage), never to the person who
+     * made the change. Tagged per survey, so a reschedule replaces the
+     * earlier entry on a phone.
+     */
+    private function announceSurvey(LeadSurvey $survey, NotificationType $type, string $title, ?User $actor, string $suffix = ''): void
+    {
+        $lead = $survey->lead;
+        $place = $survey->address ? " di {$survey->address}" : '';
+        $waiting = $survey->status === LeadSurveyStatus::MenungguBayar ? ' (menunggu pembayaran klien)' : '';
+        $when = $survey->scheduled_at ? $this->surveyTime($survey->scheduled_at) : 'tanpa jadwal';
+
+        $this->notificationService->notifyMany(
+            User::role(['CEO', 'PM'])->where('is_active', true)->when($actor, fn ($q) => $q->whereKeyNot($actor->id))->get(),
+            $type,
+            $title,
+            "Survey #{$survey->sequence} \"{$lead->client_name}\": {$when}{$place}{$waiting}.{$suffix}",
+            ['lead_id' => $survey->lead_id, 'lead_survey_id' => $survey->id],
+        );
+    }
+
+    private function surveyTime(mixed $at): string
+    {
+        return Carbon::parse($at)->timezone('Asia/Jakarta')->translatedFormat('l, d M Y H:i').' WIB';
     }
 
     private function ensureSurveyOpen(LeadSurvey $survey): void

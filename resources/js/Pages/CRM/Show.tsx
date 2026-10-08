@@ -19,6 +19,7 @@ import { formatPhone } from '@/lib/phone';
 import type {
     Design,
     Lead,
+    LeadActiveQuotation,
     CityOption,
     LeadCategoryOption,
     LeadFollowUp,
@@ -75,6 +76,8 @@ interface LeadShowProps {
     customRabNames: string[];
     /** Sprint 17 Sub 04 — the lead's running RAB Proyek, if any. */
     projectRab: RunningProjectRab | null;
+    /** Sprint 19 Sub 05 — per kind the newest non-cancelled RAB (no RAB Tambahan), Proyek > Desain > Survey. */
+    activeQuotations: LeadActiveQuotation[];
 }
 
 /**
@@ -93,6 +96,7 @@ export default function LeadShow({
     cities,
     customRabNames,
     projectRab,
+    activeQuotations,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -102,7 +106,9 @@ export default function LeadShow({
     const [rabOnly, setRabOnly] = useState(false);
 
     const isClosed = lead.status === 'LOST' || lead.status === 'CLOSING';
-    const quotationExpired = isQuotationExpired(lead.quotation);
+    // Sprint 19 Sub 05 (K4) — the "RAB" stage card shows the running RAB of any kind.
+    const [currentRab, ...otherRabs] = activeQuotations;
+    const currentRabExpired = isQuotationExpired(currentRab);
     // Sprint 12: the earliest follow-up (FU-n) not done yet.
     const nextFollowUp = lead.follow_ups.filter((followUp) => !followUp.done_at).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))[0];
     const isOverdue = !!nextFollowUp && !isClosed && new Date(nextFollowUp.scheduled_date) < startOfToday();
@@ -254,20 +260,41 @@ export default function LeadShow({
                         </StageRow>
                         <StageRow
                             icon={FileText}
-                            label="Quotation"
-                            status={lead.quotation?.status}
-                            href={lead.quotation ? route('quotations.show', { quotation: lead.quotation.id }) : undefined}
+                            label="RAB"
+                            status={currentRab?.status}
+                            href={currentRab ? route('quotations.show', { quotation: currentRab.id }) : undefined}
                         >
-                            {lead.quotation ? (
+                            {currentRab ? (
                                 <>
-                                    Versi {lead.quotation.version} · {formatRupiah(lead.quotation.total_amount)}
-                                    {lead.quotation.valid_until && (
+                                    <p className="font-medium text-foreground">{currentRab.title}</p>
+                                    <Link
+                                        href={route('quotations.show', { quotation: currentRab.id })}
+                                        className="underline decoration-daiku-yellow underline-offset-2 hover:text-foreground"
+                                    >
+                                        Versi {currentRab.version} · {formatRupiah(currentRab.total_amount)}
+                                    </Link>
+                                    {currentRab.valid_until && (
                                         <>
                                             {' · '}
-                                            <span className={quotationExpired ? 'font-medium text-error-ink' : undefined}>
-                                                {quotationExpired ? 'kedaluwarsa' : 'berlaku'} s.d. {formatDate(lead.quotation.valid_until)}
+                                            <span className={currentRabExpired ? 'font-medium text-error-ink' : undefined}>
+                                                {currentRabExpired ? 'kedaluwarsa' : 'berlaku'} s.d. {formatDate(currentRab.valid_until)}
                                             </span>
                                         </>
+                                    )}
+                                    {otherRabs.length > 0 && (
+                                        <ul className="mt-2 space-y-1.5">
+                                            {otherRabs.map((rab) => (
+                                                <li key={rab.id} className="flex items-center justify-between gap-2">
+                                                    <Link
+                                                        href={route('quotations.show', { quotation: rab.id })}
+                                                        className="min-w-0 truncate underline decoration-daiku-yellow underline-offset-2 hover:text-foreground"
+                                                    >
+                                                        {rab.title} · Versi {rab.version}
+                                                    </Link>
+                                                    <StatusChip status={rab.status} />
+                                                </li>
+                                            ))}
+                                        </ul>
                                     )}
                                 </>
                             ) : (

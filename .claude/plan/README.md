@@ -43,6 +43,7 @@ email) to browse it.
 | Sprint 16 | — (di luar PRD/CSV) | — | Form: bintang merah `*` di label setiap field required (patokan Form Request), label "(opsional)" dihapus; data lead konsisten — No. HP angka diawali 08 + email berformat (`contact` → `phone`/`email`), kota dari master `cities` (dropdown) — 8 sub-plan di `sprint-16/` | **120 selesai / 0 sebagian / 0 belum (120)** — selesai 2026-10-07 | [sprint-16-penanda-wajib.md](sprint-16-penanda-wajib.md) |
 | Sprint 17 | — (di luar PRD/CSV) | — | Masukan uji alur klien (lead #37): salin link di HTTP + link klien lokal, survey luar kota tak berubah setelah bayar (tautan survey ↔ RAB Survey), klien ACC → antrean "terbitkan invoice" Marketing, info RAB Proyek otomatis, invoice bertata letak tagihan, invoice DP langsung setelah klien ACC, tombol Kirim Bukti Bayar di tempat invoice — 7 sub-plan di `sprint-17/` | **46 selesai / 0 sebagian / 1 belum (47)** — selesai 2026-10-07; uji link dari HP sungguhan (K1) & cek browser Sub 07 belum | [sprint-17-masukan-uji-alur.md](sprint-17-masukan-uji-alur.md) |
 | Sprint 18 | — (di luar PRD/CSV) | — | Notifikasi yang benar-benar sampai: pengiriman lewat antrean (tidak memblokir request), scheduler jalan di lokal, katalog 70+ tipe dengan prioritas P1–P4 (P1 = klien menunggu), tujuan klik di backend, real-time Laravel Reverb (toast, bunyi, judul tab), Web Push ke HP/laptop, Pengaturan Notifikasi, audit trigger + push ulang P1 — 6 sub (WA/email tidak dipakai, jam tenang ditunda) | **48 selesai / 0 sebagian / 3 belum (51)** — selesai 2026-10-07; tersisa uji push di HP/laptop sungguhan (klik Izinkan; HP butuh HTTPS) | [sprint-18-notifikasi.md](sprint-18-notifikasi.md) |
+| Sprint 19 | — (di luar PRD/CSV) | — | Konfirmasi bayar & jadwal survey tanpa pindah menu: "Tandai Klien Sudah Bayar" (link bukti opsional + catatan), notifikasi verifikasi P2 + P1 "Survey Lunas — Jadwalkan", dialog jadwal survey di detail RAB, notifikasi jadwal survey ke CEO + semua PM, kartu tahap RAB di lead — 6 sub | **34 selesai / 0 sebagian / 3 belum (37)** — kode selesai 2026-10-08; tersisa uji alur & deploy di server | [sprint-19-bayar-survey.md](sprint-19-bayar-survey.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -59,6 +60,7 @@ checklist-nya.
 "Kerjakan Sprint 17 Sub 1"  →  ... Sub 7        (sprint-17/01..07)
 "Kerjakan Sprint 16 Sub 1"  →  ... Sub 8        (sprint-16/01..08)
 "Kerjakan Sprint 18 Sub 1"  →  ... Sub 6        (sprint-18-notifikasi.md §5)
+"Kerjakan Sprint 19 Sub 1"  →  ... Sub 6        (sprint-19-bayar-survey.md §3)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini

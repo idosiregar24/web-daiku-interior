@@ -103,7 +103,7 @@ test('Finance verifying the Jasa Desain invoice unlocks the design for assignmen
     $design = designAt($this, DesignStatus::MenungguBayar);
     $invoices = app(InvoiceService::class);
     $invoice = $invoices->issueForQuotation($design->quotation, ['due_date' => '2026-10-08'], $this->marketing);
-    $invoices->submitProof($invoice, 'https://drive.google.com/bukti', $this->marketing);
+    $invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
 
     expect($design->fresh()->status)->toBe(DesignStatus::MenungguBayar);
 

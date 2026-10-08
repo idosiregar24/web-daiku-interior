@@ -144,6 +144,7 @@ test('every P1 type is one that a "Perlu Tindakan" queue or pop-up covers', func
     $covered = [
         'lead_follow_up_due' => 'follow-up',
         'lead_survey_ready' => 'survey-ready',
+        'survey_to_schedule' => 'survey-schedule',
         'quotation_requested' => 'quotation-requested',
         'quotation_submitted' => 'quotation-pm',
         'quotation_awaiting_ceo' => 'quotation-ceo',

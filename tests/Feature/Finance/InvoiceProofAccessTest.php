@@ -62,7 +62,7 @@ test('an issued invoice waits in its Marketing\'s queue until the proof is sent,
         ->and($group['items'][0]['href'])->toBe(route('finance.invoices.index', ['awaiting_proof' => 1, 'proof' => $invoice->id]));
 
     $service = app(InvoiceService::class);
-    $service->submitProof($invoice, 'https://drive.google.com/bukti', $this->finance);
+    $service->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->finance);
     expect(proofQueue($this->marketing))->toBeNull();
 
     $service->reject($invoice->fresh(), 'Nominal transfer kurang', $this->finance);
@@ -79,7 +79,7 @@ test('the invoice list filters what awaits proof and opens the dialog for ?proof
             ->where('invoices.data.0.id', $mine->id)
             ->where('proofInvoice.id', $mine->id));
 
-    app(InvoiceService::class)->submitProof($mine, 'https://drive.google.com/bukti', $this->marketing);
+    app(InvoiceService::class)->submitProof($mine, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
 
     // Already sent: nothing to reopen.
     $this->actingAs($this->marketing)->get(route('finance.invoices.index', ['proof' => $mine->id]))

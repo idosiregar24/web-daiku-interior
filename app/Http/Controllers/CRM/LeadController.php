@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\CRM;
 
 use App\Enums\LeadStatus;
+use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CRM\StoreLeadRequest;
 use App\Http\Requests\CRM\SubmitLeadRequestRequest;
@@ -89,7 +91,7 @@ class LeadController extends Controller
             'design.pic:id,name',
             'quotation:id,lead_id,type,custom_name,status,total_amount,version,valid_until,client_approved_at',
             // Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the client ("Riwayat RAB"), named.
-            'quotations:id,lead_id,type,custom_name,parent_quotation_id,status,total_amount,version,letter_number,created_at',
+            'quotations:id,lead_id,type,custom_name,parent_quotation_id,status,total_amount,version,valid_until,letter_number,created_at',
             'project:id,lead_id,name,pm_id,status,contract_value',
             'project.pm:id,name',
             // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
@@ -113,6 +115,26 @@ class LeadController extends Controller
             $quotation->unsetRelation('shareLinks');
         });
 
+        // Sprint 19 Sub 05 (K4) — the "RAB" stage card: per kind, the newest
+        // RAB that isn't cancelled (never a RAB Tambahan), Proyek > Desain >
+        // Survey. Built from the loaded `quotations` (newest first) — no extra
+        // query; `lead.quotation` stays the RAB Proyek for its older readers.
+        $kindOrder = [QuotationType::Proyek, QuotationType::Desain, QuotationType::Survey];
+        $activeQuotations = $lead->quotations
+            ->filter(fn (Quotation $quotation) => ! $quotation->isAddendum() && $quotation->status !== QuotationStatus::Cancelled)
+            ->unique(fn (Quotation $quotation) => ($quotation->type ?? QuotationType::Proyek)->value)
+            ->sortBy(fn (Quotation $quotation) => array_search($quotation->type ?? QuotationType::Proyek, $kindOrder, true))
+            ->values()
+            ->map(fn (Quotation $quotation) => [
+                'id' => $quotation->id,
+                'type' => ($quotation->type ?? QuotationType::Proyek)->value,
+                'title' => $quotation->title(),
+                'version' => $quotation->version,
+                'status' => $quotation->status->value,
+                'total_amount' => $quotation->total_amount,
+                'valid_until' => $quotation->valid_until?->toDateString(),
+            ]);
+
         return Inertia::render('CRM/Show', [
             // Sprint 16 Sub 08 (K15): a new survey defaults to "Luar Pekanbaru" from the lead's city.
             'lead' => $lead->append('is_outside_home_city'),
@@ -133,6 +155,7 @@ class LeadController extends Controller
                         'created_at' => $log->created_at,
                     ])
                 : null,
+            'activeQuotations' => $activeQuotations,
             'canManage' => $canManage,
             // Sprint 17 Sub 04 — the running RAB Proyek: notice when it was requested
             // automatically, and "Buat RAB → RAB Proyek/Lainnya" disabled meanwhile.

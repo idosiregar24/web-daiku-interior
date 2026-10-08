@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Quotation;
 
+use App\Enums\InvoiceStatus;
+use App\Enums\LeadStatus;
+use App\Enums\LeadSurveyStatus;
 use App\Enums\QuotationStatus;
+use App\Enums\QuotationType;
 use App\Exports\QuotationExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Quotation\CancelQuotationRequest;
@@ -16,6 +20,7 @@ use App\Models\Quotation;
 use App\Models\QuotationItemReview;
 use App\Models\SiteSetting;
 use App\Models\Unit;
+use App\Models\User;
 use App\Services\DesignService;
 use App\Services\InvoiceService;
 use App\Services\QuotationService;
@@ -121,7 +126,39 @@ class QuotationController extends Controller
             'discussion' => ($design = Design::where('lead_id', $quotation->lead_id)->first())
                 ? app(DesignService::class)->threadFor($design, $user)
                 : null,
+            // Sprint 19 — "Klien & langkah berikutnya": back to the lead page.
+            'canOpenLead' => $user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'SUPERADMIN']),
+            'surveyPanel' => $this->surveyPanel($quotation, $user),
         ]);
+    }
+
+    /**
+     * Sprint 19 Sub 03 (K2) — a RAB Jasa Survey's survey, scheduled from
+     * here once paid (posted to the lead's own `crm.surveys.*` routes, so
+     * the same Form Request and LeadService rules apply). Only for whoever
+     * writes surveys (`role:CEO|MARKETING`).
+     *
+     * @return array<string, mixed>|null
+     */
+    private function surveyPanel(Quotation $quotation, User $user): ?array
+    {
+        if ($quotation->type !== QuotationType::Survey || ! $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN'])) {
+            return null;
+        }
+
+        $lead = $quotation->lead()->first(['id', 'status', 'address']);
+        $survey = $quotation->leadSurvey()->first(['id', 'lead_id', 'sequence', 'scheduled_at', 'address', 'maps_url', 'is_outside_pekanbaru', 'status']);
+        $survey = $survey?->status === LeadSurveyStatus::Batal ? null : $survey;
+        $paid = $quotation->invoices()->where('status', InvoiceStatus::Terverifikasi->value)->exists();
+        $leadOpen = ! in_array($lead?->status, [LeadStatus::Lost, LeadStatus::Closing], true);
+
+        return [
+            'paid' => $paid,
+            'survey' => $survey,
+            'canSchedule' => $paid && $leadOpen && $survey === null,
+            'canReschedule' => $survey !== null && $survey->status->isOpen(),
+            'leadAddress' => $lead?->address,
+        ];
     }
 
     /** Sprint 12 #11 — the whole RAB: sections + items + discount + rounding (QuotationService::saveRab()). */

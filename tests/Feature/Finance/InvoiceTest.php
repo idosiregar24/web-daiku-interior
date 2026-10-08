@@ -66,7 +66,7 @@ function issuedInvoice(object $test, string $type = 'SURVEY'): Invoice
 
 function proofed(object $test, string $type = 'SURVEY'): Invoice
 {
-    return app(InvoiceService::class)->submitProof(issuedInvoice($test, $type), 'https://drive.google.com/bukti', $test->marketing);
+    return app(InvoiceService::class)->submitProof(issuedInvoice($test, $type), ['payment_proof_url' => 'https://drive.google.com/bukti'], $test->marketing);
 }
 
 // ── Terbitkan ────────────────────────────────────────────────────────────
@@ -132,6 +132,58 @@ test('only Marketing and Finance attach proofs', function (string $role, int $st
         ->assertStatus($status);
 })->with([['MARKETING', 302], ['FINANCE', 302], ['CEO', 403], ['PM', 403], ['ESTIMATOR', 403]]);
 
+// ── Tandai klien sudah bayar (Sprint 19 Sub 01) ──────────────────────────
+
+test('the client can be marked paid without a proof link', function () {
+    $invoice = issuedInvoice($this);
+
+    $this->actingAs($this->marketing)->post(route('finance.invoices.proof', $invoice), ['payment_proof_url' => '', 'payment_note' => ''])
+        ->assertSessionHasNoErrors();
+
+    $invoice->refresh();
+    expect($invoice->status)->toBe(InvoiceStatus::MenungguVerifikasi)
+        ->and($invoice->payment_proof_url)->toBeNull()
+        ->and($invoice->payment_note)->toBeNull()
+        ->and($invoice->proof_submitted_by)->toBe($this->marketing->id);
+
+    $notification = Notification::where('user_id', $this->finance->id)->where('type', 'invoice_awaiting_verification')->sole();
+    expect($notification->message)->toContain('Tanpa link bukti — cocokkan dengan mutasi rekening.');
+
+    $audit = AuditLog::where('action', 'finance.invoice_proof_submitted')->sole();
+    expect($audit->new_values)->toMatchArray(['payment_proof_url' => null, 'payment_note' => null]);
+});
+
+test('a proof link, when given, must still be http/https', function (string $url) {
+    $invoice = issuedInvoice($this);
+
+    $this->actingAs($this->marketing)->post(route('finance.invoices.proof', $invoice), ['payment_proof_url' => $url])
+        ->assertSessionHasErrors('payment_proof_url');
+
+    expect($invoice->fresh()->status)->toBe(InvoiceStatus::Diterbitkan);
+})->with(['javascript:alert(1)', 'ftp://bank.test/bukti.pdf', 'bukan link']);
+
+test('the payment note is saved, audited, sent to Finance and shown on its pages', function () {
+    $invoice = issuedInvoice($this);
+
+    $this->actingAs($this->marketing)->post(route('finance.invoices.proof', $invoice), ['payment_note' => '  Transfer BCA a.n. Budi, 12 Okt  '])
+        ->assertSessionHasNoErrors();
+
+    expect($invoice->fresh()->payment_note)->toBe('Transfer BCA a.n. Budi, 12 Okt')
+        ->and(AuditLog::where('action', 'finance.invoice_proof_submitted')->sole()->new_values['payment_note'])->toBe('Transfer BCA a.n. Budi, 12 Okt')
+        ->and(Notification::where('user_id', $this->finance->id)->sole()->message)->toContain('Catatan: Transfer BCA a.n. Budi, 12 Okt');
+
+    foreach (['finance.invoices.verification', 'finance.invoices.index'] as $routeName) {
+        $this->actingAs($this->finance)->get(route($routeName))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('invoices.data.0.id', $invoice->id)
+                ->where('invoices.data.0.payment_note', 'Transfer BCA a.n. Budi, 12 Okt')
+                ->where('invoices.data.0.payment_proof_url', null));
+    }
+
+    $this->actingAs($this->marketing)->post(route('finance.invoices.proof', issuedInvoice($this)), ['payment_note' => str_repeat('a', 501)])
+        ->assertSessionHasErrors('payment_note');
+});
+
 // ── Verifikasi ───────────────────────────────────────────────────────────
 
 test('Finance verifying books one income transaction on the chosen account', function () {
@@ -195,7 +247,7 @@ test('Finance rejects a proof with a reason — back to Marketing', function () 
         ->and(FinanceTransaction::count())->toBe(0);
 
     // Marketing can send a new proof.
-    app(InvoiceService::class)->submitProof($invoice, 'https://drive.google.com/bukti-2', $this->marketing);
+    app(InvoiceService::class)->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti-2'], $this->marketing);
     expect($invoice->fresh()->status)->toBe(InvoiceStatus::MenungguVerifikasi);
 });
 
@@ -226,7 +278,7 @@ test('an outside-Pekanbaru survey becomes ready only when its Jasa Survey invoic
     $quotation->update(['status' => QuotationStatus::ClientApproved->value, 'total_amount' => 750_000]);
 
     $invoice = app(InvoiceService::class)->issueForQuotation($quotation, ['due_date' => '2026-10-08'], $this->marketing);
-    app(InvoiceService::class)->submitProof($invoice, 'https://drive.google.com/bukti', $this->marketing);
+    app(InvoiceService::class)->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $this->marketing);
     expect($survey->fresh()->status)->toBe(LeadSurveyStatus::MenungguBayar);
 
     app(InvoiceService::class)->verify($invoice, ['bank_account_id' => $this->account->id, 'paid_date' => '2026-10-05'], $this->finance);

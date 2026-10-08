@@ -14,6 +14,13 @@ enum NotificationType: string
     // CRM
     case LeadFollowUpDue = 'lead_follow_up_due';
     case LeadSurveyReady = 'lead_survey_ready';
+    // Sprint 19 — a paid RAB Jasa Survey with no survey yet; the survey's
+    // schedule told to the CEO and every PM.
+    case SurveyToSchedule = 'survey_to_schedule';
+    case SurveyScheduled = 'survey_scheduled';
+    case SurveyRescheduled = 'survey_rescheduled';
+    case SurveyCancelled = 'survey_cancelled';
+    case SurveyConfirmed = 'survey_confirmed';
     case DealConfirmed = 'deal_confirmed';
 
     // Desain
@@ -160,6 +167,7 @@ enum NotificationType: string
             self::DesignReadyToAssign,
             self::DesignAcc,
             self::LeadSurveyReady,
+            self::SurveyToSchedule,
             self::ProjectOpeningPending => NotificationPriority::ClientWaiting,
 
             self::DesignAssigned,
@@ -186,7 +194,12 @@ enum NotificationType: string
             self::ProjectAssistantAssigned,
             self::SalaryChangeRequested,
             self::ReviewSubmitted,
-            self::ReviewReturned => NotificationPriority::ActionRequired,
+            self::ReviewReturned,
+            // Sprint 19 (K3) — Marketing hears the money arrived with a ring.
+            self::InvoiceVerified,
+            self::SurveyScheduled,
+            self::SurveyRescheduled,
+            self::SurveyCancelled => NotificationPriority::ActionRequired,
 
             self::QuotationApproved,
             self::QuotationCancelled,
@@ -194,7 +207,7 @@ enum NotificationType: string
             // its own P1 (invoice_to_issue / project_opening_pending) —
             // this one only reports the client's ACC, so a phone rings once.
             self::QuotationClientApproved,
-            self::InvoiceVerified,
+            self::SurveyConfirmed,
             self::TerminReminder,
             self::DealConfirmed,
             self::ProjectOpened,
@@ -231,6 +244,11 @@ enum NotificationType: string
         return match ($this) {
             self::LeadFollowUpDue,
             self::LeadSurveyReady,
+            self::SurveyToSchedule,
+            self::SurveyScheduled,
+            self::SurveyRescheduled,
+            self::SurveyCancelled,
+            self::SurveyConfirmed,
             self::DealConfirmed => NotificationCategory::Crm,
 
             self::DesignAcc,

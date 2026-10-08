@@ -61,7 +61,7 @@ function SurveyPaymentStep({ survey }: { survey: LeadSurvey }) {
                 <>{rabLink} masih diproses (belum disetujui klien).</>
             );
     } else if (invoice.status === 'DITERBITKAN') {
-        step = <>Invoice {invoice.number} terbit — menunggu bukti bayar klien ({rabLink}).</>;
+        step = <>Invoice {invoice.number} terbit — menunggu konfirmasi bayar klien ({rabLink}).</>;
     } else {
         step = <>Invoice {invoice.number} — menunggu verifikasi pembayaran oleh Finance ({rabLink}).</>;
     }

@@ -159,6 +159,7 @@ class ActionInboxService
         if ($user->hasRole('MARKETING')) {
             $groups[] = $this->dueFollowUps($user);
             $groups[] = $this->surveysReady($user);
+            $groups[] = $this->surveysToSchedule($user);
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
             $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
@@ -470,6 +471,27 @@ class ActionInboxService
     }
 
     /**
+     * Sprint 19 — RAB Jasa Survey paid & verified, no survey scheduled on it
+     * yet (Quotation::surveyToSchedule()). The item opens the RAB with its
+     * "Jadwalkan Survey" dialog.
+     */
+    private function surveysToSchedule(User $user): ?array
+    {
+        return $this->group(
+            'survey-schedule', 'Survey lunas — belum dijadwalkan', 'Pembayaran survey sudah diverifikasi Finance; tentukan jadwal survey.', 'followup', 'crm.leads.index',
+            route('crm.leads.index'),
+            Quotation::query()->surveyToSchedule($user)->with('lead:id,client_name')->oldest('id'),
+            fn (Quotation $q) => [
+                'id' => $q->id,
+                'title' => $q->lead?->client_name ?? "Quotation #{$q->id}",
+                'subtitle' => "{$q->title()} v{$q->version} · lunas",
+                'at' => $q->updated_at,
+                'href' => route('quotations.show', ['quotation' => $q->id, 'survey' => 'new']),
+            ],
+        );
+    }
+
+    /**
      * Sprint 17 Sub 03 (T3) — Jasa Survey / Jasa Desain RABs the client
      * approved, invoice not issued yet (Quotation::awaitingInvoice(), same
      * as the Quotation list's `awaiting_invoice` filter), oldest approval
@@ -496,13 +518,13 @@ class ActionInboxService
 
     /**
      * Sprint 17 Sub 07 — issued invoices still waiting for the client's
-     * payment proof (incl. ones Finance sent back), nearest due date first.
-     * The item opens the "Kirim Bukti Bayar" dialog on the invoice list.
+     * payment confirmation (incl. ones Finance sent back), nearest due date first.
+     * The item opens the "Tandai Klien Sudah Bayar" dialog on the invoice list.
      */
     private function invoicesAwaitingProof(User $user): ?array
     {
         return $this->group(
-            'invoice-proof', 'Invoice menunggu bukti bayar', 'Setelah klien membayar, upload link bukti transfernya untuk diverifikasi Finance.', 'invoice', 'finance.invoices.index',
+            'invoice-proof', 'Invoice menunggu konfirmasi bayar', 'Setelah klien membayar, tandai sudah bayar (link bukti transfer bila ada) untuk diverifikasi Finance.', 'invoice', 'finance.invoices.index',
             route('finance.invoices.index', ['awaiting_proof' => 1]),
             Invoice::query()->awaitingProof($user)->with('lead:id,client_name')->orderBy('due_date')->orderBy('id'),
             fn (Invoice $invoice) => [
@@ -551,7 +573,7 @@ class ActionInboxService
     private function invoicesToVerify(): ?array
     {
         return $this->group(
-            'invoice-verify', 'Pembayaran menunggu verifikasi', 'Cocokkan bukti bayar dengan mutasi rekening.', 'invoice', 'finance.invoices.verification',
+            'invoice-verify', 'Pembayaran menunggu verifikasi', 'Cocokkan pembayaran dengan mutasi rekening.', 'invoice', 'finance.invoices.verification',
             route('finance.invoices.verification'),
             Invoice::query()->byStatus(InvoiceStatus::MenungguVerifikasi->value)->with('lead:id,client_name')->orderBy('proof_submitted_at'),
             fn (Invoice $invoice) => [

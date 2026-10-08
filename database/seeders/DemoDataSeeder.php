@@ -414,7 +414,7 @@ class DemoDataSeeder extends Seeder
         $bankAccount = BankAccount::first();
 
         if ($paid && $bankAccount) {
-            $invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-jasa-desain', $this->marketing);
+            $invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/demo-bukti-jasa-desain'], $this->marketing);
             $invoices->verify($invoice, ['bank_account_id' => $bankAccount->id, 'paid_date' => now()->subDays(4)->toDateString()], $this->finance);
         }
 
@@ -842,7 +842,7 @@ class DemoDataSeeder extends Seeder
         if ($bankAccount && $dpTermin) {
             $invoices = app(InvoiceService::class);
             $invoice = $invoices->issueForTermin($dpTermin, ['due_date' => now()->subDays(5)->toDateString()], $this->marketing);
-            $invoices->submitProof($invoice, 'https://drive.google.com/demo-bukti-dp', $this->marketing);
+            $invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/demo-bukti-dp'], $this->marketing);
             $invoices->verify($invoice, ['bank_account_id' => $bankAccount->id, 'paid_date' => now()->subDays(4)->toDateString()], $this->finance);
         }
     }

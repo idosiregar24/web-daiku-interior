@@ -190,7 +190,7 @@ class ProjectController extends Controller
             'canIssueTerminInvoices' => $canIssueTerminInvoices,
             'canViewFinanceSummary' => $canViewFinanceSummary,
             'canMarkTerminPaid' => $canMarkTerminPaid,
-            // Sprint 17 Sub 07 — "Kirim Bukti Bayar" on termin & document invoice rows.
+            // Sprint 17 Sub 07 — "Tandai Klien Sudah Bayar" on termin & document invoice rows.
             'canSubmitInvoiceProof' => $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']),
             'documents' => $canViewDocuments ? [
                 'quotation' => $project->quotation()->first(['id', 'type', 'version', 'total_amount', 'client_approved_at', 'status']),

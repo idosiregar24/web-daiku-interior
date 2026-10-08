@@ -52,7 +52,7 @@ function relinkPay(object $test, Quotation $quotation, bool $verify = true): Inv
 {
     $invoices = app(InvoiceService::class);
     $invoice = $invoices->issueForQuotation($quotation, ['due_date' => '2026-10-08'], $test->marketing);
-    $invoice = $invoices->submitProof($invoice, 'https://drive.google.com/bukti', $test->marketing);
+    $invoice = $invoices->submitProof($invoice, ['payment_proof_url' => 'https://drive.google.com/bukti'], $test->marketing);
 
     return $verify ? $invoices->verify($invoice, ['bank_account_id' => $test->account->id, 'paid_date' => '2026-10-05'], $test->finance) : $invoice;
 }

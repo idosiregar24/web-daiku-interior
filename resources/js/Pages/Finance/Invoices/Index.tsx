@@ -9,6 +9,7 @@ import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import {
     INVOICE_TYPE_LABEL,
+    InvoicePaymentInfo,
     InvoiceProofDialog,
     InvoiceRejectDialog,
     InvoiceVerifyDialog,
@@ -18,7 +19,7 @@ import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import type { BankAccount, Invoice, InvoiceStatus, InvoiceType, PaginatedData } from '@/types';
 import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, Link, router } from '@inertiajs/react';
-import { ExternalLink, FileCheck2, FileDown, ReceiptText } from 'lucide-react';
+import { Banknote, FileCheck2, FileDown, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 
 interface InvoiceIndexProps {
@@ -28,7 +29,7 @@ interface InvoiceIndexProps {
     filters: { status?: string; type?: string; search?: string; awaiting_proof?: string };
     canVerify: boolean;
     canSubmitProof: boolean;
-    /** Sprint 17 Sub 07 — `?proof={id}`: open "Kirim Bukti Bayar" for this invoice right away. */
+    /** Sprint 17 Sub 07 — `?proof={id}`: open "Tandai Klien Sudah Bayar" for this invoice right away. */
     proofInvoice: (Pick<Invoice, 'id' | 'number' | 'amount' | 'reject_reason'> & { lead?: { client_name: string } }) | null;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
@@ -43,8 +44,8 @@ type Action = { kind: 'proof' | 'verify' | 'reject'; invoice: Invoice };
 
 /**
  * Sprint 12 decisions #20–#21 — "Invoice": Marketing follows up what it
- * issued (issuing itself happens on the approved RAB), adds the client's
- * payment proof; "Verifikasi Pembayaran": Finance's queue, oldest proof
+ * issued (issuing itself happens on the approved RAB), marks the client
+ * paid (proof link optional — Sprint 19 Sub 01); "Verifikasi Pembayaran": Finance's queue, oldest proof
  * first — verify (books the income) or reject with a reason.
  */
 export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSubmitProof, proofInvoice, bankAccounts }: InvoiceIndexProps) {
@@ -70,7 +71,7 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                 icon={isQueue ? FileCheck2 : ReceiptText}
                 description={
                     isQueue
-                        ? 'Invoice yang sudah dilampiri bukti bayar — cek uangnya masuk, lalu verifikasi atau tolak.'
+                        ? 'Invoice yang sudah ditandai dibayar klien — cocokkan dengan mutasi rekening, lalu verifikasi atau tolak.'
                         : 'Semua invoice yang diterbitkan Marketing: Jasa Survey, Jasa Desain, DP, dan termin.'
                 }
             />
@@ -80,7 +81,7 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
             {filters.awaiting_proof && (
                 <Notice tone="info" className="mb-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <span>Menampilkan invoice yang menunggu bukti bayar klien — tekan "Kirim Bukti Bayar" setelah klien membayar.</span>
+                        <span>Menampilkan invoice yang menunggu konfirmasi bayar klien — tekan "Tandai Klien Sudah Bayar" setelah klien membayar.</span>
                         <Button size="sm" variant="outline" onClick={() => applyFilter({ awaiting_proof: undefined })}>
                             Tampilkan semua invoice
                         </Button>
@@ -187,19 +188,12 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                                         )}
                                         {invoice.status === 'DITERBITKAN' && invoice.reject_reason && (
                                             <p className="mt-1 text-xs text-error-ink">
-                                                Bukti ditolak {formatDateTime(invoice.rejected_at)}: {invoice.reject_reason}
+                                                Ditolak Finance {formatDateTime(invoice.rejected_at)}: {invoice.reject_reason}
                                             </p>
                                         )}
-                                        {invoice.payment_proof_url && invoice.status !== 'DITERBITKAN' && (
-                                            <a
-                                                href={invoice.payment_proof_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="mt-1 inline-flex items-center gap-1 text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
-                                            >
-                                                Bukti bayar
-                                                <ExternalLink className="size-3" aria-hidden />
-                                            </a>
+                                        {invoice.status === 'MENUNGGU_VERIFIKASI' && <InvoicePaymentInfo invoice={invoice} className="mt-1 max-w-64" />}
+                                        {invoice.status === 'TERVERIFIKASI' && (invoice.payment_proof_url || invoice.payment_note) && (
+                                            <InvoicePaymentInfo invoice={invoice} showMissingLink={false} className="mt-1 max-w-64" />
                                         )}
                                     </td>
                                     <td className="px-4 py-3">
@@ -212,7 +206,8 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                                             </Button>
                                             {canSubmitProof && invoice.status === 'DITERBITKAN' && (
                                                 <Button size="sm" variant="outline" onClick={() => setAction({ kind: 'proof', invoice })}>
-                                                    Kirim Bukti Bayar
+                                                    <Banknote className="size-4" />
+                                                    Tandai Klien Sudah Bayar
                                                 </Button>
                                             )}
                                             {canVerify && invoice.status === 'MENUNGGU_VERIFIKASI' && (

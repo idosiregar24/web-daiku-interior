@@ -369,8 +369,11 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | RAB dibatalkan | Estimator penyusun | `quotation_cancelled` | 3 |
 > | Bukti bayar dikirim | Finance | `invoice_awaiting_verification` | 1 |
 > | Bukti ditolak | Penerbit, Marketing, pengirim bukti | `invoice_rejected` | 1 |
-> | Pembayaran terverifikasi | Penerbit + Marketing | `invoice_verified` | 3 |
+> | Pembayaran terverifikasi | Penerbit + Marketing | `invoice_verified` | 2 (Sprint 19; sebelumnya 3) |
 > | Survey sudah dibayar | Marketing pemegang lead | `lead_survey_ready` | 1 |
+> | RAB Jasa Survey lunas, survey belum dibuat (Sprint 19) | Marketing pemegang lead | `survey_to_schedule` | 1 |
+> | Survey dijadwalkan / diubah / dibatalkan (Sprint 19) | CEO + semua PM (bukan pelaku) | `survey_scheduled` / `survey_rescheduled` / `survey_cancelled` | 2 |
+> | Survey jadi berangkat setelah lunas (Sprint 19) | CEO + semua PM | `survey_confirmed` | 3 |
 > | Desain ACC klien (jalur lama) | Estimator / semua PM | `design_acc` / `design_acc_pm` | 1 / 3 |
 > | Desain ACC klien → RAB Proyek otomatis | Estimator / Marketing / tim desain | `design_acc` / `project_rab_auto_requested` / `design_client_approved` | 1 / 4 / 3 |
 > | Jasa Desain belum / sudah dibayar | Kepala Desain | `design_awaiting_payment` / `design_ready_to_assign` | 4 / 1 |
