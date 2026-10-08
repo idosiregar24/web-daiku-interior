@@ -20,9 +20,9 @@ export default function ForgotPassword({ status }: { status?: string }) {
     return (
         <AuthLayout
             title="Lupa Password"
-            description="Forgot your password? No problem. Just let us know your email address and we will email you a password reset link that will allow you to choose a new one."
+            description="Masukkan email akun Anda. Akun tanpa email? Minta CEO mengatur ulang password Anda."
         >
-            <Head title="Forgot Password" />
+            <Head title="Lupa Password" />
 
             {status && (
                 <div className="mb-4 rounded-lg bg-success/10 px-3 py-2 text-sm font-medium text-success-ink">
@@ -39,7 +39,8 @@ export default function ForgotPassword({ status }: { status?: string }) {
                         name="email"
                         value={data.email}
                         autoFocus
-                        placeholder="nama@daikuinterior.com"
+                        placeholder="nama@email.com"
+                        autoCapitalize="none"
                         className="h-11"
                         onChange={(e) => setData('email', e.target.value)}
                     />

@@ -37,6 +37,7 @@ class NotificationTarget
         'termin_reminder' => 'finance.termins.index',
         'termin_overdue' => 'finance.termins.index',
         'material_low_stock' => 'logistics.materials.index',
+        'account_updated' => 'profile.edit',
     ];
 
     /**

@@ -10,7 +10,9 @@ import UpdateProfileInformationForm from './Partials/UpdateProfileInformationFor
 export default function Edit({
     mustVerifyEmail,
     status,
-}: PageProps<{ mustVerifyEmail: boolean; status?: string }>) {
+    usernameChangeableAt,
+    usernameChangeDays,
+}: PageProps<{ mustVerifyEmail: boolean; status?: string; usernameChangeableAt: string | null; usernameChangeDays: number }>) {
     return (
         <AppLayout breadcrumbs={[{ label: 'Profil Saya' }]}>
             <Head title="Profile" />
@@ -27,6 +29,8 @@ export default function Edit({
                         <UpdateProfileInformationForm
                             mustVerifyEmail={mustVerifyEmail}
                             status={status}
+                            usernameChangeableAt={usernameChangeableAt}
+                            usernameChangeDays={usernameChangeDays}
                             className="max-w-xl"
                         />
                     </CardContent>

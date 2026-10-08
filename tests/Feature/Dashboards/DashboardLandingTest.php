@@ -13,7 +13,7 @@ test('division roles land on their own dashboard after login and from the root',
     $user = User::factory()->create();
     $user->assignRole($role);
 
-    $this->post('/login', ['email' => $user->email, 'password' => 'password'])
+    $this->post('/login', ['login' => $user->email, 'password' => 'password'])
         ->assertRedirect(route($routeName, absolute: false));
 
     $this->actingAs($user)->get('/')->assertRedirect(route($routeName));

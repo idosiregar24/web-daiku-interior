@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Support\Username;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -10,8 +11,15 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
+/**
+ * Sprint 21 Sub 03 (K2) — one "Email atau Username" field: with an `@` it
+ * is an email, otherwise a username. Failures always read the same, so the
+ * form never tells an outsider whether an account exists.
+ */
 class LoginRequest extends FormRequest
 {
+    private const FAILED = 'Email/username atau password salah.';
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -28,13 +36,23 @@ class LoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
+            'login' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
         ];
     }
 
+    public function messages(): array
+    {
+        return [
+            'login.required' => 'Email atau username wajib diisi.',
+            'password.required' => 'Password wajib diisi.',
+        ];
+    }
+
     /**
-     * Attempt to authenticate the request's credentials.
+     * Attempt to authenticate the request's credentials. A deactivated
+     * account (`is_active = false`, User Management) is refused whichever
+     * way it signs in — with the same message as a wrong password.
      *
      * @throws ValidationException
      */
@@ -42,15 +60,37 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $credentials = [
+            $this->loginField() => $this->identity(),
+            'password' => $this->string('password')->value(),
+            fn ($query) => $query->where('is_active', true),
+        ];
+
+        if (! Auth::attempt($credentials, $this->boolean('remember'))) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
+                'login' => self::FAILED,
             ]);
         }
 
         RateLimiter::clear($this->throttleKey());
+    }
+
+    /** `email` when the value has an "@", `username` otherwise. */
+    public function loginField(): string
+    {
+        return str_contains($this->string('login')->value(), '@') ? 'email' : 'username';
+    }
+
+    /** The login value as stored: lower-cased email, or Username::normalize(). */
+    public function identity(): string
+    {
+        $value = $this->string('login')->value();
+
+        return $this->loginField() === 'email'
+            ? mb_strtolower(trim($value))
+            : (string) Username::normalize($value);
     }
 
     /**
@@ -69,18 +109,16 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
+            'login' => 'Terlalu banyak percobaan masuk. Coba lagi dalam '.ceil($seconds / 60).' menit.',
         ]);
     }
 
     /**
-     * Get the rate limiting throttle key for the request.
+     * 5 tries per normalized identity + IP — "BUDI" and "budi" share one
+     * bucket, so changing case doesn't buy extra guesses.
      */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        return Str::transliterate($this->identity().'|'.$this->ip());
     }
 }

@@ -19,6 +19,7 @@ enum NotificationCategory: string
     case Qa = 'QA';
     case Logistics = 'LOGISTICS';
     case Hr = 'HR';
+    case Account = 'ACCOUNT';
 
     /**
      * What a person in these roles can receive — the toggles shown in
@@ -48,7 +49,8 @@ enum NotificationCategory: string
             'FIELD_STAFF' => [self::Task, self::Overtime, self::Logistics],
         ];
 
-        $categories = [];
+        // Sprint 21 — anyone's account can be changed by the CEO.
+        $categories = [self::Account->value => self::Account];
 
         foreach ($roles as $role) {
             foreach ($map[$role] ?? [] as $category) {
@@ -84,6 +86,7 @@ enum NotificationCategory: string
             self::Qa => 'QA',
             self::Logistics => 'Material & Logistik',
             self::Hr => 'SDM',
+            self::Account => 'Akun',
         };
     }
 }

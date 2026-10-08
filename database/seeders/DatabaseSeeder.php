@@ -15,20 +15,20 @@ class DatabaseSeeder extends Seeder
      * staging/UAT only (PRD §11.1), never seed this in production.
      */
     private const DEMO_USERS = [
-        'CEO' => ['name' => 'CEO Daiku Interior', 'email' => 'ceo@daikuinterior.com'],
-        'MARKETING' => ['name' => 'Marketing Daiku Interior', 'email' => 'marketing@daikuinterior.com'],
-        'DESIGNER' => ['name' => 'Designer Daiku Interior', 'email' => 'designer@daikuinterior.com'],
-        'ESTIMATOR' => ['name' => 'Estimator Daiku Interior', 'email' => 'estimator@daikuinterior.com'],
-        'PM' => ['name' => 'PM Daiku Interior', 'email' => 'pm@daikuinterior.com'],
-        'QA' => ['name' => 'QA Daiku Interior', 'email' => 'qa@daikuinterior.com'],
-        'FINANCE' => ['name' => 'Finance Daiku Interior', 'email' => 'finance@daikuinterior.com'],
-        'LOGISTICS' => ['name' => 'Logistics Daiku Interior', 'email' => 'logistics@daikuinterior.com'],
-        'FIELD_STAFF' => ['name' => 'Field Staff Daiku Interior', 'email' => 'fieldstaff@daikuinterior.com'],
-        'SUPERADMIN' => ['name' => 'Super Admin Daiku Interior', 'email' => 'superadmin@daikuinterior.com'],
-        'HR' => ['name' => 'HR Daiku Interior', 'email' => 'hr@daikuinterior.com'],
+        'CEO' => ['name' => 'CEO Daiku Interior', 'username' => 'ceo', 'email' => 'ceo@daikuinterior.com'],
+        'MARKETING' => ['name' => 'Marketing Daiku Interior', 'username' => 'marketing', 'email' => 'marketing@daikuinterior.com'],
+        'DESIGNER' => ['name' => 'Designer Daiku Interior', 'username' => 'designer', 'email' => 'designer@daikuinterior.com'],
+        'ESTIMATOR' => ['name' => 'Estimator Daiku Interior', 'username' => 'estimator', 'email' => 'estimator@daikuinterior.com'],
+        'PM' => ['name' => 'PM Daiku Interior', 'username' => 'pm', 'email' => 'pm@daikuinterior.com'],
+        'QA' => ['name' => 'QA Daiku Interior', 'username' => 'qa', 'email' => 'qa@daikuinterior.com'],
+        'FINANCE' => ['name' => 'Finance Daiku Interior', 'username' => 'finance', 'email' => 'finance@daikuinterior.com'],
+        'LOGISTICS' => ['name' => 'Logistics Daiku Interior', 'username' => 'logistics', 'email' => 'logistics@daikuinterior.com'],
+        'FIELD_STAFF' => ['name' => 'Field Staff Daiku Interior', 'username' => 'fieldstaff', 'email' => 'fieldstaff@daikuinterior.com'],
+        'SUPERADMIN' => ['name' => 'Super Admin Daiku Interior', 'username' => 'superadmin', 'email' => 'superadmin@daikuinterior.com'],
+        'HR' => ['name' => 'HR Daiku Interior', 'username' => 'hr', 'email' => 'hr@daikuinterior.com'],
         // Sprint 12 — Kepala Desain is stacked on DESIGNER (User::rolesFor()).
-        'ASISTEN_PM' => ['name' => 'Asisten PM Daiku Interior', 'email' => 'asistenpm@daikuinterior.com'],
-        'KEPALA_DESAIN' => ['name' => 'Kepala Desain Daiku Interior', 'email' => 'kepaladesain@daikuinterior.com'],
+        'ASISTEN_PM' => ['name' => 'Asisten PM Daiku Interior', 'username' => 'asistenpm', 'email' => 'asistenpm@daikuinterior.com'],
+        'KEPALA_DESAIN' => ['name' => 'Kepala Desain Daiku Interior', 'username' => 'kepaladesain', 'email' => 'kepaladesain@daikuinterior.com'],
     ];
 
     /**
@@ -59,6 +59,11 @@ class DatabaseSeeder extends Seeder
             $user = User::factory()->create($attributes);
             $user->assignRole(User::rolesFor($role));
         }
+
+        // Sprint 21 — a Tukang with a username and no email: logs in as
+        // `budi` / `password`; "lupa password" goes through the CEO.
+        User::factory()->create(['name' => 'Budi Tukang', 'username' => 'budi', 'email' => null, 'email_verified_at' => null])
+            ->assignRole('FIELD_STAFF');
 
         // Walks the full presales→execution→payroll business process
         // through the real Service layer (Lead→Design→Quotation→Project→

@@ -76,7 +76,7 @@ class EmployeeController extends Controller
     ): Response {
         abort_unless(Employee::query()->hrEligible()->whereKey($employee->id)->exists(), 404);
 
-        $employee->load(['user:id,name,email', 'position:id,name,division_id', 'position.division:id,name', 'creator:id,name']);
+        $employee->load(['user:id,name,username,email', 'position:id,name,division_id', 'position.division:id,name', 'creator:id,name']);
         $canManage = $request->user()->hasAnyRole(['HR', 'SUPERADMIN']);
 
         return Inertia::render('HR/Employees/Show', [

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureLinkedEmployee;
+use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\ForgetActionInbox;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ModuleAccessMiddleware;
@@ -25,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             AddLinkHeadersForPreloadedAssets::class,
             // Sprint 13 — drops the user's cached "Perlu Tindakan" counts after each write.
             ForgetActionInbox::class,
+            // Sprint 21 Sub 05 — after a CEO password reset, only "Buat Password Baru" opens.
+            EnsurePasswordChanged::class,
         ]);
 
         // Spatie Laravel Permission — required for `role:`, `permission:` and

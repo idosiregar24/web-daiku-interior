@@ -162,6 +162,17 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     `city_id` → Master Kota (`cities`, SUPERADMIN in Data Master), picked
     through `CitySelect` / `City::options()` — never free text; the home
     city is `config('daiku.home_city')`.
+15. **Login dengan username (Sprint 21 — `plan/sprint-21-login-username.md`).**
+    An account has a `username`, an `email`, or both — at least one
+    (`ValidatesUserIdentity`; `email` is nullable, never assume it's set —
+    show `User::loginLabel()` / `atUsername()`). Username format and the
+    reserved list live only in `App\Support\Username` + `lib/username.ts`
+    (change both). Login is one "Email atau Username" field (`LoginRequest`:
+    `@` → email), inactive accounts refused, failures generic. Username/email
+    changes go through `UserService` (audit; the user's own username once
+    per `daiku.username_change_days`, the CEO unlimited + notifies). A
+    password the CEO sets is temporary (`must_change_password` →
+    `EnsurePasswordChanged`).
 
 ## Local environment
 
@@ -186,7 +197,9 @@ status): [`plan/README.md`](plan/README.md). Source task list:
   `phpunit.xml` (SQLite) and run against the dev MySQL database.
 - DB: MySQL 8.4 via Laragon, `root` / no password, database `daiku_interior`.
   `php artisan migrate:fresh --seed` = full demo data (every role:
-  `{role}@daikuinterior.com` / `password`). Production uses
+  `{role}@daikuinterior.com` or username `{role}` without underscores
+  (`fieldstaff`, `asistenpm`) / `password`; `budi` = Tukang without an
+  email). Production uses
   `ProductionSeeder` instead — `DatabaseSeeder` refuses demo data when
   `APP_ENV=production`.
 - Real-time: `BROADCAST_CONNECTION=reverb` + `php artisan reverb:start`

@@ -26,7 +26,9 @@ export type Role =
 export interface User {
     id: number;
     name: string;
-    email: string;
+    /** Sprint 21 — an account has a username, an email, or both (lib/username.ts). */
+    username: string | null;
+    email: string | null;
     email_verified_at?: string;
     /** Primary role — what nav gating and role checks read (never a stacked role). */
     role?: Role;
@@ -1251,7 +1253,8 @@ export type NotificationCategory =
     | 'OVERTIME'
     | 'QA'
     | 'LOGISTICS'
-    | 'HR';
+    | 'HR'
+    | 'ACCOUNT';
 
 /** PRD 5.1 — Notifications */
 export interface AppNotification {

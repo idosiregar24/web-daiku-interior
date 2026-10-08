@@ -49,6 +49,8 @@ class NewPasswordController extends Controller
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
+                    // Their own password now — a CEO reset no longer applies.
+                    'must_change_password' => false,
                 ])->save();
 
                 event(new PasswordReset($user));

@@ -30,7 +30,7 @@ test('the toggles match the role, plus anything actually received', function () 
     $staff = preferenceUser('FIELD_STAFF');
 
     $this->actingAs($staff)->get(route('profile.notifications.edit'))
-        ->assertInertia(fn (Assert $page) => $page->where('categories', fn ($categories) => collect($categories)->pluck('value')->all() === ['TASK', 'OVERTIME', 'LOGISTICS']));
+        ->assertInertia(fn (Assert $page) => $page->where('categories', fn ($categories) => collect($categories)->pluck('value')->all() === ['TASK', 'OVERTIME', 'LOGISTICS', 'ACCOUNT']));
 
     Notification::factory()->create(['user_id' => $staff->id, 'type' => NotificationType::QaRejected->value]);
 

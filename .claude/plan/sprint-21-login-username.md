@@ -1,6 +1,6 @@
 # Sprint 21 — Login dengan Username
 
-> Status: **belum dikerjakan** — rencana 2026-10-08, K1–K5 sudah dijawab user (§2).
+> Status: **kode selesai 2026-10-08** (Sub 01–05 + uji/build Sub 06). Tersisa: `/security-review`, cek di HP sungguhan, deploy server, info ke staf (§Sub 06).
 > Sumber: permintaan klien lewat user, 2026-10-08: "bisa login menggunakan
 > username yang diatur sendiri, dan sistem mengecek apakah username itu sudah
 > dipakai atau belum".
@@ -56,62 +56,86 @@ Cara menyuruh: **"Kerjakan Sprint 21 Sub 1"** … **Sub 6**.
 
 ## Sub 01 — Kolom & aturan
 
-- [ ] `App\Support\Username` (satu sumber aturan, seperti `App\Support\Phone`): `normalize()` (trim + lowercase), `rules()` (`/^[a-z][a-z0-9]{2,29}$/`), `RESERVED`, `isReserved()`, `suggestFor(string $name)` (mis. "Budi Santoso" → `budisantoso`, `budis`, `budi`, + angka bila sudah dipakai; huruf beraksen ditransliterasi, sisanya dibuang).
-- [ ] `resources/js/lib/username.ts`: regex, panjang & daftar cadangan yang **sama**, untuk Zod. Ubah keduanya bersamaan (komentar saling menunjuk).
-- [ ] Trait `App\Http\Requests\Concerns\ValidatesUserIdentity`: `username` (`nullable`, `Username::rules()`, tidak cadangan, `unique` ignore diri sendiri) + `email` (`nullable|email|max:255|unique`) + `required_without` satu sama lain. Pesan: "Isi username atau email (minimal salah satu)."
-- [ ] Migrasi `add_username_to_users_table`: `username` `string(30)` nullable UNIQUE setelah `name`, `username_changed_at` timestamp nullable; `email` → nullable (UNIQUE tetap; MySQL mengizinkan banyak NULL). `down()`: hapus kolom, email kosong diisi `{id}@no-email.invalid` sebelum dikembalikan NOT NULL.
-- [ ] Model `User`: `username` & `username_changed_at` di `$fillable`/`casts`, mutator lowercase untuk `username` (lapis kedua) dan `email`.
-- [ ] `UserFactory`: username unik. `DatabaseSeeder` demo: tiap user demo dapat username = nama role huruf kecil tanpa garis bawah (`ceo`, `marketing`, `fieldstaff`, `asistenpm`, `kepaladesain`…). Tambah satu user demo **tanpa email** (Tukang, username saja) untuk uji Sub 05. `ProductionSeeder` tidak berubah.
-- [ ] `resources/js/types/index.d.ts`: `User.username: string | null`, `User.email: string | null`.
-- [ ] Test unit `Username`: normalisasi (`Budi` → `budi`), valid (`budi`, `budi2`, `budisantoso`), invalid (`bu`, `1budi`, `budi.s`, `budi_s`, `budi s`, `budi-s`, 31 karakter), cadangan, saran tidak bentrok dengan yang sudah ada. Test trait: kosong keduanya ditolak, salah satu cukup.
+- [x] `App\Support\Username` (satu sumber aturan, seperti `App\Support\Phone`): `normalize()` (trim + lowercase), `rules()` (`/^[a-z][a-z0-9]{2,29}$/`), `RESERVED`, `isReserved()`, `suggestFor(string $name)` (mis. "Budi Santoso" → `budisantoso`, `budis`, `budi`, + angka bila sudah dipakai; huruf beraksen ditransliterasi, sisanya dibuang).
+- [x] `resources/js/lib/username.ts`: regex, panjang & daftar cadangan yang **sama**, untuk Zod. Ubah keduanya bersamaan (komentar saling menunjuk).
+- [x] Trait `App\Http\Requests\Concerns\ValidatesUserIdentity`: `username` (`nullable`, `Username::rules()`, tidak cadangan, `unique` ignore diri sendiri) + `email` (`nullable|email|max:255|unique`) + `required_without` satu sama lain. Pesan: "Isi username atau email (minimal salah satu)."
+- [x] Migrasi `add_username_to_users_table`: `username` `string(30)` nullable UNIQUE setelah `name`, `username_changed_at` timestamp nullable; `email` → nullable (UNIQUE tetap; MySQL mengizinkan banyak NULL). `down()`: hapus kolom, email kosong diisi `{id}@no-email.invalid` sebelum dikembalikan NOT NULL.
+- [x] Model `User`: `username` & `username_changed_at` di `$fillable`/`casts`, mutator lowercase untuk `username` (lapis kedua) dan `email`.
+- [x] `UserFactory`: username unik. `DatabaseSeeder` demo: tiap user demo dapat username = nama role huruf kecil tanpa garis bawah (`ceo`, `marketing`, `fieldstaff`, `asistenpm`, `kepaladesain`…). Tambah satu user demo **tanpa email** (Tukang, username saja) untuk uji Sub 05. `ProductionSeeder` tidak berubah.
+- [x] `resources/js/types/index.d.ts`: `User.username: string | null`, `User.email: string | null`.
+- [x] Test unit `Username`: normalisasi (`Budi` → `budi`), valid (`budi`, `budi2`, `budisantoso`), invalid (`bu`, `1budi`, `budi.s`, `budi_s`, `budi s`, `budi-s`, 31 karakter), cadangan, saran tidak bentrok dengan yang sudah ada. Test trait: kosong keduanya ditolak, salah satu cukup.
 
 ## Sub 02 — Cek ketersediaan langsung
 
-- [ ] Route `GET /username/check` (`username.check`, `auth` + `throttle:30,1`), controller tipis + `CheckUsernameRequest`. Parameter `username`, opsional `user_id` (hanya CEO/SUPERADMIN; user lain otomatis dirinya sendiri) supaya username milik sendiri dianggap "tidak berubah", bukan "sudah dipakai".
-- [ ] Jawaban JSON `{ status, message, suggestions }`. `status` ∈ `available` / `taken` / `invalid` / `reserved` / `unchanged`. Pesan Indonesia: "Username tersedia", "Username sudah dipakai", "Hanya huruf kecil dan angka, tanpa spasi, titik atau garis bawah", "Username ini tidak boleh dipakai". `suggestions` (maks. 3) untuk `taken`/`reserved`.
-- [ ] Hanya untuk user yang login. Tidak ada pendaftaran publik, jadi orang luar tidak bisa menebak username staf. Halaman login **tidak** memakai pengecekan ini.
-- [ ] Komponen `Components/shared/UsernameInput.tsx`: prefiks `@`, huruf besar langsung dikecilkan saat mengetik, cek otomatis 400 ms setelah berhenti mengetik (permintaan lama dibatalkan), indikator di dalam kolom: memuat / ✓ `text-success-ink` / ✗ `text-error-ink` + pesan di bawah. Saran bisa diklik untuk mengisi kolom. `autoCapitalize="none"`, `autoCorrect="off"`, `spellCheck={false}`.
-- [ ] Hasil cek hanya bantuan. **Keputusan akhir tetap di server**: Form Request `unique` + indeks UNIQUE di DB (dua orang menyimpan username sama bersamaan → yang kedua dapat "Username sudah dipakai").
-- [ ] Test: tiap `status`, `Budi` = `budi`, `unchanged` untuk milik sendiri, user biasa tidak bisa memakai `user_id` orang lain, guest → redirect login, throttle → 429.
+- [x] Route `GET /username/check` (`username.check`, `auth` + `throttle:30,1`), controller tipis + `CheckUsernameRequest`. Parameter `username`, opsional `user_id` (hanya CEO/SUPERADMIN; user lain otomatis dirinya sendiri) supaya username milik sendiri dianggap "tidak berubah", bukan "sudah dipakai".
+- [x] Jawaban JSON `{ status, message, suggestions }`. `status` ∈ `available` / `taken` / `invalid` / `reserved` / `unchanged`. Pesan Indonesia: "Username tersedia", "Username sudah dipakai", "Hanya huruf kecil dan angka, tanpa spasi, titik atau garis bawah", "Username ini tidak boleh dipakai". `suggestions` (maks. 3) untuk `taken`/`reserved`.
+- [x] Hanya untuk user yang login. Tidak ada pendaftaran publik, jadi orang luar tidak bisa menebak username staf. Halaman login **tidak** memakai pengecekan ini.
+- [x] Komponen `Components/shared/UsernameInput.tsx`: prefiks `@`, huruf besar langsung dikecilkan saat mengetik, cek otomatis 400 ms setelah berhenti mengetik (permintaan lama dibatalkan), indikator di dalam kolom: memuat / ✓ `text-success-ink` / ✗ `text-error-ink` + pesan di bawah. Saran bisa diklik untuk mengisi kolom. `autoCapitalize="none"`, `autoCorrect="off"`, `spellCheck={false}`.
+- [x] Hasil cek hanya bantuan. **Keputusan akhir tetap di server**: Form Request `unique` + indeks UNIQUE di DB (dua orang menyimpan username sama bersamaan → yang kedua dapat "Username sudah dipakai").
+- [x] Test: tiap `status`, `Budi` = `budi`, `unchanged` untuk milik sendiri, user biasa tidak bisa memakai `user_id` orang lain, guest → redirect login, throttle → 429.
 
 ## Sub 03 — Login dengan email atau username
 
-- [ ] `LoginRequest`: field `email` → `login` (`required|string|max:255`). Ada `@` → `Auth::attempt(['email' => lower(...)])`, tidak ada → `Auth::attempt(['username' => Username::normalize(...)])`. `remember` tetap.
-- [ ] User nonaktif (`is_active = false`) tetap ditolak seperti sekarang, apa pun cara login.
-- [ ] Pesan gagal **umum**: "Email/username atau password salah." Tidak membedakan "akun tidak ada" dan "password salah".
-- [ ] Throttle 5× per (identitas yang dinormalisasi + IP), tidak bisa diakali dengan huruf besar/kecil.
-- [ ] `Auth/Login.tsx`: label "Email atau Username" (wajib), `type="text"`, `autoComplete="username"`, `autoCapitalize="none"` (HP tidak membesarkan huruf pertama), placeholder "nama@email.com atau username".
-- [ ] Test: login email (lama) tetap bisa, login username, `BUDI` tetap masuk sebagai `budi`, akun tanpa email bisa login dengan username, password salah → pesan umum, user nonaktif ditolak, throttle per identitas.
+- [x] `LoginRequest`: field `email` → `login` (`required|string|max:255`). Ada `@` → `Auth::attempt(['email' => lower(...)])`, tidak ada → `Auth::attempt(['username' => Username::normalize(...)])`. `remember` tetap.
+- [x] User nonaktif (`is_active = false`) tetap ditolak seperti sekarang, apa pun cara login.
+- [x] Pesan gagal **umum**: "Email/username atau password salah." Tidak membedakan "akun tidak ada" dan "password salah".
+- [x] Throttle 5× per (identitas yang dinormalisasi + IP), tidak bisa diakali dengan huruf besar/kecil.
+- [x] `Auth/Login.tsx`: label "Email atau Username" (wajib), `type="text"`, `autoComplete="username"`, `autoCapitalize="none"` (HP tidak membesarkan huruf pertama), placeholder "nama@email.com atau username".
+- [x] Test: login email (lama) tetap bisa, login username, `BUDI` tetap masuk sebagai `budi`, akun tanpa email bisa login dengan username, password salah → pesan umum, user nonaktif ditolak, throttle per identitas.
 
 ## Sub 04 — Atur username & email
 
-- [ ] **Buat User** (`users.create`): kolom Username (`UsernameInput`) + Email, **minimal salah satu** (bintang dinamis: keduanya berbintang selama keduanya kosong, sesuai Sprint 16). Tombol kecil "Buat dari nama" mengisi saran pertama yang tersedia.
-- [ ] **Edit User** (`users.edit`): bisa mengisi/mengganti/mengosongkan username atau email, asal tidak keduanya kosong. Ganti oleh CEO tidak dibatasi 40 hari dan tidak mereset hitungan user.
-- [ ] **Profil Saya** (`profile.update`, `UpdateProfileInformationForm`):
+- [x] **Buat User** (`users.create`): kolom Username (`UsernameInput`) + Email, **minimal salah satu** (bintang dinamis: keduanya berbintang selama keduanya kosong, sesuai Sprint 16). Tombol kecil "Buat dari nama" mengisi saran pertama yang tersedia.
+- [x] **Edit User** (`users.edit`): bisa mengisi/mengganti/mengosongkan username atau email, asal tidak keduanya kosong. Ganti oleh CEO tidak dibatasi 40 hari dan tidak mereset hitungan user.
+- [x] **Profil Saya** (`profile.update`, `UpdateProfileInformationForm`):
   - Username (`UsernameInput`). Bila masih dalam 40 hari sejak terakhir diganti sendiri: kolom terkunci + "Bisa diganti lagi pada {tanggal}". Mengisi username **pertama kali** (dari kosong) selalu boleh, lalu hitungan 40 hari dimulai.
   - Email: bebas ditambah/diganti kapan saja (K1).
   - Tidak boleh mengosongkan keduanya.
-- [ ] Batas 40 hari dicek di `UserService::changeOwnUsername()` (bukan hanya di UI), pesan Indonesia. Angka 40 di `config/daiku.php` (`username_change_days`), tidak di-hardcode di beberapa tempat.
-- [ ] Semua perubahan username/email lewat `UserService` → `AuditLogService::record()` (lama → baru, siapa yang mengubah). Notifikasi ke user bila username/email-nya diubah CEO ("Username Anda diubah menjadi @…").
-- [ ] Tampilan: daftar Users (`users.index`) menampilkan `@username` dan email (yang ada), keduanya ikut pencarian.
-- [ ] Form Request `StoreUserRequest`, `UpdateUserRequest`, `ProfileUpdateRequest` memakai `ValidatesUserIdentity`. Zod dari `lib/username.ts` dengan aturan "minimal salah satu" yang sama.
-- [ ] Test: CEO membuat akun dengan username saja / email saja / keduanya / tanpa keduanya (ditolak); user mengisi username pertama kali; ganti kedua dalam 40 hari ditolak, hari ke-41 boleh; CEO bebas mengganti + user dapat notifikasi; email diganti sendiri bebas; audit tercatat; RBAC `users.*` tetap CEO saja.
+- [x] Batas 40 hari dicek di `UserService::changeOwnUsername()` (bukan hanya di UI), pesan Indonesia. Angka 40 di `config/daiku.php` (`username_change_days`), tidak di-hardcode di beberapa tempat.
+- [x] Semua perubahan username/email lewat `UserService` → `AuditLogService::record()` (lama → baru, siapa yang mengubah). Notifikasi ke user bila username/email-nya diubah CEO ("Username Anda diubah menjadi @…").
+- [x] Tampilan: daftar Users (`users.index`) menampilkan `@username` dan email (yang ada), keduanya ikut pencarian.
+- [x] Form Request `StoreUserRequest`, `UpdateUserRequest`, `ProfileUpdateRequest` memakai `ValidatesUserIdentity`. Zod dari `lib/username.ts` dengan aturan "minimal salah satu" yang sama.
+- [x] Test: CEO membuat akun dengan username saja / email saja / keduanya / tanpa keduanya (ditolak); user mengisi username pertama kali; ganti kedua dalam 40 hari ditolak, hari ke-41 boleh; CEO bebas mengganti + user dapat notifikasi; email diganti sendiri bebas; audit tercatat; RBAC `users.*` tetap CEO saja.
 
 ## Sub 05 — Akun tanpa email
 
-- [ ] Lupa password (`ForgotPassword.tsx` + controller): teks "Masukkan email akun Anda. Akun tanpa email? Minta CEO mengatur ulang password Anda." Respons tetap umum (tidak memberi tahu email terdaftar atau tidak).
-- [ ] CEO mengatur ulang password lewat Edit User (sudah ada). Ditambah kolom `must_change_password` (boolean) di `users`: menyala bila password diganti CEO, mati setelah user menggantinya sendiri.
-- [ ] Middleware `EnsurePasswordChanged`: user dengan `must_change_password` hanya bisa membuka halaman ganti password (+ logout) sampai ia membuat password sendiri. Pesan: "Password Anda diatur ulang oleh CEO. Buat password baru untuk melanjutkan."
-- [ ] `ConfirmablePasswordController`: validasi password pakai ID user (`Auth::guard('web')->validate(['id' => …, 'password' => …])` atau `Hash::check`), bukan email.
-- [ ] Fallback tampilan email kosong: kartu user di sidebar (`AppLayout.tsx`) menampilkan `@username`, `HR/Employees/Show.tsx` `nama (@username)`, audit `UserService` mencatat `username` juga.
-- [ ] Telusuri sisa pemakaian `$user->email` (gate Telescope/Horizon, PDF, notifikasi, `ProductionSeeder`) agar aman bila `null`.
-- [ ] Test: akun tanpa email login dengan username, konfirmasi password berhasil, CEO reset password → user dipaksa ganti → setelah ganti bebas, lupa password tidak membocorkan keberadaan akun.
+- [x] Lupa password (`ForgotPassword.tsx` + controller): teks "Masukkan email akun Anda. Akun tanpa email? Minta CEO mengatur ulang password Anda." Respons tetap umum (tidak memberi tahu email terdaftar atau tidak).
+- [x] CEO mengatur ulang password lewat Edit User (sudah ada). Ditambah kolom `must_change_password` (boolean) di `users`: menyala bila password diganti CEO, mati setelah user menggantinya sendiri.
+- [x] Middleware `EnsurePasswordChanged`: user dengan `must_change_password` hanya bisa membuka halaman ganti password (+ logout) sampai ia membuat password sendiri. Pesan: "Password Anda diatur ulang oleh CEO. Buat password baru untuk melanjutkan."
+- [x] `ConfirmablePasswordController`: validasi password pakai ID user (`Auth::guard('web')->validate(['id' => …, 'password' => …])` atau `Hash::check`), bukan email.
+- [x] Fallback tampilan email kosong: kartu user di sidebar (`AppLayout.tsx`) menampilkan `@username`, `HR/Employees/Show.tsx` `nama (@username)`, audit `UserService` mencatat `username` juga.
+- [x] Telusuri sisa pemakaian `$user->email` (gate Telescope/Horizon, PDF, notifikasi, `ProductionSeeder`) agar aman bila `null`.
+- [x] Test: akun tanpa email login dengan username, konfirmasi password berhasil, CEO reset password → user dipaksa ganti → setelah ganti bebas, lupa password tidak membocorkan keberadaan akun.
 
 ## Sub 06 — Uji, deploy & sosialisasi
 
-- [ ] `php artisan test`, `npm run build`, `pint` lulus.
+- [x] `php artisan test`, `npm run build`, `pint` lulus. (2026-10-08: 1981 test lulus, build bersih.)
 - [ ] `/security-review` pada diff Sub 02, 03 dan 05 (endpoint baru, login, reset password).
 - [ ] Cek di HP: kolom login dan username tidak membesarkan huruf otomatis, indikator cek username terbaca, layar "buat password baru" nyaman.
 - [ ] Deploy server (lihat `deploy/DEPLOY-AAPANEL.md`): backup DB → `migrate` (hanya menambah kolom, user lama tidak berubah) → build.
 - [ ] Info ke staf: "Sekarang bisa login dengan username. Buat username Anda di Profil Saya (hanya huruf kecil dan angka). Username hanya bisa diganti sekali per 40 hari."
-- [ ] Update `plan/README.md` + `CLAUDE.md` (golden rule: username lewat `App\Support\Username` / `lib/username.ts`; akun minimal punya username atau email; login "email atau username").
+- [x] Update `plan/README.md` + `CLAUDE.md` (golden rule: username lewat `App\Support\Username` / `lib/username.ts`; akun minimal punya username atau email; login "email atau username").
+
+---
+
+## Catatan pelaksanaan (2026-10-08)
+
+- **User nonaktif sebelumnya masih bisa login** — `LoginRequest` tidak pernah
+  memeriksa `is_active`. Sekarang ditolak (pesan umum yang sama).
+- Kategori notifikasi baru **"Akun"** (`NotificationCategory::Account`,
+  tipe `account_updated`, P3) untuk "Akun Anda diperbarui CEO"; tampil di
+  Pengaturan Notifikasi untuk semua role, klik → Profil Saya.
+- `must_change_password` di migrasi terpisah
+  (`add_must_change_password_to_users_table`). Halaman paksa ganti:
+  `password.change` (`Auth/ChangePassword.tsx`, AuthLayout); password
+  sementara tidak ditanya ulang. CEO yang mereset password **dirinya sendiri**
+  tidak dipaksa. Akun baru yang dibuat CEO juga tidak dipaksa (rencana hanya
+  menyebut reset).
+- Username lama yang tidak memenuhi aturan (demo `pm`, `qa`) tetap diterima
+  selama tidak diubah (`ValidatesUserIdentity` + `usernameField(current)`).
+- Membersihkan username sendiri juga dihitung sebagai ganti (40 hari), supaya
+  "kosongkan lalu isi lagi" tidak melewati batas.
+- `username.check` menerima `name` untuk saran; "Buat dari nama" memakai
+  tebakan `usernameFromName()` lalu saran server.
+- Demo: user tanpa email `budi` / `password` (Tukang). Data demo lama di DB
+  lokal tidak punya username sampai `migrate:fresh --seed`.

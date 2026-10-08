@@ -46,4 +46,10 @@ return [
      * (Lead::is_outside_home_city); CitySelect lists it first.
      */
     'home_city' => 'Pekanbaru',
+
+    /*
+     * Sprint 21 (K4) — a user may change their own username once per this
+     * many days (UserService::changeOwnUsername()). The CEO isn't limited.
+     */
+    'username_change_days' => 40,
 ];

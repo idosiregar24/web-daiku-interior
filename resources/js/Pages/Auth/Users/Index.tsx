@@ -3,10 +3,12 @@ import { Button } from '@/Components/ui/button';
 import { DataTable } from '@/Components/shared/DataTable';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { SearchInput } from '@/Components/shared/SearchInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import AppLayout, { ROLE_LABEL } from '@/Layouts/AppLayout';
 import type { PaginatedData, Role, User } from '@/types';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Pencil, Plus, UserCog } from 'lucide-react';
 
@@ -18,6 +20,7 @@ interface UserWithRoles extends Omit<User, 'roles'> {
 
 interface UsersIndexProps {
     users: PaginatedData<UserWithRoles>;
+    filters: { search: string };
 }
 
 const columns: ColumnDef<UserWithRoles>[] = [
@@ -34,11 +37,20 @@ const columns: ColumnDef<UserWithRoles>[] = [
                         .join('')
                         .toUpperCase()}
                 </span>
-                <span className="font-medium text-foreground">{row.original.name}</span>
+                <span className="min-w-0 leading-tight">
+                    <span className="block font-medium text-foreground">{row.original.name}</span>
+                    {row.original.username && (
+                        <span className="block text-xs text-muted-foreground">@{row.original.username}</span>
+                    )}
+                </span>
             </span>
         ),
     },
-    { accessorKey: 'email', header: 'Email' },
+    {
+        accessorKey: 'email',
+        header: 'Email',
+        cell: ({ row }) => row.original.email ?? <span className="text-muted-foreground">—</span>,
+    },
     {
         id: 'role',
         header: 'Role',
@@ -72,7 +84,14 @@ const columns: ColumnDef<UserWithRoles>[] = [
     },
 ];
 
-export default function UsersIndex({ users }: UsersIndexProps) {
+export default function UsersIndex({ users, filters }: UsersIndexProps) {
+    const [search, setSearch] = useState(filters.search);
+
+    function applySearch() {
+        if (search === filters.search) return;
+        router.get(route('users.index'), { search: search || undefined }, { preserveState: true, preserveScroll: true, replace: true });
+    }
+
     return (
         <AppLayout>
             <Head title="Pengguna" />
@@ -96,7 +115,19 @@ export default function UsersIndex({ users }: UsersIndexProps) {
             <DataTable
                 columns={columns}
                 data={users.data}
-                emptyMessage="Belum ada user selain akun awal."
+                emptyMessage={filters.search ? 'Tidak ada user yang cocok.' : 'Belum ada user selain akun awal.'}
+                toolbar={
+                    <SearchInput
+                        className="sm:max-w-xs"
+                        placeholder="Cari nama, username, atau email"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') applySearch();
+                        }}
+                        onBlur={applySearch}
+                    />
+                }
                 pagination={users}
             />
         </AppLayout>

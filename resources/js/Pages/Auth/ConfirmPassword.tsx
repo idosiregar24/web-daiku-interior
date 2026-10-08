@@ -21,11 +21,10 @@ export default function ConfirmPassword() {
 
     return (
         <AuthLayout title="Konfirmasi Password">
-            <Head title="Confirm Password" />
+            <Head title="Konfirmasi Password" />
 
             <div className="mb-4 text-sm text-muted-foreground">
-                This is a secure area of the application. Please confirm your
-                password before continuing.
+                Ini area yang dilindungi. Masukkan password Anda untuk melanjutkan.
             </div>
 
             <form onSubmit={submit}>
@@ -47,7 +46,7 @@ export default function ConfirmPassword() {
 
                 <div className="mt-4 flex items-center justify-end">
                     <PrimaryButton className="ms-4" disabled={processing}>
-                        Confirm
+                        Konfirmasi
                     </PrimaryButton>
                 </div>
             </form>

@@ -18,7 +18,7 @@ export default function Login({
 }) {
     const { site } = usePage<PageProps>().props;
     const { data, setData, post, processing, errors, reset } = useForm({
-        email: '',
+        login: '',
         password: '',
         // Sprint 13 D6 — ticked by default so a Tukang doesn't sign in on
         // their phone every morning; untick it on a shared computer.
@@ -45,20 +45,24 @@ export default function Login({
 
             <form onSubmit={submit} className="space-y-5">
                 <div className="space-y-2">
-                    <Label htmlFor="email">Email<RequiredMark /></Label>
+                    {/* Sprint 21 (K2) — email or username in one field; "@" decides which (LoginRequest). */}
+                    <Label htmlFor="login">Email atau Username<RequiredMark /></Label>
                     <Input
-                        id="email"
-                        type="email"
-                        name="email"
-                        value={data.email}
+                        id="login"
+                        type="text"
+                        name="login"
+                        value={data.login}
                         autoComplete="username"
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         autoFocus
-                        placeholder="nama@daikuinterior.com"
+                        placeholder="nama@email.com atau username"
                         className="h-11"
-                        onChange={(e) => setData('email', e.target.value)}
+                        onChange={(e) => setData('login', e.target.value)}
                     />
-                    {errors.email && (
-                        <p className="text-sm text-error-ink">{errors.email}</p>
+                    {errors.login && (
+                        <p className="text-sm text-error-ink">{errors.login}</p>
                     )}
                 </div>
 
@@ -87,13 +91,15 @@ export default function Login({
                         Ingat saya
                     </label>
 
-                    {canResetPassword && (
+                    {canResetPassword ? (
                         <Link
                             href={route('password.request')}
                             className="text-sm font-medium text-foreground underline decoration-daiku-yellow decoration-2 underline-offset-4 hover:decoration-daiku-yellow-dark"
                         >
                             Lupa password?
                         </Link>
+                    ) : (
+                        <span className="text-sm text-daiku-muted">Lupa password? Minta CEO.</span>
                     )}
                 </div>
 

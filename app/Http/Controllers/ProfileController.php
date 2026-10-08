@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Services\UserService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,21 +21,19 @@ class ProfileController extends Controller
         return Inertia::render('Profile/Edit', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
             'status' => session('status'),
+            // Sprint 21 (K4) — the username field is locked until then.
+            'usernameChangeableAt' => $request->user()->usernameChangeableAt()?->toIso8601String(),
+            'usernameChangeDays' => (int) config('daiku.username_change_days'),
         ]);
     }
 
     /**
-     * Update the user's profile information.
+     * Update the user's profile information — name, and (Sprint 21) their
+     * own username and email, through UserService (40-day limit, audit).
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request, UserService $service): RedirectResponse
     {
-        $request->user()->fill($request->validated());
-
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
-        }
-
-        $request->user()->save();
+        $service->updateProfile($request->user(), $request->validated());
 
         return Redirect::route('profile.edit');
     }

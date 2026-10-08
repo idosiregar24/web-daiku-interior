@@ -1,3 +1,4 @@
+import { PasswordInput } from '@/Components/shared/PasswordInput';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import {
@@ -8,7 +9,6 @@ import {
     FormLabel,
     FormMessage,
 } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import {
     Select,
     SelectContent,
@@ -16,28 +16,35 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/Components/ui/select';
+import { Input } from '@/Components/ui/input';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { type IdentityValues, UserIdentityFields } from '@/Components/modules/users/UserIdentityFields';
+import { optionalEmailField, requireUsernameOrEmail, usernameField } from '@/lib/username';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Role } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
 import { UserPlus } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { type Control, type UseFormSetValue, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-const schema = z.object({
-    name: z.string().min(1, 'Nama wajib diisi'),
-    email: z.string().min(1, 'Email wajib diisi').email('Format email tidak valid'),
-    password: z.string().min(8, 'Password minimal 8 karakter'),
-    role: z.string().min(1, 'Role wajib dipilih'),
-});
+// Mirrors StoreUserRequest + ValidatesUserIdentity: username and/or email (at least one).
+const schema = z
+    .object({
+        name: z.string().min(1, 'Nama wajib diisi'),
+        username: usernameField(),
+        email: optionalEmailField,
+        password: z.string().min(8, 'Password minimal 8 karakter'),
+        role: z.string().min(1, 'Role wajib dipilih'),
+    })
+    .superRefine(requireUsernameOrEmail);
 
 type FormValues = z.infer<typeof schema>;
 
 export default function CreateUser({ roles }: { roles: Role[] }) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { name: '', email: '', password: '', role: '' },
+        defaultValues: { name: '', username: '', email: '', password: '', role: '' },
     });
 
     function onSubmit(values: FormValues) {
@@ -75,18 +82,9 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                     </FormItem>
                                 )}
                             />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>Email</FormLabel>
-                                        <FormControl>
-                                            <Input type="email" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
+                            <UserIdentityFields
+                                control={form.control as unknown as Control<IdentityValues>}
+                                setValue={form.setValue as unknown as UseFormSetValue<IdentityValues>}
                             />
                             <FormField
                                 control={form.control}
@@ -95,7 +93,7 @@ export default function CreateUser({ roles }: { roles: Role[] }) {
                                     <FormItem>
                                         <FormLabel required>Password</FormLabel>
                                         <FormControl>
-                                            <Input type="password" {...field} />
+                                            <PasswordInput autoComplete="new-password" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/Components/ui/card';
 import {
     Form,
     FormControl,
+    FormDescription,
     FormField,
     FormItem,
     FormLabel,
@@ -18,23 +19,33 @@ import {
 } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import { PageHeader } from '@/Components/shared/PageHeader';
+import { PasswordInput } from '@/Components/shared/PasswordInput';
+import { type IdentityValues, UserIdentityFields } from '@/Components/modules/users/UserIdentityFields';
+import { optionalEmailField, requireUsernameOrEmail, usernameField } from '@/lib/username';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Role, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
 import { UserCog } from 'lucide-react';
-import { useForm } from 'react-hook-form';
+import { type Control, type UseFormSetValue, useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-const schema = z.object({
-    name: z.string().min(1, 'Nama wajib diisi'),
-    email: z.string().min(1, 'Email wajib diisi').email('Format email tidak valid'),
-    password: z.string().min(8, 'Password minimal 8 karakter').optional().or(z.literal('')),
-    role: z.string().min(1, 'Role wajib dipilih'),
-    is_active: z.boolean(),
-});
+// Mirrors UpdateUserRequest + ValidatesUserIdentity — the user's current
+// username is accepted as is (it may predate the format rules).
+function schemaFor(currentUsername: string | null) {
+    return z
+        .object({
+            name: z.string().min(1, 'Nama wajib diisi'),
+            username: usernameField(currentUsername),
+            email: optionalEmailField,
+            password: z.string().min(8, 'Password minimal 8 karakter').optional().or(z.literal('')),
+            role: z.string().min(1, 'Role wajib dipilih'),
+            is_active: z.boolean(),
+        })
+        .superRefine(requireUsernameOrEmail);
+}
 
-type FormValues = z.infer<typeof schema>;
+type FormValues = z.infer<ReturnType<typeof schemaFor>>;
 
 interface EditUserProps {
     user: Omit<User, 'roles'> & { roles: { id: number; name: Role }[]; assignable_role: Role | null };
@@ -43,10 +54,11 @@ interface EditUserProps {
 
 export default function EditUser({ user, roles }: EditUserProps) {
     const form = useForm<FormValues>({
-        resolver: zodResolver(schema),
+        resolver: zodResolver(schemaFor(user.username)),
         defaultValues: {
             name: user.name,
-            email: user.email,
+            username: user.username ?? '',
+            email: user.email ?? '',
             password: '',
             role: user.assignable_role ?? '',
             is_active: user.is_active ?? true,
@@ -92,18 +104,10 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                     </FormItem>
                                 )}
                             />
-                            <FormField
-                                control={form.control}
-                                name="email"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>Email</FormLabel>
-                                        <FormControl>
-                                            <Input type="email" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
+                            <UserIdentityFields
+                                control={form.control as unknown as Control<IdentityValues>}
+                                setValue={form.setValue as unknown as UseFormSetValue<IdentityValues>}
+                                userId={user.id}
                             />
                             <FormField
                                 control={form.control}
@@ -112,8 +116,11 @@ export default function EditUser({ user, roles }: EditUserProps) {
                                     <FormItem>
                                         <FormLabel>Password baru</FormLabel>
                                         <FormControl>
-                                            <Input type="password" placeholder="Kosongkan jika tidak diubah" {...field} />
+                                            <PasswordInput autoComplete="new-password" placeholder="Kosongkan jika tidak diubah" {...field} />
                                         </FormControl>
+                                        <FormDescription>
+                                            Untuk staf yang lupa password. Password ini sementara — {user.name} wajib membuat password sendiri saat masuk berikutnya.
+                                        </FormDescription>
                                         <FormMessage />
                                     </FormItem>
                                 )}

@@ -36,6 +36,7 @@ import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { formatRelative } from '@/lib/format';
 import { openNotification } from '@/lib/notificationHref';
 import { rememberMenu } from '@/lib/recentMenus';
+import { atUsername } from '@/lib/username';
 import { cn } from '@/lib/utils';
 import type { PageProps, Role, User } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
@@ -835,7 +836,7 @@ function UserMenuContent({ user, align }: { user: User; align: 'start' | 'end' }
         <DropdownMenuContent align={align} side={align === 'start' ? 'top' : 'bottom'} className="w-60">
             <DropdownMenuLabel>
                 <p className="font-medium text-foreground">{user.name}</p>
-                <p className="truncate text-xs font-normal text-muted-foreground">{user.email}</p>
+                <p className="truncate text-xs font-normal text-muted-foreground">{atUsername(user.username) ?? user.email}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
@@ -892,7 +893,7 @@ function SidebarUser() {
                                 {user.name}
                             </span>
                             <span className="block truncate text-[11px] text-muted-foreground">
-                                {(user.display_role ?? user.role) ? ROLE_LABEL[(user.display_role ?? user.role) as Role] : user.email}
+                                {(user.display_role ?? user.role) ? ROLE_LABEL[(user.display_role ?? user.role) as Role] : (atUsername(user.username) ?? user.email)}
                             </span>
                         </span>
                         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />

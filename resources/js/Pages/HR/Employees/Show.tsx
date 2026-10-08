@@ -12,6 +12,7 @@ import { Button } from '@/Components/ui/button';
 import { Tabs, TabsContent, TabsTrigger } from '@/Components/ui/tabs';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { atUsername } from '@/lib/username';
 import type { Division, Employee, User } from '@/types';
 import { Head } from '@inertiajs/react';
 import { BadgeDollarSign, ClipboardList, Gavel, IdCard, Pencil, Target, UserRound } from 'lucide-react';
@@ -26,7 +27,7 @@ const TAB_LABEL: Record<string, string> = {
 };
 
 interface EmployeeShowProps {
-    employee: Employee & { user?: Pick<User, 'id' | 'name' | 'email'> | null; creator?: Pick<User, 'id' | 'name'> };
+    employee: Employee & { user?: Pick<User, 'id' | 'name' | 'username' | 'email'> | null; creator?: Pick<User, 'id' | 'name'> };
     discipline: EmployeeDisciplineData;
     salary: EmployeeSalaryData;
     kpi: EmployeeKpiData;
@@ -125,7 +126,7 @@ export default function EmployeeShow({
                                 {employee.account_no ? `${employee.bank_name ?? ''} ${employee.account_no}`.trim() : '—'}
                             </DetailItem>
                             <DetailItem label="Akun Sistem">
-                                {employee.user ? `${employee.user.name} (${employee.user.email})` : 'Tidak ditautkan'}
+                                {employee.user ? `${employee.user.name} (${atUsername(employee.user.username) ?? employee.user.email})` : 'Tidak ditautkan'}
                             </DetailItem>
                             <DetailItem label="Catatan" className="sm:col-span-2">
                                 {employee.notes ?? '—'}

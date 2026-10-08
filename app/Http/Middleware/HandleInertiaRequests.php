@@ -46,7 +46,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user ? [
-                    ...$user->only(['id', 'name', 'email', 'email_verified_at', 'is_active']),
+                    ...$user->only(['id', 'name', 'username', 'email', 'email_verified_at', 'is_active']),
                     // Primary role per PRD 7 (RBAC) — what nav gating and role
                     // checks read. A stacked role (Kepala Desain, Sprint 12) is
                     // never primary: its base role (DESIGNER) is.

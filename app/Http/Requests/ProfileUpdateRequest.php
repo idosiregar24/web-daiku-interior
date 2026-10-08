@@ -2,13 +2,24 @@
 
 namespace App\Http\Requests;
 
-use App\Models\User;
+use App\Http\Requests\Concerns\ValidatesUserIdentity;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
+/**
+ * Profil Saya — Sprint 21 (K1): the user sets their own username and
+ * email; at least one stays filled. The 40-day username limit (K4) is
+ * enforced in UserService::updateProfile().
+ */
 class ProfileUpdateRequest extends FormRequest
 {
+    use ValidatesUserIdentity;
+
+    protected function prepareForValidation(): void
+    {
+        $this->prepareUserIdentity();
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -18,14 +29,15 @@ class ProfileUpdateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => [
-                'required',
-                'string',
-                'lowercase',
-                'email',
-                'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
-            ],
+            ...$this->userIdentityRules($this->user()),
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'name.required' => 'Nama wajib diisi.',
+            ...$this->userIdentityMessages(),
         ];
     }
 }

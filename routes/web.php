@@ -3,6 +3,7 @@
 use App\Http\Controllers\Analytics\AnalyticsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\UserController;
+use App\Http\Controllers\Auth\UsernameCheckController;
 use App\Http\Controllers\CRM\LeadController;
 use App\Http\Controllers\CRM\LeadFollowUpController;
 use App\Http\Controllers\CRM\LeadSurveyController;
@@ -95,6 +96,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+
+    // Sprint 21 Sub 02 — "is this username free?" while typing (Buat/Edit
+    // User, Profil Saya). Signed-in only: there's no public sign-up, so
+    // outsiders can't probe staff usernames; the login page never calls it.
+    Route::get('/username/check', UsernameCheckController::class)
+        ->middleware('throttle:30,1,username')
+        ->name('username.check');
 
     // PRD §7.1 "Notification (own)" row — every role, own rows only
     // (ownership enforced in NotificationController, not a role check).

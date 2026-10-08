@@ -109,6 +109,9 @@ enum NotificationType: string
     case ReviewApproved = 'review_approved';
     case ReviewApprovedReviewer = 'review_approved_reviewer';
 
+    // Akun (Sprint 21) — the CEO changed someone's username, email or password.
+    case AccountUpdated = 'account_updated';
+
     /**
      * Strings written before a type was split (Sprint 18). Old
      * `quotation_rejected` rows meant either "returned by PM/CEO" or
@@ -225,7 +228,8 @@ enum NotificationType: string
             self::PenaltyIssued,
             self::DisciplinaryIssued,
             self::SalaryChangeDecided,
-            self::ReviewApprovedReviewer => NotificationPriority::Update,
+            self::ReviewApprovedReviewer,
+            self::AccountUpdated => NotificationPriority::Update,
 
             self::QuotationStarted,
             self::ProjectRabAutoRequested,
@@ -327,6 +331,8 @@ enum NotificationType: string
             self::ReviewReturned,
             self::ReviewApproved,
             self::ReviewApprovedReviewer => NotificationCategory::Hr,
+
+            self::AccountUpdated => NotificationCategory::Account,
         };
     }
 }

@@ -3,11 +3,14 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\Username;
 use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
@@ -22,8 +25,11 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'username',
+        'username_changed_at',
         'email',
         'password',
+        'must_change_password',
         'is_active',
     ];
 
@@ -46,11 +52,51 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'username_changed_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
             'is_active' => 'boolean',
             'nav_preferences' => 'array',
             'notification_preferences' => 'array',
         ];
+    }
+
+    /**
+     * Sprint 21 — stored lower-case whatever the caller passed (Form
+     * Requests already normalize; this is the second layer). Empty → null,
+     * so a cleared field never collides on the UNIQUE index.
+     */
+    protected function username(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => Username::normalize($value));
+    }
+
+    protected function email(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => ($value = mb_strtolower(trim((string) $value))) === '' ? null : $value);
+    }
+
+    /** How the account is named on screen and in logs: "@budi", else the email. */
+    public function loginLabel(): string
+    {
+        return $this->username ? '@'.$this->username : (string) $this->email;
+    }
+
+    /**
+     * Sprint 21 (K4) — the first moment the user may change their own
+     * username again; null when they may change it now (never changed it
+     * themselves, or the wait is over). Clearing it counts as a change too,
+     * so clear-and-refill can't skip the wait. The CEO is never held to this.
+     */
+    public function usernameChangeableAt(): ?Carbon
+    {
+        if (! $this->username_changed_at) {
+            return null;
+        }
+
+        $next = $this->username_changed_at->copy()->addDays((int) config('daiku.username_change_days'));
+
+        return $next->isFuture() ? $next : null;
     }
 
     /**
