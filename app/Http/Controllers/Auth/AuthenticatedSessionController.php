@@ -61,6 +61,8 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        // Sprint 20 — `/` is the public company profile (Blade); staff who
+        // sign out go back to the login, which is also an Inertia page.
+        return redirect()->route('login');
     }
 }

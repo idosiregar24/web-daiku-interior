@@ -15,6 +15,8 @@ use Illuminate\Http\Response;
 use Illuminate\Routing\Route as RouteDefinition;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 /**
  * Sprint 20 — the public company profile (Blade, D2). Read-only: no form,
@@ -28,10 +30,17 @@ class SiteController extends Controller
     public const PORTFOLIO_PER_PAGE = 12;
 
     /** `/`: guests see the company profile; signed-in staff go to their own first page. */
-    public function home(Request $request, RoleRedirectService $roleRedirect): View|RedirectResponse
+    public function home(Request $request, RoleRedirectService $roleRedirect): View|RedirectResponse|SymfonyResponse
     {
         if ($request->user()) {
             return redirect()->route($roleRedirect->routeNameFor($request->user()));
+        }
+
+        // An Inertia visit (a link or redirect inside the app) can't show a
+        // Blade page — it would open in Inertia's error modal. Tell the
+        // browser to load it as a normal page instead (409 + X-Inertia-Location).
+        if ($request->header('X-Inertia')) {
+            return Inertia::location(route('site.home'));
         }
 
         return view('site.home');

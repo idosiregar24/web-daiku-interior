@@ -222,8 +222,11 @@ test('no re-push outside working hours, on Sunday, or for users without a device
 
 test('every reminder job, run twice on the demo data, adds nothing the second time', function () {
     Queue::fake([PushNotificationJob::class]);
-    $this->seed(DatabaseSeeder::class);
+    // Clock first: the demo data is dated relative to "now", so seeding on the
+    // real date and then jumping back made the result depend on the day the
+    // suite runs (it broke on 2026-10-09).
     Carbon::setTestNow(Carbon::parse('2026-10-06 20:35', 'Asia/Jakarta')); // Selasa, after the form reminder hour
+    $this->seed(DatabaseSeeder::class);
 
     $jobs = [
         new LeadFollowUpReminderJob, new TerminReminderJob, new TerminInvoiceReminderJob, new TerminOverdueJob,

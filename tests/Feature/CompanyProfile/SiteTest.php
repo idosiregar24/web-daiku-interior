@@ -126,3 +126,17 @@ test('the Search Console code from Profil Publik is printed as a meta tag', func
 
     $this->get('/')->assertSee('<meta name="google-site-verification" content="abcDEF123_-x">', false);
 });
+
+test('an Inertia visit to / is turned into a full page load, not shown in a modal', function () {
+    $this->get('/', ['X-Inertia' => 'true'])
+        ->assertStatus(409)
+        ->assertHeader('X-Inertia-Location', route('site.home'));
+});
+
+test('signing out from the app lands on the login page', function () {
+    $this->actingAs(siteUser('CEO'))
+        ->post(route('logout'), [], ['X-Inertia' => 'true'])
+        ->assertRedirect(route('login'));
+
+    $this->assertGuest();
+});

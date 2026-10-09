@@ -1,6 +1,6 @@
 import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import type { PageProps } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
+import { usePage } from '@inertiajs/react';
 import { PropsWithChildren, ReactNode } from 'react';
 
 interface AuthLayoutProps {
@@ -39,13 +39,14 @@ function BrandPanel() {
                 </>
             )}
 
-            <Link href="/" className="relative w-fit" aria-label={site.name}>
+            {/* `/` is the Blade company profile (Sprint 20): a full page load, not an Inertia visit. */}
+            <a href="/" className="relative w-fit" aria-label={site.name}>
                 {site.logoUrl ? (
                     <BrandLogoTile className="h-12 max-w-48 shadow-sm ring-0" />
                 ) : (
                     <BrandMark className="size-10" fallbackClassName={hasPhoto ? 'fill-daiku-cream' : 'fill-daiku-dark'} />
                 )}
-            </Link>
+            </a>
 
             <div className="relative">
                 <p className={hasPhoto ? 'text-sm font-medium text-daiku-cream/80' : 'text-sm font-medium text-daiku-dark/70'}>
@@ -75,13 +76,13 @@ export default function AuthLayout({ title, description, children }: PropsWithCh
 
                 <div className="flex flex-col justify-center px-5 py-10 sm:px-10 lg:px-16">
                     <div className="mx-auto w-full max-w-sm">
-                        <Link href="/" className="inline-flex" aria-label={site.name}>
+                        <a href="/" className="inline-flex" aria-label={site.name}>
                             {site.logoUrl ? (
                                 <BrandLogoTile className="h-11 max-w-48" />
                             ) : (
                                 <BrandMark className="size-9" fallbackClassName="fill-daiku-yellow-dark" />
                             )}
-                        </Link>
+                        </a>
 
                         {title && (
                             <h1 className="mt-6 text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
