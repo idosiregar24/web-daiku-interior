@@ -27,7 +27,9 @@ import { ClientAccDialog } from '@/Components/modules/design/ClientAccDialog';
 import { AssignDesignDialog } from '@/Components/modules/design/AssignDesignDialog';
 import { DesignConfirmDialog } from '@/Components/modules/design/DesignConfirmDialog';
 import { DesignDiscussionPanel } from '@/Components/modules/design/DesignDiscussionPanel';
+import { DesignReadyDialog } from '@/Components/modules/design/DesignReadyDialog';
 import { DesignRevisionDialog } from '@/Components/modules/design/DesignRevisionDialog';
+import { SendDesignDialog } from '@/Components/modules/design/SendDesignDialog';
 import { AutoProjectRabNotice, type RunningProjectRab } from '@/Components/modules/quotation/AutoProjectRabNotice';
 import { Notice } from '@/Components/shared/Notice';
 import { formatRupiah } from '@/lib/format';
@@ -36,7 +38,7 @@ import type { Design, DesignDiscussionThread, DesignStaffMember, DesignStatus, P
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, Link, router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { History, Info, Palette, PenLine, Plus, Trash2, UserPlus } from 'lucide-react';
+import { History, Info, Palette, PenLine, Plus, Send, Trash2, UserPlus } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { type FieldPath, useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -52,6 +54,10 @@ interface DesignShowProps {
     canAssign: boolean;
     /** Sprint 12 #17 — Marketing: send to the client, ask a revision, record the approval. */
     canMarketingActions: boolean;
+    /** Sprint 22 — the design's team: hand the finished design / revision to Marketing. */
+    canMarkReady: boolean;
+    /** Sprint 22 K7 — the lead's No. HP, sent to Marketing only. */
+    clientPhone: string | null;
     /** Sprint 12 D6 — null when the viewer may not see the thread. */
     discussion: DesignDiscussionThread | null;
     /** Every DESIGNER — `is_active` decides who can still be added as sub-staff. */
@@ -175,8 +181,20 @@ function toFormValues(design: DesignDetail): FormValues {
  * Client-ACC status guard (Sprint 9). Reached from the CRM Lead index's
  * "Buka Desain" action or the Desain list.
  */
-export default function DesignShow({ design, canManage, canClientAcc, canAssign, canMarketingActions, discussion, designers, projectRab }: DesignShowProps) {
+export default function DesignShow({
+    design,
+    canManage,
+    canClientAcc,
+    canAssign,
+    canMarketingActions,
+    canMarkReady,
+    clientPhone,
+    discussion,
+    designers,
+    projectRab,
+}: DesignShowProps) {
     const [accOpen, setAccOpen] = useState(false);
+    const [readyOpen, setReadyOpen] = useState(false);
     const [assignOpen, setAssignOpen] = useState(false);
     const [revisionOpen, setRevisionOpen] = useState(false);
     const [confirm, setConfirm] = useState<'send' | 'approve' | null>(null);
@@ -186,6 +204,9 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
     const hasLinks = (design.design_urls ?? []).length > 0;
     const canSend = canMarketingActions && (design.status === 'DESAIN' || design.status === 'REVISI_DESAIN');
     const awaitingClient = canMarketingActions && design.status === 'WAITING_ACC_DESAIN';
+    const readyAt = design.ready_for_client_at
+        ? new Date(design.ready_for_client_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })
+        : null;
 
     const schema = useMemo(
         () => buildSchema(design.client_acc, design.status, flowManaged),
@@ -240,6 +261,16 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
         form.reset(toFormValues(design), { keepDirtyValues: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [design.updated_at]);
+
+    // Sprint 22 — "Perlu Tindakan → Desain siap dikirim" and its notification link here with ?action=send.
+    useEffect(() => {
+        if (canSend && hasLinks && new URLSearchParams(window.location.search).get('action') === 'send') {
+            setConfirm('send');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [design.id]);
+
+    const briefDirty = form.formState.isDirty;
 
     function onSubmit(values: FormValues) {
         const onError = (errors: Record<string, string>) => {
@@ -303,8 +334,25 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                                 {design.pic_id ? 'Ubah Penugasan' : 'Tugaskan Desain'}
                             </Button>
                         )}
+                        {canMarkReady && (
+                            <Button
+                                onClick={() => setReadyOpen(true)}
+                                disabled={!hasLinks || briefDirty}
+                                title={
+                                    !hasLinks
+                                        ? 'Simpan link desain (Drive / Figma) dulu.'
+                                        : briefDirty
+                                          ? 'Simpan Brief dulu agar Marketing menerima link terbaru.'
+                                          : undefined
+                                }
+                            >
+                                <Send className="size-4" />
+                                Desain Siap Dikirim
+                            </Button>
+                        )}
                         {canSend && (
                             <Button
+                                variant={design.ready_for_client_at ? 'default' : 'outline'}
                                 onClick={() => setConfirm('send')}
                                 disabled={!hasLinks}
                                 title={hasLinks ? undefined : 'Arsitek belum mengunggah link desain.'}
@@ -341,7 +389,20 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
             )}
             {flowManaged && design.status === 'DESAIN' && !hasLinks && (
                 <Notice tone="info" className="mb-6">
-                    Unggah link desain (Drive / Figma) di form brief, lalu Marketing mengirimkannya ke klien.
+                    Unggah link desain (Drive / Figma) di form brief dan simpan, lalu tekan &ldquo;Desain Siap Dikirim&rdquo; agar
+                    Marketing mengirimkannya ke klien.
+                </Notice>
+            )}
+            {readyAt && (
+                <Notice tone={canSend ? 'warning' : 'info'} className="mb-6">
+                    {canSend
+                        ? `Arsitek menandai desain siap dikirim pada ${readyAt} — kirim ke klien.`
+                        : `Ditandai siap dikirim pada ${readyAt} — menunggu Marketing mengirim ke klien.`}
+                    {design.ready_note && (
+                        <span className="mt-1 block">
+                            <span className="font-medium">Catatan arsitek:</span> {design.ready_note}
+                        </span>
+                    )}
                 </Notice>
             )}
             <AutoProjectRabNotice rab={projectRab} className="mb-6" />
@@ -777,13 +838,12 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                         clientName={design.lead.client_name}
                         nextNumber={design.revision_count + 1}
                     />
-                    <DesignConfirmDialog
+                    <SendDesignDialog
                         open={confirm === 'send'}
                         onOpenChange={(open) => !open && setConfirm(null)}
-                        title="Kirim Desain ke Klien"
-                        description={`Tandai desain "${design.lead.client_name}" sudah dikirim ke klien. Status menjadi menunggu persetujuan klien.`}
-                        confirmLabel="Kirim"
-                        action={route('design.sendToClient', { design: design.id })}
+                        design={design}
+                        clientName={design.lead.client_name}
+                        phone={clientPhone}
                     />
                     <DesignConfirmDialog
                         open={confirm === 'approve'}
@@ -798,6 +858,17 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
                         action={route('design.markClientApproved', { design: design.id })}
                     />
                 </>
+            )}
+
+            {canMarkReady && (
+                <DesignReadyDialog
+                    open={readyOpen}
+                    onOpenChange={setReadyOpen}
+                    designId={design.id}
+                    clientName={design.lead.client_name}
+                    revisionNumber={design.status === 'REVISI_DESAIN' ? design.revision_count : 0}
+                    linkCount={(design.design_urls ?? []).length}
+                />
             )}
 
             <ClientAccDialog

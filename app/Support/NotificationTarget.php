@@ -96,6 +96,10 @@ class NotificationTarget
             NotificationType::SurveyToSchedule => $id('quotation_id')
                 ? route('quotations.show', ['quotation' => $id('quotation_id'), 'survey' => 'new'])
                 : null,
+            // Sprint 22 — straight into the "Kirim Desain ke Klien" dialog.
+            NotificationType::DesignReadyToSend => $id('design_id')
+                ? route('design.show', ['design' => $id('design_id'), 'action' => 'send'])
+                : null,
             default => null,
         };
     }

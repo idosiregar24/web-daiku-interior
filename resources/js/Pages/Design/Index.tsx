@@ -12,7 +12,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Design, DesignStatus, PaginatedData } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { BarChart3, Inbox, Palette } from 'lucide-react';
+import { BarChart3, Inbox, Palette, Send } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 import { AssignDesignDialog, type AssignableDesign } from '@/Components/modules/design/AssignDesignDialog';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -32,7 +32,8 @@ interface QueuedDesign {
 
 interface DesignIndexProps {
     designs: PaginatedData<Design & { lead: { id: number; client_name: string } }>;
-    filters: { status?: string };
+    /** Sprint 22 — `ready` = only designs the architect handed to Marketing, still unsent. */
+    filters: { status?: string; ready?: string };
     /** Kepala Desain / SuperAdmin only, else null. */
     queue: QueuedDesign[] | null;
     architects: { id: number; name: string }[];
@@ -81,7 +82,12 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => <StatusChip status={row.original.status} />,
+        cell: ({ row }) => (
+            <span className="flex flex-wrap items-center gap-1">
+                <StatusChip status={row.original.status} />
+                {row.original.ready_for_client_at && <StatusChip status="SIAP_DIKIRIM" label="Siap dikirim" tone="warning" />}
+            </span>
+        ),
     },
     {
         accessorKey: 'deadline',
@@ -211,6 +217,15 @@ export default function DesignIndex({ designs, filters, queue, architects }: Des
                                 ))}
                             </SelectContent>
                         </Select>
+                        <Button
+                            type="button"
+                            variant={filters.ready ? 'default' : 'outline'}
+                            onClick={() => applyFilter({ ready: filters.ready ? undefined : '1' })}
+                            aria-pressed={Boolean(filters.ready)}
+                        >
+                            <Send className="size-4" />
+                            Siap dikirim ke klien
+                        </Button>
                     </div>
                 }
             />

@@ -31,6 +31,8 @@ enum NotificationType: string
     case DesignClientApproved = 'design_client_approved';
     case DesignDiscussion = 'design_discussion';
     case DesignReadyToAssign = 'design_ready_to_assign';
+    // Sprint 22 — the architect handed the design to Marketing to send to the client.
+    case DesignReadyToSend = 'design_ready_to_send';
     case DesignRevisionRequested = 'design_revision_requested';
     case DesignSentToClient = 'design_sent_to_client';
 
@@ -168,6 +170,7 @@ enum NotificationType: string
             self::InvoiceRejected,
             self::DesignRevisionRequested,
             self::DesignReadyToAssign,
+            self::DesignReadyToSend,
             self::DesignAcc,
             self::LeadSurveyReady,
             self::SurveyToSchedule,
@@ -262,6 +265,7 @@ enum NotificationType: string
             self::DesignClientApproved,
             self::DesignDiscussion,
             self::DesignReadyToAssign,
+            self::DesignReadyToSend,
             self::DesignRevisionRequested,
             self::DesignSentToClient => NotificationCategory::Design,
 

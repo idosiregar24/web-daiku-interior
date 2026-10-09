@@ -51,8 +51,8 @@ Estimator  : Kirim RAB Final ke Marketing
 Marketing  : Kirim ke Klien (link) ─────────────▶ Klien: Setujui Penawaran
 Marketing  : Terbitkan Invoice → Kirim Bukti Bayar
 Finance    : Verifikasi Pembayaran  → desain terbuka
-Kep. Desain: Tugaskan Desain → Arsitek unggah link desain
-Marketing  : Kirim Desain ke Klien → (revisi) → Konfirmasi ACC Klien
+Kep. Desain: Tugaskan Desain → Arsitek unggah link → Desain Siap Dikirim
+Marketing  : Kirim via WhatsApp → (revisi) → Desain Disetujui Klien
              → RAB Proyek otomatis diminta ke Estimator
 Estimator  : Susun RAB Proyek + skema bayar → PM → CEO → Marketing → Klien setuju
 CEO        : Buka Proyek → termin dibuat otomatis
@@ -225,26 +225,39 @@ Dipakai di seluruh simulasi:
   opsional, tanggal mulai = hari ini, target = 14 hari.
 - **Hasil:** status desain **Desain**, deadline terhitung otomatis.
 
-### Langkah 14 · Arsitek mengunggah desain
+### Langkah 14 · Arsitek mengunggah desain & menyerahkannya ke Marketing
 - **Login:** designer@daikuinterior.com
 - **Menu:** Desain → buka desain → isi **Link Desain (Drive / Figma)**:
   ```
   https://drive.google.com/contoh-desain-kafe-rina-v1
   ```
-- Klik **Simpan Brief**.
-- Diskusi dengan Estimator bisa lewat thread di halaman desain (**Kirim Pesan**).
+- Klik **Simpan Brief**, lalu **Desain Siap Dikirim** → **Catatan untuk
+  Marketing** (opsional) → **Serahkan ke Marketing**.
+- **Hasil:** notice "Ditandai siap dikirim … menunggu Marketing"; desain
+  hilang dari Perlu Tindakan arsitek; Marketing mendapat notifikasi
+  **Desain Siap Dikirim ke Klien** (P1) dan antrean **Desain siap dikirim ke
+  klien** di Perlu Tindakan.
+- Arsitek tidak menghubungi klien — semua lewat Marketing. Pertanyaan untuk
+  klien atau diskusi dengan Estimator lewat **Diskusi Desain** di halaman
+  desain (**Kirim Pesan**); Marketing pemegang lead ikut menulis dan
+  diberi tahu.
 
 ### Langkah 15 · Marketing mengirim desain & mengurus revisi
-- **Login:** Marketing → Desain → buka desain → **Kirim Desain ke Klien**
-  → status **Waiting Acc Desain**.
+- **Login:** Marketing → **Perlu Tindakan** → *Desain siap dikirim ke klien*
+  (atau klik notifikasinya) → dialog **Kirim Desain ke Klien** terbuka
+  langsung, berisi link desain, catatan arsitek, dan pesan WhatsApp yang bisa
+  diedit.
+- Klik **Kirim via WhatsApp** → WhatsApp terbuka ke No. HP klien dengan pesan
+  berisi link, dan desain sekaligus tercatat terkirim → status **Waiting Acc
+  Desain**. (Kirim lewat jalur lain → **Tandai Terkirim**.)
 - Klien minta perubahan → **Minta Revisi**:
   ```
   Klien minta warna bar diganti kayu jati gelap dan tambah 6 kursi outdoor.
   ```
-  → status **Revisi Desain**, revisi ke-1 tercatat.
-- Arsitek memperbarui link (`…-v2`) → **Simpan Brief**; Marketing **Kirim
-  Desain ke Klien** lagi.
-- Klien setuju → **Konfirmasi ACC Klien**.
+  → status **Revisi Desain**, revisi ke-1 tercatat, arsitek mendapat notifikasi.
+- Arsitek memperbarui link (`…-v2`) → **Simpan Brief** → **Desain Siap
+  Dikirim** lagi; Marketing mengirim lagi lewat WhatsApp.
+- Klien setuju → **Desain Disetujui Klien** → konfirmasi.
 - **Hasil:** desain **Acc Desain**; sistem otomatis meminta **RAB Proyek**
   ke Estimator (status **Diminta**).
 
@@ -422,8 +435,8 @@ Dipakai di seluruh simulasi:
 - [ ] 11. Marketing: Terbitkan Invoice + Kirim Bukti Bayar
 - [ ] 12. Finance: Verifikasi Pembayaran
 - [ ] 13. Kepala Desain: Tugaskan Desain
-- [ ] 14. Arsitek: unggah link desain
-- [ ] 15. Marketing: kirim desain, minta revisi, Konfirmasi ACC Klien
+- [ ] 14. Arsitek: unggah link desain → Desain Siap Dikirim
+- [ ] 15. Marketing: Kirim via WhatsApp, minta revisi, Desain Disetujui Klien
 - [ ] 16. Estimator: susun RAB Proyek + skema bayar
 - [ ] 17. PM → CEO: Setujui
 - [ ] 18. Estimator → Marketing → Klien: Setujui Penawaran

@@ -32,9 +32,10 @@ interface DesignDiscussionPanelProps {
 }
 
 /**
- * Sprint 12 decision #18 / D6 — the Arsitek ↔ Estimator thread of a
- * design, on the Design page and on every quotation of the same lead.
- * Messages are never edited or removed.
+ * Sprint 12 decision #18 / D6 — the design's thread, on the Design page and
+ * on every quotation of the same lead: Arsitek ↔ Estimator, and since
+ * Sprint 22 the lead's Marketing (what the client said, questions for the
+ * client). Messages are never edited or removed.
  */
 export function DesignDiscussionPanel({ thread, quotationId, className }: DesignDiscussionPanelProps) {
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { body: '', attachment_url: '' } });
@@ -56,9 +57,9 @@ export function DesignDiscussionPanel({ thread, quotationId, className }: Design
 
     return (
         <SectionCard
-            title="Diskusi Arsitek ↔ Estimator"
+            title="Diskusi Desain"
             icon={MessagesSquare}
-            description="Desain jadi dasar RAB, dan RAB bisa memantul balik ke arsitek."
+            description="Arsitek, Estimator & Marketing — masukan klien, pertanyaan untuk klien, dan desain sebagai dasar RAB."
             className={className}
         >
             {thread.messages.length === 0 ? (

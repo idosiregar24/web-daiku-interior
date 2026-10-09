@@ -144,6 +144,13 @@ class DesignService
         // Marketing's actions — the brief form only edits the brief.
         if ($design->isFlowManaged()) {
             $data = array_intersect_key($data, array_flip(['jenis_project', 'brief_note', 'problem', 'design_urls']));
+
+            // Sprint 22 K4 — nothing left to send: the "siap dikirim" mark goes too.
+            if (array_key_exists('design_urls', $data) && empty($data['design_urls']) && $design->isReadyToSend()) {
+                $data['ready_for_client_at'] = null;
+                $data['ready_note'] = null;
+                ActionInboxService::forgetMarketingOf($design->lead?->assignee);
+            }
         }
 
         $staff = $data['staff'] ?? null;
@@ -440,9 +447,69 @@ class DesignService
                 throw ValidationException::withMessages(['status' => 'Arsitek belum mengunggah link desain.']);
             }
 
-            $design->update(['status' => DesignStatus::WaitingAccDesain->value, 'sent_to_client_at' => now()]);
+            $wasReady = $design->isReadyToSend();
+            // Sprint 22 K4 — the hand-over is done; the next revision is marked ready again.
+            $design->update([
+                'status' => DesignStatus::WaitingAccDesain->value,
+                'sent_to_client_at' => now(),
+                'ready_for_client_at' => null,
+                'ready_note' => null,
+            ]);
+
+            if ($wasReady) {
+                ActionInboxService::forgetMarketingOf($design->lead->assignee);
+            }
 
             $this->notifyTeam($design, $actor, NotificationType::DesignSentToClient, 'Desain Dikirim ke Klien', "{$actor->name} mengirim desain \"{$design->lead->client_name}\" ke klien.");
+
+            return $design;
+        });
+    }
+
+    /**
+     * Sprint 22 — the architect (or a Kepala Desain) hands the finished
+     * design / revision to Marketing: a mark, not a status (K1). The lead's
+     * Marketing — every Marketing for a lead without one — is told (P1) and
+     * finds it in "Perlu Tindakan" until it is sent to the client.
+     */
+    public function markReadyToSend(Design $design, ?string $note, User $actor): Design
+    {
+        return DB::transaction(function () use ($design, $note, $actor) {
+            $design = $this->lockedFlowDesign($design, Design::SENDABLE_STATUSES, 'Desain hanya bisa ditandai siap saat sedang dikerjakan atau direvisi.');
+
+            if (empty($design->design_urls)) {
+                throw ValidationException::withMessages(['status' => 'Simpan link desain (Drive / Figma) dulu sebelum menandai siap dikirim.']);
+            }
+
+            if ($design->isReadyToSend()) {
+                throw ValidationException::withMessages(['status' => 'Desain ini sudah ditandai siap dikirim — menunggu Marketing.']);
+            }
+
+            $note = filled($note) ? trim($note) : null;
+            $design->update(['ready_for_client_at' => now(), 'ready_note' => $note]);
+
+            $this->auditLogService->record('design.ready_to_send', $design, ['ready_for_client_at' => null], [
+                'ready_for_client_at' => $design->ready_for_client_at->toIso8601String(),
+                'ready_note' => $note,
+                'revision_count' => $design->revision_count,
+            ], $actor);
+
+            $lead = $design->lead;
+            $what = $design->status === DesignStatus::RevisiDesain ? "Revisi #{$design->revision_count} desain" : 'Desain';
+            $recipients = $lead->assignee
+                ? collect([$lead->assignee])
+                : User::role('MARKETING')->where('is_active', true)->get();
+
+            $this->notificationService->notifyMany(
+                $recipients->filter(fn (User $user) => $user->id !== $actor->id),
+                NotificationType::DesignReadyToSend,
+                'Desain Siap Dikirim ke Klien',
+                "{$what} \"{$lead->client_name}\" sudah selesai ({$actor->name}) — kirim ke klien."
+                    .($note ? " Catatan: {$note}" : ''),
+                ['design_id' => $design->id, 'lead_id' => $lead->id],
+            );
+
+            ActionInboxService::forgetMarketingOf($lead->assignee);
 
             return $design;
         });
@@ -589,10 +656,11 @@ class DesignService
                 : User::role('ESTIMATOR')->get();
 
             $this->notificationService->notifyMany(
-                collect([$design->pic])
+                collect([$design->pic, $design->lead->assignee])
                     ->merge($design->staff)
                     ->merge($previousWriters)
                     ->merge($estimators)
+                    ->unique('id')
                     ->filter(fn (?User $user) => $user && $user->id !== $actor->id && $user->is_active),
                 NotificationType::DesignDiscussion,
                 "Diskusi Desain — {$design->lead->client_name}",

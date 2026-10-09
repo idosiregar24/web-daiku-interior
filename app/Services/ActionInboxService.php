@@ -161,6 +161,7 @@ class ActionInboxService
             $groups[] = $this->surveysReady($user);
             $groups[] = $this->surveysToSchedule($user);
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
+            $groups[] = $this->designsToSend($user);
             $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
             $groups[] = $this->invoicesAwaitingProof($user);
@@ -179,8 +180,8 @@ class ActionInboxService
         // Sprint 18 Sub 06 — the architect had no queue at all, so a client's
         // revision request (P1) vanished once its notification was read.
         if ($user->hasRole('DESIGNER')) {
-            $groups[] = $this->ownDesigns($user, [DesignStatus::RevisiDesain], 'design-revision', 'Revisi desain diminta klien', 'Perbaiki desain sesuai catatan klien lalu kirim lagi.');
-            $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain], 'design-work', 'Desain sedang Anda kerjakan', 'Desain yang ditugaskan ke Anda dan belum dikirim ke klien.');
+            $groups[] = $this->ownDesigns($user, [DesignStatus::RevisiDesain], 'design-revision', 'Revisi desain diminta klien', 'Perbaiki desain sesuai catatan klien lalu tandai siap dikirim.');
+            $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain], 'design-work', 'Desain sedang Anda kerjakan', 'Unggah link desain lalu tekan "Desain Siap Dikirim" agar Marketing mengirimnya ke klien.');
         }
 
         if ($user->hasRole('LOGISTICS')) {
@@ -621,6 +622,26 @@ class ActionInboxService
     }
 
     /**
+     * Sprint 22 — designs the architect marked "siap dikirim" that the
+     * Marketing still has to send to the client (Design::readyToSend()).
+     */
+    private function designsToSend(User $user): ?array
+    {
+        return $this->group(
+            'design-send', 'Desain siap dikirim ke klien', 'Arsitek sudah menyelesaikan desain — kirim ke klien lewat WhatsApp.', 'design', 'design.index',
+            route('design.index', ['ready' => 1]),
+            Design::query()->readyToSend($user)->with('lead:id,client_name')->oldest('ready_for_client_at')->oldest('id'),
+            fn (Design $design) => [
+                'id' => $design->id,
+                'title' => $design->lead?->client_name ?? "Desain #{$design->id}",
+                'subtitle' => $design->status === DesignStatus::RevisiDesain ? "Revisi #{$design->revision_count}" : 'Desain pertama',
+                'at' => $design->ready_for_client_at,
+                'href' => route('design.show', ['design' => $design->id, 'action' => 'send']),
+            ],
+        );
+    }
+
+    /**
      * Designs where this architect is PIC or on the team (Design::visibleTo's
      * own-design rule, applied even to a Kepala Desain — this is *their* work,
      * not the division's), oldest first.
@@ -637,6 +658,8 @@ class ActionInboxService
                     ->where('pic_id', $user->id)
                     ->orWhereHas('staff', fn (Builder $staff) => $staff->whereKey($user->id)))
                 ->whereIn('status', array_map(fn (DesignStatus $status) => $status->value, $statuses))
+                // Sprint 22 — handed to Marketing: no longer the architect's turn.
+                ->whereNull('ready_for_client_at')
                 ->with('lead:id,client_name')
                 ->oldest('updated_at'),
             fn (Design $design) => [

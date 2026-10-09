@@ -227,6 +227,11 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
         ->middleware('role:KEPALA_DESAIN')
         ->name('assign');
 
+    // Sprint 22 — the design's team (or a Kepala Desain, stacked on DESIGNER) hands it to Marketing.
+    Route::post('{design}/ready-to-send', [DesignController::class, 'markReady'])
+        ->middleware('role:DESIGNER')
+        ->name('markReady');
+
     // Decision #17 — Marketing alone talks to the client about the design.
     Route::middleware('role:MARKETING')->group(function () {
         Route::post('{design}/send-to-client', [DesignController::class, 'sendToClient'])->name('sendToClient');
@@ -234,9 +239,10 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
         Route::post('{design}/client-approved', [DesignController::class, 'markClientApproved'])->name('markClientApproved');
     });
 
-    // D6 — Arsitek ↔ Estimator thread; DesignPolicy::discuss() narrows architects to their own designs.
+    // D6 — the design thread; DesignPolicy::discuss() narrows architects to their own designs
+    // and (Sprint 22) Marketing to the lead they own.
     Route::post('{design}/discussions', [DesignController::class, 'discuss'])
-        ->middleware(['role:DESIGNER|ESTIMATOR', 'throttle:60,1'])
+        ->middleware(['role:DESIGNER|ESTIMATOR|MARKETING', 'throttle:60,1'])
         ->name('discussions.store');
 });
 

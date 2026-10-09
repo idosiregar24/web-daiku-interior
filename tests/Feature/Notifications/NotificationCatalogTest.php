@@ -55,6 +55,7 @@ test('K3: priority follows who is kept waiting', function (NotificationType $typ
     'survey lunas belum dijadwalkan' => [NotificationType::SurveyToSchedule, NotificationPriority::ClientWaiting],
     'jadwal survey ke CEO & PM' => [NotificationType::SurveyScheduled, NotificationPriority::ActionRequired],
     'survey jadi berangkat' => [NotificationType::SurveyConfirmed, NotificationPriority::Update],
+    'desain siap dikirim ke klien (Sprint 22)' => [NotificationType::DesignReadyToSend, NotificationPriority::ClientWaiting],
     'proyek selesai' => [NotificationType::ProjectCompleted, NotificationPriority::Info],
 ]);
 

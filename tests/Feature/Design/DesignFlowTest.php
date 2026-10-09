@@ -3,6 +3,7 @@
 use App\Enums\DesignStatus;
 use App\Enums\InvoiceType;
 use App\Enums\LeadStatus;
+use App\Enums\NotificationPriority;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Models\AuditLog;
@@ -14,9 +15,11 @@ use App\Models\Lead;
 use App\Models\Notification;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Services\ActionInboxService;
 use App\Services\DesignService;
 use App\Services\InvoiceService;
 use App\Services\QuotationService;
+use App\Support\NotificationTarget;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
@@ -467,8 +470,9 @@ test('the Estimator and the architects talk in the design thread, the others are
         'quotation_id' => $design->quotation_id,
     ])->assertSessionHasNoErrors();
 
+    // Sprint 22 — the lead's Marketing is in the conversation too.
     expect(Notification::where('type', 'design_discussion')->pluck('user_id')->sort()->values()->all())
-        ->toBe(collect([$this->architect->id, $assistant->id])->sort()->values()->all());
+        ->toBe(collect([$this->architect->id, $assistant->id, $this->marketing->id])->sort()->values()->all());
 
     $this->actingAs($this->architect)->post(route('design.discussions.store', $design), [
         'body' => 'Kaca tempered.',
@@ -484,7 +488,9 @@ test('a thread message is checked: own designs only, http links, a RAB of the sa
     $outsider = designFlowUser('DESIGNER');
 
     $this->actingAs($outsider)->post(route('design.discussions.store', $design), ['body' => 'Halo'])->assertForbidden();
-    $this->actingAs($this->marketing)->post(route('design.discussions.store', $design), ['body' => 'Halo'])->assertForbidden();
+    // Sprint 22 — a Marketing who doesn't own the lead stays out; so do other roles.
+    $this->actingAs(designFlowUser('MARKETING'))->post(route('design.discussions.store', $design), ['body' => 'Halo'])->assertForbidden();
+    $this->actingAs(designFlowUser('PM'))->post(route('design.discussions.store', $design), ['body' => 'Halo'])->assertForbidden();
     $this->actingAs($this->architect)->post(route('design.discussions.store', $design), ['body' => 'Halo', 'attachment_url' => 'javascript:alert(1)'])
         ->assertSessionHasErrors('attachment_url');
     $this->actingAs($this->architect)->post(route('design.discussions.store', $design), ['body' => 'Halo', 'quotation_id' => Quotation::factory()->create()->id])
@@ -537,4 +543,172 @@ test('assigning a design already approved by the client is refused', function ()
         'start_date' => '2026-10-06',
         'target_hari' => 3,
     ], $this->head))->toThrow(ValidationException::class);
+});
+
+// ── Sprint 22: the architect hands the design to Marketing ──────────────
+
+/** workedDesign() on another lead of the same Marketing (a lead has one design). */
+function workedDesignOnNewLead(object $test, DesignStatus $status = DesignStatus::Desain): Design
+{
+    $lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value, 'assigned_to' => $test->marketing->id]);
+
+    return Design::factory()->fromRabDesain($status)->create([
+        'lead_id' => $lead->id,
+        'pic_id' => $test->architect->id,
+        'design_urls' => ['https://figma.com/file/abc'],
+    ]);
+}
+
+/** @return array<string, mixed>|null */
+function designFlowInbox(User $user, string $key): ?array
+{
+    return collect(app(ActionInboxService::class)->for($user, fresh: true))->firstWhere('key', $key);
+}
+
+test("the architect marks the design ready: the lead's Marketing is told (P1) and finds it in their queue", function () {
+    $design = workedDesign($this);
+    $other = designFlowUser('MARKETING');
+
+    $this->actingAs($this->architect)->post(route('design.markReady', $design), ['note' => '  Render lantai 2 di halaman 3.  '])
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success', 'Desain ditandai siap dikirim — Marketing sudah diberi tahu.');
+
+    $design->refresh();
+    $notification = Notification::where('user_id', $this->marketing->id)->where('type', 'design_ready_to_send')->sole();
+    expect($design->ready_for_client_at)->not->toBeNull()
+        ->and($design->ready_note)->toBe('Render lantai 2 di halaman 3.')
+        ->and($design->status)->toBe(DesignStatus::Desain)
+        ->and($notification->priority)->toBe(NotificationPriority::ClientWaiting->value)
+        ->and($notification->message)->toContain('Catatan: Render lantai 2 di halaman 3.')
+        ->and(NotificationTarget::for($notification))->toBe(route('design.show', ['design' => $design->id, 'action' => 'send']))
+        ->and(Notification::where('user_id', $other->id)->exists())->toBeFalse()
+        ->and(AuditLog::where('action', 'design.ready_to_send')->exists())->toBeTrue();
+
+    $queue = designFlowInbox($this->marketing, 'design-send');
+    expect($queue['count'])->toBe(1)
+        ->and($queue['items'][0]['href'])->toBe(route('design.show', ['design' => $design->id, 'action' => 'send']))
+        ->and($queue['href'])->toBe(route('design.index', ['ready' => 1]))
+        ->and(designFlowInbox($other, 'design-send'))->toBeNull()
+        // No longer the architect's turn.
+        ->and(designFlowInbox($this->architect, 'design-work'))->toBeNull();
+});
+
+test('a revision handed over says so', function () {
+    $design = workedDesign($this, DesignStatus::RevisiDesain);
+    $design->update(['revision_count' => 2]);
+
+    app(DesignService::class)->markReadyToSend($design, null, $this->architect);
+
+    expect(Notification::where('type', 'design_ready_to_send')->sole()->message)->toStartWith('Revisi #2 desain')
+        ->and(designFlowInbox($this->marketing, 'design-send')['items'][0]['subtitle'])->toBe('Revisi #2')
+        ->and(designFlowInbox($this->architect, 'design-revision'))->toBeNull();
+});
+
+test('a design is marked ready only with a saved link, while worked on, and once', function () {
+    $design = workedDesign($this);
+    $design->update(['design_urls' => []]);
+
+    $this->actingAs($this->architect)->post(route('design.markReady', $design))
+        ->assertSessionHasErrors(['status' => 'Simpan link desain (Drive / Figma) dulu sebelum menandai siap dikirim.']);
+
+    $design->update(['design_urls' => ['https://figma.com/file/abc']]);
+    $this->actingAs($this->architect)->post(route('design.markReady', $design), ['note' => str_repeat('a', 501)])
+        ->assertSessionHasErrors('note');
+    $this->actingAs($this->architect)->post(route('design.markReady', $design))->assertSessionHasNoErrors();
+    $this->actingAs($this->architect)->post(route('design.markReady', $design))
+        ->assertSessionHasErrors(['status' => 'Desain ini sudah ditandai siap dikirim — menunggu Marketing.']);
+
+    $waiting = workedDesignOnNewLead($this, DesignStatus::WaitingAccDesain);
+    $this->actingAs($this->architect)->post(route('design.markReady', $waiting))->assertSessionHasErrors('status');
+
+    expect(Notification::where('type', 'design_ready_to_send')->count())->toBe(1);
+});
+
+test("only the design's team or a Kepala Desain marks it ready", function () {
+    $design = workedDesign($this);
+
+    $this->actingAs(designFlowUser('DESIGNER'))->post(route('design.markReady', $design))->assertForbidden();
+    foreach (['MARKETING', 'ESTIMATOR', 'CEO', 'PM'] as $role) {
+        $this->actingAs(designFlowUser($role))->post(route('design.markReady', $design))->assertForbidden();
+    }
+    expect($design->fresh()->ready_for_client_at)->toBeNull();
+
+    $this->actingAs($this->head)->post(route('design.markReady', $design))->assertSessionHasNoErrors();
+    expect($design->fresh()->ready_for_client_at)->not->toBeNull();
+});
+
+test('sending to the client, or emptying the links, clears the mark', function () {
+    $design = workedDesign($this);
+    app(DesignService::class)->markReadyToSend($design, 'Siap.', $this->architect);
+
+    $this->actingAs($this->marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
+    $design->refresh();
+    expect($design->status)->toBe(DesignStatus::WaitingAccDesain)
+        ->and($design->ready_for_client_at)->toBeNull()
+        ->and($design->ready_note)->toBeNull()
+        ->and(designFlowInbox($this->marketing, 'design-send'))->toBeNull();
+
+    $second = workedDesignOnNewLead($this);
+    app(DesignService::class)->markReadyToSend($second, null, $this->architect);
+    $this->actingAs($this->architect)->put(route('design.update', $second), ['design_urls' => []])->assertSessionHasNoErrors();
+    expect($second->fresh()->ready_for_client_at)->toBeNull();
+
+    // Editing the links of a ready design keeps it ready (Marketing sends the latest ones).
+    $third = workedDesignOnNewLead($this);
+    app(DesignService::class)->markReadyToSend($third, null, $this->architect);
+    $this->actingAs($this->architect)->put(route('design.update', $third), ['design_urls' => ['https://figma.com/file/v2']])->assertSessionHasNoErrors();
+    expect($third->fresh()->ready_for_client_at)->not->toBeNull();
+});
+
+test('Marketing may still send a design nobody marked ready', function () {
+    $design = workedDesign($this);
+
+    $this->actingAs($this->marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
+
+    expect($design->fresh()->status)->toBe(DesignStatus::WaitingAccDesain);
+});
+
+test("the design page offers the hand-over to the team and the client's number to Marketing only", function () {
+    $this->lead->update(['phone' => '081234567890']);
+    $design = workedDesign($this);
+
+    $this->actingAs($this->architect)->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('canMarkReady', true)->where('clientPhone', null)->missing('design.lead.phone'));
+    $this->actingAs($this->marketing)->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('canMarkReady', false)->where('clientPhone', '081234567890'));
+    $this->actingAs(designFlowUser('ESTIMATOR'))->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('canMarkReady', false)->where('clientPhone', null));
+
+    app(DesignService::class)->markReadyToSend($design, null, $this->architect);
+    $this->actingAs($this->architect)->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('canMarkReady', false)->whereNot('design.ready_for_client_at', null));
+});
+
+test('the design list filters the designs ready to send', function () {
+    $ready = workedDesign($this);
+    workedDesignOnNewLead($this);
+    app(DesignService::class)->markReadyToSend($ready, null, $this->architect);
+
+    $this->actingAs($this->marketing)->get(route('design.index', ['ready' => 1]))
+        ->assertInertia(fn (Assert $page) => $page->has('designs.data', 1)->where('designs.data.0.id', $ready->id)->where('filters.ready', '1'));
+    $this->actingAs($this->marketing)->get(route('design.index'))
+        ->assertInertia(fn (Assert $page) => $page->has('designs.data', 2));
+});
+
+test("the lead's Marketing joins the design thread and tells the architects and the Estimator", function () {
+    $design = workedDesign($this);
+    Quotation::factory()->create(['lead_id' => $this->lead->id, 'created_by' => $this->estimator->id]);
+
+    $this->actingAs($this->marketing)->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('discussion.canPost', true));
+    $this->actingAs(designFlowUser('MARKETING'))->get(route('design.show', $design))
+        ->assertInertia(fn (Assert $page) => $page->where('discussion.canPost', false));
+
+    $this->actingAs($this->marketing)->post(route('design.discussions.store', $design), [
+        'body' => 'Klien tanya: bisa tambah rak buku di sudut?',
+    ])->assertSessionHasNoErrors();
+
+    expect(Notification::where('type', 'design_discussion')->pluck('user_id')->sort()->values()->all())
+        ->toBe(collect([$this->architect->id, $this->estimator->id])->sort()->values()->all())
+        ->and($design->discussions()->sole()->user_id)->toBe($this->marketing->id);
 });

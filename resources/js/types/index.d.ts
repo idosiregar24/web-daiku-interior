@@ -368,6 +368,9 @@ export interface Design {
     revision_count: number;
     revisions?: DesignRevision[];
     sent_to_client_at: string | null;
+    /** Sprint 22 — the architect handed it to Marketing; cleared once sent to the client. */
+    ready_for_client_at: string | null;
+    ready_note: string | null;
     created_at: string;
     updated_at: string;
 }

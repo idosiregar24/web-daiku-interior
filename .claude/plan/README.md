@@ -46,6 +46,7 @@ email) to browse it.
 | Sprint 19 | — (di luar PRD/CSV) | — | Konfirmasi bayar & jadwal survey tanpa pindah menu: "Tandai Klien Sudah Bayar" (link bukti opsional + catatan), notifikasi verifikasi P2 + P1 "Survey Lunas — Jadwalkan", dialog jadwal survey di detail RAB, notifikasi jadwal survey ke CEO + semua PM, kartu tahap RAB di lead — 6 sub | **34 selesai / 0 sebagian / 3 belum (37)** — kode selesai 2026-10-08; tersisa uji alur & deploy di server | [sprint-19-bayar-survey.md](sprint-19-bayar-survey.md) |
 | Sprint 20 | — (di luar PRD/CSV) | — | Company profile publik di `/` (Blade, SEO lokal "interior Pekanbaru"): tamu melihat profile, user login tetap dialihkan, PWA pindah ke `/app`, token warna dipisah ke `tokens.css`, kontak hanya WhatsApp, portofolio & testimoni dari ⚙ Pengaturan, halaman per layanan `/layanan/{slug}` — 7 sub | **Sub 01–06 selesai (kode, 2026-10-08)** — 2029 test lulus, build bersih; tersisa Sub 07: Lighthouse di HP, `/security-review`, deploy aaPanel, Search Console & Google Business Profile, ganti placeholder | [sprint-20-company-profile.md](sprint-20-company-profile.md) |
 | Sprint 21 | — (di luar PRD/CSV) | — | Login dengan username: akun didaftarkan CEO dengan username, email, atau keduanya (minimal satu); username huruf kecil + angka, unik, dicek langsung saat mengetik; login "Email atau Username"; staf mengatur username (sekali per 40 hari) & email sendiri di Profil Saya; akun tanpa email direset CEO + wajib ganti password — 6 sub | **37 selesai / 0 sebagian / 4 belum (41)** — kode selesai 2026-10-08; tersisa `/security-review`, cek di HP, deploy server, info ke staf | [sprint-21-login-username.md](sprint-21-login-username.md) |
+| Sprint 22 | — (di luar PRD/CSV) | — | Serah terima desain: arsitek menandai **Desain Siap Dikirim** (+ catatan) → Marketing dapat P1 `design_ready_to_send` + antrean "Desain siap dikirim ke klien"; dialog **Kirim via WhatsApp** (pesan berisi link, bisa diedit) sekaligus mencatat terkirim | **kode selesai 2026-10-09** — tersisa uji di browser & deploy | [sprint-22-desain-siap-kirim.md](sprint-22-desain-siap-kirim.md) |
 
 ### Urutan kerja berikutnya (cara menyuruh Claude)
 
@@ -65,6 +66,7 @@ checklist-nya.
 "Kerjakan Sprint 19 Sub 1"  →  ... Sub 6        (sprint-19-bayar-survey.md §3)
 "Kerjakan Sprint 20 Sub 1"  →  ... Sub 7        (sprint-20-company-profile.md §3)
 "Kerjakan Sprint 21 Sub 1"  →  ... Sub 6        (sprint-21-login-username.md §3)
+"Kerjakan Sprint 22 Sub 1"  →  ... Sub 5        (sprint-22-desain-siap-kirim.md §3)
 ```
 
 Tidak tahu sampai mana? Cukup bilang **"lanjut"** — Claude membaca tabel ini

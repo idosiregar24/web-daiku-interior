@@ -33,10 +33,18 @@ class DesignPolicy
         return $user->hasRole('DESIGNER') && $design->hasMember($user);
     }
 
-    /** D6 — the Arsitek ↔ Estimator thread: any Estimator, a Kepala Desain, the design's own architects. */
+    /**
+     * D6 — the design thread: any Estimator, a Kepala Desain, the design's
+     * own architects and (Sprint 22) the Marketing who owns the lead — the
+     * one who talks to the client.
+     */
     public function discuss(User $user, Design $design): bool
     {
         if ($user->hasAnyRole(['ESTIMATOR', 'KEPALA_DESAIN'])) {
+            return true;
+        }
+
+        if ($user->hasRole('MARKETING') && (int) $design->lead?->assigned_to === (int) $user->id) {
             return true;
         }
 

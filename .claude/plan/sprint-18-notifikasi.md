@@ -174,6 +174,7 @@ Pemetaan semua tipe yang ada sekarang (hasil telusur pemanggil
 | `invoice_rejected` | Marketing, pengirim bukti | Bukti bayar klien ditolak, klien harus dihubungi |
 | `design_revision_requested` | Tim desain | Klien minta revisi desain |
 | `design_ready_to_assign` | Kepala Desain | Klien sudah bayar jasa desain, desain belum ditugaskan |
+| `design_ready_to_send` *(Sprint 22)* | Marketing pemegang lead | Arsitek selesai, desain / revisi belum dikirim ke klien |
 | `design_acc` (ke Estimator) | Estimator | Desain ACC → klien menunggu RAB Proyek |
 | `lead_survey_ready` | Marketing / tim survey | Survey sudah dibayar, jadwalkan berangkat |
 | `project_opening_pending` | CEO | Klien sudah ACC RAB Proyek, proyek belum dibuka |
@@ -378,6 +379,7 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | Desain ACC klien → RAB Proyek otomatis | Estimator / Marketing / tim desain | `design_acc` / `project_rab_auto_requested` / `design_client_approved` | 1 / 4 / 3 |
 > | Jasa Desain belum / sudah dibayar | Kepala Desain | `design_awaiting_payment` / `design_ready_to_assign` | 4 / 1 |
 > | Desain ditugaskan | PIC + tim | `design_assigned` | 2 |
+> | Desain siap dikirim (Sprint 22) | Marketing pemegang lead | `design_ready_to_send` | 1 |
 > | Desain dikirim ke klien / klien minta revisi | Tim desain | `design_sent_to_client` / `design_revision_requested` | 3 / 1 |
 > | Diskusi desain | PIC, tim, Estimator | `design_discussion` | 2 |
 > | Deal (RAB Proyek ACC) | Semua PM | `deal_confirmed` | 3 |

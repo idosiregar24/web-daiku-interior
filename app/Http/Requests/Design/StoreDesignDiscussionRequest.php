@@ -5,7 +5,8 @@ namespace App\Http\Requests\Design;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Sprint 12 D6 — a message in the Arsitek ↔ Estimator thread. Who may
+ * Sprint 12 D6 — a message in the design thread (Arsitek, Estimator and,
+ * since Sprint 22, the lead's Marketing). Who may
  * write is DesignPolicy::discuss(); that the RAB belongs to the same lead
  * is checked in DesignService::discuss().
  */

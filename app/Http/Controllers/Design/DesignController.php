@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Design;
 use App\Enums\DesignStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Design\AssignDesignRequest;
+use App\Http\Requests\Design\MarkDesignReadyRequest;
 use App\Http\Requests\Design\RequestDesignRevisionRequest;
 use App\Http\Requests\Design\StoreDesignDiscussionRequest;
 use App\Http\Requests\Design\UpdateDesignRequest;
@@ -36,13 +37,15 @@ class DesignController extends Controller
             ->with(['lead:id,client_name', 'pic:id,name', 'staff:id,name'])
             ->visibleTo($user)
             ->byStatus($request->string('status')->value() ?: null)
+            // Sprint 22 — "Perlu Tindakan" Marketing → designs waiting to be sent to the client.
+            ->when($request->boolean('ready'), fn ($query) => $query->readyToSend())
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('Design/Index', [
             'designs' => $designs,
-            'filters' => $request->only(['status']),
+            'filters' => $request->only(['status', 'ready']),
             // Decision #15/#16 — the Kepala Desain's queue: paid for yet? assigned yet?
             'queue' => $isHead
                 ? Design::query()
@@ -79,6 +82,13 @@ class DesignController extends Controller
             'canAssign' => $flow && ! $design->client_acc && $user->hasAnyRole(['KEPALA_DESAIN', 'SUPERADMIN'])
                 && $design->status !== DesignStatus::MenungguBayar,
             'canMarketingActions' => $flow && $isMarketing,
+            // Sprint 22 — the design's team hands a finished design / revision to Marketing.
+            'canMarkReady' => $flow && ! $design->isReadyToSend()
+                && in_array($design->status, Design::SENDABLE_STATUSES, true)
+                && $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']) && $user->can('update', $design),
+            // Sprint 22 K7 — the client's number is for the Marketing sending over WhatsApp only.
+            // Read on its own so it never rides along in `design.lead`.
+            'clientPhone' => $flow && $isMarketing ? $design->lead()->value('phone') : null,
             'discussion' => $service->threadFor($design, $user),
             // Sprint 17 Sub 04 — the lead's running RAB Proyek ("already requested automatically").
             'projectRab' => Quotation::runningProjectRabSummary($design->lead_id),
@@ -111,6 +121,14 @@ class DesignController extends Controller
         $service->sendToClient($design, $request->user());
 
         return back()->with('success', 'Desain ditandai terkirim ke klien.');
+    }
+
+    /** Sprint 22 — the design's team or a Kepala Desain (route `role:DESIGNER` + MarkDesignReadyRequest). */
+    public function markReady(MarkDesignReadyRequest $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $service->markReadyToSend($design, $request->validated('note'), $request->user());
+
+        return back()->with('success', 'Desain ditandai siap dikirim — Marketing sudah diberi tahu.');
     }
 
     public function requestRevision(RequestDesignRevisionRequest $request, Design $design, DesignService $service): RedirectResponse

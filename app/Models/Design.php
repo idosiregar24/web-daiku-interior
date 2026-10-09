@@ -34,6 +34,8 @@ class Design extends Model
         'acc_date',
         'revision_count',
         'sent_to_client_at',
+        'ready_for_client_at',
+        'ready_note',
     ];
 
     protected function casts(): array
@@ -50,6 +52,7 @@ class Design extends Model
             'assigned_at' => 'datetime',
             'revision_count' => 'integer',
             'sent_to_client_at' => 'datetime',
+            'ready_for_client_at' => 'datetime',
         ];
     }
 
@@ -140,6 +143,31 @@ class Design extends Model
     public function scopeStarted(Builder $query): Builder
     {
         return $query->whereNotIn('status', DesignStatus::lockedValues());
+    }
+
+    /** Sprint 22 — statuses in which the architect works and Marketing may send it to the client. */
+    public const SENDABLE_STATUSES = [DesignStatus::Desain, DesignStatus::RevisiDesain];
+
+    /** Sprint 22 — the architect handed it to Marketing and it hasn't been sent to the client yet. */
+    public function isReadyToSend(): bool
+    {
+        return $this->ready_for_client_at !== null;
+    }
+
+    /**
+     * Sprint 22 — Marketing's "Desain siap dikirim ke klien" queue: a
+     * Sprint 12 design its architect marked ready, still unsent. With
+     * `$marketing`: their own leads and leads without an owner (the same
+     * rule as Quotation::awaitingInvoice()).
+     */
+    public function scopeReadyToSend(Builder $query, ?User $marketing = null): Builder
+    {
+        return $query
+            ->whereNotNull('quotation_id')
+            ->whereNotNull('ready_for_client_at')
+            ->whereIn('status', array_map(fn (DesignStatus $status) => $status->value, self::SENDABLE_STATUSES))
+            ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
+                ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
     }
 
     /** What a user may list: a plain architect only their own designs, everyone else all. */

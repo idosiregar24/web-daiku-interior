@@ -156,6 +156,7 @@ test('every P1 type is one that a "Perlu Tindakan" queue or pop-up covers', func
         'invoice_rejected' => 'invoice-proof',
         'design_revision_requested' => 'design-revision',
         'design_ready_to_assign' => 'design-assign',
+        'design_ready_to_send' => 'design-send',
         'design_acc' => 'quotation-requested',
         'project_opening_pending' => 'project-opening',
     ];
