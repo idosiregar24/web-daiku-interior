@@ -267,6 +267,30 @@ test('a locked design cannot be edited, and a Sprint 12 design brief only edits 
         ->and($design->design_urls)->toBe(['https://figma.com/file/v2']);
 });
 
+test('a Kepala Desain who assigned themselves as PIC can then save the brief alone', function () {
+    $design = Design::factory()->fromRabDesain(DesignStatus::MenungguPenugasan)->create();
+
+    $this->actingAs($this->head)->post(route('design.assign', $design), [
+        'pic_id' => $this->head->id,
+        'start_date' => '2026-10-09',
+        'target_hari' => 14,
+    ])->assertSessionHasNoErrors();
+
+    // What Design/Show sends for a flow-managed design: the brief only, no PIC.
+    $this->actingAs($this->head)->put(route('design.update', $design), [
+        'jenis_project' => 'KITCHEN_SET',
+        'brief_note' => 'Brief setelah penugasan.',
+        'problem' => null,
+        'design_urls' => [],
+    ])->assertSessionHasNoErrors();
+
+    $design->refresh();
+    expect($design->pic_id)->toBe($this->head->id)
+        ->and($design->status)->toBe(DesignStatus::Desain)
+        ->and($design->target_hari)->toBe(14)
+        ->and($design->brief_note)->toBe('Brief setelah penugasan.');
+});
+
 // ── Marketing sends, asks revisions, records the approval (#17) ──────────
 
 test('Marketing sends the design to the client once a link is uploaded', function () {

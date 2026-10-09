@@ -85,7 +85,8 @@ const JENIS_PROJECT_OPTIONS: ProjectType[] = [
 ];
 
 const baseSchema = z.object({
-    pic_id: z.string().min(1, 'PIC wajib dipilih'),
+    // Required only for a design outside the RAB flow — see buildSchema().
+    pic_id: z.string(),
     jenis_project: z.string().optional(),
     status: z.enum(STATUS_OPTIONS as [DesignStatus, ...DesignStatus[]]),
     target_hari: z.string().optional(),
@@ -106,10 +107,20 @@ type FormValues = z.infer<typeof baseSchema>;
 /**
  * Mirrors UpdateDesignRequest + DesignService::update(): no post-ACC
  * stage before Client ACC (only a *change* is checked), and each
- * sub-staff member once, never the PIC.
+ * sub-staff member once, never the PIC. A design born from a RAB Jasa
+ * Desain (flowManaged) only saves its brief — the server then accepts no
+ * PIC/team/timeline/status at all, so none of them is checked here.
  */
-function buildSchema(clientAcc: boolean, currentStatus: DesignStatus) {
+function buildSchema(clientAcc: boolean, currentStatus: DesignStatus, flowManaged: boolean) {
     return baseSchema.superRefine((values, ctx) => {
+        if (flowManaged) {
+            return;
+        }
+
+        if (!values.pic_id) {
+            ctx.addIssue({ code: 'custom', path: ['pic_id'], message: 'PIC wajib dipilih' });
+        }
+
         if (!clientAcc && values.status !== currentStatus && ACC_REQUIRED_STATUSES.includes(values.status)) {
             ctx.addIssue({
                 code: 'custom',
@@ -176,7 +187,10 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
     const canSend = canMarketingActions && (design.status === 'DESAIN' || design.status === 'REVISI_DESAIN');
     const awaitingClient = canMarketingActions && design.status === 'WAITING_ACC_DESAIN';
 
-    const schema = useMemo(() => buildSchema(design.client_acc, design.status), [design.client_acc, design.status]);
+    const schema = useMemo(
+        () => buildSchema(design.client_acc, design.status, flowManaged),
+        [design.client_acc, design.status, flowManaged],
+    );
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -219,6 +233,14 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [design.id]);
 
+    // The same design changed on the server (e.g. the Kepala Desain assigned
+    // the PIC in AssignDesignDialog): take the new values, but keep any brief
+    // field the user has edited and not saved yet.
+    useEffect(() => {
+        form.reset(toFormValues(design), { keepDirtyValues: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [design.updated_at]);
+
     function onSubmit(values: FormValues) {
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
@@ -229,24 +251,30 @@ export default function DesignShow({ design, canManage, canClientAcc, canAssign,
             });
         };
 
-        router.put(
-            route('design.update', { design: design.id }),
-            {
-                pic_id: Number(values.pic_id),
-                jenis_project: values.jenis_project || null,
-                status: values.status,
-                target_hari: values.target_hari ? Number(values.target_hari) : null,
-                start_date: values.start_date ? format(values.start_date, 'yyyy-MM-dd') : null,
-                brief_note: values.brief_note || null,
-                problem: values.problem || null,
-                design_urls: values.design_urls.map((u) => u.value).filter((v) => v.trim() !== ''),
-                staff: values.staff.map((member) => ({
-                    user_id: Number(member.user_id),
-                    role_note: member.role_note.trim() || null,
-                })),
-            },
-            { onError },
-        );
+        const brief = {
+            jenis_project: values.jenis_project || null,
+            brief_note: values.brief_note || null,
+            problem: values.problem || null,
+            design_urls: values.design_urls.map((u) => u.value).filter((v) => v.trim() !== ''),
+        };
+
+        // A flow-managed design sends its brief only — the team, timeline and
+        // status come from the Kepala Desain / Marketing actions (UpdateDesignRequest).
+        const payload = flowManaged
+            ? brief
+            : {
+                  ...brief,
+                  pic_id: Number(values.pic_id),
+                  status: values.status,
+                  target_hari: values.target_hari ? Number(values.target_hari) : null,
+                  start_date: values.start_date ? format(values.start_date, 'yyyy-MM-dd') : null,
+                  staff: values.staff.map((member) => ({
+                      user_id: Number(member.user_id),
+                      role_note: member.role_note.trim() || null,
+                  })),
+              };
+
+        router.put(route('design.update', { design: design.id }), payload, { onError });
     }
 
     const canOpenClientAcc = canClientAcc && !design.client_acc && design.status === 'WAITING_ACC_DESAIN';
