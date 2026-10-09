@@ -2,9 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\SiteSetting;
 use App\Services\WebPushService;
+use App\Support\CompanyProfile\ProfileContent;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Telescope\TelescopeApplicationServiceProvider;
@@ -28,6 +31,16 @@ class AppServiceProvider extends ServiceProvider
         // asked for (WebPushService checks the keys first); bound here so
         // tests can swap it for a fake push service.
         $this->app->bind(WebPush::class, fn () => WebPushService::makeClient());
+
+        // Sprint 20 — the company profile's content, read once per request:
+        // kept on the request itself, so a new request (a new logo, text…)
+        // never sees the previous one's — also under Octane or in tests.
+        $this->app->bind(ProfileContent::class, function ($app) {
+            $request = $app['request'];
+
+            return $request->attributes->get(ProfileContent::class)
+                ?? tap(new ProfileContent(SiteSetting::current()), fn (ProfileContent $profile) => $request->attributes->set(ProfileContent::class, $profile));
+        });
     }
 
     /**
@@ -36,6 +49,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        // Every company profile view (layout, sections) reads `$profile`.
+        View::composer('site.*', fn ($view) => $view->with('profile', $this->app->make(ProfileContent::class)));
 
         // PRD §9.5 "HTTPS wajib": production sits behind nginx TLS
         // (docker/nginx/production.conf), so every generated URL/redirect

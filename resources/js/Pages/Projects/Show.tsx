@@ -52,8 +52,9 @@ import type {
     User,
     UnitOption,
     VendorOption,
+    PageProps,
 } from '@/types';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     ChevronRight,
@@ -75,6 +76,7 @@ import {
     Wallet,
     Layers,
     FilePlus2,
+    GalleryHorizontalEnd,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -1115,6 +1117,12 @@ export default function ProjectShow({
     }, [qaForms, overtimeRequests, projectMaterials, termins]);
     const [editOpen, setEditOpen] = useState(false);
     const isClosed = project.status === 'COMPLETED' || project.status === 'CANCELLED';
+    // Sprint 20 Sub 04 — a finished project can become a portfolio draft
+    // (settings.portfolio.* is role:CEO|MARKETING; SUPERADMIN passes every gate).
+    const heldRoles = usePage<PageProps>().props.auth.user.roles ?? [];
+    const canMakePortfolio =
+        project.status === 'COMPLETED' && heldRoles.some((role) => role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN');
+    const [makingPortfolio, setMakingPortfolio] = useState(false);
 
     return (
         <AppLayout
@@ -1129,6 +1137,23 @@ export default function ProjectShow({
                 actions={
                     <>
                         <StatusChip status={project.status} />
+                        {canMakePortfolio && (
+                            <Button
+                                variant="outline"
+                                disabled={makingPortfolio}
+                                title="Buat draf portofolio situs dari judul, jenis dan kota proyek ini — tanpa nama klien, alamat atau nilai proyek"
+                                onClick={() =>
+                                    router.post(
+                                        route('settings.portfolio.fromProject', { project: project.id }),
+                                        {},
+                                        { onStart: () => setMakingPortfolio(true), onFinish: () => setMakingPortfolio(false) },
+                                    )
+                                }
+                            >
+                                <GalleryHorizontalEnd className="size-4" />
+                                Jadikan Portofolio
+                            </Button>
+                        )}
                         {canEditProject && (
                             <Button variant="outline" onClick={() => setEditOpen(true)}>
                                 <PenLine className="size-4" />

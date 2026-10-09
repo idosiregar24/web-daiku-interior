@@ -1,5 +1,6 @@
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import { BrandAssetCard } from '@/Components/modules/settings/BrandAssetCard';
+import { PublicProfileForm } from '@/Components/modules/settings/PublicProfileForm';
 import { BrandLogoTile } from '@/Components/shared/BrandMark';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -15,12 +16,14 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { Textarea } from '@/Components/ui/textarea';
+import { useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
-import type { SiteSetting } from '@/types';
+import type { PublicProfileDefaults, SiteSetting } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Head, router } from '@inertiajs/react';
-import { Building2, Eye, ImageIcon, Images, LogIn, NotebookText, PenLine, Settings } from 'lucide-react';
+import { Building2, Eye, Globe, ImageIcon, Images, LogIn, MonitorCog, NotebookText, PenLine, Settings } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -122,7 +125,19 @@ function LivePreview({ settings, values }: { settings: SiteSetting; values: Form
     );
 }
 
-export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
+interface SettingsEditProps {
+    settings: SiteSetting;
+    /** Sprint 20 Sub 05 — what the public site shows while a Profil Publik text is empty. */
+    publicDefaults: PublicProfileDefaults;
+    /** The public company profile's home page (`site.home`). */
+    siteUrl: string;
+}
+
+const TAB_LABEL: Record<string, string> = { system: 'Sistem', public: 'Profil Publik' };
+
+export default function SettingsEdit({ settings, publicDefaults, siteUrl }: SettingsEditProps) {
+    // Sprint 20 Sub 05 — "Sistem" (the internal app) and "Profil Publik" (the site at `/`).
+    const [tab, setTab] = useQueryTab({ system: true, public: true }, 'system');
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: {
@@ -159,314 +174,334 @@ export default function SettingsEdit({ settings }: { settings: SiteSetting }) {
     }
 
     return (
-        <AppLayout>
+        <AppLayout breadcrumbs={[{ label: TAB_LABEL[tab] }]}>
             <Head title="Pengaturan Situs" />
 
             <PageHeader
                 title="Pengaturan Situs"
                 icon={Settings}
-                description="Kustomisasi identitas, logo, dan halaman login sistem — khusus CEO dan SuperAdmin."
+                description="Identitas, logo dan halaman login sistem, serta isi situs publik perusahaan — khusus CEO dan SuperAdmin."
             />
 
             <ModuleTabs />
 
-            <div className="grid gap-6 xl:grid-cols-3">
-                <div className="flex flex-col gap-6 xl:col-span-2">
-                    <SectionCard
-                        title="Logo & Gambar"
-                        icon={Images}
-                        description="Klik atau seret file ke kotak pratinjau, atur crop-nya, lalu gambar langsung diunggah — tanpa perlu menekan Simpan."
-                    >
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <BrandAssetCard
-                                asset="logo"
-                                title="Logo"
-                                description="Sidebar, halaman login, dan PDF penawaran/invoice."
-                                url={settings.logo_url}
-                                preview={(url) => <BrandLogoTile src={url} className="h-24 max-w-[85%] rounded-2xl" />}
-                                placeholder={<ApplicationLogo className="size-12 fill-daiku-muted/50" />}
-                            />
-                            <BrandAssetCard
-                                asset="favicon"
-                                title="Favicon"
-                                description="Ikon kecil di tab browser. Jika kosong, logo dipakai."
-                                url={settings.favicon_url}
-                                preview={(url) => <BrandLogoTile src={url} className="h-16 rounded-xl" />}
-                                placeholder={<ImageIcon className="size-10 text-daiku-muted/50" />}
-                            />
-                            <BrandAssetCard
-                                asset="login_image"
-                                title="Gambar Halaman Login"
-                                description="Panel kiri halaman login. Jika kosong, gradien emas bawaan dipakai."
-                                url={settings.login_image_url}
-                                preview={(url) => <img src={url} alt="Gambar login" className="absolute inset-0 size-full object-cover" />}
-                                placeholder={<LogIn className="size-10 text-daiku-muted/50" />}
-                            />
+            <Tabs value={tab} onValueChange={setTab}>
+                <TabsList>
+                    <TabsTrigger value="system" className="px-3">
+                        <MonitorCog />
+                        Sistem
+                    </TabsTrigger>
+                    <TabsTrigger value="public" className="px-3">
+                        <Globe />
+                        Profil Publik
+                    </TabsTrigger>
+                </TabsList>
+
+                {/* Both stay mounted so unsaved edits survive a tab switch. */}
+                <TabsContent value="public" forceMount className="mt-4 data-[state=inactive]:hidden">
+                    <PublicProfileForm settings={settings} defaults={publicDefaults} siteUrl={siteUrl} />
+                </TabsContent>
+
+                <TabsContent value="system" forceMount className="mt-4 data-[state=inactive]:hidden">
+                    <div className="grid gap-6 xl:grid-cols-3">
+                        <div className="flex flex-col gap-6 xl:col-span-2">
+                            <SectionCard
+                                title="Logo & Gambar"
+                                icon={Images}
+                                description="Klik atau seret file ke kotak pratinjau, atur crop-nya, lalu gambar langsung diunggah — tanpa perlu menekan Simpan."
+                            >
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <BrandAssetCard
+                                        asset="logo"
+                                        title="Logo"
+                                        description="Sidebar, halaman login, dan PDF penawaran/invoice."
+                                        url={settings.logo_url}
+                                        preview={(url) => <BrandLogoTile src={url} className="h-24 max-w-[85%] rounded-2xl" />}
+                                        placeholder={<ApplicationLogo className="size-12 fill-daiku-muted/50" />}
+                                    />
+                                    <BrandAssetCard
+                                        asset="favicon"
+                                        title="Favicon"
+                                        description="Ikon kecil di tab browser. Jika kosong, logo dipakai."
+                                        url={settings.favicon_url}
+                                        preview={(url) => <BrandLogoTile src={url} className="h-16 rounded-xl" />}
+                                        placeholder={<ImageIcon className="size-10 text-daiku-muted/50" />}
+                                    />
+                                    <BrandAssetCard
+                                        asset="login_image"
+                                        title="Gambar Halaman Login"
+                                        description="Panel kiri halaman login. Jika kosong, gradien emas bawaan dipakai."
+                                        url={settings.login_image_url}
+                                        preview={(url) => <img src={url} alt="Gambar login" className="absolute inset-0 size-full object-cover" />}
+                                        placeholder={<LogIn className="size-10 text-daiku-muted/50" />}
+                                    />
+                                </div>
+                            </SectionCard>
+
+                            <Form {...form}>
+                                <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
+                                    <SectionCard title="Identitas & Halaman Login" icon={LogIn}>
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <FormField
+                                                control={form.control}
+                                                name="site_name"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel required>Nama Sistem</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormDescription>Sidebar, judul tab browser, dan PDF.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="site_tagline"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Tagline</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} placeholder={DEFAULT_TAGLINE} />
+                                                        </FormControl>
+                                                        <FormDescription>Teks kecil di bawah nama sistem.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="login_headline"
+                                                render={({ field }) => (
+                                                    <FormItem className="sm:col-span-2">
+                                                        <FormLabel>Judul Halaman Login</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} placeholder={DEFAULT_LOGIN_HEADLINE} />
+                                                        </FormControl>
+                                                        <FormDescription>Kalimat besar di panel kiri halaman login.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+                                    </SectionCard>
+
+                                    <SectionCard
+                                        title="Profil Perusahaan"
+                                        icon={Building2}
+                                        description="Dicetak di kop surat PDF penawaran & invoice dan di halaman link klien."
+                                    >
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <FormField
+                                                control={form.control}
+                                                name="company_address"
+                                                render={({ field }) => (
+                                                    <FormItem className="sm:col-span-2">
+                                                        <FormLabel>Alamat Perusahaan</FormLabel>
+                                                        <FormControl>
+                                                            <Textarea {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="company_phone"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Telepon</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="company_email"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Email</FormLabel>
+                                                        <FormControl>
+                                                            <Input type="email" {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="company_instagram"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Instagram</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormDescription>Tanpa @, mis. DaikuInterior.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="company_legal_name"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Nama Badan Usaha</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormDescription>Pemilik rekening di catatan pembayaran (a.n.), mis. PT Daiku Shankara Kreasitech.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+                                    </SectionCard>
+
+                                    {/* Sprint 15 K3 — who signs the letters. */}
+                                    <SectionCard
+                                        title="Surat & Tanda Tangan"
+                                        icon={PenLine}
+                                        description="Penutup surat penawaran & invoice: Hormat kami, tanda tangan, nama, dan footer hitam."
+                                    >
+                                        <div className="grid gap-4 sm:grid-cols-2">
+                                            <FormField
+                                                control={form.control}
+                                                name="signer_name"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Nama Penanda Tangan</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="signer_title"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Jabatan</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="letter_footer"
+                                                render={({ field }) => (
+                                                    <FormItem className="sm:col-span-2">
+                                                        <FormLabel>Teks Footer Surat</FormLabel>
+                                                        <FormControl>
+                                                            <Input {...field} />
+                                                        </FormControl>
+                                                        <FormDescription>Setelah nama perusahaan; kosong = INTERIOR FURNISHING | ARCHITECTURAL DESIGN | BUILDING CONSTRUCTION.</FormDescription>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <div className="sm:col-span-2">
+                                                <BrandAssetCard
+                                                    asset="signature"
+                                                    title="Tanda Tangan"
+                                                    description="PNG berlatar transparan — langsung tersimpan setelah diunggah. Hanya dicetak di surat, tidak punya alamat publik."
+                                                    url={settings.signature_url}
+                                                    preview={(url) => <img src={url} alt="Tanda tangan" className="max-h-24 max-w-[85%] object-contain" />}
+                                                    placeholder={<PenLine className="size-10 text-daiku-muted/50" />}
+                                                />
+                                            </div>
+                                        </div>
+                                    </SectionCard>
+
+                                    {/* Sprint 15 K4 — default "Catatan" per RAB type (an Estimator can change it per RAB). */}
+                                    <SectionCard
+                                        title="Catatan Bawaan RAB"
+                                        icon={NotebookText}
+                                        description="Dicetak di bagian Catatan surat bila Estimator tidak menulis catatan sendiri. Kosong = teks contoh."
+                                        footer={
+                                            <div className="flex items-center justify-end gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={!form.formState.isDirty}
+                                                    onClick={() => form.reset()}
+                                                >
+                                                    Batalkan
+                                                </Button>
+                                                <Button type="submit" disabled={form.formState.isSubmitting}>
+                                                    Simpan Pengaturan
+                                                </Button>
+                                            </div>
+                                        }
+                                    >
+                                        <div className="grid gap-4">
+                                            <FormField
+                                                control={form.control}
+                                                name="note_survey"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>RAB Jasa Survey</FormLabel>
+                                                        <FormControl>
+                                                            <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.SURVEY} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="note_desain"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>RAB Jasa Desain</FormLabel>
+                                                        <FormControl>
+                                                            <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.DESAIN} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="note_proyek"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>RAB Proyek & RAB lain</FormLabel>
+                                                        <FormControl>
+                                                            <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.PROYEK} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                        </div>
+                                    </SectionCard>
+                                </form>
+                            </Form>
                         </div>
-                    </SectionCard>
 
-                    <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
-                            <SectionCard title="Identitas & Halaman Login" icon={LogIn}>
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    <FormField
-                                        control={form.control}
-                                        name="site_name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel required>Nama Sistem</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormDescription>Sidebar, judul tab browser, dan PDF.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="site_tagline"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Tagline</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} placeholder={DEFAULT_TAGLINE} />
-                                                </FormControl>
-                                                <FormDescription>Teks kecil di bawah nama sistem.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="login_headline"
-                                        render={({ field }) => (
-                                            <FormItem className="sm:col-span-2">
-                                                <FormLabel>Judul Halaman Login</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} placeholder={DEFAULT_LOGIN_HEADLINE} />
-                                                </FormControl>
-                                                <FormDescription>Kalimat besar di panel kiri halaman login.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </SectionCard>
-
-                            <SectionCard
-                                title="Profil Perusahaan"
-                                icon={Building2}
-                                description="Dicetak di kop surat PDF penawaran & invoice dan di halaman link klien."
-                            >
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    <FormField
-                                        control={form.control}
-                                        name="company_address"
-                                        render={({ field }) => (
-                                            <FormItem className="sm:col-span-2">
-                                                <FormLabel>Alamat Perusahaan</FormLabel>
-                                                <FormControl>
-                                                    <Textarea {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="company_phone"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Telepon</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="company_email"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Email</FormLabel>
-                                                <FormControl>
-                                                    <Input type="email" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="company_instagram"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Instagram</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormDescription>Tanpa @, mis. DaikuInterior.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="company_legal_name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Nama Badan Usaha</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormDescription>Pemilik rekening di catatan pembayaran (a.n.), mis. PT Daiku Shankara Kreasitech.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </SectionCard>
-
-                            {/* Sprint 15 K3 — who signs the letters. */}
-                            <SectionCard
-                                title="Surat & Tanda Tangan"
-                                icon={PenLine}
-                                description="Penutup surat penawaran & invoice: Hormat kami, tanda tangan, nama, dan footer hitam."
-                            >
-                                <div className="grid gap-4 sm:grid-cols-2">
-                                    <FormField
-                                        control={form.control}
-                                        name="signer_name"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Nama Penanda Tangan</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="signer_title"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Jabatan</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="letter_footer"
-                                        render={({ field }) => (
-                                            <FormItem className="sm:col-span-2">
-                                                <FormLabel>Teks Footer Surat</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormDescription>Setelah nama perusahaan; kosong = INTERIOR FURNISHING | ARCHITECTURAL DESIGN | BUILDING CONSTRUCTION.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <div className="sm:col-span-2">
-                                        <BrandAssetCard
-                                            asset="signature"
-                                            title="Tanda Tangan"
-                                            description="PNG berlatar transparan — langsung tersimpan setelah diunggah. Hanya dicetak di surat, tidak punya alamat publik."
-                                            url={settings.signature_url}
-                                            preview={(url) => <img src={url} alt="Tanda tangan" className="max-h-24 max-w-[85%] object-contain" />}
-                                            placeholder={<PenLine className="size-10 text-daiku-muted/50" />}
-                                        />
-                                    </div>
-                                </div>
-                            </SectionCard>
-
-                            {/* Sprint 15 K4 — default "Catatan" per RAB type (an Estimator can change it per RAB). */}
-                            <SectionCard
-                                title="Catatan Bawaan RAB"
-                                icon={NotebookText}
-                                description="Dicetak di bagian Catatan surat bila Estimator tidak menulis catatan sendiri. Kosong = teks contoh."
-                                footer={
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={!form.formState.isDirty}
-                                            onClick={() => form.reset()}
-                                        >
-                                            Batalkan
-                                        </Button>
-                                        <Button type="submit" disabled={form.formState.isSubmitting}>
-                                            Simpan Pengaturan
-                                        </Button>
-                                    </div>
-                                }
-                            >
-                                <div className="grid gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="note_survey"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>RAB Jasa Survey</FormLabel>
-                                                <FormControl>
-                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.SURVEY} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="note_desain"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>RAB Jasa Desain</FormLabel>
-                                                <FormControl>
-                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.DESAIN} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="note_proyek"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>RAB Proyek & RAB lain</FormLabel>
-                                                <FormControl>
-                                                    <Textarea {...field} rows={3} placeholder={DEFAULT_NOTES.PROYEK} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </SectionCard>
-                        </form>
-                    </Form>
-                </div>
-
-                <SectionCard
-                    title="Pratinjau"
-                    icon={Eye}
-                    description="Perubahan teks tampil di sini sebelum disimpan."
-                    className="h-fit xl:sticky xl:top-20"
-                >
-                    <LivePreview settings={settings} values={values} />
-                </SectionCard>
-            </div>
+                        <SectionCard
+                            title="Pratinjau"
+                            icon={Eye}
+                            description="Perubahan teks tampil di sini sebelum disimpan."
+                            className="h-fit xl:sticky xl:top-20"
+                        >
+                            <LivePreview settings={settings} values={values} />
+                        </SectionCard>
+                    </div>
+                </TabsContent>
+            </Tabs>
         </AppLayout>
     );
 }

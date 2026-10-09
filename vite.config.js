@@ -6,7 +6,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
     plugins: [
         laravel({
-            input: 'resources/js/app.tsx',
+            // Sprint 20 — the public company profile has its own small CSS/JS
+            // (Blade, no React): resources/views/site/layouts/main.blade.php.
+            input: ['resources/js/app.tsx', 'resources/css/site.css', 'resources/js/site.ts'],
             refresh: true,
         }),
         react(),

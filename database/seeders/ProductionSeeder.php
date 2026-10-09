@@ -35,6 +35,8 @@ class ProductionSeeder extends Seeder
         $this->call(FinanceAllocationConfigSeeder::class);
         // Sprint 15 — the company profile on the letterhead (fills empty fields only).
         $this->call(SiteSettingSeeder::class);
+        // Sprint 20 — the company profile's service pages (unpublished placeholders).
+        $this->call(ServicePageSeeder::class);
 
         foreach (self::LEAD_CATEGORIES as $name) {
             LeadCategory::firstOrCreate(['name' => $name]);

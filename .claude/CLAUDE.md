@@ -14,7 +14,8 @@ status): [`plan/README.md`](plan/README.md). Source task list:
 ## Stack (as actually installed — see `plan/README.md` for PRD deviations)
 
 - **Backend:** Laravel 11, PHP 8.4, MySQL 8.0, Spatie Laravel Permission
-  (RBAC), Laravel Horizon, Telescope (dev), DomPDF, Laravel Excel, Predis.
+  (RBAC), Laravel Horizon, Telescope (dev), DomPDF, Laravel Excel, Predis,
+  Intervention Image v3 (GD — public photos to WebP, Sprint 20).
 - **Frontend:** Inertia v2 + React 18 + TypeScript, Tailwind CSS **v4**,
   shadcn/ui (Radix + "Nova" preset), Recharts, Laravel Echo + pusher-js
   (Laravel Reverb — replaced Soketi in Sprint 18), React Hook Form + Zod, TanStack Table, date-fns, Ziggy.
@@ -173,6 +174,23 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     per `daiku.username_change_days`, the CEO unlimited + notifies). A
     password the CEO sets is temporary (`must_change_password` →
     `EnsurePasswordChanged`).
+16. **Company profile publik (Sprint 20 — `plan/sprint-20-company-profile.md`).**
+    Guests at `/` get a **Blade** site (`resources/views/site`, own
+    `site.css`/`site.ts`, no React); signed-in staff are still redirected,
+    and the PWA starts at `/app`. Every view reads `$profile`
+    (`App\Support\CompanyProfile\ProfileContent`) — never a model; stand-in
+    text/images live only in `Placeholder` (`grep PLACEHOLDER`,
+    `SITE_PLACEHOLDERS=false` at launch). Colours for both system and site
+    come from `resources/css/tokens.css` only. Public contact is **WhatsApp
+    only** (`ProfileContent::whatsappUrl()`) — no public form or POST route.
+    Services/slugs come from `ServiceCatalog` (never edited in the UI);
+    a service page can't be published on placeholder text. A portfolio item
+    is published only with `client_consent` and a photo
+    (`PortfolioService`), photos only through `PortfolioPhotoService`
+    (WebP, EXIF/GPS stripped), never the client's name/address/RAB value.
+    Public pages other than `/` run in the session-less `site` route group
+    (`routes/site.php`); every `web` response gets `X-Robots-Tag: noindex`
+    (`NoIndexSystemPages`); `robots.txt`/`sitemap.xml` are routes.
 
 ## Local environment
 

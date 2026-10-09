@@ -1,0 +1,162 @@
+/*
+ * Sprint 20 — the public company profile (Blade, resources/views/site).
+ * Its own small stylesheet: Tailwind scans only the site's views and
+ * script, and the colours come from the same tokens.css as the system
+ * (D7 — change the brand colours there, never here).
+ */
+@import "tailwindcss" source(none);
+@import "@fontsource-variable/geist";
+@import "./tokens.css";
+
+@source "../views/site/**/*.blade.php";
+@source "../views/components/site/**/*.blade.php";
+@source "../js/site.ts";
+
+@layer base {
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+    /* Anchors land below the sticky header. */
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-daiku-dark);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+  /* On dark sections the focus ring flips to cream. */
+  .on-dark :focus-visible {
+    outline-color: var(--color-daiku-cream);
+  }
+  summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+/* One page width for every section (16px gutter on phones). */
+@utility container-site {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 72rem;
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}
+
+/* Small uppercase label above a section heading. */
+@utility eyebrow {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* Links in running text: dark text, yellow underline (never yellow text on white). */
+@utility link-underline {
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-daiku-yellow);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  &:hover {
+    text-decoration-color: var(--color-daiku-dark);
+  }
+}
+
+/*
+ * Motion. Content is visible without JS: the hidden starting states only
+ * apply under `html.js` (set by an inline script in the layout's <head>),
+ * and only when the visitor hasn't asked for reduced motion.
+ */
+@keyframes site-fade-up {
+  from { opacity: 0; transform: translateY(1.25rem); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes site-hero-zoom {
+  from { transform: scale(1.12); }
+  to { transform: scale(1); }
+}
+@keyframes site-pop {
+  from { opacity: 0; transform: translateY(-0.375rem) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hero: photo settles in, text arrives line by line (--d = delay). */
+  .hero-zoom {
+    animation: site-hero-zoom 2.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .hero-in {
+    animation: site-fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--d, 0ms);
+  }
+
+  /* Scroll reveal (site.ts adds .is-visible); children of [data-reveal-group] are staggered. */
+  .js [data-reveal] {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+      opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .js [data-reveal].is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Dropdown and FAQ answers open softly. */
+  [data-dropdown-panel]:not(.hidden),
+  details[open] > :not(summary) {
+    animation: site-pop 0.22s ease-out both;
+  }
+
+  /* Phone menu slides in from the right (site.ts toggles .is-open). */
+  [data-menu] [data-menu-panel] {
+    transform: translateX(calc(100% + 1rem));
+    transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  [data-menu] > [data-menu-close] {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  [data-menu].is-open [data-menu-panel] {
+    transform: none;
+  }
+  [data-menu].is-open > [data-menu-close] {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

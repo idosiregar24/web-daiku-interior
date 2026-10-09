@@ -4,6 +4,10 @@ use App\Http\Controllers\Analytics\AnalyticsController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\Auth\UserController;
 use App\Http\Controllers\Auth\UsernameCheckController;
+use App\Http\Controllers\CompanyProfile\PortfolioController;
+use App\Http\Controllers\CompanyProfile\PortfolioPhotoController;
+use App\Http\Controllers\CompanyProfile\ServicePageController;
+use App\Http\Controllers\CompanyProfile\TestimonialController;
 use App\Http\Controllers\CRM\LeadController;
 use App\Http\Controllers\CRM\LeadFollowUpController;
 use App\Http\Controllers\CRM\LeadSurveyController;
@@ -64,22 +68,21 @@ use App\Http\Controllers\Quotation\QuotationReferenceController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Settings\BrandingAssetController;
 use App\Http\Controllers\Settings\SiteSettingController;
+use App\Http\Controllers\Site\SiteController;
 use App\Http\Controllers\Tasks\DailyTaskFormController;
 use App\Http\Controllers\Tasks\TodayController;
 use App\Models\SiteSetting;
-use App\Services\RoleRedirectService;
 use Illuminate\Support\Facades\Route;
 
-// Internal enterprise system — no public marketing page, so `/` just
-// routes straight into the app instead of Breeze's default Welcome
-// template (which had no purpose here and was never removed).
-Route::get('/', function (RoleRedirectService $roleRedirect) {
-    if (! auth()->check()) {
-        return redirect()->route('login');
-    }
+// Sprint 20 D1 — `/` is the public company profile for guests; signed-in
+// staff are still sent straight to their role's first page. The other
+// public pages (portofolio, layanan, sitemap, robots) live in
+// routes/site.php, without a session.
+Route::get('/', [SiteController::class, 'home'])->name('site.home');
 
-    return redirect()->route($roleRedirect->routeNameFor(auth()->user()));
-});
+// Sprint 20 K3 — the PWA's start_url: the home-screen icon on a staff
+// phone opens the login (or the role's page), never the company profile.
+Route::get('/app', [SiteController::class, 'app'])->name('app.home');
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
@@ -898,6 +901,42 @@ Route::middleware(['auth', 'role:CEO|SUPERADMIN'])->prefix('settings')->name('se
     Route::delete('assets/{asset}', [SiteSettingController::class, 'destroyAsset'])
         ->whereIn('asset', array_keys(SiteSetting::ASSETS))
         ->name('assets.destroy');
+    // Sprint 20 Sub 05 — "Profil Publik" tab: the company profile's text.
+    Route::put('public-profile', [SiteSettingController::class, 'updatePublicProfile'])->name('public-profile.update');
+});
+
+// Sprint 20 (K2) — what the public company profile shows: portfolio,
+// testimonials, service pages. CEO + Marketing (SUPERADMIN through the
+// role middleware). Every write is audited in its service.
+Route::middleware(['auth', 'role:CEO|MARKETING'])->prefix('settings')->name('settings.')->group(function () {
+    Route::get('portfolio', [PortfolioController::class, 'index'])->name('portfolio.index');
+    Route::post('portfolio', [PortfolioController::class, 'store'])->name('portfolio.store');
+    Route::post('portfolio/from-project/{project}', [PortfolioController::class, 'fromProject'])->name('portfolio.fromProject');
+    Route::get('portfolio/{portfolio}/edit', [PortfolioController::class, 'edit'])->name('portfolio.edit');
+    Route::put('portfolio/{portfolio}', [PortfolioController::class, 'update'])->name('portfolio.update');
+    Route::delete('portfolio/{portfolio}', [PortfolioController::class, 'destroy'])->name('portfolio.destroy');
+    Route::patch('portfolio/{portfolio}/publish', [PortfolioController::class, 'publish'])->name('portfolio.publish');
+    Route::patch('portfolio/{portfolio}/unpublish', [PortfolioController::class, 'unpublish'])->name('portfolio.unpublish');
+
+    Route::scopeBindings()->prefix('portfolio/{portfolio}/photos')->name('portfolio.photos.')->group(function () {
+        // Photos are decoded and re-encoded on upload — kept off a loop.
+        Route::post('/', [PortfolioPhotoController::class, 'store'])->middleware('throttle:20,1,portfolio-photos')->name('store');
+        Route::patch('reorder', [PortfolioPhotoController::class, 'reorder'])->name('reorder');
+        Route::patch('{photo}', [PortfolioPhotoController::class, 'update'])->name('update');
+        Route::patch('{photo}/cover', [PortfolioPhotoController::class, 'cover'])->name('cover');
+        Route::delete('{photo}', [PortfolioPhotoController::class, 'destroy'])->name('destroy');
+    });
+
+    Route::get('testimonials', [TestimonialController::class, 'index'])->name('testimonials.index');
+    Route::post('testimonials', [TestimonialController::class, 'store'])->name('testimonials.store');
+    Route::put('testimonials/{testimonial}', [TestimonialController::class, 'update'])->name('testimonials.update');
+    Route::delete('testimonials/{testimonial}', [TestimonialController::class, 'destroy'])->name('testimonials.destroy');
+
+    Route::get('service-pages', [ServicePageController::class, 'index'])->name('service-pages.index');
+    Route::get('service-pages/{servicePage}/edit', [ServicePageController::class, 'edit'])->name('service-pages.edit');
+    Route::put('service-pages/{servicePage}', [ServicePageController::class, 'update'])->name('service-pages.update');
+    Route::post('service-pages/{servicePage}/hero', [ServicePageController::class, 'storeHero'])->middleware('throttle:20,1,portfolio-photos')->name('service-pages.hero.store');
+    Route::delete('service-pages/{servicePage}/hero', [ServicePageController::class, 'destroyHero'])->name('service-pages.hero.destroy');
 });
 
 // Brand assets are public: the login page and browser tab need them

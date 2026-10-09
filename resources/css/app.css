@@ -2,198 +2,22 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./tokens.css";
 
 @plugin "@tailwindcss/forms";
 
 @source "../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php";
 @source "../../storage/framework/views/*.php";
 @source "../views/**/*.blade.php";
+/* The public company profile has its own stylesheet (site.css). */
+@source not "../views/site/**";
+@source not "../views/components/site/**";
 @source "../js/**/*.tsx";
 
 /* Class-based dark mode (`.dark` on <html>), matching the `.dark {}` overrides below. */
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
-
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
-
-  /* Status colors — see PRD 8.1 */
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
-  --color-info: var(--info);
-  /*
-   * "Ink" steps of the same four status hues, for TEXT on a tinted status
-   * background (StatusChip, StatCard deltas). The base status colors are
-   * too light to read as small text on white (#22c55e is ~2.3:1); these
-   * clear 4.5:1 while staying the same hue family.
-   */
-  --color-success-ink: var(--success-ink);
-  --color-warning-ink: var(--warning-ink);
-  --color-error-ink: var(--error-ink);
-  --color-info-ink: var(--info-ink);
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-}
-
-/* Daiku Interior brand palette (PRD 8.2) — static tokens, not theme-swapped. */
-@theme {
-  --color-daiku-yellow: #f5c518;
-  --color-daiku-yellow-light: #fff9e6;
-  --color-daiku-yellow-dark: #d4a800;
-  --color-daiku-cream: #fffdf0;
-  --color-daiku-dark: #1a1a1a;
-  --color-daiku-gray: #f5f5f5;
-  --color-daiku-border: #e8e8e8;
-  --color-daiku-muted: #6b7280;
-
-  /*
-   * Data-viz palette (Analytics). Daiku Yellow is the UI accent, not a
-   * data color: on the white card surface it fails the dataviz
-   * validator (lightness band; 1.6:1 contrast), and the legacy
-   * --chart-1..5 set fails CVD separation (amber↔green ΔE 5.7 protan).
-   * These categorical slots pass all checks (validate_palette.js,
-   * light mode) — assign them in this fixed order, never cycled.
-   */
-  --color-viz-1: #2a78d6;
-  --color-viz-2: #eb6834;
-  --color-viz-3: #1baf7a;
-  /* Sequential (one hue, light → dark) — heatmap magnitude. */
-  --color-viz-seq-1: #cde2fb;
-  --color-viz-seq-2: #9ec5f4;
-  --color-viz-seq-3: #6da7ec;
-  --color-viz-seq-4: #3987e5;
-  --color-viz-seq-5: #256abf;
-  --color-viz-seq-6: #184f95;
-  --color-viz-grid: #e1e0d9;
-  --color-viz-axis: #898781;
-}
-
 @layer base {
-  :root {
-    /* Daiku Interior light theme — white background, yellow accent (PRD 8.1) */
-    --background: #ffffff;
-    --foreground: #1a1a1a;
-    --card: #ffffff;
-    --card-foreground: #1a1a1a;
-    --popover: #ffffff;
-    --popover-foreground: #1a1a1a;
-    --primary: #f5c518;
-    --primary-foreground: #1a1a1a;
-    --secondary: #f5f5f5;
-    --secondary-foreground: #1a1a1a;
-    --muted: #f5f5f5;
-    --muted-foreground: #6b7280;
-    --accent: #fff9e6;
-    --accent-foreground: #1a1a1a;
-    --destructive: #ef4444;
-    --destructive-foreground: #ffffff;
-    --border: #e8e8e8;
-    --input: #e8e8e8;
-    --ring: #f5c518;
-    --chart-1: #f5c518;
-    --chart-2: #3b82f6;
-    --chart-3: #22c55e;
-    --chart-4: #f59e0b;
-    --chart-5: #6b7280;
-    --radius: 0.625rem;
-    --sidebar: #ffffff;
-    --sidebar-foreground: #1a1a1a;
-    --sidebar-primary: #f5c518;
-    --sidebar-primary-foreground: #1a1a1a;
-    --sidebar-accent: #fff9e6;
-    --sidebar-accent-foreground: #1a1a1a;
-    --sidebar-border: #e8e8e8;
-    --sidebar-ring: #f5c518;
-
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
-    --success-ink: #15803d;
-    --warning-ink: #b45309;
-    --error-ink: #b91c1c;
-    --info-ink: #1d4ed8;
-  }
-  .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: #f5c518;
-    --primary-foreground: #1a1a1a;
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: #ef4444;
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: #f5c518;
-    --chart-1: #f5c518;
-    --chart-2: #3b82f6;
-    --chart-3: #22c55e;
-    --chart-4: #f59e0b;
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: #f5c518;
-    --sidebar-primary-foreground: #1a1a1a;
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: #f5c518;
-
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
-    --success-ink: #4ade80;
-    --warning-ink: #fbbf24;
-    --error-ink: #f87171;
-    --info-ink: #60a5fa;
-  }
   * {
     @apply border-border outline-ring/50;
   }

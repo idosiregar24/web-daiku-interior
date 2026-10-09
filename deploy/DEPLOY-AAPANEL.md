@@ -92,6 +92,7 @@ php artisan daiku:push-check estimator@daikuinterior.com
 ```
 
 Lalu cek di browser:
+- [ ] `/` (jendela penyamaran, belum login) menampilkan company profile; `/login` tetap bisa dibuka.
 - [ ] Login berhasil (tidak "diam" setelah klik Masuk).
 - [ ] Lonceng notifikasi tampil.
 - [ ] Pengaturan Notifikasi → **Kirim notifikasi uji** → HP berbunyi.
@@ -108,6 +109,10 @@ APP_URL=https://daiku.idosiregar.my.id
 QUEUE_CONNECTION=database
 CACHE_STORE=database
 SESSION_DRIVER=database
+
+# Company profile di / (Sprint 20). true = teks & gambar contoh tampil selama
+# materi asli belum diisi. Ubah ke false saat situs diumumkan.
+SITE_PLACEHOLDERS=true
 
 # Notifikasi ke HP (Web Push). Dibuat SEKALI: php artisan daiku:vapid-keys
 VAPID_PUBLIC_KEY=...
@@ -181,6 +186,25 @@ Buka **Pengaturan Notifikasi**, tekan **Aktifkan**, lalu **Izinkan**, lalu **Kir
 Di **iPhone**: buka Safari, tekan Bagikan, pilih **Tambahkan ke Layar Utama**, lalu buka Daiku dari ikon itu
 (push tidak jalan dari tab Safari biasa).
 
+### e. Company profile (Sprint 20)
+```bash
+# Foto portofolio & halaman layanan disajikan dari storage/app/public
+php artisan storage:link
+
+# 8 halaman layanan (draf, teks contoh). Aman diulang, tidak menimpa teks yang sudah diedit.
+php artisan db:seed --class=ServicePageSeeder --force
+
+# Ekstensi GD dengan WebP wajib aktif (foto diubah ke WebP saat diunggah)
+php -r 'var_dump(gd_info()["WebP Support"] ?? false);'   # harus bool(true)
+```
+- `public/robots.txt` sudah **dihapus**: `robots.txt` dan `sitemap.xml` sekarang dibuat Laravel.
+  Bila nginx aaPanel punya `location = /robots.txt { … }` tanpa `try_files`, hapus blok itu.
+- `/app` (tanpa garis miring) adalah alamat awal aplikasi di HP staf. Bila ada blok proxy
+  WebSocket Reverb di nginx, pastikan polanya `location /app/` (dengan garis miring).
+- Unggahan foto sampai 15 MB, maksimal 12 foto sekali unggah: PHP `upload_max_filesize = 16M`,
+  `max_file_uploads ≥ 12`, `post_max_size = 200M`, dan nginx `client_max_body_size 200m`
+  (aaPanel → PHP → Konfigurasi, dan pengaturan situs → Config).
+
 ---
 
 ## 5. Kalau ada masalah
@@ -197,6 +221,9 @@ Di **iPhone**: buka Safari, tekan Bagikan, pilih **Tambahkan ke Layar Utama**, l
 | `push-check`: `Perangkat …: 0` | HP belum mengaktifkan notifikasi untuk akun itu | Di HP: Matikan, lalu Aktifkan, lalu Izinkan |
 | Tampilan tidak berubah setelah deploy | Frontend belum dibuild | `npm ci --include=dev && npm run build`, lalu refresh keras browser |
 | `npm run build`: `tsc: command not found` | Paket Node (devDependencies) belum terpasang | `npm ci --include=dev`, lalu `npm run build`. Butuh Node ≥ 20 (`node -v`) |
+| `/robots.txt` atau `/sitemap.xml` 404 | Aturan nginx lama untuk file statis | Lihat bagian 4e, hapus `location = /robots.txt` |
+| Foto portofolio tidak tampil (404 di `/storage/…`) | Symlink storage belum dibuat | `php artisan storage:link` |
+| Unggah foto: *Unable to decode* / gagal tanpa pesan | GD tanpa WebP, atau batas unggah PHP terlalu kecil | Bagian 4e: cek `gd_info()` dan `post_max_size` |
 | Pengingat harian tidak pernah muncul | Scheduler tidak jalan | Cek Cron aaPanel (bagian 4b) |
 
 Log aplikasi: `storage/logs/laravel.log`, contohnya:

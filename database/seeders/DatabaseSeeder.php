@@ -54,6 +54,8 @@ class DatabaseSeeder extends Seeder
         $this->call(FinanceAllocationConfigSeeder::class);
         // Sprint 15 — the company profile on the letterhead (PDF & client link).
         $this->call(SiteSettingSeeder::class);
+        // Sprint 20 — the company profile's service pages (unpublished placeholders).
+        $this->call(ServicePageSeeder::class);
 
         foreach (self::DEMO_USERS as $role => $attributes) {
             $user = User::factory()->create($attributes);

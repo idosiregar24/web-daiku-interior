@@ -47,8 +47,9 @@ class PwaController extends Controller
             'short_name' => Str::limit($site->site_name, 12, ''),
             'description' => $site->site_tagline ?: SiteSetting::DEFAULT_TAGLINE,
             'lang' => 'id',
-            // RoleRedirectService sends each role to its own first page.
-            'start_url' => '/',
+            // Sprint 20 K3 — `/` is the company profile now; `/app` is the
+            // login or (RoleRedirectService) the role's own first page.
+            'start_url' => route('app.home', [], false),
             'scope' => '/',
             'display' => 'standalone',
             'background_color' => '#ffffff',

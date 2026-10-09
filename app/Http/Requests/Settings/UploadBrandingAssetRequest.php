@@ -26,6 +26,8 @@ class UploadBrandingAssetRequest extends FormRequest
                 'login_image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:min_width=600,min_height=600'],
                 // Sprint 15 — a PNG (ideally transparent) signature for the letters.
                 'signature' => ['required', 'file', 'mimes:png', 'max:1024', 'dimensions:min_width=120,max_width=2000,max_height=1000'],
+                // Sprint 20 Sub 05 — the company profile's hero, resized to WebP on upload.
+                'hero_image' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:15360', 'dimensions:min_width=1200,min_height=600,max_width=8000,max_height=8000'],
             },
         ];
     }
@@ -44,11 +46,13 @@ class UploadBrandingAssetRequest extends FormRequest
                 'logo' => 'Ukuran logo maksimal 2 MB.',
                 'favicon' => 'Ukuran favicon maksimal 512 KB.',
                 'signature' => 'Ukuran tanda tangan maksimal 1 MB.',
+                'hero_image' => 'Ukuran foto maksimal 15 MB.',
                 default => 'Ukuran gambar maksimal 5 MB.',
             },
             'file.dimensions' => match ($this->route('asset')) {
                 'login_image' => 'Gambar halaman login minimal 600×600 piksel.',
                 'signature' => 'Tanda tangan minimal lebar 120 piksel, maksimal 2000×1000 piksel.',
+                'hero_image' => 'Foto utama minimal 1200×600 piksel (foto mendatar), maksimal 8000 piksel.',
                 default => 'Dimensi logo harus antara 32 dan 4000 piksel.',
             },
         ];

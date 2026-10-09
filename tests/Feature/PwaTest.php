@@ -19,7 +19,7 @@ test('the manifest is public and names the app after Pengaturan Situs', function
     expect($response->json())
         ->name->toBe('Daiku Interior')
         ->short_name->toBe('Daiku Interi')
-        ->start_url->toBe('/')
+        ->start_url->toBe('/app')
         ->display->toBe('standalone')
         ->and(collect($response->json('icons'))->pluck('sizes')->all())->toBe(['192x192', '512x512', '512x512'])
         ->and(collect($response->json('icons'))->pluck('purpose')->all())->toBe(['any', 'any', 'maskable']);

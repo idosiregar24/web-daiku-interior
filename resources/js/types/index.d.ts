@@ -1749,12 +1749,39 @@ export interface SiteSetting {
     login_image_url: string | null;
     /** Data URI — the signature has no public route. */
     signature_url: string | null;
+    /** Sprint 20 Sub 05 — "Profil Publik": the company profile's text at `/` (null = placeholder / hidden). */
+    public_tagline: string | null;
+    hero_headline: string | null;
+    hero_subheadline: string | null;
+    about_text: string | null;
+    founded_year: number | null;
+    stat_projects: number | null;
+    stat_cities: number | null;
+    service_area_text: string | null;
+    /** Digits only, `08…` (lib/phone.ts); null = the site falls back to `company_phone`. */
+    whatsapp_phone: string | null;
+    whatsapp_greeting: string | null;
+    maps_embed_url: string | null;
+    opening_hours: string | null;
+    google_site_verification: string | null;
+    hero_image_url: string | null;
     created_at: string;
     updated_at: string;
 }
 
 /** Keys of SiteSetting::ASSETS — the `{asset}` route parameter. */
-export type BrandAsset = 'logo' | 'favicon' | 'login_image' | 'signature';
+export type BrandAsset = 'logo' | 'favicon' | 'login_image' | 'signature' | 'hero_image';
+
+/** Sprint 20 Sub 05 — SiteSettingController::edit `publicDefaults`: what the site shows while a Profil Publik text is empty. */
+export interface PublicProfileDefaults {
+    public_tagline: string;
+    hero_headline: string;
+    hero_subheadline: string;
+    about_text: string;
+    service_area_text: string;
+    opening_hours: string;
+    whatsapp_greeting: string;
+}
 
 /** SiteSetting::branding() — shared on every page as `site`, guests included. */
 export interface SiteBranding {
@@ -2007,4 +2034,120 @@ export interface LeadActiveQuotation {
     status: QuotationStatus;
     total_amount: string;
     valid_until: string | null;
+}
+
+/** Sprint 20 — App\Enums\ProjectType::options() (labels a client reads). */
+export interface ProjectTypeOption {
+    value: ProjectType;
+    label: string;
+}
+
+/** Sprint 20 Sub 04 — a row of ⚙ Pengaturan → Portofolio (PortfolioController::index). */
+export interface PortfolioRow {
+    id: number;
+    title: string;
+    slug: string;
+    year: number | null;
+    is_published: boolean;
+    client_consent: boolean;
+    photos_count: number;
+    sort_order: number;
+    project_type: ProjectType;
+    type_label: string;
+    /** "Panam, Pekanbaru" — district and city, whichever are known. */
+    place: string | null;
+    cover_thumb_url: string | null;
+    /** Null while unpublished (the public page is a 404 then). */
+    public_url: string | null;
+    updated_at: string;
+}
+
+/** Sprint 20 Sub 04 — PortfolioController::edit `item`. */
+export interface PortfolioItemDetail {
+    id: number;
+    title: string;
+    slug: string;
+    city_id: number | null;
+    location_label: string | null;
+    year: number | null;
+    summary: string | null;
+    description: string | null;
+    cover_photo_id: number | null;
+    is_published: boolean;
+    client_consent: boolean;
+    sort_order: number;
+    published_at: string | null;
+    project_type: ProjectType;
+    /** Where the item lives once published (always sent — a 404 until then). */
+    public_url: string;
+    /** The finished project it was made from ("Jadikan Portofolio"), if any. */
+    project: { id: number; name: string } | null;
+}
+
+/** Sprint 20 Sub 04 — App\Models\PortfolioPhoto (WebP, max 2000 px + 600 px thumb). */
+export interface PortfolioPhoto {
+    id: number;
+    url: string;
+    thumb_url: string;
+    width: number;
+    height: number;
+    alt: string | null;
+    caption: string | null;
+    sort_order: number;
+}
+
+/** Sprint 20 Sub 05 — a row of ⚙ Pengaturan → Testimoni. */
+export interface TestimonialRow {
+    id: number;
+    client_label: string;
+    quote: string;
+    portfolio_item_id: number | null;
+    is_published: boolean;
+    sort_order: number;
+    portfolio_title: string | null;
+}
+
+/** Sprint 20 Sub 06 — one FAQ entry of a service page. */
+export interface ServicePageFaq {
+    q: string;
+    a: string;
+}
+
+/** Sprint 20 Sub 06 — a row of ⚙ Pengaturan → Halaman Layanan (one per ServiceCatalog entry). */
+export interface ServicePageRow {
+    id: number;
+    title: string;
+    slug: string;
+    /** ProjectType labels the page covers ("Toko", "Retail & Toko"). */
+    types: string[];
+    is_published: boolean;
+    /** Intro or body still equals the seeded text — cannot be published yet. */
+    still_placeholder: boolean;
+    has_hero: boolean;
+    /** Published portfolio items of the page's types. */
+    portfolio_count: number;
+    public_url: string;
+    updated_at: string;
+}
+
+/** Sprint 20 Sub 06 — the seeded text of a service page (Placeholder::servicePage()). */
+export interface ServicePageContent {
+    title: string;
+    headline: string;
+    intro: string;
+    body: string;
+    highlights: string[];
+    faqs: ServicePageFaq[];
+    meta_description: string;
+}
+
+/** Sprint 20 Sub 06 — ServicePageController::edit `page`. */
+export interface ServicePageDetail extends ServicePageContent {
+    id: number;
+    slug: string;
+    is_published: boolean;
+    hero_url: string | null;
+    public_url: string;
+    types: string[];
+    still_placeholder: boolean;
 }

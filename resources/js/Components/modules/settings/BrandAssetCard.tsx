@@ -8,7 +8,7 @@ import { type ReactNode, useRef, useState } from 'react';
 
 /**
  * Crop frame per asset. Output sizes stay inside UploadBrandingAssetRequest's
- * limits (logo ≥ 32 px tall even at 3:1, login image ≥ 600 px).
+ * limits (logo ≥ 32 px tall even at 3:1, login image ≥ 600 px, hero ≥ 800 px).
  */
 const CROP: Record<BrandAsset, { title: string; aspects: CropAspect[]; output: CropOutput }> = {
     logo: {
@@ -37,6 +37,16 @@ const CROP: Record<BrandAsset, { title: string; aspects: CropAspect[]; output: C
         ],
         output: { mime: 'image/png', minWidth: 300, maxWidth: 900, allowFit: true },
     },
+    // Sprint 20 Sub 05 — re-encoded to WebP server-side; ≥ 800×800 at either frame.
+    hero_image: {
+        title: 'Crop Foto Utama Situs',
+        // Sprint 20 redesign — a wide hero banner (cropped to a portrait on phones).
+        aspects: [
+            { label: 'Lebar 2:1', value: 2 },
+            { label: 'Lebar 16:9', value: 16 / 9 },
+        ],
+        output: { mime: 'image/jpeg', minWidth: 1200, maxWidth: 2000, quality: 0.9 },
+    },
 };
 
 /** Mirrors UploadBrandingAssetRequest — checked client-side before sending. */
@@ -64,6 +74,12 @@ export const ASSET_RULES: Record<BrandAsset, { accept: string; types: string[]; 
         types: ['image/png'],
         maxKb: 1024,
         hint: 'PNG, maks. 1 MB. Tanda tangan di atas latar transparan.',
+    },
+    hero_image: {
+        accept: '.jpg,.jpeg,.png,.webp',
+        types: ['image/jpeg', 'image/png', 'image/webp'],
+        maxKb: 15360,
+        hint: 'JPG/PNG/WEBP mendatar, maks. 15 MB, minimal 1200×600 piksel. Dikecilkan & diubah ke WebP otomatis.',
     },
 };
 

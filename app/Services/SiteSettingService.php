@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Throwable;
 
 /**
@@ -17,7 +18,10 @@ use Throwable;
  */
 class SiteSettingService
 {
-    public function __construct(private AuditLogService $auditLogService) {}
+    public function __construct(
+        private AuditLogService $auditLogService,
+        private PortfolioPhotoService $photoService,
+    ) {}
 
     /** @param  array<string, mixed>  $data  validated text fields */
     public function update(array $data, User $actor): SiteSetting
@@ -50,7 +54,7 @@ class SiteSettingService
     {
         $column = SiteSetting::ASSETS[$asset];
         $disk = Storage::disk(SiteSetting::DISK);
-        $path = $file->store('branding', SiteSetting::DISK);
+        $path = $asset === 'hero_image' ? $this->storeHero($file) : $file->store('branding', SiteSetting::DISK);
 
         try {
             [$settings, $previous] = DB::transaction(function () use ($asset, $column, $path, $file, $actor) {
@@ -81,6 +85,18 @@ class SiteSettingService
         }
 
         return $settings;
+    }
+
+    /**
+     * Sprint 20 Sub 05 — a phone photo can be 10 MB; the home page's
+     * largest image is resized to WebP (and stripped of its GPS) first.
+     */
+    private function storeHero(UploadedFile $file): string
+    {
+        $path = 'branding/'.Str::random(40).'.webp';
+        Storage::disk(SiteSetting::DISK)->put($path, $this->photoService->encode($file));
+
+        return $path;
     }
 
     /** Remove one brand asset — the UI falls back to the default mark/gradient. */

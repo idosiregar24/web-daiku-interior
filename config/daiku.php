@@ -48,6 +48,17 @@ return [
     'home_city' => 'Pekanbaru',
 
     /*
+     * Sprint 20 D6 — the public company profile at `/`. While `placeholders`
+     * is on, an empty Profil Publik column / an empty portfolio or
+     * testimonial list shows the stand-ins of
+     * App\Support\CompanyProfile\Placeholder; off (launch), the section is
+     * hidden instead. Turn it off once the real material is in.
+     */
+    'company_profile' => [
+        'placeholders' => (bool) env('SITE_PLACEHOLDERS', true),
+    ],
+
+    /*
      * Sprint 21 (K4) — a user may change their own username once per this
      * many days (UserService::changeOwnUsername()). The CEO isn't limited.
      */

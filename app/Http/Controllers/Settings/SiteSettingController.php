@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\UpdatePublicProfileRequest;
 use App\Http\Requests\Settings\UpdateSiteSettingRequest;
 use App\Http\Requests\Settings\UploadBrandingAssetRequest;
 use App\Models\SiteSetting;
 use App\Services\SiteSettingService;
+use App\Support\CompanyProfile\Placeholder;
+use App\Support\CompanyProfile\ServiceCatalog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -22,8 +25,22 @@ class SiteSettingController extends Controller
 {
     public function edit(): Response
     {
+        $settings = SiteSetting::current();
+        $city = ServiceCatalog::city();
+
         return Inertia::render('Settings/Edit', [
-            'settings' => SiteSetting::current(),
+            'settings' => $settings,
+            // Sprint 20 Sub 05 — shown as the "Profil Publik" fields' placeholders.
+            'publicDefaults' => [
+                'public_tagline' => Placeholder::PUBLIC_TAGLINE,
+                'hero_headline' => Placeholder::heroHeadline($city),
+                'hero_subheadline' => Placeholder::HERO_SUBHEADLINE,
+                'about_text' => Placeholder::about($city),
+                'service_area_text' => Placeholder::serviceArea($city),
+                'opening_hours' => Placeholder::OPENING_HOURS,
+                'whatsapp_greeting' => strtr(Placeholder::WHATSAPP_GREETING, [':name' => $settings->site_name]),
+            ],
+            'siteUrl' => route('site.home'),
         ]);
     }
 
@@ -32,6 +49,14 @@ class SiteSettingController extends Controller
         $service->update($request->validated(), $request->user());
 
         return back()->with('success', 'Pengaturan situs berhasil disimpan.');
+    }
+
+    /** Sprint 20 Sub 05 — "Profil Publik": the company profile's text at `/`. */
+    public function updatePublicProfile(UpdatePublicProfileRequest $request, SiteSettingService $service): RedirectResponse
+    {
+        $service->update($request->validated(), $request->user());
+
+        return back()->with('success', 'Profil publik berhasil disimpan.');
     }
 
     public function storeAsset(UploadBrandingAssetRequest $request, string $asset, SiteSettingService $service): RedirectResponse

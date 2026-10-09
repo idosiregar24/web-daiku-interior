@@ -15,10 +15,12 @@ class SiteSetting extends Model
         'login_image' => 'login_image_path',
         // Sprint 15 — signs the letter-style PDFs; never served publicly (see PUBLIC_ASSETS).
         'signature' => 'signature_path',
+        // Sprint 20 Sub 05 — the company profile's hero photo (WebP, resized on upload).
+        'hero_image' => 'hero_image_path',
     ];
 
     /** Assets the public `branding.show` route may serve (login page, browser tab, sidebar). */
-    public const PUBLIC_ASSETS = ['logo', 'favicon', 'login_image'];
+    public const PUBLIC_ASSETS = ['logo', 'favicon', 'login_image', 'hero_image'];
 
     public const DISK = 'local';
 
@@ -60,12 +62,36 @@ class SiteSetting extends Model
         'favicon_path',
         'login_image_path',
         'signature_path',
+        // Sprint 20 Sub 05 — Profil Publik (company profile at `/`).
+        'public_tagline',
+        'hero_headline',
+        'hero_subheadline',
+        'about_text',
+        'founded_year',
+        'stat_projects',
+        'stat_cities',
+        'service_area_text',
+        'whatsapp_phone',
+        'whatsapp_greeting',
+        'maps_embed_url',
+        'opening_hours',
+        'google_site_verification',
+        'hero_image_path',
     ];
 
     /** Storage paths stay server-side; the UI only ever gets the served URLs. */
-    protected $hidden = ['logo_path', 'favicon_path', 'login_image_path', 'signature_path'];
+    protected $hidden = ['logo_path', 'favicon_path', 'login_image_path', 'signature_path', 'hero_image_path'];
 
-    protected $appends = ['logo_url', 'favicon_url', 'login_image_url', 'signature_url'];
+    protected $appends = ['logo_url', 'favicon_url', 'login_image_url', 'signature_url', 'hero_image_url'];
+
+    protected function casts(): array
+    {
+        return [
+            'founded_year' => 'integer',
+            'stat_projects' => 'integer',
+            'stat_cities' => 'integer',
+        ];
+    }
 
     /**
      * Site settings are a singleton — there is always exactly one row.
@@ -103,6 +129,11 @@ class SiteSetting extends Model
     protected function loginImageUrl(): Attribute
     {
         return Attribute::get(fn () => $this->assetUrl('login_image'));
+    }
+
+    protected function heroImageUrl(): Attribute
+    {
+        return Attribute::get(fn () => $this->assetUrl('hero_image'));
     }
 
     /**

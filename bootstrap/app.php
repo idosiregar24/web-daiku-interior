@@ -5,11 +5,14 @@ use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\ForgetActionInbox;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ModuleAccessMiddleware;
+use App\Http\Middleware\NoIndexSystemPages;
 use App\Http\Middleware\RoleMiddleware as AppRoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
 
@@ -19,6 +22,10 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        // Sprint 20 — the public company profile pages, without a session.
+        then: function () {
+            Route::middleware('site')->group(base_path('routes/site.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
@@ -28,6 +35,15 @@ return Application::configure(basePath: dirname(__DIR__))
             ForgetActionInbox::class,
             // Sprint 21 Sub 05 — after a CEO password reset, only "Buat Password Baru" opens.
             EnsurePasswordChanged::class,
+            // Sprint 20 Sub 03 — the system's pages never show up in Google.
+            NoIndexSystemPages::class,
+        ]);
+
+        // Sprint 20 — routes/site.php: public, read-only, cacheable pages.
+        // No session/cookies on purpose; `/` stays in `web` (staff redirect).
+        $middleware->group('site', [
+            SubstituteBindings::class,
+            'cache.headers:public;max_age=300;etag',
         ]);
 
         // Spatie Laravel Permission — required for `role:`, `permission:` and
