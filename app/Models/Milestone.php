@@ -10,6 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * Shown to users as a **Timeline** (Sprint 23 K16 — display name only; code,
+ * tables and routes stay `milestone`). Runs from `start_date` to
+ * `target_date` ("Tanggal Selesai", K17); overdue reads `target_date` only.
+ * `start_date` is required for new timelines and backfilled for older ones.
+ */
 class Milestone extends Model
 {
     use HasFactory;
@@ -17,6 +23,7 @@ class Milestone extends Model
     protected $fillable = [
         'project_id',
         'name',
+        'start_date',
         'target_date',
         'status',
         'order',
@@ -26,6 +33,7 @@ class Milestone extends Model
     {
         return [
             'status' => MilestoneStatus::class,
+            'start_date' => 'date',
             'target_date' => 'date',
         ];
     }

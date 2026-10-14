@@ -263,16 +263,16 @@ test('trigger: submitting a quotation notifies PM and Asisten PM (Sprint 12 — 
         ->and(notificationsFor($assistant, 'quotation_submitted'))->toHaveCount(1);
 });
 
-test('trigger: a returned RAB notifies its estimator; a final RAB notifies the lead marketing', function () {
-    $quotation = Quotation::factory()->create(['status' => 'WAITING_CEO']);
+test('trigger: a returned RAB notifies its estimator; a PM-approved RAB notifies the lead marketing (Sprint 23)', function () {
+    $quotation = Quotation::factory()->create(['status' => 'SUBMITTED']);
 
-    reviewQuotation($quotation, userWithRole('CEO'), [], 'Harga terlalu tinggi');
+    reviewQuotation($quotation, userWithRole('PM'), [], 'Harga terlalu tinggi');
 
     expect(notificationsFor($quotation->creator, 'quotation_returned'))->toHaveCount(1)
         ->and(notificationsFor($quotation->lead->assignee, 'quotation_returned'))->toHaveCount(0);
 
-    $final = Quotation::factory()->create(['status' => 'APPROVED_INTERNAL']);
-    app(QuotationService::class)->sendToMarketing($final, userWithRole('ESTIMATOR'));
+    $final = Quotation::factory()->create(['status' => 'SUBMITTED']);
+    reviewQuotation($final, userWithRole('PM'));
 
     expect(notificationsFor($final->lead->assignee, 'quotation_ready_to_send'))->toHaveCount(1);
 });

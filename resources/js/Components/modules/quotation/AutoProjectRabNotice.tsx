@@ -36,7 +36,7 @@ export function AutoProjectRabNotice({ rab, className }: { rab: RunningProjectRa
     return (
         <Notice tone="info" className={className}>
             Permintaan RAB Proyek sudah otomatis dikirim ke Estimator pada {formatDateTime(rab.requested_at)} — tidak perlu
-            meminta lagi. <span className="inline-flex items-center gap-1 align-middle">Status: <StatusChip status={rab.status} /></span>{' '}
+            meminta lagi. <span className="inline-flex items-center gap-1 align-middle">Status: <StatusChip domain="quotation" status={rab.status} /></span>{' '}
             <Link
                 href={route('quotations.show', { quotation: rab.id })}
                 className="font-medium underline decoration-daiku-yellow underline-offset-2"

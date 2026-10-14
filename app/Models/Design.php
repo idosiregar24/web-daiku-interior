@@ -28,10 +28,15 @@ class Design extends Model
         'delay_hari',
         'delay_counted_on',
         'design_urls',
+        'whatsapp_group_url',
+        'links_updated_by',
+        'links_updated_at',
         'brief_note',
         'problem',
         'client_acc',
         'acc_date',
+        'client_acc_by',
+        'client_acc_at',
         'revision_count',
         'sent_to_client_at',
         'ready_for_client_at',
@@ -53,6 +58,8 @@ class Design extends Model
             'revision_count' => 'integer',
             'sent_to_client_at' => 'datetime',
             'ready_for_client_at' => 'datetime',
+            'links_updated_at' => 'datetime',
+            'client_acc_at' => 'datetime',
         ];
     }
 
@@ -90,6 +97,19 @@ class Design extends Model
             ->withTimestamps();
     }
 
+    /** Sprint 23 K19 — who recorded "Desain Disetujui Klien". */
+    public function clientApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'client_acc_by');
+    }
+
+    /** Sprint 23 K19b — who last saved the WhatsApp group / design links. */
+    public function linksUpdater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'links_updated_by');
+    }
+
+    /** Sprint 12 #17 — revisions Marketing asked for. History only since Sprint 23 (K20). */
     public function revisions(): HasMany
     {
         return $this->hasMany(DesignRevision::class);
@@ -102,8 +122,8 @@ class Design extends Model
 
     /**
      * Sprint 12 — born from a RAB Jasa Desain: its status moves only
-     * through DesignService's actions (pay → assign → send → revise /
-     * approve), never the brief form's status picker.
+     * through DesignService's actions (pay → assign → "Desain Disetujui
+     * Klien", Sprint 23), never the brief form's status picker.
      */
     public function isFlowManaged(): bool
     {
@@ -145,29 +165,18 @@ class Design extends Model
         return $query->whereNotIn('status', DesignStatus::lockedValues());
     }
 
-    /** Sprint 22 — statuses in which the architect works and Marketing may send it to the client. */
-    public const SENDABLE_STATUSES = [DesignStatus::Desain, DesignStatus::RevisiDesain];
-
-    /** Sprint 22 — the architect handed it to Marketing and it hasn't been sent to the client yet. */
-    public function isReadyToSend(): bool
-    {
-        return $this->ready_for_client_at !== null;
-    }
-
     /**
-     * Sprint 22 — Marketing's "Desain siap dikirim ke klien" queue: a
-     * Sprint 12 design its architect marked ready, still unsent. With
-     * `$marketing`: their own leads and leads without an owner (the same
-     * rule as Quotation::awaitingInvoice()).
+     * Sprint 23 K19 — where "Desain Disetujui Klien" may be pressed: while
+     * the architect works (DESAIN), plus the Sprint 12/22 statuses old rows
+     * may still be in (sent to the client / revision asked).
      */
-    public function scopeReadyToSend(Builder $query, ?User $marketing = null): Builder
+    public const CLIENT_APPROVABLE_STATUSES = [DesignStatus::Desain, DesignStatus::WaitingAccDesain, DesignStatus::RevisiDesain];
+
+    /** Sprint 23 K19 — a Sprint 12 design the client hasn't approved yet, in a status that allows it. */
+    public function awaitsClientApproval(): bool
     {
-        return $query
-            ->whereNotNull('quotation_id')
-            ->whereNotNull('ready_for_client_at')
-            ->whereIn('status', array_map(fn (DesignStatus $status) => $status->value, self::SENDABLE_STATUSES))
-            ->when($marketing, fn (Builder $q) => $q->whereHas('lead', fn (Builder $lead) => $lead
-                ->where(fn (Builder $owner) => $owner->where('assigned_to', $marketing->id)->orWhereNull('assigned_to'))));
+        return $this->isFlowManaged() && ! $this->client_acc
+            && in_array($this->status, self::CLIENT_APPROVABLE_STATUSES, true);
     }
 
     /** What a user may list: a plain architect only their own designs, everyone else all. */

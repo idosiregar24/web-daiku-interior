@@ -35,11 +35,14 @@ class TerminController extends Controller
     public function index(Request $request): Response
     {
         $termins = Termin::query()
-            ->with(['project:id,name', 'milestone:id,name', 'bankAccount:id,label'])
+            // Sprint 23 K12 — "Termin 2 dari 4 · 30%" (rab position) and whose turn it is (the invoice's status).
+            ->withRabPosition()
+            ->with(['project:id,name,quotation_id', 'milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status,type'])
             ->byStatus($request->string('status')->value() ?: null)
             ->orderBy('scheduled_date')
             ->paginate(20)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(fn (Termin $termin) => $termin->append('payment_label'));
 
         // `!` = day 1: plain 'Y-m' takes today's day, so on the 29th–31st
         // February (or any shorter month) overflowed into the next one.
@@ -55,7 +58,7 @@ class TerminController extends Controller
         $gridEnd = $month->copy()->endOfMonth()->endOfWeek(Carbon::MONDAY);
 
         $calendarTermins = Termin::query()
-            ->with(['project:id,name', 'milestone:id,name'])
+            ->with(['project:id,name', 'milestone:id,name', 'invoice:id,number,status'])
             ->whereBetween('scheduled_date', [$gridStart->toDateString(), $gridEnd->toDateString()])
             ->orderBy('scheduled_date')
             ->get();

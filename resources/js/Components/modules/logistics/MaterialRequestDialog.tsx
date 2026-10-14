@@ -1,3 +1,4 @@
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { UnitSelect } from '@/Components/shared/UnitSelect';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
 import { Button } from '@/Components/ui/button';
@@ -281,7 +282,7 @@ export function MaterialRequestDialog({
                                             <FormItem>
                                                 <FormLabel required>Estimasi Harga / Satuan (Rp)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                    <MoneyInput {...field} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

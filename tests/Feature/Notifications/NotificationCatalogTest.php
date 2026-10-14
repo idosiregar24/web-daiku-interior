@@ -55,7 +55,9 @@ test('K3: priority follows who is kept waiting', function (NotificationType $typ
     'survey lunas belum dijadwalkan' => [NotificationType::SurveyToSchedule, NotificationPriority::ClientWaiting],
     'jadwal survey ke CEO & PM' => [NotificationType::SurveyScheduled, NotificationPriority::ActionRequired],
     'survey jadi berangkat' => [NotificationType::SurveyConfirmed, NotificationPriority::Update],
-    'desain siap dikirim ke klien (Sprint 22)' => [NotificationType::DesignReadyToSend, NotificationPriority::ClientWaiting],
+    // Sprint 23 K20 — retired (design runs in a WhatsApp group): old rows read as Info.
+    'desain siap dikirim — dihentikan Sprint 23' => [NotificationType::DesignReadyToSend, NotificationPriority::Info],
+    'minta revisi desain — dihentikan Sprint 23' => [NotificationType::DesignRevisionRequested, NotificationPriority::Info],
     'proyek selesai' => [NotificationType::ProjectCompleted, NotificationPriority::Info],
 ]);
 
@@ -83,7 +85,7 @@ test('targets: the most specific page wins', function (string $type, array $meta
     'QA → form QA, bukan proyek' => ['qa_approved', ['qa_form_id' => 4, 'project_id' => 3], fn () => route('qa-forms.show', 4)],
     'desain → desain, bukan lead' => ['design_assigned', ['design_id' => 5, 'lead_id' => 2], fn () => route('design.show', 5)],
     'bukti ditolak → dialog Kirim Bukti Bayar' => ['invoice_rejected', ['invoice_id' => 9], fn () => route('finance.invoices.index', ['awaiting_proof' => 1, 'proof' => 9])],
-    'bukti masuk → antrean verifikasi' => ['invoice_awaiting_verification', ['invoice_id' => 9], fn () => route('finance.invoices.verification')],
+    'bukti masuk → dialog Verifikasi' => ['invoice_awaiting_verification', ['invoice_id' => 9], fn () => route('finance.invoices.verification', ['verify' => 9])],
     'SP → Kinerja Saya' => ['disciplinary_issued', [], fn () => route('my.index', ['tab' => 'discipline'])],
     'gaji diputuskan → tab gaji karyawan' => ['salary_change_decided', ['employee_id' => 6], fn () => route('hr.employees.show', ['employee' => 6, 'tab' => 'salary'])],
     'lead follow-up → lead' => ['lead_follow_up_due', ['lead_id' => 2], fn () => route('crm.leads.show', 2)],

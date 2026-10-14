@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Quotation\QuotationController;
 use App\Http\Requests\Quotation\ApprovePublicQuotationRequest;
+use App\Http\Requests\Quotation\RejectPublicQuotationRequest;
 use App\Http\Resources\PublicQuotationResource;
 use App\Models\QuotationShareLink;
 use App\Models\SiteSetting;
@@ -19,8 +20,9 @@ use Symfony\Component\HttpFoundation\Response;
  * Sprint 12 decisions #13–#14 — the client's page, opened from the link
  * Marketing sends (no login). The token is the only credential; the
  * route is throttled and never indexed. Data goes through
- * PublicQuotationResource's whitelist; the rules for when approving is
- * possible live in QuotationService::publicState()/clientApprove().
+ * PublicQuotationResource's whitelist; the rules for when approving (or,
+ * Sprint 23 K11, declining with a reason) is possible live in
+ * QuotationService::publicState()/clientApprove()/clientDecline().
  */
 class PublicQuotationController extends Controller
 {
@@ -68,6 +70,14 @@ class PublicQuotationController extends Controller
         $service->clientApprove($this->link($token), $request->boolean('agree'), $request->ip(), $request->userAgent());
 
         return back()->with('success', 'Terima kasih — penawaran telah Anda setujui. Marketing kami akan segera menghubungi Anda.');
+    }
+
+    /** Sprint 23 K11 — "Tidak Setuju" with a mandatory reason; Marketing follows up. */
+    public function reject(RejectPublicQuotationRequest $request, string $token, QuotationService $service): RedirectResponse
+    {
+        $service->clientDecline($this->link($token), $request->validated('note'), $request->userAgent());
+
+        return back()->with('success', 'Terima kasih atas masukannya — Marketing kami akan segera menghubungi Anda untuk memperbaiki penawaran.');
     }
 
     private function link(string $token): QuotationShareLink

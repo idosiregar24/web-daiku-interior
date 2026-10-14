@@ -1,7 +1,10 @@
 # Sprint 23 — Revisi: Alur RAB, Buka Proyek oleh PM, Timeline, Desain via WA, "Menunggu Siapa"
 
-> Status: **plan dikunci (2026-10-13)** — belum ada kode yang diubah.
-> Pengerjaan baru dimulai kalau user bilang **"kerjakan"**.
+> Status: **kode selesai 2026-10-14** (Sub 01–12) — 2129 test lulus,
+> `npm run build` & Pint bersih, 10 migrasi sudah jalan di DB dev. Tersisa:
+> `/security-review` (unggah foto bukti bayar + route publik `tolak`), uji
+> alur lengkap di browser per role, deploy (migrasi baru). Hasil & keputusan
+> tambahan: §6.
 >
 > Sumber: daftar revisi user 2026-10-13 (16 poin + tambahan R17–R23, §1) + jawaban
 > Q1–Q13 di hari yang sama (§4). R18 (Desain via WA) **membatalkan** tombol
@@ -195,3 +198,23 @@ MENUNGGU_BAYAR → (Finance verifikasi invoice) MENUNGGU_PENUGASAN
 Urutan: 01 → 02 → … → 12. Sub 07–08 adalah
 fondasi Sprint 24 (Pengawas, Timeline bertanggal) — harus selesai sebelum
 Sprint 24 dimulai.
+
+## 6. Hasil pengerjaan (2026-10-14)
+
+Dikerjakan paralel per domain (RAB · Keuangan · Proyek · Desain · UX global).
+
+| Sub | Status | Catatan / keputusan tambahan |
+|---|---|---|
+| 01 UX global | ✅ | `SuccessDialog` + `GlobalLoadingOverlay` di `AppLayout`; `MoneyInput` di semua input Rupiah; `StatusChip domain=` + peta `lib/waitingOn.ts` (domain baru: `staffLoan`, `supplierDebt`, `assetInstallment`, `payroll`); `PageHeader step` + `MoreActions`. Aksi per baris & tombol simpan form tetap di tempatnya. |
+| 02 Verifikasi & bukti bayar | ✅ | Chip jenis "Termin n dari N · %" (juga RAB Tambahan bertermin); kalimat K12b dari `Invoice::confirmationLabel()` dipakai chip, notifikasi, Perlu Tindakan, dialog; notifikasi & antrean membuka dialog Verifikasi (`?verify=`). Foto: maks. 3, WebP ≤ 2000 px + thumbnail 480 px, disk privat, `invoice_payment_proofs` append-only + kolom tambahan `invoices.proof_attempt` (memisahkan foto kiriman sekarang vs riwayat). Route `finance.invoices.proofs.show`. |
+| 03 RAB Builder | ✅ | `qty_source` disimpan hanya bila cocok dengan dimensi (server tidak menimpa volume). Baris lama (`null`) tetap manual sampai "↺ Hitung dari P/T/L". m/lari dikenali dari kode satuan `Unit::METER_LARI`. |
+| 04 Review menyatu | ✅ | `QuotationReviewPanel` dihapus → `RabReview` di tabel; ✔ terbawa dicocokkan lewat `item_fingerprint` (review lama tanpa fingerprint → dicek ulang sekali). |
+| 05 Alur RAB baru | ✅ | Migrasi `move_quotations_off_ceo_approval` (audit `quotation.ceo_stage_removed`). Notifikasi baru `quotation_project_approved` (P4 info ke CEO) & `quotation_note_added` (P3); `quotation_awaiting_ceo` `@deprecated`. KPI `pm_review_escaped_count` didefinisikan ulang: "RAB di-ACC lalu ditolak klien" (data CEO lama tetap terhitung). |
+| 06 Tidak Setuju di link | ✅ | Route `public.quotation.reject` (`penawaran/{token}/tolak`), `quotations.forwardToEstimator`; `quotation_notes.kind` = CEO / CLIENT / MARKETING. Antrean Marketing `quotation-client-rejected`. |
+| 07 Buka Proyek oleh PM | ✅ | `project_openings.opener_id` + status `MENUNGGU_PM` (nilai lama `MENUNGGU_CEO` tetap dibaca); PM nonaktif → semua PM boleh. Kepala Tim dari semua akun aktif (kecuali SUPERADMIN) atau ketik nama. `project_opened` juga ke Marketing, Pengawas, Kepala Tim. Belum ada notifikasi saat Pengawas diganti lewat Edit Proyek (hanya audit) → Sprint 24. |
+| 08 Timeline | ✅ | Semua teks UI/notifikasi/PDF "Milestone" → "Timeline"; `start_date` wajib untuk timeline baru, data lama diisi otomatis; Gantt & kalender mulai → selesai. |
+| 09 Desain via WA | ✅ | Route baru `design.links.update`; `design.markClientApproved` = `role:MARKETING|DESIGNER` + `DesignPolicy::approveForClient`. Route `markReady`/`sendToClient`/`requestRevision` dihapus; tipe notifikasi lamanya `@deprecated` (P4). Link tidak bisa disimpan sebelum penugasan. No. HP klien tidak lagi dikirim ke halaman desain. |
+| 10 Informasi Pembayaran lead | ✅ | `InvoiceService::leadPayments()` + `PaymentInfoCard`; juga menampilkan RAB yang sudah disetujui klien tapi belum ditagih. Props hanya untuk CEO, Marketing, SUPERADMIN, PM proyek lead itu. |
+| 11 Uji | ✅ sebagian | `php artisan test` 2129 lulus; build & Pint bersih; cek browser RAB Builder (volume otomatis, Kirim ke PM nonaktif saat belum disimpan). Belum: uji alur penuh per role di browser, `/security-review`. |
+| 12 Dokumen | ✅ | Golden rule #11, `security-standards.md` §4, `design-standards.md` §2, matriks notifikasi Sprint 18, `simulasi-alur-klien.md`, catatan pembatalan Sprint 22. |
+

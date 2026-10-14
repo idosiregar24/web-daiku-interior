@@ -1,5 +1,6 @@
 import { Badge } from '@/Components/ui/badge';
 import { cn } from '@/lib/utils';
+import { domainStatusLabel, waitingOn as holderOf, type WaitingDomain } from '@/lib/waitingOn';
 
 type Tone = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
@@ -137,6 +138,7 @@ const STATUS_LABEL: Record<string, string> = {
     APPROVED_INTERNAL: 'Disetujui Internal',
     READY_TO_SEND: 'Siap Dikirim',
     CLIENT_APPROVED: 'Disetujui Klien',
+    CLIENT_REJECTED: 'Ditolak Klien',
     CANCELLED: 'Dibatalkan',
 };
 
@@ -159,24 +161,41 @@ interface StatusChipProps {
     label?: string;
     /** Force a tone for states outside the domain unions (e.g. user Aktif/Nonaktif). */
     tone?: StatusTone;
+    /**
+     * Sprint 23 K3 — which domain the status belongs to (`lib/waitingOn.ts`):
+     * picks the domain's wording and appends whose turn it is
+     * ("Menunggu Review · PM / Asisten PM"). Finished statuses show no holder.
+     */
+    domain?: WaitingDomain;
+    /** Explicit holder ("· Finance") — overrides the domain's; `null` hides it. */
+    waitingOn?: string | null;
     className?: string;
 }
 
 export type StatusTone = Tone;
 
-export function StatusChip({ status, label, tone: toneOverride, className }: StatusChipProps) {
+export function StatusChip({ status, label, tone: toneOverride, domain, waitingOn, className }: StatusChipProps) {
     const tone = toneOverride ?? STATUS_TONE[status] ?? 'neutral';
+    const text = label ?? (domain && domainStatusLabel(domain, status)) ?? humanize(status);
+    const holder = waitingOn !== undefined ? waitingOn : domain ? holderOf(domain, status) : null;
 
     return (
         <Badge
             variant="secondary"
             className={cn(
                 TONE_CLASS[tone],
-                'h-5.5 rounded-md border-transparent px-2 font-medium',
+                'h-auto min-h-5.5 rounded-md border-transparent px-2 font-medium',
                 className,
             )}
         >
-            {label ?? humanize(status)}
+            {text}
+            {holder && (
+                <span className="font-normal opacity-80">
+                    <span aria-hidden>· </span>
+                    <span className="sr-only">menunggu </span>
+                    {holder}
+                </span>
+            )}
         </Badge>
     );
 }

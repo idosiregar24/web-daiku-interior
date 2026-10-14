@@ -32,7 +32,7 @@ export function salaryChangeChip(change: Pick<SalaryChangeRow, 'status' | 'appli
 
     return {
         status: change.status,
-        label: { PENDING: 'Menunggu CEO', APPROVED: 'Disetujui', REJECTED: 'Ditolak' }[change.status],
+        label: { PENDING: 'Menunggu Persetujuan', APPROVED: 'Disetujui', REJECTED: 'Ditolak' }[change.status],
     };
 }
 

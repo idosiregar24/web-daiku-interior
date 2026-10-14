@@ -33,7 +33,8 @@ export function TaskCard({ task, onOpen }: { task: FieldTask; onOpen: (task: Fie
                     {task.milestone?.name ? ` · ${task.milestone.name}` : ''}
                 </span>
                 <span className="mt-2 flex flex-wrap items-center gap-2">
-                    <StatusChip status={task.status} />
+                    {/* The Tukang's own card: name the holder only when it isn't them ("Pengecekan · PM / Asisten PM"). */}
+                    <StatusChip domain="task" status={task.status} waitingOn={task.status === 'PENGECEKAN' ? undefined : null} />
                     {task.due_date && (
                         <span className={cn('text-xs', overdue ? 'font-medium text-error-ink' : 'text-muted-foreground')}>
                             Tenggat {formatDate(task.due_date)}

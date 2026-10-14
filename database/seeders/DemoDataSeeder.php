@@ -370,16 +370,13 @@ class DemoDataSeeder extends Seeder
                 'start_date' => now()->subDays(3)->toDateString(),
                 'target_hari' => 14,
             ], $head);
-            $designService->update($design, [
-                'jenis_project' => $spec['jenis'],
-                'brief_note' => 'Klien minta gaya minimalis modern.',
+            // Sprint 23 K18 — the client is talked to in a WhatsApp group; the system keeps the links.
+            $designService->updateLinks($design, [
+                'whatsapp_group_url' => 'https://chat.whatsapp.com/Demo'.str($spec['name'])->studly(),
                 'design_urls' => ['https://drive.google.com/demo-desain-'.str($spec['name'])->slug()],
-            ]);
+            ], $this->marketing);
 
             if ($spec['stage'] === 'waiting_client') {
-                $designService->sendToClient($design, $this->marketing);
-                $designService->requestRevision($design, 'Klien minta meja kerja diperbesar dan warna dinding lebih terang.', $this->marketing);
-                $designService->sendToClient($design, $this->marketing);
                 $designService->discuss($design, ['body' => 'Material dinding partisi pakai gypsum atau kaca tempered? Ini menentukan RAB-nya.'], $this->estimator);
                 $designService->discuss($design, ['body' => 'Kaca tempered 10 mm, rangka aluminium hitam — detail di link.', 'attachment_url' => 'https://drive.google.com/demo-detail-partisi'], $head);
             }
@@ -404,8 +401,8 @@ class DemoDataSeeder extends Seeder
             ['description' => 'Jasa Desain Interior + Render 3D', 'qty' => 1, 'unit_id' => $this->unit('ls'), 'unit_price' => $fee],
         ]);
         $quotationService->submit($quotation);
+        // Sprint 23 K8/K10 — the PM's approval hands it straight to Marketing.
         $this->reviewRab($quotationService, $quotation->fresh(), $this->pm);
-        $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
         $quotationService->sendToClient($quotation->fresh(), $this->marketing);
         $quotationService->clientApprove($quotation->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
 
@@ -426,7 +423,7 @@ class DemoDataSeeder extends Seeder
         $specs = [
             ['name' => 'Maya Sari', 'source' => 'Iklan Sosmed', 'quotation_stage' => 'draft'],
             ['name' => 'Yusuf Pratama', 'source' => 'Existing', 'quotation_stage' => 'submitted'],
-            ['name' => 'Indah Permata', 'source' => 'Instagram', 'quotation_stage' => 'waiting_ceo'],
+            ['name' => 'Indah Permata', 'source' => 'Instagram', 'quotation_stage' => 'ready_to_send'],
             ['name' => 'Rina Kartika', 'source' => 'Website', 'quotation_stage' => 'revised'],
         ];
 
@@ -464,13 +461,13 @@ class DemoDataSeeder extends Seeder
                 continue;
             }
 
-            // Sprint 12 #7: PM reviews first; a RAB Proyek then waits for the CEO.
+            // Sprint 23 K8: the PM's approval sends it straight to Marketing (READY_TO_SEND).
             $this->reviewRab($quotationService, $quotation, $this->pm);
         }
     }
 
     /**
-     * Sprint 12 #8 — PM / CEO mark every item: ✔ unless named in `$wrong`
+     * Sprint 12 #8 — the PM marks every item: ✔ unless named in `$wrong`
      * (description → note), then approve, or return when anything is ✘.
      *
      * @param  array<string, string>  $wrong
@@ -513,8 +510,6 @@ class DemoDataSeeder extends Seeder
             ]);
             $quotationService->submit($quotation);
             $this->reviewRab($quotationService, $quotation, $this->pm);
-            $this->reviewRab($quotationService, $quotation, $this->ceo);
-            $quotationService->sendToMarketing($quotation->fresh(), $this->estimator);
             $quotationService->sendToClient($quotation->fresh(), $this->marketing);
 
             // Sprint 12 Sub 5/7: the client approves on the link (the deal —
@@ -525,8 +520,13 @@ class DemoDataSeeder extends Seeder
                 'name' => 'Proyek '.$spec['name'],
                 'pm_id' => $this->pm->id,
                 'assistant_pm_id' => $i === 0 ? User::role('ASISTEN_PM')->value('id') : null,
+                // Sprint 23 K14 — the approving PM opens: Kepala Tim (a tukang, or a vendor by name), Pengawas, dates.
+                'team_lead_id' => $i === 0 ? $this->fieldStaff[0]->id : null,
+                'team_lead_name' => $i === 0 ? null : 'CV Mitra Kayu Jati',
+                'supervisor_id' => $this->qa->id,
+                'opened_on' => now()->subDays(9)->toDateString(),
                 'start_date' => now()->subDays(7)->toDateString(),
-            ], $this->ceo);
+            ], $this->pm);
 
             $results[] = ['lead' => $lead->fresh(), 'project' => $project];
         }
@@ -810,8 +810,6 @@ class DemoDataSeeder extends Seeder
         ]);
         $quotations->submit($addendum);
         $this->reviewRab($quotations, $addendum->fresh(), $this->pm);
-        $this->reviewRab($quotations, $addendum->fresh(), $this->ceo);
-        $quotations->sendToMarketing($addendum->fresh(), $this->estimator);
         $quotations->sendToClient($addendum->fresh(), $this->marketing);
         $quotations->clientApprove($addendum->fresh()->currentShareLink(), true, '127.0.0.1', 'DemoDataSeeder');
     }

@@ -23,8 +23,9 @@ function writeSnoozed(ids: number[]) {
 }
 
 /**
- * Sprint 12 decision #19 — the CEO's "Buka Proyek" pop-up, on any page,
- * for the oldest RAB Proyek the client approved that has no project yet.
+ * The "Buka Proyek" pop-up, on any page, for the oldest RAB Proyek the
+ * client approved that has no project yet — Sprint 23 K13: shown to the PM
+ * who approved that RAB (every PM when an Asisten PM approved it).
  * "Nanti" hides that one for this browser session; it stays listed under
  * Proyek → "Menunggu Dibuka".
  */
@@ -49,8 +50,7 @@ export function ProjectOpeningPrompt() {
             open
             onOpenChange={(open) => !open && snooze()}
             opening={opening}
-            projectManagers={pendingProjectOpenings.projectManagers}
-            assistantPms={pendingProjectOpenings.assistantPms}
+            options={pendingProjectOpenings}
             secondaryAction={
                 <Button type="button" variant="outline" onClick={snooze}>
                     Nanti

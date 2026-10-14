@@ -1,4 +1,6 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { StatusChip } from '@/Components/shared/StatusChip';
+import { PaymentProofGallery, PaymentProofPicker } from '@/Components/modules/finance/PaymentProofPhotos';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -34,7 +36,40 @@ export const INVOICE_TYPE_LABEL: Record<InvoiceType, string> = {
     TAMBAHAN: 'Pekerjaan Tambahan',
 };
 
-type InvoiceRef = Pick<Invoice, 'id' | 'number' | 'amount'> & { lead?: { client_name: string } };
+type InvoiceRef = Pick<Invoice, 'id' | 'number' | 'amount'> &
+    Partial<Pick<Invoice, 'payment_label' | 'status_label' | 'proof_attempt'>> & { lead?: { client_name: string } };
+
+/**
+ * Sprint 23 K12b — an invoice's status chip: MENUNGGU_VERIFIKASI reads
+ * "Menunggu Konfirmasi Pembayaran DP · Proyek Kopi Oz · Finance" (the
+ * sentence is built once server-side — Invoice::confirmationLabel(), sent
+ * as `status_label`), the others the invoice domain's wording + holder.
+ */
+export function InvoiceStatusChip({ invoice, className }: { invoice: Pick<Invoice, 'status'> & Partial<Pick<Invoice, 'status_label'>>; className?: string }) {
+    return <StatusChip domain="invoice" status={invoice.status} label={invoice.status_label ?? undefined} className={className} />;
+}
+
+/**
+ * Sprint 23 K12 — what the invoice bills: "DP", "Termin 2 dari 4 · 30%",
+ * "Pelunasan", "Jasa Desain"… (Invoice::paymentTypeLabel()) + the project
+ * (or client) underneath.
+ */
+export function InvoicePaymentType({
+    invoice,
+    showSubject = true,
+}: {
+    invoice: Pick<Invoice, 'type'> & Partial<Pick<Invoice, 'payment_type_label' | 'project' | 'lead'>>;
+    showSubject?: boolean;
+}) {
+    return (
+        <span className="inline-flex flex-col items-start gap-0.5">
+            <StatusChip status={invoice.type} tone="neutral" label={invoice.payment_type_label ?? INVOICE_TYPE_LABEL[invoice.type]} className="text-foreground" />
+            {showSubject && (invoice.project?.name || invoice.lead?.client_name) && (
+                <span className="text-xs text-daiku-muted">{invoice.project?.name ?? invoice.lead?.client_name}</span>
+            )}
+        </span>
+    );
+}
 
 interface ShellProps<T extends FieldValues> {
     open: boolean;
@@ -88,7 +123,7 @@ function describe(invoice: InvoiceRef) {
     return (
         <>
             Invoice <span className="font-medium text-foreground">{invoice.number}</span>
-            {invoice.lead && ` — ${invoice.lead.client_name}`} · {formatRupiah(invoice.amount)}
+            {invoice.payment_label ? ` — ${invoice.payment_label}` : invoice.lead && ` — ${invoice.lead.client_name}`} · {formatRupiah(invoice.amount)}
         </>
     );
 }
@@ -163,21 +198,51 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
         resolver: zodResolver(proofSchema),
         defaultValues: { payment_proof_url: '', payment_note: '' },
     });
+    // Sprint 23 K12d — optional proof photos (files, so outside the Zod values).
+    const [photos, setPhotos] = useState<File[]>([]);
+    const [photoError, setPhotoError] = useState<string | undefined>();
 
     useEffect(() => {
-        if (open) form.reset({ payment_proof_url: '', payment_note: '' });
+        if (open) {
+            form.reset({ payment_proof_url: '', payment_note: '' });
+            setPhotos([]);
+            setPhotoError(undefined);
+        }
     }, [open]);
+
+    function submit(values: z.infer<typeof proofSchema>) {
+        setPhotoError(undefined);
+        // Files make Inertia send multipart/form-data.
+        router.post(
+            route('finance.invoices.proof', { invoice: invoice.id }),
+            { ...values, payment_photos: photos },
+            {
+                preserveScroll: true,
+                forceFormData: photos.length > 0,
+                onError: (errors) =>
+                    Object.entries(errors).forEach(([field, message]) => {
+                        if (field.startsWith('payment_photos')) {
+                            setPhotoError(message);
+                        } else {
+                            form.setError(field as Path<z.infer<typeof proofSchema>>, { message });
+                        }
+                    }),
+                onSuccess: () => onOpenChange(false),
+            },
+        );
+    }
 
     return (
         <DialogShell
             open={open}
             onOpenChange={onOpenChange}
             title="Tandai Klien Sudah Bayar"
-            description={<>{describe(invoice)} — Finance mencocokkannya dengan mutasi rekening sebelum verifikasi.</>}
+            description={<>{describe(invoice)} — Finance mencocokkannya dengan mutasi rekening sebelum konfirmasi.</>}
             form={form}
-            onSubmit={(values) => post(route('finance.invoices.proof', { invoice: invoice.id }), values, form, () => onOpenChange(false))}
+            onSubmit={submit}
             submitLabel="Kirim ke Finance"
         >
+            <PaymentProofPicker value={photos} onChange={setPhotos} error={photoError} />
             <FormField
                 control={form.control}
                 name="payment_proof_url"
@@ -185,7 +250,7 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
                     <FormItem>
                         <FormLabel>Link bukti bayar</FormLabel>
                         <FormControl>
-                            <Input {...field} placeholder="https://drive.google.com/..." autoFocus />
+                            <Input {...field} placeholder="https://drive.google.com/..." />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -216,15 +281,22 @@ export function InvoiceProofDialog({ open, onOpenChange, invoice }: { open: bool
 export function InvoicePaymentInfo({
     invoice,
     showMissingLink = true,
+    compactPhotos = false,
     className,
 }: {
-    invoice: Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note'>>;
+    invoice: Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note' | 'payment_proofs' | 'proof_attempt'>>;
     /** false once verified — the bank statement was already checked. */
     showMissingLink?: boolean;
+    /** Small photo thumbnails (list rows). */
+    compactPhotos?: boolean;
     className?: string;
 }) {
+    const hasCurrentPhotos = (invoice.payment_proofs ?? []).some((proof) => proof.attempt === invoice.proof_attempt);
+
     return (
         <div className={cn('space-y-1 text-xs', className)}>
+            {/* Sprint 23 K12d — the photos Marketing uploaded (current submission + earlier ones as history). */}
+            <PaymentProofGallery proofs={invoice.payment_proofs} currentAttempt={invoice.proof_attempt} compact={compactPhotos} />
             {invoice.payment_proof_url ? (
                 <a
                     href={invoice.payment_proof_url}
@@ -232,11 +304,12 @@ export function InvoicePaymentInfo({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 font-medium underline decoration-daiku-yellow underline-offset-4"
                 >
-                    Bukti bayar
+                    Link bukti bayar
                     <ExternalLink className="size-3" aria-hidden />
                 </a>
             ) : (
-                showMissingLink && <p className="text-warning-ink">Tidak ada link bukti — cocokkan dengan mutasi rekening.</p>
+                showMissingLink &&
+                !hasCurrentPhotos && <p className="text-warning-ink">Tidak ada link/foto bukti — cocokkan dengan mutasi rekening.</p>
             )}
             {invoice.payment_note && (
                 <p className="whitespace-pre-line text-daiku-muted">
@@ -294,7 +367,7 @@ export function InvoiceVerifyDialog({
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    invoice: InvoiceRef & Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note'>>;
+    invoice: InvoiceRef & Partial<Pick<Invoice, 'payment_proof_url' | 'payment_note' | 'payment_proofs'>>;
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }) {
     const form = useForm<z.infer<typeof verifySchema>>({ resolver: zodResolver(verifySchema), defaultValues: { bank_account_id: '' } });
@@ -307,7 +380,8 @@ export function InvoiceVerifyDialog({
         <DialogShell
             open={open}
             onOpenChange={onOpenChange}
-            title="Verifikasi Pembayaran"
+            // Sprint 23 K12b — "Menunggu Konfirmasi Pembayaran DP · Proyek Kopi Oz".
+            title={invoice.status_label ?? 'Verifikasi Pembayaran'}
             description={<>{describe(invoice)} — dicatat sebagai pemasukan di rekening yang dipilih.</>}
             form={form}
             onSubmit={(values) =>

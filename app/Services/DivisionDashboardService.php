@@ -333,15 +333,15 @@ class DivisionDashboardService
     /**
      * One work queue of the approval pipeline, longest-waiting first:
      * DRAFT ("Perlu dikerjakan" — the Estimator's turn), SUBMITTED
-     * (waiting for PM / Asisten PM), WAITING_CEO (RAB Proyek, waiting for
-     * the CEO) or APPROVED_INTERNAL (the Estimator still has to hand it
-     * to Marketing). `since` is when
+     * (waiting for PM / Asisten PM), READY_TO_SEND (approved, with
+     * Marketing — Sprint 23 K8 removed the CEO stage) or CLIENT_REJECTED
+     * (the client declined on the link, Marketing's turn). `since` is when
      * it entered the queue: created_at for a draft; updated_at for the
-     * review states — exactly the submit / CEO-approval moment, since
+     * other states — exactly the submit / approval / decline moment, since
      * nothing writes a quotation outside DRAFT except those status changes
      * (items and totals only change while DRAFT, QuotationService).
      * `lastRejection` (drafts only) is the latest decision when it was a
-     * rejection — CEO, PM or CLIENT — i.e. why the draft came back.
+     * rejection — PM or CLIENT (CEO on Sprint 12 data) — i.e. why the draft came back.
      *
      * @return array{total: int, rows: Collection<int, array<string, mixed>>}
      */

@@ -111,7 +111,7 @@ test('a client rejection is only possible while the offer is SENT_TO_CLIENT', fu
 
     expect($quotation->fresh()->status->value)->toBe($status)
         ->and(QuotationApproval::count())->toBe(0);
-})->with(['DRAFT', 'SUBMITTED', 'WAITING_CEO', 'CLIENT_APPROVED']);
+})->with(['DRAFT', 'SUBMITTED', 'READY_TO_SEND', 'CLIENT_REJECTED', 'CLIENT_APPROVED']);
 
 test('a client rejection records a CLIENT approval row, a revision snapshot, an audit entry and notifies the estimator and marketing', function () {
     $ceo = revisionUser('CEO');
@@ -181,33 +181,29 @@ test('a second client rejection of the same version is refused', function () {
         ->and($quotation->fresh()->version)->toBe(2);
 });
 
-// ── Riwayat revisi (PM / CEO returns too) ───────────────────────────────
+// ── Riwayat revisi (PM returns too) ─────────────────────────────────────
 
-test('PM and CEO returns also close the version into the revision history', function (string $gate, string $fromStatus, string $reason) {
-    $quotation = sentQuotation(['status' => $fromStatus, 'valid_until' => null]);
+test('a PM / Asisten PM return also closes the version into the revision history', function (string $role) {
+    $quotation = sentQuotation(['status' => QuotationStatus::Submitted->value, 'valid_until' => null]);
 
-    reviewQuotation($quotation, revisionUser($gate), ['Meja' => 'Volume tidak realistis.']);
+    reviewQuotation($quotation, revisionUser($role), ['Meja' => 'Volume tidak realistis.']);
 
     $revision = QuotationRevision::sole();
-    expect($revision->reason)->toBe($reason)
+    expect($revision->reason)->toBe(QuotationRevision::REASON_PM_REJECTED)
         ->and($revision->version)->toBe(1)
         ->and($revision->items)->toHaveCount(2)
         ->and($quotation->fresh()->version)->toBe(2)
         ->and($quotation->fresh()->status)->toBe(QuotationStatus::Draft);
-})->with([
-    'PM' => ['PM', 'SUBMITTED', 'PM_REJECTED'],
-    'CEO' => ['CEO', 'WAITING_CEO', 'CEO_REJECTED'],
-]);
+})->with(['PM', 'ASISTEN_PM']);
 
 test('approvals never create a revision or bump the version', function () {
     $quotation = sentQuotation(['status' => QuotationStatus::Submitted->value, 'valid_until' => null]);
 
     reviewQuotation($quotation, revisionUser('PM'));
-    reviewQuotation($quotation, revisionUser('CEO'));
 
     expect(QuotationRevision::count())->toBe(0)
         ->and($quotation->fresh()->version)->toBe(1)
-        ->and(QuotationApproval::pluck('version')->all())->toBe([1, 1]);
+        ->and(QuotationApproval::pluck('version')->all())->toBe([1]);
 });
 
 test('quotation revisions are append-only', function () {
@@ -269,12 +265,12 @@ test('sending to the client sets valid_until to today + 14 days (Asia/Jakarta)',
     Carbon::setTestNow();
 });
 
-test('internal approvals do not start the validity period', function () {
-    $quotation = sentQuotation(['status' => QuotationStatus::WaitingCeo->value, 'valid_until' => null]);
+test('the PM approval does not start the validity period', function () {
+    $quotation = sentQuotation(['status' => QuotationStatus::Submitted->value, 'valid_until' => null]);
 
-    reviewQuotation($quotation, revisionUser('CEO'));
+    reviewQuotation($quotation, revisionUser('PM'));
 
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ApprovedInternal)
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::ReadyToSend)
         ->and($quotation->fresh()->valid_until)->toBeNull();
 });
 

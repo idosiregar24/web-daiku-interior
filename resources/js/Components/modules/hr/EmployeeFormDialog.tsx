@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -226,7 +227,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                         <FormItem>
                                             <FormLabel required>Gaji Pokok (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                <MoneyInput {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

@@ -62,13 +62,13 @@ test('the Asisten PM lists, opens and monitors only the projects assigned to the
 // ── Milestones, tasks, progress like the PM ─────────────────────────────
 
 test('the Asisten PM manages milestones, tasks and progress on its project — 403 elsewhere', function () {
-    $this->actingAs($this->assistant)->post(route('milestones.store', $this->project), ['name' => 'Produksi', 'target_date' => now()->addWeek()->toDateString()])
+    $this->actingAs($this->assistant)->post(route('milestones.store', $this->project), ['name' => 'Produksi', 'start_date' => now()->toDateString(), 'target_date' => now()->addWeek()->toDateString()])
         ->assertSessionHasNoErrors();
-    $this->actingAs($this->assistant)->post(route('milestones.store', $this->other), ['name' => 'Produksi', 'target_date' => now()->addWeek()->toDateString()])
+    $this->actingAs($this->assistant)->post(route('milestones.store', $this->other), ['name' => 'Produksi', 'start_date' => now()->toDateString(), 'target_date' => now()->addWeek()->toDateString()])
         ->assertForbidden();
 
     $milestone = Milestone::where('project_id', $this->project->id)->sole();
-    $this->actingAs($this->assistant)->put(route('milestones.update', $milestone), ['name' => 'Produksi Kitchen', 'target_date' => now()->addWeeks(2)->toDateString(), 'status' => 'IN_PROGRESS'])
+    $this->actingAs($this->assistant)->put(route('milestones.update', $milestone), ['name' => 'Produksi Kitchen', 'start_date' => now()->toDateString(), 'target_date' => now()->addWeeks(2)->toDateString(), 'status' => 'IN_PROGRESS'])
         ->assertSessionHasNoErrors();
     $otherMilestone = Milestone::factory()->create(['project_id' => $this->other->id]);
     $this->actingAs($this->assistant)->delete(route('milestones.destroy', $otherMilestone))->assertForbidden();
@@ -123,6 +123,8 @@ test('the PM of the project changes the Asisten PM in Edit Proyek, audited and n
 
     $this->actingAs($this->pm)->put(route('projects.update', $this->project), [
         'name' => $this->project->name,
+        'opened_on' => $this->project->opened_on->toDateString(),
+        'team_lead_name' => $this->project->team_lead_name,
         'start_date' => $this->project->start_date->toDateString(),
         'contract_value' => $this->project->contract_value,
         'status' => 'ACTIVE',
@@ -143,6 +145,8 @@ test('the PM of the project changes the Asisten PM in Edit Proyek, audited and n
 test('only an active Asisten PM can be picked, and the assistant itself cannot edit the project', function () {
     $edit = fn (array $extra) => [
         'name' => $this->project->name,
+        'opened_on' => $this->project->opened_on->toDateString(),
+        'team_lead_name' => $this->project->team_lead_name,
         'start_date' => $this->project->start_date->toDateString(),
         'contract_value' => $this->project->contract_value,
         'status' => 'ACTIVE',

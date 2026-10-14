@@ -5,6 +5,7 @@ import { DataTable } from '@/Components/shared/DataTable';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { domainStatusLabel } from '@/lib/waitingOn';
 import {
     Select,
     SelectContent,
@@ -26,7 +27,7 @@ interface QuotationIndexProps {
 }
 
 const STATUS_OPTIONS: QuotationStatus[] = [
-    'DIMINTA', 'DRAFT', 'SUBMITTED', 'WAITING_CEO', 'APPROVED_INTERNAL', 'READY_TO_SEND', 'SENT_TO_CLIENT', 'CLIENT_APPROVED', 'CANCELLED',
+    'DIMINTA', 'DRAFT', 'SUBMITTED', 'READY_TO_SEND', 'SENT_TO_CLIENT', 'CLIENT_REJECTED', 'CLIENT_APPROVED', 'CANCELLED',
 ];
 
 const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string } }>[] = [
@@ -54,7 +55,7 @@ const columns: ColumnDef<Quotation & { lead: { id: number; client_name: string }
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => <StatusChip status={row.original.status} />,
+        cell: ({ row }) => <StatusChip domain="quotation" status={row.original.status} />,
     },
     {
         accessorKey: 'total_amount',
@@ -139,7 +140,7 @@ export default function QuotationIndex({ quotations, filters }: QuotationIndexPr
                                 <SelectItem value="all">Semua status</SelectItem>
                                 {STATUS_OPTIONS.map((status) => (
                                     <SelectItem key={status} value={status}>
-                                        {status.replace(/_/g, ' ')}
+                                        {domainStatusLabel('quotation', status) ?? status.replace(/_/g, ' ')}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

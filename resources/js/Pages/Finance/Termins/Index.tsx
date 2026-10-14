@@ -1,7 +1,6 @@
 import { formatRupiah } from '@/lib/format';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
-import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Button } from '@/Components/ui/button';
@@ -14,9 +13,10 @@ import {
 } from '@/Components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { TerminCalendar } from '@/Components/modules/finance/TerminCalendar';
-import { isPartiallyPaid, TerminPaymentDialog } from '@/Components/modules/finance/TerminPaymentDialog';
+import { TerminPaymentDialog, TerminStatusChip } from '@/Components/modules/finance/TerminPaymentDialog';
 import AppLayout from '@/Layouts/AppLayout';
-import type { BankAccount, PageProps, PaginatedData, Termin } from '@/types';
+import { domainStatusLabel } from '@/lib/waitingOn';
+import type { BankAccount, PageProps, PaginatedData, Termin, TerminStatus } from '@/types';
 import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, router, usePage } from '@inertiajs/react';
 import { CalendarClock, CalendarDays, FileDown, List } from 'lucide-react';
@@ -33,9 +33,16 @@ interface TerminIndexProps {
     bankAccounts: BankAccountOption[];
 }
 
+const STATUSES: TerminStatus[] = ['SCHEDULED', 'INVOICED', 'PAID', 'OVERDUE'];
+
 function formatDate(value: string | null) {
     // Null = a Sprint 12 scheme termin waiting for its milestone / the project's completion.
     return value ? new Date(value).toLocaleDateString('id-ID') : 'Menunggu pemicu';
+}
+
+/** Sprint 23 K12 — "Termin 2 dari 4 · 30%" from the server (Termin::paymentLabel()), the old "#n (x%)" as fallback. */
+function terminLabel(termin: Termin) {
+    return termin.payment_label ?? `Termin #${termin.termin_number} (${Number(termin.percentage).toLocaleString('id-ID')}%)`;
 }
 
 /**
@@ -58,11 +65,30 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
         router.get(route('finance.termins.index'), { ...filters, ...next }, { preserveState: true, replace: true });
     }
 
+    /** Row actions — one definition for the table row and the phone card. */
+    function actionsOf(termin: Termin, block = false) {
+        return (
+            <>
+                <Button variant="outline" size={block ? 'default' : 'icon-sm'} asChild>
+                    <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer" aria-label="Unduh PDF">
+                        <FileDown className="size-4" />
+                        {block && 'Unduh PDF'}
+                    </a>
+                </Button>
+                {canMarkPaid && termin.status !== 'PAID' && (
+                    <Button variant="outline" size={block ? 'default' : 'sm'} onClick={() => setPayingTermin(termin)}>
+                        Catat Pembayaran
+                    </Button>
+                )}
+            </>
+        );
+    }
+
     return (
         <AppLayout breadcrumbs={[{ label: tab === 'calendar' ? 'Kalender' : 'List' }]}>
             <Head title="Termin" />
 
-            <PageHeader title="Termin" icon={CalendarClock} description="Jadwal pembayaran termin seluruh proyek (selalu Sabtu)." />
+            <PageHeader title="Termin" icon={CalendarClock} description="Jadwal pembayaran termin seluruh proyek." />
 
             <ModuleTabs />
 
@@ -92,16 +118,46 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Semua status</SelectItem>
-                                        <SelectItem value="SCHEDULED">Terjadwal</SelectItem>
-                                        <SelectItem value="INVOICED">Invoice Terbit</SelectItem>
-                                        <SelectItem value="PAID">Sudah Dibayar</SelectItem>
-                                        <SelectItem value="OVERDUE">Terlambat</SelectItem>
+                                        {STATUSES.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {domainStatusLabel('termin', status)}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
                         }
                     >
-                        <table className="w-full text-sm">
+                        {/* Phone: one card per termin (Sprint 13 pattern). */}
+                        <ul className="divide-y divide-border md:hidden">
+                            {termins.data.length === 0 ? (
+                                <li>
+                                    <EmptyState title="Belum ada termin." />
+                                </li>
+                            ) : (
+                                termins.data.map((termin) => (
+                                    <li key={termin.id} className="space-y-2 px-4 py-3.5">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="font-medium text-daiku-dark">{terminLabel(termin)}</p>
+                                                <p className="truncate text-xs text-daiku-muted">
+                                                    <ProjectLink project={termin.project} tab="finance" />
+                                                </p>
+                                            </div>
+                                            <p className="shrink-0 text-right font-semibold text-daiku-dark">{formatRupiah(termin.amount)}</p>
+                                        </div>
+                                        <p className="text-xs text-daiku-muted">
+                                            Jadwal {formatDate(termin.scheduled_date)} · Sisa {formatRupiah(termin.sisa_piutang)}
+                                            {termin.invoice && ` · ${termin.invoice.number}`}
+                                        </p>
+                                        <TerminStatusChip termin={termin} />
+                                        <div className="flex flex-col gap-2">{actionsOf(termin, true)}</div>
+                                    </li>
+                                ))
+                            )}
+                        </ul>
+
+                        <table className="hidden w-full text-sm md:table">
                             <thead className={TABLE_HEAD_CLASS}>
                                 <tr>
                                     <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
@@ -130,7 +186,8 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                                 <ProjectLink project={termin.project} tab="finance" />
                                             </td>
                                             <td className="px-4 py-3 text-daiku-muted">
-                                                #{termin.termin_number} ({Number(termin.percentage).toLocaleString('id-ID')}%)
+                                                {terminLabel(termin)}
+                                                {termin.invoice && <p className="text-xs">{termin.invoice.number}</p>}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">{termin.bank_account?.label ?? '—'}</td>
                                             <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
@@ -141,26 +198,10 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                                 {formatRupiah(termin.sisa_piutang)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex flex-wrap items-center gap-1">
-                                                    <StatusChip status={termin.status} />
-                                                    {isPartiallyPaid(termin) && (
-                                                        <StatusChip status="PARTIAL" label="Dibayar Sebagian" />
-                                                    )}
-                                                </div>
+                                                <TerminStatusChip termin={termin} />
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Button variant="outline" size="icon-sm" asChild>
-                                                        <a href={route('finance.termins.pdf', { termin: termin.id })} target="_blank" rel="noopener noreferrer">
-                                                            <FileDown className="size-4" />
-                                                        </a>
-                                                    </Button>
-                                                    {canMarkPaid && termin.status !== 'PAID' && (
-                                                        <Button variant="outline" size="sm" onClick={() => setPayingTermin(termin)}>
-                                                            Catat Pembayaran
-                                                        </Button>
-                                                    )}
-                                                </div>
+                                                <div className="flex items-center gap-2">{actionsOf(termin)}</div>
                                             </td>
                                         </tr>
                                     ))

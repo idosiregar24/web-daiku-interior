@@ -293,7 +293,7 @@ export default function AnalyticsIndex({
                 <SectionCard
                     title="Proyek Aktif"
                     icon={FolderKanban}
-                    description="Progres terakhir yang dilaporkan PM dan milestone yang lolos QA."
+                    description="Progres terakhir yang dilaporkan PM dan timeline yang lolos QA."
                     flush
                     className="xl:col-span-2"
                     action={<DetailLink href={route('projects.index', { status: 'ACTIVE' })}>Semua proyek</DetailLink>}
@@ -320,7 +320,7 @@ export default function AnalyticsIndex({
                                     <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                                         <span>PM {project.pm ?? '—'}</span>
                                         <span>
-                                            Milestone {project.milestonesCompleted}/{project.milestonesTotal}
+                                            Timeline {project.milestonesCompleted}/{project.milestonesTotal}
                                         </span>
                                         <span>{formatRupiahCompact(project.contractValue)}</span>
                                         {project.overdueTasks > 0 && (
@@ -336,7 +336,7 @@ export default function AnalyticsIndex({
                 <SectionCard
                     title="Performa PM"
                     icon={UsersRound}
-                    description="On-time = milestone lolos QA pada/sebelum target tanggalnya."
+                    description="On-time = timeline lolos QA pada/sebelum tanggal selesainya."
                     className="xl:col-span-2"
                     flush
                 >
@@ -347,7 +347,7 @@ export default function AnalyticsIndex({
                                     <th className="px-4 py-2.5 text-left font-semibold sm:px-5">PM</th>
                                     <th className="px-4 py-2.5 text-right font-semibold">Proyek Aktif</th>
                                     <th className="px-4 py-2.5 text-right font-semibold">Proyek Selesai</th>
-                                    <th className="px-4 py-2.5 text-right font-semibold">Milestone Selesai</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Timeline Selesai</th>
                                     <th className="w-56 px-4 py-2.5 text-left font-semibold">On-time Rate</th>
                                     <th className="px-4 py-2.5 text-right font-semibold sm:px-5">Task Terlambat</th>
                                 </tr>

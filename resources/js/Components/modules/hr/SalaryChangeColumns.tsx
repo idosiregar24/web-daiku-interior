@@ -93,7 +93,7 @@ export function salaryChangeColumns({ showEmployee = false, selfView = false, on
 
                 return (
                     <div className="space-y-1">
-                        <StatusChip status={chip.status} label={chip.label} tone={chip.tone} />
+                        <StatusChip domain="salaryChange" status={chip.status} label={chip.label} tone={chip.tone} />
                         {!selfView && (
                             <p className="text-xs text-daiku-muted">
                                 {row.original.decided_at

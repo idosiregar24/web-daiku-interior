@@ -130,7 +130,7 @@ function FollowUpReminder({ followUps }: { followUps: FollowUpLead[] }) {
                                     </div>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-3">
-                                    <StatusChip status={lead.status} className="hidden sm:inline-flex" />
+                                    <StatusChip domain="lead" status={lead.status} className="hidden sm:inline-flex" />
                                     <span
                                         className={cn(
                                             'min-w-20 text-right text-xs tabular-nums',

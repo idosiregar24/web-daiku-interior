@@ -145,7 +145,7 @@ const revenueColumns: ColumnDef<DesignRevenueProject>[] = [
             </div>
         ),
     },
-    { accessorKey: 'status', header: 'Status Proyek', cell: ({ row }) => <StatusChip status={row.original.status} /> },
+    { accessorKey: 'status', header: 'Status Proyek', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} /> },
 ];
 
 /** One row of the "Desain Saya" lists. */
@@ -162,7 +162,7 @@ function MyDesignItem({ design, late }: { design: MyDesignRow; late: boolean }) 
                 <p className="mt-0.5 text-xs text-muted-foreground">Deadline {formatDate(design.deadline)}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
-                <StatusChip status={design.status} />
+                <StatusChip domain="design" status={design.status} />
                 <span className={cn('text-xs font-medium', late ? 'text-error-ink' : 'text-warning-ink')}>
                     {late ? lateLabel(design.delayDays) : dueLabel(design.daysLeft ?? 0)}
                 </span>

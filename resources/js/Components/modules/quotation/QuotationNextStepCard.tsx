@@ -21,70 +21,19 @@ export interface QuotationSurveyPanel {
 }
 
 interface QuotationNextStepCardProps {
-    quotationId: number;
     lead: { id: number; client_name: string };
     canOpenLead: boolean;
     surveyPanel: QuotationSurveyPanel | null;
 }
 
-const EMPTY: SurveyFormValues = { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: true };
-
 /**
- * Sprint 19 Sub 03 — the way from a RAB to its client's lead, and for a paid
- * RAB Jasa Survey the survey itself: scheduled or rescheduled right here
- * (the lead's `crm.surveys.*` routes, same rules), so Marketing doesn't
- * hunt for the lead in another menu. `?survey=new` (the P1 "Survey Lunas"
- * notification and its "Perlu Tindakan" item) opens the dialog.
+ * Sprint 19 Sub 03 — the way from a RAB to its client's lead, and for a
+ * paid RAB Jasa Survey the survey itself. Sprint 23 K4b: information
+ * only — "Jadwalkan Survey" / "Atur Ulang Jadwal" are header actions of
+ * the quotation page, which opens SurveyScheduleDialog.
  */
-export function QuotationNextStepCard({ quotationId, lead, canOpenLead, surveyPanel }: QuotationNextStepCardProps) {
-    const [open, setOpen] = useState(false);
-    const [values, setValues] = useState<SurveyFormValues>(EMPTY);
-    const [errors, setErrors] = useState<Record<string, string>>({});
-    const [processing, setProcessing] = useState(false);
+export function QuotationNextStepCard({ lead, canOpenLead, surveyPanel }: QuotationNextStepCardProps) {
     const survey = surveyPanel?.survey ?? null;
-
-    function openDialog() {
-        setErrors({});
-        setValues(
-            survey
-                ? { scheduled_at: toDateTimeLocal(survey.scheduled_at), address: survey.address ?? '', maps_url: survey.maps_url ?? '', is_outside_pekanbaru: survey.is_outside_pekanbaru }
-                : EMPTY,
-        );
-        setOpen(true);
-    }
-
-    useEffect(() => {
-        if (surveyPanel?.canSchedule && new URLSearchParams(window.location.search).get('survey') === 'new') {
-            openDialog();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [quotationId, surveyPanel?.canSchedule]);
-
-    function submit() {
-        const payload = {
-            scheduled_at: values.scheduled_at,
-            address: values.address || null,
-            maps_url: values.maps_url || null,
-            // A RAB Jasa Survey only exists for a survey outside Pekanbaru.
-            ...(survey ? {} : { is_outside_pekanbaru: true }),
-        };
-        const options = {
-            preserveScroll: true,
-            onStart: () => setProcessing(true),
-            onFinish: () => setProcessing(false),
-            onError: (serverErrors: Record<string, string>) => setErrors(serverErrors),
-            onSuccess: () => {
-                setErrors({});
-                setOpen(false);
-            },
-        };
-
-        if (survey) {
-            router.put(route('crm.surveys.update', { survey: survey.id }), payload, options);
-        } else {
-            router.post(route('crm.surveys.store', { lead: lead.id }), payload, options);
-        }
-    }
 
     return (
         <SectionCard title="Klien & langkah berikutnya" icon={UserRound} className="mt-6">
@@ -109,66 +58,105 @@ export function QuotationNextStepCard({ quotationId, lead, canOpenLead, surveyPa
                 )}
 
                 {survey && (
-                    <div className="flex flex-col gap-3 rounded-lg border border-daiku-border p-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 text-sm">
-                            <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
-                                <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
-                                Survey #{survey.sequence} · {formatDateTime(survey.scheduled_at)}
-                                <StatusChip status={survey.status} />
-                            </p>
-                            {survey.address && <p className="mt-0.5 text-xs text-daiku-muted">{survey.address}</p>}
-                            {survey.status === 'MENUNGGU_BAYAR' && (
-                                <p className="mt-0.5 text-xs text-daiku-muted">Menunggu pembayaran diverifikasi Finance.</p>
-                            )}
-                        </div>
-                        {surveyPanel?.canReschedule && (
-                            <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={openDialog}>
-                                Atur Ulang Jadwal
-                            </Button>
-                        )}
+                    <div className="min-w-0 rounded-lg border border-daiku-border p-3 text-sm">
+                        <p className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                            <CalendarClock className="size-4 text-muted-foreground" aria-hidden />
+                            Survey #{survey.sequence} · {formatDateTime(survey.scheduled_at)}
+                            <StatusChip domain="leadSurvey" status={survey.status} />
+                        </p>
+                        {survey.address && <p className="mt-0.5 text-xs text-daiku-muted">{survey.address}</p>}
                     </div>
                 )}
 
                 {surveyPanel?.canSchedule && (
-                    <div className="flex flex-col gap-3 rounded-lg bg-daiku-yellow-light p-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-sm text-foreground">
-                            Pembayaran survey sudah diverifikasi Finance. Tentukan jadwal survey sekarang — CEO dan PM akan diberi tahu.
-                        </p>
-                        <Button size="sm" className="w-full shrink-0 sm:w-auto" onClick={openDialog}>
-                            <CalendarClock className="size-4" />
-                            Jadwalkan Survey
-                        </Button>
-                    </div>
+                    <p className="text-sm text-foreground">
+                        Pembayaran survey sudah diverifikasi Finance — tentukan jadwalnya lewat "Jadwalkan Survey" di atas. CEO dan PM akan diberi tahu.
+                    </p>
                 )}
             </div>
-
-            <Dialog open={open} onOpenChange={setOpen}>
-                <ResponsiveDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>{survey ? `Atur Ulang Jadwal Survey #${survey.sequence}` : 'Jadwalkan Survey'}</DialogTitle>
-                        <DialogDescription>
-                            {lead.client_name} — survey luar Pekanbaru. CEO dan semua PM menerima notifikasi jadwalnya.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <SurveyFormFields
-                        values={values}
-                        onChange={setValues}
-                        errors={errors}
-                        locationEditable={false}
-                        leadAddress={surveyPanel?.leadAddress ?? null}
-                    />
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Batal
-                            </Button>
-                        </DialogClose>
-                        <Button type="button" disabled={processing || !values.scheduled_at} onClick={submit}>
-                            Simpan Jadwal
-                        </Button>
-                    </DialogFooter>
-                </ResponsiveDialogContent>
-            </Dialog>
         </SectionCard>
+    );
+}
+
+const EMPTY: SurveyFormValues = { scheduled_at: '', address: '', maps_url: '', is_outside_pekanbaru: true };
+
+interface SurveyScheduleDialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    lead: { id: number; client_name: string };
+    surveyPanel: QuotationSurveyPanel;
+}
+
+/**
+ * A paid RAB Jasa Survey's survey, scheduled or rescheduled from the
+ * quotation page (the lead's `crm.surveys.*` routes, same rules), so
+ * Marketing doesn't hunt for the lead in another menu.
+ */
+export function SurveyScheduleDialog({ open, onOpenChange, lead, surveyPanel }: SurveyScheduleDialogProps) {
+    const [values, setValues] = useState<SurveyFormValues>(EMPTY);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [processing, setProcessing] = useState(false);
+    const survey = surveyPanel.survey;
+
+    useEffect(() => {
+        if (!open) {
+            return;
+        }
+
+        setErrors({});
+        setValues(
+            survey
+                ? { scheduled_at: toDateTimeLocal(survey.scheduled_at), address: survey.address ?? '', maps_url: survey.maps_url ?? '', is_outside_pekanbaru: survey.is_outside_pekanbaru }
+                : EMPTY,
+        );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
+
+    function submit() {
+        const payload = {
+            scheduled_at: values.scheduled_at,
+            address: values.address || null,
+            maps_url: values.maps_url || null,
+            // A RAB Jasa Survey only exists for a survey outside Pekanbaru.
+            ...(survey ? {} : { is_outside_pekanbaru: true }),
+        };
+        const options = {
+            preserveScroll: true,
+            onStart: () => setProcessing(true),
+            onFinish: () => setProcessing(false),
+            onError: (serverErrors: Record<string, string>) => setErrors(serverErrors),
+            onSuccess: () => {
+                setErrors({});
+                onOpenChange(false);
+            },
+        };
+
+        if (survey) {
+            router.put(route('crm.surveys.update', { survey: survey.id }), payload, options);
+        } else {
+            router.post(route('crm.surveys.store', { lead: lead.id }), payload, options);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <ResponsiveDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>{survey ? `Atur Ulang Jadwal Survey #${survey.sequence}` : 'Jadwalkan Survey'}</DialogTitle>
+                    <DialogDescription>{lead.client_name} — survey luar Pekanbaru. CEO dan semua PM menerima notifikasi jadwalnya.</DialogDescription>
+                </DialogHeader>
+                <SurveyFormFields values={values} onChange={setValues} errors={errors} locationEditable={false} leadAddress={surveyPanel.leadAddress ?? null} />
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button type="button" variant="outline">
+                            Batal
+                        </Button>
+                    </DialogClose>
+                    <Button type="button" disabled={processing || !values.scheduled_at} onClick={submit}>
+                        Simpan Jadwal
+                    </Button>
+                </DialogFooter>
+            </ResponsiveDialogContent>
+        </Dialog>
     );
 }

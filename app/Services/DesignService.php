@@ -116,6 +116,7 @@ class DesignService
     }
 
     /**
+     * Pre-Sprint-12 designs only (opened by hand, no RAB Jasa Desain).
      * Brief fields + status + sub-staff — no separate changeStatus() like
      * LeadService: PRD doesn't describe a validated transition graph for
      * the 13 DesignStatus values the way it does for LeadStatus/
@@ -139,18 +140,13 @@ class DesignService
             ]);
         }
 
-        // Sprint 12: a design born from a RAB Jasa Desain gets its team and
-        // timeline from the Kepala Desain (assign()) and its status from
-        // Marketing's actions — the brief form only edits the brief.
+        // Sprint 23 K18 — a design born from a RAB Jasa Desain gets its team
+        // and timeline from the Kepala Desain (assign()) and keeps only its
+        // WhatsApp group & design links (updateLinks()): no brief form.
         if ($design->isFlowManaged()) {
-            $data = array_intersect_key($data, array_flip(['jenis_project', 'brief_note', 'problem', 'design_urls']));
-
-            // Sprint 22 K4 — nothing left to send: the "siap dikirim" mark goes too.
-            if (array_key_exists('design_urls', $data) && empty($data['design_urls']) && $design->isReadyToSend()) {
-                $data['ready_for_client_at'] = null;
-                $data['ready_note'] = null;
-                ActionInboxService::forgetMarketingOf($design->lead?->assignee);
-            }
+            throw ValidationException::withMessages([
+                'status' => 'Desain dari RAB Jasa Desain tidak memakai form brief — simpan link grup WhatsApp & link desain di kartu "Link Desain".',
+            ]);
         }
 
         $staff = $data['staff'] ?? null;
@@ -266,6 +262,11 @@ class DesignService
      */
     public function clientAcc(Design $design, User $actor): Design
     {
+        // Sprint 12 designs: "Desain Disetujui Klien" with its own rules (Sprint 23 K19).
+        if ($design->isFlowManaged()) {
+            return $this->markClientApproved($design, $actor)->design;
+        }
+
         if ($design->client_acc) {
             throw ValidationException::withMessages([
                 'client_acc' => 'Desain ini sudah di-ACC klien.',
@@ -278,14 +279,12 @@ class DesignService
             ]);
         }
 
-        if ($design->isFlowManaged()) {
-            return $this->markClientApproved($design, $actor)->design;
-        }
-
         return DB::transaction(function () use ($design, $actor) {
             $design->update([
                 'client_acc' => true,
                 'acc_date' => now()->toDateString(),
+                'client_acc_by' => $actor->id,
+                'client_acc_at' => now(),
                 'status' => DesignStatus::GambarRab->value,
             ]);
 
@@ -305,7 +304,7 @@ class DesignService
         });
     }
 
-    // ── Sprint 12 Sub 8: RAB Jasa Desain → bayar → Kepala Desain → Marketing ──
+    // ── Sprint 12 Sub 8 / Sprint 23 G: RAB Jasa Desain → bayar → Kepala Desain → grup WA ──
 
     /**
      * Decision #16 — the client approved a RAB Jasa Desain on its link
@@ -437,118 +436,66 @@ class DesignService
         });
     }
 
-    /** Decision #17 — Marketing sends the architect's design (≥ 1 link) to the client: → WAITING_ACC_DESAIN. */
-    public function sendToClient(Design $design, User $actor): Design
-    {
-        return DB::transaction(function () use ($design, $actor) {
-            $design = $this->lockedFlowDesign($design, [DesignStatus::Desain, DesignStatus::RevisiDesain], 'Desain hanya bisa dikirim ke klien saat sedang dikerjakan atau direvisi.');
-
-            if (empty($design->design_urls)) {
-                throw ValidationException::withMessages(['status' => 'Arsitek belum mengunggah link desain.']);
-            }
-
-            $wasReady = $design->isReadyToSend();
-            // Sprint 22 K4 — the hand-over is done; the next revision is marked ready again.
-            $design->update([
-                'status' => DesignStatus::WaitingAccDesain->value,
-                'sent_to_client_at' => now(),
-                'ready_for_client_at' => null,
-                'ready_note' => null,
-            ]);
-
-            if ($wasReady) {
-                ActionInboxService::forgetMarketingOf($design->lead->assignee);
-            }
-
-            $this->notifyTeam($design, $actor, NotificationType::DesignSentToClient, 'Desain Dikirim ke Klien', "{$actor->name} mengirim desain \"{$design->lead->client_name}\" ke klien.");
-
-            return $design;
-        });
-    }
-
     /**
-     * Sprint 22 — the architect (or a Kepala Desain) hands the finished
-     * design / revision to Marketing: a mark, not a status (K1). The lead's
-     * Marketing — every Marketing for a lead without one — is told (P1) and
-     * finds it in "Perlu Tindakan" until it is sent to the client.
+     * Sprint 23 K18/K19b — after the assignment everything with the client
+     * runs in a WhatsApp group; the system keeps only that group's link and
+     * the design links (Drive / Figma). Saved by the lead's Marketing or the
+     * design team (DesignPolicy::manageLinks()); who saved them last is kept
+     * on the design. Not before the assignment, and a design the client
+     * already approved keeps at least one design link. A save that changes
+     * nothing records nothing.
+     *
+     * @param  array{whatsapp_group_url?: ?string, design_urls?: ?array<int, string>}  $data
+     * @return bool whether anything changed
      */
-    public function markReadyToSend(Design $design, ?string $note, User $actor): Design
+    public function updateLinks(Design $design, array $data, User $actor): bool
     {
-        return DB::transaction(function () use ($design, $note, $actor) {
-            $design = $this->lockedFlowDesign($design, Design::SENDABLE_STATUSES, 'Desain hanya bisa ditandai siap saat sedang dikerjakan atau direvisi.');
+        return DB::transaction(function () use ($design, $data, $actor) {
+            $design = Design::lockForUpdate()->findOrFail($design->id);
 
-            if (empty($design->design_urls)) {
-                throw ValidationException::withMessages(['status' => 'Simpan link desain (Drive / Figma) dulu sebelum menandai siap dikirim.']);
+            if (! $design->isFlowManaged()) {
+                throw ValidationException::withMessages(['design_urls' => 'Desain ini memakai form brief — simpan link desain di sana.']);
             }
 
-            if ($design->isReadyToSend()) {
-                throw ValidationException::withMessages(['status' => 'Desain ini sudah ditandai siap dikirim — menunggu Marketing.']);
+            if ($design->status->isLocked()) {
+                throw ValidationException::withMessages(['design_urls' => 'Link baru bisa disimpan setelah Kepala Desain menugaskan arsitek.']);
             }
 
-            $note = filled($note) ? trim($note) : null;
-            $design->update(['ready_for_client_at' => now(), 'ready_note' => $note]);
+            $whatsapp = filled($data['whatsapp_group_url'] ?? null) ? trim($data['whatsapp_group_url']) : null;
+            $urls = collect($data['design_urls'] ?? [])
+                ->map(fn ($url) => trim((string) $url))
+                ->filter()
+                ->values()
+                ->all();
 
-            $this->auditLogService->record('design.ready_to_send', $design, ['ready_for_client_at' => null], [
-                'ready_for_client_at' => $design->ready_for_client_at->toIso8601String(),
-                'ready_note' => $note,
-                'revision_count' => $design->revision_count,
-            ], $actor);
+            if ($design->client_acc && $urls === []) {
+                throw ValidationException::withMessages(['design_urls' => 'Desain yang sudah disetujui klien harus tetap punya minimal satu link desain.']);
+            }
 
-            $lead = $design->lead;
-            $what = $design->status === DesignStatus::RevisiDesain ? "Revisi #{$design->revision_count} desain" : 'Desain';
-            $recipients = $lead->assignee
-                ? collect([$lead->assignee])
-                : User::role('MARKETING')->where('is_active', true)->get();
+            $before = ['whatsapp_group_url' => $design->whatsapp_group_url, 'design_urls' => $design->design_urls ?? []];
+            $after = ['whatsapp_group_url' => $whatsapp, 'design_urls' => $urls];
 
-            $this->notificationService->notifyMany(
-                $recipients->filter(fn (User $user) => $user->id !== $actor->id),
-                NotificationType::DesignReadyToSend,
-                'Desain Siap Dikirim ke Klien',
-                "{$what} \"{$lead->client_name}\" sudah selesai ({$actor->name}) — kirim ke klien."
-                    .($note ? " Catatan: {$note}" : ''),
-                ['design_id' => $design->id, 'lead_id' => $lead->id],
-            );
+            if ($before === $after) {
+                return false;
+            }
 
-            ActionInboxService::forgetMarketingOf($lead->assignee);
+            $design->update([...$after, 'links_updated_by' => $actor->id, 'links_updated_at' => now()]);
+            $this->auditLogService->record('design.links_updated', $design, $before, $after, $actor);
 
-            return $design;
+            return true;
         });
     }
 
     /**
-     * Decision #17 — the client wants changes: Marketing asks the
-     * architect (note required). WAITING_ACC_DESAIN → REVISI_DESAIN, the
-     * revision is counted (no limit, not part of the architect's KPI).
-     */
-    public function requestRevision(Design $design, string $note, User $actor): Design
-    {
-        return DB::transaction(function () use ($design, $note, $actor) {
-            $design = $this->lockedFlowDesign($design, [DesignStatus::WaitingAccDesain], 'Revisi hanya bisa diminta saat desain menunggu persetujuan klien.');
-            $count = $design->revision_count + 1;
-
-            $design->update(['status' => DesignStatus::RevisiDesain->value, 'revision_count' => $count]);
-            $design->revisions()->create(['sequence' => $count, 'note' => trim($note), 'requested_by' => $actor->id]);
-
-            $this->auditLogService->record('design.revision_requested', $design, [
-                'status' => DesignStatus::WaitingAccDesain->value,
-                'revision_count' => $count - 1,
-            ], [
-                'status' => DesignStatus::RevisiDesain->value,
-                'revision_count' => $count,
-                'note' => trim($note),
-            ], $actor);
-
-            $this->notifyTeam($design, $actor, NotificationType::DesignRevisionRequested, "Revisi Desain #{$count}", "Klien \"{$design->lead->client_name}\" minta revisi: ".trim($note));
-
-            return $design;
-        });
-    }
-
-    /**
-     * Decision #17 — the client approved the design: → ACC_DESAIN (the
-     * design's own work is done) and the Estimator is asked for the RAB
-     * Proyek built on it (decision #18) — a DIMINTA quotation, unless one
-     * is already running or the lead is closed.
+     * Sprint 23 K19 — "Desain Disetujui Klien": the client approved the
+     * design (in the WhatsApp group) and the lead's Marketing or someone of
+     * the design team records it (DesignPolicy::approveForClient()) — right
+     * from DESAIN, or from WAITING_ACC_DESAIN / REVISI_DESAIN for rows of the
+     * Sprint 12/22 flow, once at least one design link is saved. → ACC_DESAIN
+     * (the design's own work is done), who pressed it and when is kept, and
+     * the Estimator is asked for the RAB Proyek built on it (decision #18) —
+     * a DIMINTA quotation, unless one is already running or the lead is
+     * closed.
      *
      * Sprint 17 Sub 04 — returns what happened (DesignApproval) for an
      * honest message; the automatic request is marked `requested_via =
@@ -559,17 +506,33 @@ class DesignService
     public function markClientApproved(Design $design, User $actor): DesignApproval
     {
         return DB::transaction(function () use ($design, $actor) {
-            $design = $this->lockedFlowDesign($design, [DesignStatus::WaitingAccDesain], 'Desain hanya bisa disetujui saat menunggu persetujuan klien.');
+            $design = Design::lockForUpdate()->findOrFail($design->id);
 
+            if ($design->isFlowManaged() && $design->client_acc) {
+                throw ValidationException::withMessages(['status' => 'Desain ini sudah disetujui klien.']);
+            }
+
+            if (! $design->awaitsClientApproval()) {
+                throw ValidationException::withMessages(['status' => 'Desain hanya bisa dicatat disetujui klien setelah ditugaskan dan sedang dikerjakan.']);
+            }
+
+            if (empty($design->design_urls)) {
+                throw ValidationException::withMessages(['status' => 'Simpan minimal satu link desain dulu sebelum mencatat desain disetujui klien.']);
+            }
+
+            $before = $design->status;
             $design->update([
                 'status' => DesignStatus::AccDesain->value,
                 'client_acc' => true,
                 'acc_date' => now()->toDateString(),
+                'client_acc_by' => $actor->id,
+                'client_acc_at' => now(),
             ]);
 
-            $this->auditLogService->record('design.client_approved', $design, ['status' => DesignStatus::WaitingAccDesain->value], [
+            $this->auditLogService->record('design.client_approved', $design, ['status' => $before->value], [
                 'status' => DesignStatus::AccDesain->value,
-                'revision_count' => $design->revision_count,
+                'client_acc_by' => $actor->id,
+                'design_urls' => $design->design_urls,
             ], $actor);
 
             $lead = $design->lead;
@@ -581,7 +544,7 @@ class DesignService
             $requested = null;
 
             if ($running === null && ! in_array($lead->status, [LeadStatus::Lost, LeadStatus::Closing], true)) {
-                $requested = $this->quotationService->request($lead, QuotationType::Proyek, "Desain disetujui klien — susun RAB Proyek dari desain ini (revisi {$design->revision_count}x).", $actor);
+                $requested = $this->quotationService->request($lead, QuotationType::Proyek, 'Desain disetujui klien — susun RAB Proyek dari desain ini.', $actor);
                 $requested->update(['requested_via' => Quotation::VIA_DESIGN_ACC]);
             } else {
                 $this->notificationService->notifyRoles(
@@ -606,17 +569,31 @@ class DesignService
                 },
             ]);
 
-            if ($requested !== null && $lead->assignee && $lead->assignee->id !== $actor->id) {
+            $marketing = $lead->assignee;
+            $marketingTold = false;
+
+            if ($requested !== null && $marketing && $marketing->id !== $actor->id) {
                 $this->notificationService->notify(
-                    $lead->assignee,
+                    $marketing,
                     NotificationType::ProjectRabAutoRequested,
                     'RAB Proyek Otomatis Diminta',
-                    "Desain \"{$lead->client_name}\" disetujui klien — permintaan RAB Proyek otomatis dikirim ke Estimator. Tidak perlu meminta lagi.",
+                    "Desain \"{$lead->client_name}\" disetujui klien (dicatat oleh {$actor->name}) — permintaan RAB Proyek otomatis dikirim ke Estimator. Tidak perlu meminta lagi.",
                     ['quotation_id' => $requested->id, 'lead_id' => $lead->id],
                 );
+                $marketingTold = true;
             }
 
-            $this->notifyTeam($design, $actor, NotificationType::DesignClientApproved, 'Desain Disetujui Klien', "Desain \"{$lead->client_name}\" disetujui klien.");
+            // The architects — and the lead's Marketing when someone else pressed it.
+            $this->notificationService->notifyMany(
+                collect([$design->pic, $marketingTold ? null : $marketing])
+                    ->merge($design->staff)
+                    ->filter(fn (?User $user) => $user && $user->id !== $actor->id)
+                    ->unique('id'),
+                NotificationType::DesignClientApproved,
+                'Desain Disetujui Klien',
+                "Desain \"{$lead->client_name}\" disetujui klien — dicatat oleh {$actor->name}.",
+                ['design_id' => $design->id],
+            );
 
             return new DesignApproval($design, $requested, $running);
         });
@@ -701,34 +678,6 @@ class DesignService
                 ->all(),
             'canPost' => $user->can('discuss', $design),
         ];
-    }
-
-    /**
-     * Row-locked re-read of a Sprint 12 design in one of `$allowed`.
-     *
-     * @param  list<DesignStatus>  $allowed
-     */
-    private function lockedFlowDesign(Design $design, array $allowed, string $message): Design
-    {
-        $design = Design::lockForUpdate()->findOrFail($design->id);
-
-        if (! $design->isFlowManaged() || ! in_array($design->status, $allowed, true)) {
-            throw ValidationException::withMessages(['status' => $message]);
-        }
-
-        return $design;
-    }
-
-    /** The design's architects (PIC + assistants), minus whoever acted. */
-    private function notifyTeam(Design $design, User $actor, NotificationType $type, string $title, string $message): void
-    {
-        $this->notificationService->notifyMany(
-            collect([$design->pic])->merge($design->staff)->filter(fn (?User $user) => $user && $user->id !== $actor->id),
-            $type,
-            $title,
-            $message,
-            ['design_id' => $design->id],
-        );
     }
 
     /**

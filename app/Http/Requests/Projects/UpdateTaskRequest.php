@@ -43,9 +43,9 @@ class UpdateTaskRequest extends FormRequest
                     $milestone = Milestone::find($value);
 
                     if (! $milestone || (int) $milestone->project_id !== (int) $task->project_id) {
-                        $fail('Milestone harus milik proyek yang sama dengan task ini.');
+                        $fail('Timeline harus milik proyek yang sama dengan task ini.');
                     } elseif ((int) $value !== (int) $task->milestone_id && $milestone->status === MilestoneStatus::Completed) {
-                        $fail('Milestone ini sudah COMPLETED (lolos QA) — task tidak bisa dipindah ke sana.');
+                        $fail('Timeline ini sudah selesai (lolos QA) — task tidak bisa dipindah ke sana.');
                     }
                 },
             ],
@@ -81,7 +81,7 @@ class UpdateTaskRequest extends FormRequest
             'due_date.date' => 'Tanggal jatuh tempo tidak valid.',
             'priority.required' => 'Prioritas wajib dipilih.',
             'priority.in' => 'Prioritas tidak valid.',
-            'milestone_id.integer' => 'Milestone tidak valid.',
+            'milestone_id.integer' => 'Timeline tidak valid.',
             'assignee_id.required' => 'Task harus di-assign ke salah satu tukang.',
             'assignee_id.integer' => 'Tukang tidak valid.',
             'rate_per_task.numeric' => 'Rate harus berupa angka.',

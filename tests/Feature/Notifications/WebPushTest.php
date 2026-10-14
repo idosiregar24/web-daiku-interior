@@ -174,14 +174,14 @@ test('a push job is queued only for P1–P3 rows of users with a device, when co
 // ── Sending ─────────────────────────────────────────────────────────────
 
 test('a P1 push rings, stays on screen, opens the notification and hides amounts', function () {
-    $user = pushUser('CEO');
+    $user = pushUser('PM');
     PushSubscription::factory()->count(2)->create(['user_id' => $user->id]);
     fakePushService(sent: $sent);
     $notification = Notification::factory()->create([
         'user_id' => $user->id,
-        'type' => NotificationType::QuotationAwaitingCeo->value,
-        'title' => 'RAB Proyek Menunggu Approval CEO',
-        'message' => 'RAB Proyek "Ibu Sari" (Rp 33.000.000) sudah di-ACC PM.',
+        'type' => NotificationType::QuotationSubmitted->value,
+        'title' => 'RAB Proyek Menunggu Review',
+        'message' => 'RAB Proyek "Ibu Sari" (Rp 33.000.000) menunggu review PM.',
         'metadata' => ['quotation_id' => 12],
     ]);
 
@@ -189,10 +189,10 @@ test('a P1 push rings, stays on screen, opens the notification and hides amounts
         ->and($sent)->toHaveCount(2);
 
     $payload = $sent[0]['payload'];
-    expect($payload['title'])->toBe('RAB Proyek Menunggu Approval CEO')
-        ->and($payload['body'])->toBe('RAB Proyek "Ibu Sari" (Rp •••) sudah di-ACC PM.')
+    expect($payload['title'])->toBe('RAB Proyek Menunggu Review')
+        ->and($payload['body'])->toBe('RAB Proyek "Ibu Sari" (Rp •••) menunggu review PM.')
         ->and($payload['url'])->toBe(route('notifications.open', $notification))
-        ->and($payload['tag'])->toBe('quotation_awaiting_ceo:quotation_id:12')
+        ->and($payload['tag'])->toBe('quotation_submitted:quotation_id:12')
         ->and($payload['requireInteraction'])->toBeTrue()
         ->and($payload['silent'])->toBeFalse()
         ->and($sent[0]['options']['urgency'])->toBe('high')

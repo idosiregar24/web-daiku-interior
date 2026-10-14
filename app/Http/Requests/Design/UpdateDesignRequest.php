@@ -18,7 +18,7 @@ class UpdateDesignRequest extends FormRequest
     /**
      * Route-level `role:DESIGNER` (PRD §7.1 "Design Brief" — DES has CRUD),
      * narrowed by DesignPolicy::update() to the design's own architects or
-     * a Kepala Desain (Sprint 12 #15).
+     * a Kepala Desain (Sprint 12 #15). Pre-Sprint-12 designs only.
      */
     public function authorize(): bool
     {
@@ -46,10 +46,11 @@ class UpdateDesignRequest extends FormRequest
         /** @var Design $design */
         $design = $this->route('design');
 
-        // Sprint 12: team, timeline and status of a design born from a RAB
-        // Jasa Desain belong to the Kepala Desain / Marketing actions.
+        // A design born from a RAB Jasa Desain has no brief form any more
+        // (Sprint 23 K18): its links go through UpdateDesignLinksRequest and
+        // DesignService::update() refuses it — nothing is validated here.
         if ($design->isFlowManaged()) {
-            return $brief;
+            return [];
         }
 
         return [

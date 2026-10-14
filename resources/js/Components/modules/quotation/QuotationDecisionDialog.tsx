@@ -26,7 +26,9 @@ type FormValues = z.infer<typeof schema>;
 
 /**
  * The only decision left outside the item review (Sprint 12): the client's
- * rejection. CEO / PM decisions are QuotationReviewPanel's.
+ * rejection recorded by Marketing (over WhatsApp / phone — the client may
+ * also say "Tidak Setuju" on the link, Sprint 23 K11). PM decisions live in
+ * the RAB table (RabReview).
  */
 export type QuotationDecisionGate = 'CLIENT';
 

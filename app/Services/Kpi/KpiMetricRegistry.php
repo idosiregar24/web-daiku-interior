@@ -107,15 +107,15 @@ class KpiMetricRegistry
             'direction' => KpiDirection::LowerBetter,
             'roles' => ['ESTIMATOR'],
             'positionHints' => ['estimator'],
-            'description' => 'Keputusan "kembalikan" PM / Asisten PM atau CEO atas RAB buatan sendiri bulan ini (tanpa review bulan ini → tidak ada data).',
+            'description' => 'Keputusan "kembalikan" PM / Asisten PM (dan CEO, data sebelum Sprint 23) atas RAB buatan sendiri bulan ini (tanpa review bulan ini → tidak ada data).',
         ],
         'pm_review_escaped_count' => [
-            'label' => 'RAB di-ACC lalu dikembalikan CEO',
+            'label' => 'RAB di-ACC lalu ditolak klien',
             'unit' => 'jumlah',
             'direction' => KpiDirection::LowerBetter,
             'roles' => ['PM', 'ASISTEN_PM'],
             'positionHints' => ['project manager', 'pm', 'asisten'],
-            'description' => 'Dari RAB yang di-ACC sendiri di tahap PM dan diputuskan CEO bulan ini, jumlah yang dikembalikan CEO.',
+            'description' => 'Dari RAB yang di-ACC sendiri di tahap PM dan diputuskan klien bulan ini (atau CEO, data sebelum Sprint 23), jumlah yang ditolak.',
         ],
         'lead_new_count' => [
             'label' => 'Jumlah lead baru',
@@ -142,12 +142,12 @@ class KpiMetricRegistry
             'description' => 'Lead yang masih FOLLOW UP padahal tanggal follow-up-nya (di bulan ini) sudah lewat.',
         ],
         'milestone_on_time_rate' => [
-            'label' => '% milestone tepat waktu',
+            'label' => '% timeline tepat waktu',
             'unit' => '%',
             'direction' => KpiDirection::HigherBetter,
             'roles' => ['PM'],
             'positionHints' => ['project manager', 'pm'],
-            'description' => 'Milestone proyek yang dipegang, bertarget di bulan ini, yang lolos QA paling lambat pada tanggal targetnya.',
+            'description' => 'Timeline proyek yang dipegang, bertanggal selesai di bulan ini, yang lolos QA paling lambat pada tanggal selesainya.',
         ],
         'qa_first_pass_rate' => [
             'label' => '% QA lolos pertama kali',
@@ -163,7 +163,7 @@ class KpiMetricRegistry
             'direction' => KpiDirection::LowerBetter,
             'roles' => ['PM'],
             'positionHints' => ['project manager', 'pm'],
-            'description' => 'Proyek yang dipegang dengan milestone lewat target dan belum lolos QA pada akhir bulan.',
+            'description' => 'Proyek yang dipegang dengan timeline lewat tanggal selesai dan belum lolos QA pada akhir bulan.',
         ],
         'qa_forms_processed_count' => [
             'label' => 'Jumlah form QA diproses',
@@ -381,10 +381,14 @@ class KpiMetricRegistry
     }
 
     /**
-     * The quotation versions the user approved at the PM stage that the
-     * CEO decided this month; how many the CEO sent back — the review
-     * "escaped" the PM. The CEO's return counts against the PM who
-     * approved, not only the Estimator. Nothing decided → null.
+     * The quotation versions the user approved at the PM stage that were
+     * decided further down this month; how many were turned down — the
+     * review "escaped" the PM. Sprint 23 K8 removed the CEO's approval, so
+     * the decider is now the client: a CLIENT rejection row (recorded by
+     * Marketing, or forwarded from the link's "Tidak Setuju") counts
+     * against the PM, the client's approval (`client_approved_at` on the
+     * same version) counts as a decision that held. Legacy CEO decisions
+     * (Sprint 12 – 22) still count the way they did. Nothing decided → null.
      */
     private function pmReviewEscapedCount(User $user, CarbonInterface $from, CarbonInterface $to): ?float
     {
@@ -398,17 +402,33 @@ class KpiMetricRegistry
             return null;
         }
 
-        $ceoDecisions = QuotationApproval::query()
+        $approvedVersion = fn (int $quotationId, int $version) => $approved->contains(
+            fn (QuotationApproval $pm) => $pm->quotation_id === $quotationId && (int) $pm->version === $version,
+        );
+
+        $decisions = QuotationApproval::query()
             ->whereIn('quotation_id', $approved->pluck('quotation_id')->unique())
-            ->where('approver_role', QuotationItemReview::STAGE_CEO)
+            ->where(fn ($query) => $query
+                ->where('approver_role', QuotationItemReview::STAGE_CEO)
+                ->orWhere(fn ($client) => $client->where('approver_role', 'CLIENT')->where('status', 'REJECTED')))
             ->where('created_at', '>=', $from)
             ->where('created_at', '<', $to)
             ->get(['quotation_id', 'version', 'status'])
-            ->filter(fn (QuotationApproval $ceo) => $approved->contains(
-                fn (QuotationApproval $pm) => $pm->quotation_id === $ceo->quotation_id && (int) $pm->version === (int) $ceo->version,
-            ));
+            ->filter(fn (QuotationApproval $decision) => $approvedVersion($decision->quotation_id, (int) $decision->version))
+            ->pluck('status');
 
-        return $ceoDecisions->isEmpty() ? null : (float) $ceoDecisions->where('status', 'REJECTED')->count();
+        $clientApprovals = Quotation::query()
+            ->whereIn('id', $approved->pluck('quotation_id')->unique())
+            ->whereNotNull('client_approved_at')
+            ->where('client_approved_at', '>=', $from)
+            ->where('client_approved_at', '<', $to)
+            ->get(['id', 'version'])
+            ->filter(fn (Quotation $quotation) => $approvedVersion($quotation->id, (int) $quotation->version))
+            ->map(fn () => 'APPROVED');
+
+        $decisions = $decisions->merge($clientApprovals);
+
+        return $decisions->isEmpty() ? null : (float) $decisions->filter(fn (string $status) => $status === 'REJECTED')->count();
     }
 
     // ── Lead (Marketing) ──────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import { MaterialCategorySelect } from '@/Components/modules/logistics/MaterialCategorySelect';
 import { SimilarMaterialsPanel } from '@/Components/modules/logistics/SimilarMaterialsPanel';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { UnitSelect } from '@/Components/shared/UnitSelect';
 import { Button } from '@/Components/ui/button';
 import {
@@ -243,7 +244,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                     <FormItem>
                                         <FormLabel required>Harga Modal / Gudang (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -256,7 +257,7 @@ export function MaterialFormDialog({ open, onOpenChange, material, categories, u
                                     <FormItem>
                                         <FormLabel required>Harga Jual (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

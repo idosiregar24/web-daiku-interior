@@ -1,4 +1,5 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
@@ -164,7 +165,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                                         <FormItem>
                                             <FormLabel>Saldo Awal (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="0" step="0.01" {...field} />
+                                                <MoneyInput {...field} />
                                             </FormControl>
                                             <FormDescription>
                                                 Saldo sebelum transaksi pertama yang dicatat di sistem. Perubahannya tercatat

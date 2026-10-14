@@ -1,8 +1,5 @@
 import { SupplierDebtPaymentDialog } from '@/Components/modules/finance/SupplierDebtPaymentDialog';
-import {
-    SUPPLIER_DEBT_STATUS_LABELS,
-    type SupplierDebtWithStatus,
-} from '@/Components/modules/finance/supplierDebtStatus';
+import { type SupplierDebtWithStatus } from '@/Components/modules/finance/supplierDebtStatus';
 import { DataTable } from '@/Components/shared/DataTable';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { Notice } from '@/Components/shared/Notice';
@@ -109,7 +106,7 @@ export default function SupplierDebtShow({ debt, bankAccounts }: SupplierDebtSho
             <SectionCard title="Detail Hutang" icon={FileText} className="mb-6">
                 <DetailList>
                     <DetailItem label="Status">
-                        <StatusChip status={debt.status} label={SUPPLIER_DEBT_STATUS_LABELS[debt.status]} />
+                        <StatusChip domain="supplierDebt" status={debt.status} />
                     </DetailItem>
                     <DetailItem label="Jatuh Tempo" valueClassName={cn(isOverdue && 'font-medium text-error-ink')}>
                         {formatDate(debt.due_date)}

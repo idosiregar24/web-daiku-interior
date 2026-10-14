@@ -133,8 +133,6 @@ class ActionInboxService
         $groups = [];
 
         if ($user->hasRole('CEO')) {
-            $groups[] = $this->quotations($user, QuotationStatus::WaitingCeo, 'quotation-ceo', 'RAB menunggu keputusan CEO', 'Review item RAB Proyek yang sudah di-ACC PM.');
-            $groups[] = $this->projectOpenings();
             $groups[] = $this->budgetOverruns();
             $groups[] = $this->salaryChanges();
             $groups[] = $this->submittedReviews();
@@ -147,6 +145,8 @@ class ActionInboxService
         }
 
         if ($user->hasRole('PM')) {
+            // Sprint 23 K13 — "Buka Proyek" is the approving PM's (route `role:PM`).
+            $groups[] = $this->projectOpenings($user);
             // pmApprove is `role:PM` — the Asisten PM doesn't decide overtime.
             $groups[] = $this->overtime(OvertimeStatus::Pending, 'overtime-pm', 'Lembur menunggu ACC PM');
         }
@@ -161,7 +161,8 @@ class ActionInboxService
             $groups[] = $this->surveysReady($user);
             $groups[] = $this->surveysToSchedule($user);
             $groups[] = $this->quotations($user, QuotationStatus::ReadyToSend, 'quotation-send', 'RAB siap dikirim ke klien', 'Kirim link persetujuan ke klien.');
-            $groups[] = $this->designsToSend($user);
+            // Sprint 23 K11 — the client said "Tidak Setuju" on the link.
+            $groups[] = $this->quotations($user, QuotationStatus::ClientRejected, 'quotation-client-rejected', 'RAB ditolak klien', 'Tambahkan catatan yang kurang lalu teruskan ke Estimator.');
             $groups[] = $this->invoiceToIssue($user);
             $groups[] = $this->terminsToInvoice($user);
             $groups[] = $this->invoicesAwaitingProof($user);
@@ -177,11 +178,11 @@ class ActionInboxService
             $groups[] = $this->designsToAssign($user);
         }
 
-        // Sprint 18 Sub 06 — the architect had no queue at all, so a client's
-        // revision request (P1) vanished once its notification was read.
+        // Sprint 18 Sub 06 — the architect's own work. Sprint 23 K20: revisions
+        // are asked in the WhatsApp group now, so one queue until the client approves
+        // (REVISI_DESAIN only on rows of the Sprint 12/22 flow).
         if ($user->hasRole('DESIGNER')) {
-            $groups[] = $this->ownDesigns($user, [DesignStatus::RevisiDesain], 'design-revision', 'Revisi desain diminta klien', 'Perbaiki desain sesuai catatan klien lalu tandai siap dikirim.');
-            $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain], 'design-work', 'Desain sedang Anda kerjakan', 'Unggah link desain lalu tekan "Desain Siap Dikirim" agar Marketing mengirimnya ke klien.');
+            $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain, DesignStatus::RevisiDesain], 'design-work', 'Desain sedang Anda kerjakan', 'Simpan link grup WhatsApp & link desain, lalu tekan "Desain Disetujui Klien" begitu klien setuju di grup.');
         }
 
         if ($user->hasRole('LOGISTICS')) {
@@ -288,24 +289,30 @@ class ActionInboxService
         );
     }
 
-    // ── CEO ──────────────────────────────────────────────────────────────
+    // ── PM: Buka Proyek ──────────────────────────────────────────────────
 
-    /** Sprint 12 #19 — the same rows as the CEO's "Buka Proyek" pop-up. */
-    private function projectOpenings(): ?array
+    /**
+     * Sprint 23 K13 — the same rows as this PM's "Buka Proyek" pop-up
+     * (ProjectOpening::openableBy(): the RABs they approved, plus the ones
+     * any PM may open). Each item opens its form on the project list.
+     */
+    private function projectOpenings(User $user): ?array
     {
         return $this->group(
-            'project-opening', 'RAB Proyek siap dibuka jadi proyek', 'Klien sudah menyetujui — tentukan PM lalu Buka Proyek.', 'project', 'projects.index',
+            'project-opening', 'Proyek siap dibuka', 'Klien sudah menyetujui RAB Proyek — lengkapi data proyek lalu Buka Proyek.', 'project', 'projects.index',
             route('projects.index'),
-            ProjectOpening::query()->waiting()->with(['lead:id,client_name', 'quotation:id,total_amount,version'])->oldest(),
+            ProjectOpening::query()->waiting()->openableBy($user)->with(['lead:id,client_name', 'quotation:id,total_amount,version'])->oldest(),
             fn (ProjectOpening $opening) => [
                 'id' => $opening->id,
                 'title' => $opening->lead?->client_name ?? "RAB #{$opening->quotation_id}",
                 'subtitle' => 'RAB Proyek v'.$opening->quotation?->version.' · '.$this->rupiah($opening->quotation?->total_amount),
                 'at' => $opening->created_at,
-                'href' => route('quotations.show', $opening->quotation_id),
+                'href' => route('projects.index', ['opening' => $opening->id]),
             ],
         );
     }
+
+    // ── CEO ──────────────────────────────────────────────────────────────
 
     /** Sprint 12 #28 — realisations over budget, decided from the project's Alokasi Dana tab. */
     private function budgetOverruns(): ?array
@@ -384,7 +391,7 @@ class ActionInboxService
     private function rejectedQa(User $user): ?array
     {
         return $this->group(
-            'qa-rejected', 'QA ditolak — perlu perbaikan', 'Perbaiki temuan QA lalu ajukan ulang dari tab Milestone proyek.', 'qa', 'projects.index',
+            'qa-rejected', 'QA ditolak — perlu perbaikan', 'Perbaiki temuan QA lalu ajukan ulang dari tab Timeline proyek.', 'qa', 'projects.index',
             route('projects.index'),
             QaForm::query()
                 ->where('status', QaStatus::Rejected->value)
@@ -527,13 +534,14 @@ class ActionInboxService
         return $this->group(
             'invoice-proof', 'Invoice menunggu konfirmasi bayar', 'Setelah klien membayar, tandai sudah bayar (link bukti transfer bila ada) untuk diverifikasi Finance.', 'invoice', 'finance.invoices.index',
             route('finance.invoices.index', ['awaiting_proof' => 1]),
-            Invoice::query()->awaitingProof($user)->with('lead:id,client_name')->orderBy('due_date')->orderBy('id'),
+            Invoice::query()->awaitingProof($user)->withPaymentLabelRelations()->orderBy('due_date')->orderBy('id'),
             fn (Invoice $invoice) => [
                 'id' => $invoice->id,
                 'title' => $invoice->lead?->client_name ?? $invoice->number,
+                // Sprint 23 K12 — which payment ("Termin 2 dari 4 · 30%").
                 'subtitle' => $invoice->reject_reason
-                    ? "{$invoice->number} · ditolak Finance: {$invoice->reject_reason}"
-                    : "{$invoice->number} · {$this->rupiah($invoice->amount)} · jatuh tempo ".$invoice->due_date?->translatedFormat('d M Y'),
+                    ? "{$invoice->number} · {$invoice->paymentTypeLabel()} · ditolak Finance: {$invoice->reject_reason}"
+                    : "{$invoice->number} · {$invoice->paymentTypeLabel()} · {$this->rupiah($invoice->amount)} · jatuh tempo ".$invoice->due_date?->translatedFormat('d M Y'),
                 'at' => $invoice->rejected_at ?? $invoice->issued_at,
                 'href' => route('finance.invoices.index', ['awaiting_proof' => 1, 'proof' => $invoice->id]),
             ],
@@ -574,15 +582,17 @@ class ActionInboxService
     private function invoicesToVerify(): ?array
     {
         return $this->group(
-            'invoice-verify', 'Pembayaran menunggu verifikasi', 'Cocokkan pembayaran dengan mutasi rekening.', 'invoice', 'finance.invoices.verification',
+            'invoice-verify', 'Pembayaran menunggu konfirmasi', 'Cocokkan pembayaran dengan mutasi rekening.', 'invoice', 'finance.invoices.verification',
             route('finance.invoices.verification'),
-            Invoice::query()->byStatus(InvoiceStatus::MenungguVerifikasi->value)->with('lead:id,client_name')->orderBy('proof_submitted_at'),
+            Invoice::query()->byStatus(InvoiceStatus::MenungguVerifikasi->value)->withPaymentLabelRelations()->orderBy('proof_submitted_at'),
             fn (Invoice $invoice) => [
                 'id' => $invoice->id,
-                'title' => $invoice->number,
-                'subtitle' => trim(($invoice->lead?->client_name ?? '').' · '.$this->rupiah($invoice->amount), ' ·'),
+                // Sprint 23 K12b — "Menunggu Konfirmasi Pembayaran DP · Proyek Kopi Oz" (Invoice::confirmationLabel()).
+                'title' => $invoice->confirmationLabel(),
+                'subtitle' => trim($invoice->number.' · '.($invoice->lead?->client_name ?? '').' · '.$this->rupiah($invoice->amount), ' ·'),
                 'at' => $invoice->proof_submitted_at,
-                'href' => route('finance.invoices.verification'),
+                // Opens the Verifikasi dialog of this invoice.
+                'href' => route('finance.invoices.verification', ['verify' => $invoice->id]),
             ],
         );
     }
@@ -622,26 +632,6 @@ class ActionInboxService
     }
 
     /**
-     * Sprint 22 — designs the architect marked "siap dikirim" that the
-     * Marketing still has to send to the client (Design::readyToSend()).
-     */
-    private function designsToSend(User $user): ?array
-    {
-        return $this->group(
-            'design-send', 'Desain siap dikirim ke klien', 'Arsitek sudah menyelesaikan desain — kirim ke klien lewat WhatsApp.', 'design', 'design.index',
-            route('design.index', ['ready' => 1]),
-            Design::query()->readyToSend($user)->with('lead:id,client_name')->oldest('ready_for_client_at')->oldest('id'),
-            fn (Design $design) => [
-                'id' => $design->id,
-                'title' => $design->lead?->client_name ?? "Desain #{$design->id}",
-                'subtitle' => $design->status === DesignStatus::RevisiDesain ? "Revisi #{$design->revision_count}" : 'Desain pertama',
-                'at' => $design->ready_for_client_at,
-                'href' => route('design.show', ['design' => $design->id, 'action' => 'send']),
-            ],
-        );
-    }
-
-    /**
      * Designs where this architect is PIC or on the team (Design::visibleTo's
      * own-design rule, applied even to a Kepala Desain — this is *their* work,
      * not the division's), oldest first.
@@ -658,8 +648,6 @@ class ActionInboxService
                     ->where('pic_id', $user->id)
                     ->orWhereHas('staff', fn (Builder $staff) => $staff->whereKey($user->id)))
                 ->whereIn('status', array_map(fn (DesignStatus $status) => $status->value, $statuses))
-                // Sprint 22 — handed to Marketing: no longer the architect's turn.
-                ->whereNull('ready_for_client_at')
                 ->with('lead:id,client_name')
                 ->oldest('updated_at'),
             fn (Design $design) => [
@@ -675,7 +663,7 @@ class ActionInboxService
     private function pendingQa(): ?array
     {
         return $this->group(
-            'qa-pending', 'Milestone menunggu QA', 'Periksa milestone yang selesai dikerjakan.', 'qa', 'qa-forms.index',
+            'qa-pending', 'Timeline menunggu QA', 'Periksa timeline yang selesai dikerjakan.', 'qa', 'qa-forms.index',
             route('qa-forms.index', ['status' => QaStatus::Pending->value]),
             QaForm::query()->where('status', QaStatus::Pending->value)->with(['project:id,name', 'milestone:id,name'])->oldest('created_at')->oldest('id'),
             fn (QaForm $form) => [

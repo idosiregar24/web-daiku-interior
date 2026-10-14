@@ -80,15 +80,19 @@ function categoryId(string $prefix = 'KYP', ?string $name = null): int
  * Sprint 12 #8 — QuotationService::review() with every item marked: ✔
  * unless its description is a key of `$wrong` (→ ✘ with that note).
  * Decision "return" when anything is ✘ or a note is given, else "approve".
+ * Sprint 23 K7: items carrying an earlier ✔ are left unmarked, as the page does.
  *
  * @param  array<string, string>  $wrong
  */
 function reviewQuotation(Quotation $quotation, User $reviewer, array $wrong = [], ?string $note = null): Quotation
 {
-    return app(QuotationService::class)->review($quotation, [
+    $service = app(QuotationService::class);
+    $carried = $service->carriedMarks($quotation);
+
+    return $service->review($quotation, [
         'decision' => $wrong === [] && $note === null ? 'approve' : 'return',
         'note' => $note,
-        'items' => $quotation->items()->get()->map(fn ($item) => [
+        'items' => $quotation->items()->get()->reject(fn ($item) => isset($carried[$item->id]))->values()->map(fn ($item) => [
             'item_id' => $item->id,
             'verdict' => isset($wrong[$item->description]) ? 'SALAH' : 'OK',
             'note' => $wrong[$item->description] ?? null,

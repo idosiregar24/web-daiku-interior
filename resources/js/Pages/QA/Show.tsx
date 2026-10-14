@@ -87,7 +87,7 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
         <AppLayout
             breadcrumbs={[
                 { label: qaForm.project?.name ?? 'QA Form' },
-                { label: qaForm.milestone?.name ?? 'Milestone' },
+                { label: qaForm.milestone?.name ?? 'Timeline' },
             ]}
         >
             <Head title={`QA Form — ${qaForm.project?.name ?? ''}`} />
@@ -95,13 +95,18 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
             <PageHeader
                 title={`QA Form: ${qaForm.milestone?.name ?? '—'}`}
                 icon={ShieldCheck}
-                description={qaForm.project?.name ? `Proyek: ${qaForm.project.name}` : undefined}
-                actions={<StatusChip status={qaForm.status} />}
+                description={
+                    <span className="flex flex-wrap items-center gap-2">
+                        {qaForm.project?.name && `Proyek: ${qaForm.project.name}`}
+                        <StatusChip domain="qa" status={qaForm.status} />
+                    </span>
+                }
+                step={editable ? 'Giliran Anda: periksa tiap item checklist, lalu Setujui atau Tolak QA di bawah.' : undefined}
             />
 
             {qaForm.rejection_count > 0 && (
                 <Notice tone="warning" className="mb-6">
-                    Milestone ini sudah ditolak QA {qaForm.rejection_count}x.
+                    Timeline ini sudah ditolak QA {qaForm.rejection_count}x.
                     {qaForm.rejection_count >= 2 && ' CEO sudah diberi notifikasi.'}
                 </Notice>
             )}

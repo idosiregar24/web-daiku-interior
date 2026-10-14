@@ -10,7 +10,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
-import type { PaginatedData, Project, ProjectOpening, User } from '@/types';
+import type { PaginatedData, Project, ProjectOpening, ProjectOpeningFormOptions, User } from '@/types';
 import { OpenProjectDialog } from '@/Components/modules/projects/OpenProjectDialog';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
@@ -24,10 +24,10 @@ interface ProjectIndexProps {
     projects: PaginatedData<Project>;
     filters: { status?: string; pm_id?: string };
     projectManagers: Pick<User, 'id' | 'name'>[];
-    /** Sprint 12 #19 — approved RAB Proyek waiting for "Buka Proyek" (CEO / PM see it, CEO opens). */
+    /** Approved RAB Proyek waiting for "Buka Proyek" (CEO / PM see it) — Sprint 23 K13: `can_open` = the approving PM. */
     pendingOpenings: ProjectOpening[];
-    canOpenProjects: boolean;
-    assistantPms: Pick<User, 'id' | 'name'>[];
+    /** The form's pickers — null unless this user may open one of them. */
+    openingForm: ProjectOpeningFormOptions | null;
 }
 
 const STATUS_OPTIONS = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
@@ -55,7 +55,7 @@ const columns: ColumnDef<Project>[] = [
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => <StatusChip status={row.original.status} />,
+        cell: ({ row }) => <StatusChip domain="project" status={row.original.status} />,
     },
     {
         accessorKey: 'start_date',
@@ -72,8 +72,13 @@ const columns: ColumnDef<Project>[] = [
     },
 ];
 
-export default function ProjectIndex({ projects, filters, projectManagers, pendingOpenings, canOpenProjects, assistantPms }: ProjectIndexProps) {
-    const [opening, setOpening] = useState<ProjectOpening | null>(null);
+export default function ProjectIndex({ projects, filters, projectManagers, pendingOpenings, openingForm }: ProjectIndexProps) {
+    // "Proyek siap dibuka" in Perlu Tindakan links here with `?opening=<id>` — open its form straight away.
+    const [opening, setOpening] = useState<ProjectOpening | null>(() => {
+        const requested = typeof window === 'undefined' ? null : Number(new URLSearchParams(window.location.search).get('opening'));
+
+        return pendingOpenings.find((pending) => pending.id === requested && pending.can_open) ?? null;
+    });
 
     function applyFilter(next: Partial<typeof filters>) {
         router.get(
@@ -90,7 +95,7 @@ export default function ProjectIndex({ projects, filters, projectManagers, pendi
             <PageHeader
                 title="Proyek"
                 icon={FolderKanban}
-                description="Daftar proyek eksekusi — dibuka CEO setelah klien menyetujui RAB Proyek."
+                description="Daftar proyek eksekusi — dibuka PM setelah klien menyetujui RAB Proyek."
                 actions={<DashboardLinkButton routeName="projects.dashboard" label="Monitor Proyek" icon={AlertTriangle} roles={['CEO', 'PM', 'ASISTEN_PM']} />}
             />
 
@@ -98,7 +103,7 @@ export default function ProjectIndex({ projects, filters, projectManagers, pendi
                 <SectionCard
                     title="Menunggu Dibuka"
                     icon={Hourglass}
-                    description="RAB Proyek yang sudah disetujui klien — CEO menentukan PM dan membuka proyeknya."
+                    description="RAB Proyek yang sudah disetujui klien — PM yang menyetujui RAB itu melengkapi data lalu membuka proyeknya."
                     className="mb-6"
                     flush
                 >
@@ -113,12 +118,16 @@ export default function ProjectIndex({ projects, filters, projectManagers, pendi
                                             ` · disetujui ${new Date(pending.quotation.client_approved_at).toLocaleDateString('id-ID')}`}
                                     </span>
                                 </span>
-                                {canOpenProjects ? (
+                                {pending.can_open && openingForm ? (
                                     <Button size="sm" onClick={() => setOpening(pending)}>
                                         Buka Proyek
                                     </Button>
                                 ) : (
-                                    <span className="text-xs text-daiku-muted">Menunggu CEO</span>
+                                    <StatusChip
+                                        domain="projectOpening"
+                                        status={pending.status}
+                                        waitingOn={pending.opener?.is_active ? `PM ${pending.opener.name}` : 'PM'}
+                                    />
                                 )}
                             </li>
                         ))}
@@ -126,20 +135,14 @@ export default function ProjectIndex({ projects, filters, projectManagers, pendi
                 </SectionCard>
             )}
 
-            {opening && (
-                <OpenProjectDialog
-                    open
-                    onOpenChange={(open) => !open && setOpening(null)}
-                    opening={opening}
-                    projectManagers={projectManagers}
-                    assistantPms={assistantPms}
-                />
+            {opening && openingForm && (
+                <OpenProjectDialog open onOpenChange={(open) => !open && setOpening(null)} opening={opening} options={openingForm} />
             )}
 
             <DataTable
                 columns={columns}
                 data={projects.data}
-                emptyMessage="Belum ada proyek. Proyek dibuka CEO setelah klien menyetujui RAB Proyek."
+                emptyMessage="Belum ada proyek. Proyek dibuka PM setelah klien menyetujui RAB Proyek."
                 pagination={projects}
                 toolbar={
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

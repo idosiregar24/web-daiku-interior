@@ -203,7 +203,7 @@ test('roles without write access cannot change a lead status', function () {
     ])->assertForbidden();
 });
 
-test('the client approving the RAB Proyek on its link closes the lead; the CEO then opens the project', function () {
+test('the client approving the RAB Proyek on its link closes the lead; a PM then opens the project (Sprint 23 K13)', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
     $ceo = User::factory()->create();
@@ -223,12 +223,16 @@ test('the client approving the RAB Proyek on its link closes the lead; the CEO t
         ->and($quotation->fresh()->status)->toBe(QuotationStatus::ClientApproved)
         ->and($opening->status)->toBe(ProjectOpening::STATUS_WAITING)
         ->and(Project::where('lead_id', $lead->id)->exists())->toBeFalse()
-        ->and(Notification::where('user_id', $ceo->id)->where('type', 'project_opening_pending')->exists())->toBeTrue()
+        // No PM-stage approval row in this setup → every PM is asked; the CEO only hears once it's opened.
+        ->and(Notification::where('user_id', $pm->id)->where('type', 'project_opening_pending')->exists())->toBeTrue()
+        ->and(Notification::where('user_id', $ceo->id)->where('type', 'project_opening_pending')->exists())->toBeFalse()
         ->and(Notification::where('user_id', $pm->id)->where('type', 'deal_confirmed')->exists())->toBeTrue();
 
-    $this->actingAs($ceo)->post(route('projects.openings.open', $opening), [
+    $this->actingAs($pm)->post(route('projects.openings.open', $opening), [
         'name' => 'Proyek Budi Santoso',
         'pm_id' => $pm->id,
+        'team_lead_name' => 'Tim Pak Darto',
+        'opened_on' => now()->toDateString(),
         'start_date' => now()->toDateString(),
     ])->assertSessionHasNoErrors();
 
@@ -257,9 +261,8 @@ test('a project is never created before the client approved the RAB Proyek', fun
     'no quotation' => [null],
     'draft' => ['DRAFT'],
     'submitted' => ['SUBMITTED'],
-    'waiting for the CEO' => ['WAITING_CEO'],
-    'approved internally, still with the Estimator' => ['APPROVED_INTERNAL'],
     'with Marketing, not sent yet' => ['READY_TO_SEND'],
+    'declined by the client on the link' => ['CLIENT_REJECTED'],
     'sent, not approved by the client yet' => ['SENT_TO_CLIENT'],
 ]);
 
@@ -277,9 +280,12 @@ test('opening a project notifies the PM, CEO, Finance, Logistics and the lead Ma
     $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value, 'assigned_to' => $marketing->id]);
     $quotation = Quotation::factory()->approved()->create(['lead_id' => $lead->id]);
 
-    $this->actingAs($recipients[0])->post(route('projects.openings.open', openingFor($quotation)), [
+    // Sprint 23 K13 — the PM opens; the CEO is among the informed.
+    $this->actingAs($pm)->post(route('projects.openings.open', openingFor($quotation)), [
         'name' => 'Proyek Notif',
         'pm_id' => $pm->id,
+        'team_lead_name' => 'Tim Pak Darto',
+        'opened_on' => now()->toDateString(),
         'start_date' => now()->toDateString(),
     ])->assertSessionHasNoErrors();
 

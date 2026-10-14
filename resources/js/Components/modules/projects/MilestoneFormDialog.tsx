@@ -20,15 +20,22 @@ import { Input } from '@/Components/ui/input';
 import type { Milestone } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-const schema = z.object({
-    name: z.string().min(1, 'Nama milestone wajib diisi'),
-    target_date: z.date({ message: 'Target tanggal wajib diisi' }),
-});
+// Mirrors Store/UpdateMilestoneRequest (Sprint 23 K17: start ≤ end).
+const schema = z
+    .object({
+        name: z.string().trim().min(1, 'Nama timeline wajib diisi').max(255, 'Nama timeline maksimal 255 karakter'),
+        start_date: z.date({ message: 'Tanggal mulai timeline wajib diisi' }),
+        target_date: z.date({ message: 'Tanggal selesai timeline wajib diisi' }),
+    })
+    .refine((values) => !values.start_date || !values.target_date || startOfDay(values.target_date) >= startOfDay(values.start_date), {
+        message: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
+        path: ['target_date'],
+    });
 
 type FormValues = z.infer<typeof schema>;
 
@@ -38,13 +45,18 @@ interface MilestoneFormDialogProps {
     projectId: number;
     /** Milestone being edited, or null for create. */
     editing: Milestone | null;
+    /** Suggested start for a new timeline — the day after the last one ends (or the project's start). */
+    suggestedStart?: Date;
 }
 
-/** Add/edit modal for a Project's Milestone — PRD §7.1 "Milestone" row (PM CRUD). */
-export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: MilestoneFormDialogProps) {
+/**
+ * Add/edit modal for a project's Timeline (a milestone in code — Sprint 23
+ * K16) — PRD §7.1 "Milestone" row (PM CRUD). K17: start and end date.
+ */
+export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, suggestedStart }: MilestoneFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { name: '', target_date: undefined },
+        defaultValues: { name: '', start_date: undefined, target_date: undefined },
     });
 
     useEffect(() => {
@@ -52,6 +64,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
 
         form.reset({
             name: editing?.name ?? '',
+            start_date: editing?.start_date ? new Date(editing.start_date) : editing ? undefined : suggestedStart,
             target_date: editing ? new Date(editing.target_date) : undefined,
         });
     }, [open, editing]);
@@ -63,7 +76,11 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
             });
         };
         const onSuccess = () => onOpenChange(false);
-        const payload = { name: values.name, target_date: format(values.target_date, 'yyyy-MM-dd') };
+        const payload = {
+            name: values.name,
+            start_date: format(values.start_date, 'yyyy-MM-dd'),
+            target_date: format(values.target_date, 'yyyy-MM-dd'),
+        };
 
         if (editing) {
             // UpdateMilestoneRequest requires `status`; this form doesn't change it, so send it back as-is.
@@ -77,7 +94,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Edit Milestone' : 'Tambah Milestone'}</DialogTitle>
+                    <DialogTitle>{editing ? 'Ubah Timeline' : 'Tambah Timeline'}</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -86,27 +103,42 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing }: 
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel required>Nama Milestone</FormLabel>
+                                    <FormLabel required>Nama Timeline</FormLabel>
                                     <FormControl>
-                                        <Input {...field} autoFocus />
+                                        <Input {...field} autoFocus placeholder="mis. Produksi Kitchen Set" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
-                        <FormField
-                            control={form.control}
-                            name="target_date"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel required>Target Tanggal</FormLabel>
-                                    <FormControl>
-                                        <DatePicker value={field.value} onChange={field.onChange} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="start_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel required>Tanggal Mulai</FormLabel>
+                                        <FormControl>
+                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="target_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel required>Tanggal Selesai</FormLabel>
+                                        <FormControl>
+                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">

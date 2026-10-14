@@ -196,7 +196,7 @@ Route::middleware('auth')->prefix('crm')->name('crm.')->group(function () {
 // a say here since they're the ones talking to the client.
 // Sprint 12 Sub 8: no design is opened by hand any more — an approved RAB
 // Jasa Desain opens it (locked until paid), a Kepala Desain assigns it,
-// Marketing sends / asks revisions / records the client's approval.
+// and (Sprint 23) the work with the client runs in a WhatsApp group.
 
 Route::middleware('auth')->prefix('design')->name('design.')->group(function () {
     Route::get('/', [DesignController::class, 'index'])
@@ -227,15 +227,12 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
         ->middleware('role:KEPALA_DESAIN')
         ->name('assign');
 
-    // Sprint 22 — the design's team (or a Kepala Desain, stacked on DESIGNER) hands it to Marketing.
-    Route::post('{design}/ready-to-send', [DesignController::class, 'markReady'])
-        ->middleware('role:DESIGNER')
-        ->name('markReady');
-
-    // Decision #17 — Marketing alone talks to the client about the design.
-    Route::middleware('role:MARKETING')->group(function () {
-        Route::post('{design}/send-to-client', [DesignController::class, 'sendToClient'])->name('sendToClient');
-        Route::post('{design}/request-revision', [DesignController::class, 'requestRevision'])->name('requestRevision');
+    // Sprint 23 G — the client is talked to in a WhatsApp group: the lead's Marketing or the
+    // design team (Kepala Desain stacked on DESIGNER) saves the group & design links and records
+    // "Desain Disetujui Klien"; DesignPolicy::manageLinks() / approveForClient() narrow it.
+    // Sprint 22's ready-to-send / send-to-client and "Minta Revisi" are gone (K20).
+    Route::middleware('role:MARKETING|DESIGNER')->group(function () {
+        Route::put('{design}/links', [DesignController::class, 'updateLinks'])->name('links.update');
         Route::post('{design}/client-approved', [DesignController::class, 'markClientApproved'])->name('markClientApproved');
     });
 
@@ -303,16 +300,17 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
         ->middleware('role:ESTIMATOR')
         ->name('submit');
 
-    // Sprint 12 #7–#10 (replaces PRD §7.1's CEO → PM "Quotation Approval"):
-    // PM / Asisten PM review every item first, the CEO second (RAB Proyek
-    // only) — QuotationService::reviewStage() picks the stage from the status.
+    // Sprint 23 K8 (replaces PRD §7.1's CEO → PM "Quotation Approval" and
+    // Sprint 12 #7): only PM / Asisten PM review; their approval goes
+    // straight to Marketing (no "Kirim ke Marketing" any more, K10).
     Route::post('{quotation}/review', [QuotationController::class, 'review'])
-        ->middleware('role:PM|ASISTEN_PM|CEO')
+        ->middleware('role:PM|ASISTEN_PM')
         ->name('review');
 
-    Route::post('{quotation}/send-to-marketing', [QuotationController::class, 'sendToMarketing'])
-        ->middleware('role:ESTIMATOR')
-        ->name('sendToMarketing');
+    // Sprint 23 K9 — the CEO's information-only note (never returns the RAB).
+    Route::post('{quotation}/notes', [QuotationController::class, 'storeNote'])
+        ->middleware(['role:CEO', 'throttle:30,1'])
+        ->name('notes.store');
 
     Route::post('{quotation}/send-to-client', [QuotationController::class, 'sendToClient'])
         ->middleware('role:CEO|MARKETING')
@@ -333,6 +331,12 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
     Route::post('{quotation}/client-reject', [QuotationController::class, 'clientReject'])
         ->middleware('role:CEO|MARKETING')
         ->name('clientReject');
+
+    // Sprint 23 K11 — the client said "Tidak Setuju" on the link; Marketing
+    // adds what is missing and hands it to the Estimator (new DRAFT version).
+    Route::post('{quotation}/forward-to-estimator', [QuotationController::class, 'forwardToEstimator'])
+        ->middleware('role:CEO|MARKETING')
+        ->name('forwardToEstimator');
 });
 
 // Projects — PRD §4.4 / §7.1 "Project (overview)" row: broad read access,
@@ -355,10 +359,11 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
         ->name('show');
 
-    // Sprint 12 #19 — the CEO's "Buka Proyek" (the only way a project is
-    // created since Sub 7; project + termins from the approved RAB).
+    // "Buka Proyek" (the only way a project is created since Sprint 12
+    // Sub 7; project + termins from the approved RAB). Sprint 23 K13: the
+    // PM who approved that RAB Proyek (ProjectOpeningPolicy), not the CEO.
     Route::post('openings/{opening}/open', [ProjectOpeningController::class, 'open'])
-        ->middleware('role:CEO')
+        ->middleware('role:PM')
         ->name('openings.open');
 
     // Sprint 9 "Edit Proyek": CEO any project, PM only their own
@@ -512,6 +517,11 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
     Route::post('invoices/{invoice}/proof', [InvoiceController::class, 'submitProof'])
         ->middleware(['role:MARKETING|FINANCE', 'throttle:60,1'])
         ->name('invoices.proof');
+    // Sprint 23 K12d — a payment proof photo from the private disk (+ InvoicePolicy::viewPaymentProofs;
+    // the controller 404s a photo of another invoice).
+    Route::get('invoices/{invoice}/proofs/{proof}', [InvoiceController::class, 'paymentProof'])
+        ->middleware('role:CEO|MARKETING|FINANCE')
+        ->name('invoices.proofs.show');
     Route::post('invoices/{invoice}/verify', [InvoiceController::class, 'verify'])
         ->middleware(['role:FINANCE', 'throttle:60,1'])
         ->name('invoices.verify');
@@ -971,6 +981,10 @@ Route::middleware('throttle:30,1')->prefix('penawaran')->name('public.quotation.
     Route::post('{token}/setujui', [PublicQuotationController::class, 'approve'])
         ->where('token', '[A-Za-z0-9]{48}')
         ->name('approve');
+    // Sprint 23 K11 — "Tidak Setuju" with a mandatory reason (any RAB type).
+    Route::post('{token}/tolak', [PublicQuotationController::class, 'reject'])
+        ->where('token', '[A-Za-z0-9]{48}')
+        ->name('reject');
     // Sprint 15 — the offer letter as PDF (current version of this link only).
     Route::get('{token}/pdf', [PublicQuotationController::class, 'pdf'])
         ->where('token', '[A-Za-z0-9]{48}')

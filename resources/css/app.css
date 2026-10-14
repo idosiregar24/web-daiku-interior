@@ -57,6 +57,21 @@
   background-size: 32px 32px;
 }
 
+/* Sprint 23 K1 — the success pop-up's tick draws itself in (SuccessDialog). */
+@keyframes success-check-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.success-check-path {
+  stroke-dasharray: 1;
+  animation: success-check-draw 400ms ease-out 150ms both;
+}
+
 /*
  * Sprint 13 H8 — honour "reduce motion" (also spares low-end phones the
  * sheet/dialog animations): animations and transitions end at once.

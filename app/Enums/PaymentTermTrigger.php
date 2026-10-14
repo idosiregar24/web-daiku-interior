@@ -19,7 +19,7 @@ enum PaymentTermTrigger: string
         return match ($this) {
             self::DiMuka => 'Di muka (saat disetujui)',
             self::Tanggal => 'Tanggal tertentu',
-            self::Milestone => 'Milestone selesai',
+            self::Milestone => 'Timeline selesai',
             self::ProyekSelesai => 'Proyek selesai',
         };
     }

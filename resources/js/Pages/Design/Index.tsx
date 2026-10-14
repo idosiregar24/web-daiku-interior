@@ -12,7 +12,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type { Design, DesignStatus, PaginatedData } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { BarChart3, Inbox, Palette, Send } from 'lucide-react';
+import { BarChart3, Inbox, Palette } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 import { AssignDesignDialog, type AssignableDesign } from '@/Components/modules/design/AssignDesignDialog';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -32,8 +32,7 @@ interface QueuedDesign {
 
 interface DesignIndexProps {
     designs: PaginatedData<Design & { lead: { id: number; client_name: string } }>;
-    /** Sprint 22 — `ready` = only designs the architect handed to Marketing, still unsent. */
-    filters: { status?: string; ready?: string };
+    filters: { status?: string };
     /** Kepala Desain / SuperAdmin only, else null. */
     queue: QueuedDesign[] | null;
     architects: { id: number; name: string }[];
@@ -77,17 +76,13 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
     {
         accessorKey: 'jenis_project',
         header: 'Jenis Project',
-        cell: ({ row }) => row.original.jenis_project?.replace('_', ' ') ?? '—',
+        // Sprint 23 K18 — no longer kept for a design born from a RAB Jasa Desain.
+        cell: ({ row }) => (row.original.quotation_id === null ? row.original.jenis_project?.replace('_', ' ') : null) ?? '—',
     },
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => (
-            <span className="flex flex-wrap items-center gap-1">
-                <StatusChip status={row.original.status} />
-                {row.original.ready_for_client_at && <StatusChip status="SIAP_DIKIRIM" label="Siap dikirim" tone="warning" />}
-            </span>
-        ),
+        cell: ({ row }) => <StatusChip domain="design" status={row.original.status} />,
     },
     {
         accessorKey: 'deadline',
@@ -105,11 +100,6 @@ const columns: ColumnDef<Design & { lead: { id: number; client_name: string } }>
                 </span>
             );
         },
-    },
-    {
-        accessorKey: 'revision_count',
-        header: 'Revisi',
-        cell: ({ row }) => (row.original.revision_count > 0 ? `${row.original.revision_count}x` : '—'),
     },
     {
         id: 'client_acc',
@@ -171,7 +161,7 @@ export default function DesignIndex({ designs, filters, queue, architects }: Des
                                         </span>
                                     </span>
                                     <span className="flex items-center gap-2">
-                                        <StatusChip status={queued.status} />
+                                        <StatusChip domain="design" status={queued.status} />
                                         {queued.status === 'MENUNGGU_PENUGASAN' && (
                                             <Button size="sm" onClick={() => setAssigning({ id: queued.id, client_name: queued.lead.client_name })}>
                                                 Tugaskan Desain
@@ -200,33 +190,22 @@ export default function DesignIndex({ designs, filters, queue, architects }: Des
                 emptyMessage="Belum ada proyek desain. Desain dibuka otomatis saat klien menyetujui RAB Jasa Desain."
                 pagination={designs}
                 toolbar={
-                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                        <Select
-                            value={filters.status ?? 'all'}
-                            onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
-                        >
-                            <SelectTrigger className="sm:w-56">
-                                <SelectValue placeholder="Semua status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua status</SelectItem>
-                                {STATUS_OPTIONS.map((status) => (
-                                    <SelectItem key={status} value={status}>
-                                        {status.replace(/_/g, ' ')}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button
-                            type="button"
-                            variant={filters.ready ? 'default' : 'outline'}
-                            onClick={() => applyFilter({ ready: filters.ready ? undefined : '1' })}
-                            aria-pressed={Boolean(filters.ready)}
-                        >
-                            <Send className="size-4" />
-                            Siap dikirim ke klien
-                        </Button>
-                    </div>
+                    <Select
+                        value={filters.status ?? 'all'}
+                        onValueChange={(value) => applyFilter({ status: value === 'all' ? undefined : value })}
+                    >
+                        <SelectTrigger className="sm:w-56">
+                            <SelectValue placeholder="Semua status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Semua status</SelectItem>
+                            {STATUS_OPTIONS.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                    {status.replace(/_/g, ' ')}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 }
             />
         </AppLayout>

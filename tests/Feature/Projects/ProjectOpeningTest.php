@@ -18,6 +18,7 @@ use App\Models\Notification;
 use App\Models\Project;
 use App\Models\ProjectOpening;
 use App\Models\Quotation;
+use App\Models\QuotationApproval;
 use App\Models\Termin;
 use App\Models\User;
 use App\Services\ActionInboxService;
@@ -33,8 +34,10 @@ use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /*
- * Sprint 12 Sub 7 — "Buka Proyek" by the CEO, termins from the approved
- * payment scheme, termin invoices by Marketing (decisions #12, #19–#21).
+ * Sprint 12 Sub 7 — "Buka Proyek", termins from the approved payment
+ * scheme, termin invoices by Marketing (decisions #12, #19–#21).
+ * Sprint 23 K13–K15 — opened by the PM who approved the RAB Proyek (any PM
+ * when an Asisten PM did), with Kepala Tim / Pengawas / Tanggal Buka.
  */
 
 beforeEach(function () {
@@ -58,8 +61,11 @@ function openingUser(string $role): User
     return $user;
 }
 
-/** A RAB Proyek of 100.000.000 with DP 30% / Termin 33,33% (milestone "Produksi") / tanggal 16,67% / Pelunasan 20% (completion), approved on its link. */
-function approvedProjectRab(object $test): Quotation
+/**
+ * A RAB Proyek of 100.000.000 with DP 30% / Termin 33,33% (milestone "Produksi") / tanggal 16,67% / Pelunasan 20% (completion),
+ * ACC'd at the PM stage by `$approver` (default: $test->pm; false = no PM-stage row), approved on its link.
+ */
+function approvedProjectRab(object $test, User|false|null $approver = null): Quotation
 {
     $service = app(QuotationService::class);
     $quotation = Quotation::factory()->create(['lead_id' => $test->lead->id, 'type' => 'PROYEK', 'status' => QuotationStatus::Draft->value]);
@@ -70,32 +76,82 @@ function approvedProjectRab(object $test): Quotation
         ['label' => 'Termin 3', 'percentage' => 16.67, 'trigger' => 'TANGGAL', 'due_date' => '2026-11-07'],
         ['label' => 'Pelunasan', 'percentage' => 20, 'trigger' => 'PROYEK_SELESAI'],
     ]);
-    $quotation->refresh()->update(['status' => QuotationStatus::SentToClient->value, 'valid_until' => '2026-10-19']);
+    $quotation->refresh();
+
+    // The PM-stage approval QuotationService::review() writes (K13 reads it).
+    if ($approver !== false) {
+        QuotationApproval::create([
+            'quotation_id' => $quotation->id,
+            'version' => $quotation->version,
+            'approver_id' => ($approver ?? $test->pm)->id,
+            'approver_role' => 'PM',
+            'status' => 'APPROVED',
+        ]);
+    }
+
+    $quotation->update(['status' => QuotationStatus::SentToClient->value, 'valid_until' => '2026-10-19']);
     $service->clientApprove(shareLinkFor($quotation, $test->marketing), true, '10.0.0.1', 'Test');
 
     return $quotation->fresh();
+}
+
+/** A valid "Buka Proyek" form (K14). */
+function openingPayload(object $test, array $overrides = []): array
+{
+    return [
+        'name' => 'Proyek Budi',
+        'pm_id' => $test->pm->id,
+        'team_lead_name' => 'Tim Pak Darto',
+        'opened_on' => '2026-10-05',
+        'start_date' => '2026-10-10',
+        ...$overrides,
+    ];
 }
 
 function openProject(object $test, ?Quotation $quotation = null): Project
 {
     $quotation ??= approvedProjectRab($test);
 
-    return app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
-        'name' => 'Proyek Budi',
-        'pm_id' => $test->pm->id,
-        'start_date' => '2026-10-10',
-    ], $test->ceo);
+    return app(ProjectService::class)->openFromQuotation(
+        ProjectOpening::where('quotation_id', $quotation->id)->sole(),
+        openingPayload($test),
+        $test->pm,
+    );
 }
 
 // ── Opening ──────────────────────────────────────────────────────────────
 
-test('the client approving a RAB Proyek queues one "Buka Proyek" for the CEO', function () {
+test('the client approving a RAB Proyek queues one "Buka Proyek" for the PM who approved it (K13)', function () {
+    $otherPm = openingUser('PM');
     $quotation = approvedProjectRab($this);
 
     $opening = ProjectOpening::sole();
+    $notified = fn (User $user) => Notification::where('user_id', $user->id)->where('type', 'project_opening_pending')->count();
+
     expect($opening->quotation_id)->toBe($quotation->id)
         ->and($opening->status)->toBe(ProjectOpening::STATUS_WAITING)
-        ->and(Notification::where('user_id', $this->ceo->id)->where('type', 'project_opening_pending')->count())->toBe(1);
+        ->and($opening->status)->toBe('MENUNGGU_PM')
+        ->and($opening->opener_id)->toBe($this->pm->id)
+        ->and($notified($this->pm))->toBe(1)
+        ->and($notified($otherPm))->toBe(0)
+        ->and($notified($this->ceo))->toBe(0)
+        ->and(Notification::where('user_id', $this->marketing->id)->where('type', 'invoice_to_issue')->sole()->message)
+        ->toContain("PM {$this->pm->name} sedang membuka proyeknya");
+});
+
+test('a RAB approved by an Asisten PM falls to every PM', function () {
+    $assistant = openingUser('ASISTEN_PM');
+    $otherPm = openingUser('PM');
+    approvedProjectRab($this, $assistant);
+
+    expect(ProjectOpening::sole()->opener_id)->toBeNull()
+        ->and(Notification::where('type', 'project_opening_pending')->pluck('user_id')->sort()->values()->all())
+        ->toBe(collect([$this->pm->id, $otherPm->id])->sort()->values()->all());
+
+    // Any PM may open it.
+    $this->actingAs($otherPm)->post(route('projects.openings.open', ProjectOpening::sole()), openingPayload($this, ['pm_id' => $otherPm->id]))
+        ->assertSessionHasNoErrors();
+    expect(Project::sole()->pm_id)->toBe($otherPm->id);
 });
 
 test('service RABs never queue a project', function (string $type) {
@@ -105,23 +161,37 @@ test('service RABs never queue a project', function (string $type) {
     expect(ProjectOpening::count())->toBe(0);
 })->with(['SURVEY', 'DESAIN']);
 
-test('opening creates the project and copies the scheme into termins', function () {
+test('opening creates the project with its team and dates and copies the scheme into termins (K14/K15)', function () {
     $assistant = openingUser('ASISTEN_PM');
+    $tukang = openingUser('FIELD_STAFF');
+    $qa = openingUser('QA');
     $quotation = approvedProjectRab($this);
 
-    $this->actingAs($this->ceo)->post(route('projects.openings.open', ProjectOpening::sole()), [
-        'name' => 'Proyek Budi',
-        'pm_id' => $this->pm->id,
+    $this->actingAs($this->pm)->post(route('projects.openings.open', ProjectOpening::sole()), openingPayload($this, [
         'assistant_pm_id' => $assistant->id,
-        'start_date' => '2026-10-10',
-    ])->assertSessionHasNoErrors();
+        'team_lead_id' => $tukang->id,
+        'team_lead_name' => null,
+        'supervisor_id' => $qa->id,
+        'end_date' => '2026-12-20',
+    ]))->assertSessionHasNoErrors();
 
     $project = Project::sole();
     expect($project->quotation_id)->toBe($quotation->id)
         ->and($project->assistant_pm_id)->toBe($assistant->id)
+        ->and($project->team_lead_id)->toBe($tukang->id)
+        ->and($project->team_lead_name)->toBeNull()
+        ->and($project->supervisor_id)->toBe($qa->id)
+        ->and($project->opened_on->toDateString())->toBe('2026-10-05')
+        ->and($project->start_date->toDateString())->toBe('2026-10-10')
+        ->and($project->end_date->toDateString())->toBe('2026-12-20')
         ->and((float) $project->contract_value)->toBe(100_000_000.0)
-        ->and(ProjectOpening::sole()->only(['status', 'project_id', 'opened_by']))->toBe(['status' => 'DIBUKA', 'project_id' => $project->id, 'opened_by' => $this->ceo->id])
-        ->and(AuditLog::where('action', 'project.opened')->exists())->toBeTrue();
+        ->and(ProjectOpening::sole()->only(['status', 'project_id', 'opened_by']))->toBe(['status' => 'DIBUKA', 'project_id' => $project->id, 'opened_by' => $this->pm->id])
+        ->and(AuditLog::where('action', 'project.opened')->sole()->new_values)->toMatchArray(['team_lead_id' => $tukang->id, 'supervisor_id' => $qa->id, 'opened_on' => '2026-10-05']);
+
+    // The CEO only hears about it (K13); the Pengawas and the Kepala Tim are told too.
+    foreach ([$this->ceo, $qa, $tukang] as $user) {
+        expect(Notification::where('user_id', $user->id)->where('type', 'project_opened')->exists())->toBeTrue();
+    }
 
     $termins = $project->termins()->orderBy('termin_number')->get();
     expect($termins->map(fn (Termin $t) => [$t->termin_number, (float) $t->percentage, (float) $t->amount, $t->trigger->value, $t->scheduled_date?->toDateString(), $t->milestone_name])->all())
@@ -135,46 +205,105 @@ test('opening creates the project and copies the scheme into termins', function 
         ->and($termins->pluck('status')->unique()->all())->toBe([TerminStatus::Scheduled]);
 });
 
-test('only the CEO opens, once, with a real PM and Asisten PM', function () {
+test('only the approving PM opens — not the CEO, not another PM — once (K13)', function (string $role) {
     approvedProjectRab($this);
     $opening = ProjectOpening::sole();
-    $payload = ['name' => 'Proyek Budi', 'pm_id' => $this->pm->id, 'start_date' => '2026-10-10'];
 
-    $this->actingAs($this->pm)->post(route('projects.openings.open', $opening), $payload)->assertForbidden();
-    $this->actingAs($this->ceo)->post(route('projects.openings.open', $opening), ['pm_id' => $this->marketing->id] + $payload)->assertSessionHasErrors('pm_id');
-    $this->actingAs($this->ceo)->post(route('projects.openings.open', $opening), ['assistant_pm_id' => $this->pm->id] + $payload)->assertSessionHasErrors('assistant_pm_id');
+    $this->actingAs(openingUser($role))->post(route('projects.openings.open', $opening), openingPayload($this))->assertForbidden();
+    expect(Project::count())->toBe(0);
+})->with(['CEO', 'PM', 'MARKETING', 'ASISTEN_PM']);
 
-    $this->actingAs($this->ceo)->post(route('projects.openings.open', $opening), $payload)->assertSessionHasNoErrors();
-    expect(fn () => app(ProjectService::class)->openFromQuotation($opening->fresh(), $payload, $this->ceo))->toThrow(ValidationException::class);
-    expect(Project::count())->toBe(1);
+test('the approving PM opens once; SUPERADMIN keeps god-mode', function () {
+    approvedProjectRab($this);
+    $opening = ProjectOpening::sole();
+
+    $this->actingAs($this->pm)->post(route('projects.openings.open', $opening), openingPayload($this))->assertRedirect();
+    expect(fn () => app(ProjectService::class)->openFromQuotation($opening->fresh(), openingPayload($this), $this->pm))->toThrow(ValidationException::class);
+
+    // A second opening, opened by SUPERADMIN through Gate::before.
+    $this->lead = Lead::factory()->create(['status' => LeadStatus::DealDesain->value, 'assigned_to' => $this->marketing->id]);
+    approvedProjectRab($this);
+    $this->actingAs(openingUser('SUPERADMIN'))->post(route('projects.openings.open', ProjectOpening::latest('id')->first()), openingPayload($this))
+        ->assertSessionHasNoErrors();
+    expect(Project::count())->toBe(2);
 });
+
+test('a designated PM who is no longer active hands the opening to every PM', function () {
+    $otherPm = openingUser('PM');
+    approvedProjectRab($this);
+    $this->pm->update(['is_active' => false]);
+
+    expect(ProjectOpening::query()->openableBy($otherPm)->count())->toBe(1);
+    $this->actingAs($otherPm)->post(route('projects.openings.open', ProjectOpening::sole()), openingPayload($this, ['pm_id' => $otherPm->id]))
+        ->assertSessionHasNoErrors();
+});
+
+test('the Buka Proyek form validates people and dates (K14)', function (array $overrides, string $field) {
+    approvedProjectRab($this);
+
+    $this->actingAs($this->pm)->post(route('projects.openings.open', ProjectOpening::sole()), openingPayload($this, $overrides))
+        ->assertSessionHasErrors($field);
+    expect(Project::count())->toBe(0);
+})->with([
+    'PM bukan PM' => [fn () => ['pm_id' => openingUser('MARKETING')->id], 'pm_id'],
+    'Asisten PM tidak valid' => [fn () => ['assistant_pm_id' => openingUser('PM')->id], 'assistant_pm_id'],
+    'Kepala Tim kosong' => [['team_lead_name' => null], 'team_lead_id'],
+    'Kepala Tim dua-duanya' => [fn () => ['team_lead_id' => openingUser('FIELD_STAFF')->id], 'team_lead_name'],
+    'Kepala Tim nonaktif' => [fn () => ['team_lead_name' => null, 'team_lead_id' => User::factory()->create(['is_active' => false])->id], 'team_lead_id'],
+    'Pengawas bukan QA' => [fn () => ['supervisor_id' => openingUser('FINANCE')->id], 'supervisor_id'],
+    'Tanggal Buka kosong' => [['opened_on' => null], 'opened_on'],
+    'Mulai sebelum Buka' => [['opened_on' => '2026-10-11'], 'start_date'],
+    'Selesai sebelum Mulai' => [['end_date' => '2026-10-09'], 'end_date'],
+]);
 
 test('the manual project and termin routes are gone', function () {
     expect(Route::has('projects.store'))->toBeFalse()
         ->and(Route::has('projects.termins.store'))->toBeFalse();
 });
 
-test('the CEO gets the pop-up on any page; others never do', function () {
+test('the approving PM gets the pop-up on any page; the CEO and other PMs never do (K13)', function () {
     approvedProjectRab($this);
 
-    $this->actingAs($this->ceo)->get(route('dashboard'))
+    $this->actingAs($this->pm)->get(route('dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->has('pendingProjectOpenings.openings', 1)
             ->where('pendingProjectOpenings.openings.0.lead.client_name', 'Budi')
-            ->has('pendingProjectOpenings.projectManagers'));
+            ->has('pendingProjectOpenings.projectManagers')
+            ->has('pendingProjectOpenings.teamLeads')
+            ->has('pendingProjectOpenings.supervisors'));
 
-    $this->actingAs($this->pm)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('pendingProjectOpenings', null));
+    $this->actingAs(openingUser('PM'))->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('pendingProjectOpenings', null));
+    $this->actingAs($this->ceo)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('pendingProjectOpenings', null));
 
     openProject($this, Quotation::sole());
-    $this->actingAs($this->ceo)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('pendingProjectOpenings', null));
+    $this->actingAs($this->pm)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('pendingProjectOpenings', null));
 });
 
-test('the project list shows "Menunggu Dibuka" to CEO and PM, only the CEO may open', function (string $role, bool $canOpen) {
+test('the project list shows "Menunggu Dibuka" to CEO and PMs; only the approving PM gets the button', function () {
     approvedProjectRab($this);
 
-    $this->actingAs(openingUser($role))->get(route('projects.index'))
-        ->assertInertia(fn (Assert $page) => $page->has('pendingOpenings', 1)->where('canOpenProjects', $canOpen));
-})->with([['CEO', true], ['PM', false]]);
+    $this->actingAs($this->pm)->get(route('projects.index'))
+        ->assertInertia(fn (Assert $page) => $page->has('pendingOpenings', 1)
+            ->where('pendingOpenings.0.can_open', true)
+            ->where('pendingOpenings.0.opener.id', $this->pm->id)
+            ->has('openingForm.teamLeads'));
+
+    foreach ([$this->ceo, openingUser('PM')] as $viewer) {
+        $this->actingAs($viewer)->get(route('projects.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('pendingOpenings', 1)->where('pendingOpenings.0.can_open', false)->where('openingForm', null));
+    }
+});
+
+test('"Proyek siap dibuka" is in the approving PM\'s Perlu Tindakan, not the CEO\'s (K13)', function () {
+    approvedProjectRab($this);
+    $opening = ProjectOpening::sole();
+
+    $group = collect(app(ActionInboxService::class)->for($this->pm, fresh: true))->firstWhere('key', 'project-opening');
+    expect($group['count'])->toBe(1)
+        ->and($group['items'][0]['href'])->toBe(route('projects.index', ['opening' => $opening->id]))
+        ->and(collect(app(ActionInboxService::class)->for($this->ceo, fresh: true))->pluck('key'))->not->toContain('project-opening')
+        ->and(collect(app(ActionInboxService::class)->for(openingUser('PM'), fresh: true))->pluck('key'))->not->toContain('project-opening');
+});
 
 // ── Invoice termin ───────────────────────────────────────────────────────
 

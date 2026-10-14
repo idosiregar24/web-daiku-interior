@@ -21,7 +21,7 @@ class ProgressLogService
     {
         if ($project->milestones()->where('status', MilestoneStatus::QaWaiting->value)->exists()) {
             throw ValidationException::withMessages([
-                'percentage' => 'Progress belum bisa diinput — masih ada milestone menunggu review QA.',
+                'percentage' => 'Progress belum bisa diinput — masih ada timeline menunggu review QA.',
             ]);
         }
 

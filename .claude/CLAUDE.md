@@ -113,18 +113,39 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     PRD).** Roles `ASISTEN_PM` and `KEPALA_DESAIN` (stacked on DESIGNER —
     `User::STACKED_ROLES`; the UI calls DESIGNER "Arsitek"). Quotations have
     3 types (SURVEY / DESAIN / PROYEK), are asked for by Marketing
-    (DIMINTA), reviewed per item **PM / Asisten PM → CEO** (CEO only for
-    PROYEK) and approved by the **client on a public link**
-    (`penawaran/{token}`) — never by a staff button. A project is born only
-    from the CEO's "Buka Proyek" on an approved RAB Proyek; its termins come
+    (DIMINTA), reviewed per item by the **PM / Asisten PM inside the RAB
+    table** (items identical to a ✔ of the previous version carry over —
+    `carried_from_version`), and a PM approval goes **straight to
+    READY_TO_SEND** for every type (Sprint 23: no CEO approval, no "Kirim ke
+    Marketing"; the CEO only gets an info notification on a RAB Proyek and
+    may add append-only `quotation_notes`). The **client** decides on the
+    public link (`penawaran/{token}`) — Setuju → CLIENT_APPROVED, or Tidak
+    Setuju + note → CLIENT_REJECTED → Marketing "Teruskan ke Estimator" (next
+    DRAFT version) — never by a staff button. Volume may come from P/T/L
+    (`quotation_items.qty_source`; m/lari asks P or T/L, other units P × T/L;
+    the server never overwrites qty). A project is born only from "Buka
+    Proyek" on an approved RAB Proyek, done by **the PM who approved that
+    RAB** (`project_openings.opener_id`; any PM when an Asisten PM approved
+    it) — form adds Kepala Tim (user or typed name), Pengawas (QA), Tanggal
+    Buka/Selesai; the CEO is only notified. Its termins come
     from the approved payment scheme; a RAB Tambahan (`parent_quotation_id`)
     adds to the project instead. Marketing issues every invoice, Finance
-    alone verifies it (`InvoiceService` books the income once). A RAB
+    alone verifies it (`InvoiceService` books the income once); payment
+    labels ("Menunggu Konfirmasi Pembayaran DP · Proyek X", "Termin 2 dari 4
+    · 30%") come only from `Invoice::confirmationLabel()`/`paymentLabel()`,
+    proof photos only through `InvoicePaymentProofService` (private disk,
+    append-only `invoice_payment_proofs`). A RAB
     Proyek's DP is billed right after the client's approval, before Buka
     Proyek, and attached to the DP termin when the project opens
     (`TerminService::attachUpfrontInvoice()`, Sprint 17 Sub 06). Designs are
     locked until their Jasa Desain invoice is verified, then assigned by a
-    Kepala Desain. "Alokasi Dana Proyek" (`ProjectBudgetService`) and
+    Kepala Desain; after that the design runs in the client's WhatsApp group
+    — the system keeps only the WA group link + design links
+    (`DesignService::updateLinks()`) and one button, "Desain Disetujui
+    Klien" (lead's Marketing or the design team, `client_acc_by` recorded;
+    Sprint 22's Siap Dikirim / Kirim ke Klien / Minta Revisi are gone).
+    Milestones are shown as **"Timeline"** (UI only — code/tables stay
+    `milestone`) with `start_date` → `target_date`. "Alokasi Dana Proyek" (`ProjectBudgetService`) and
     realisations (`BudgetRealizationService`, over-budget → CEO) are the
     project PM's alone (`ProjectPolicy::manageBudget`) and never sent to
     Marketing or the Asisten PM; an Asisten PM works only on the projects

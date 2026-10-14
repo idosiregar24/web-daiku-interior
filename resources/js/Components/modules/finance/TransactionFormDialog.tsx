@@ -1,3 +1,4 @@
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
 import {
@@ -290,7 +291,7 @@ export function TransactionFormDialog({
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

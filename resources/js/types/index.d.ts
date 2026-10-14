@@ -157,7 +157,7 @@ export type PageProps<
     flash: { success: string | null; error: string | null; key: string } | null;
     /** Web customization from Pengaturan Situs (name, logo, login page…). */
     site: SiteBranding;
-    /** Sprint 12 #19 — CEO only: approved RAB Proyek waiting for "Buka Proyek" (null when none / not CEO). */
+    /** Sprint 23 K13 — PM only: approved RAB Proyek this PM may open ("Buka Proyek" pop-up; null when none / not a PM). */
     pendingProjectOpenings?: PendingProjectOpenings | null;
     /** Sprint 13 #5 — menu route name → items waiting there ("Perlu Tindakan", cached 60 s per user). */
     navBadges: Record<string, number>;
@@ -167,21 +167,38 @@ export type PageProps<
     webPushKey: string | null;
 };
 
-/** Sprint 12 #19 — App\Models\ProjectOpening. */
+/** Sprint 12 #19 — App\Models\ProjectOpening. `MENUNGGU_CEO` = legacy waiting value (Sprint 23 migrated it to MENUNGGU_PM). */
+export type ProjectOpeningStatus = 'MENUNGGU_PM' | 'MENUNGGU_CEO' | 'DIBUKA';
+
 export interface ProjectOpening {
     id: number;
     quotation_id: number;
     lead_id: number;
-    status: 'MENUNGGU_CEO' | 'DIBUKA';
+    status: ProjectOpeningStatus;
+    /** Sprint 23 K13 — the PM who approved the RAB Proyek (null = any PM opens). */
+    opener_id: number | null;
+    opener?: { id: number; name: string; is_active: boolean } | null;
+    /** Projects/Index only — ProjectOpeningPolicy::open() for the viewer. */
+    can_open?: boolean;
     lead: { id: number; client_name: string };
     quotation: { id: number; total_amount: string; version: number; client_approved_at: string | null };
     created_at: string;
 }
 
-export interface PendingProjectOpenings {
-    openings: ProjectOpening[];
+/** Sprint 23 K14 — the people the "Buka Proyek" form picks from (ProjectService::openingFormOptions()). */
+export interface ProjectOpeningFormOptions extends ProjectTeamOptions {
     projectManagers: { id: number; name: string }[];
     assistantPms: { id: number; name: string }[];
+}
+
+/** Sprint 23 K15 — Kepala Tim (every active account) and Pengawas (role QA) pickers. */
+export interface ProjectTeamOptions {
+    teamLeads: { id: number; name: string }[];
+    supervisors: { id: number; name: string }[];
+}
+
+export interface PendingProjectOpenings extends ProjectOpeningFormOptions {
+    openings: ProjectOpening[];
 }
 
 /** Shape of a Laravel paginator (`->paginate()`) as sent to Inertia props. */
@@ -357,6 +374,16 @@ export interface Design {
     problem: string | null;
     client_acc: boolean;
     acc_date: string | null;
+    /** Sprint 23 K19 — who recorded "Desain Disetujui Klien", and when. */
+    client_acc_by: number | null;
+    client_acc_at: string | null;
+    client_approver?: Pick<User, 'id' | 'name'> | null;
+    /** Sprint 23 K18 — the WhatsApp group where the client, Marketing and the architects talk. */
+    whatsapp_group_url: string | null;
+    /** Sprint 23 K19b — who last saved the WhatsApp group / design links. */
+    links_updated_by: number | null;
+    links_updated_at: string | null;
+    links_updater?: Pick<User, 'id' | 'name'> | null;
     /** Sprint 12 #16 — the RAB Jasa Desain it was paid through; null = a pre-Sprint-12 design. */
     quotation_id: number | null;
     quotation?: Pick<Quotation, 'id' | 'lead_id' | 'type' | 'status' | 'total_amount' | 'version'> | null;
@@ -364,11 +391,11 @@ export interface Design {
     assigned_by: number | null;
     assigner?: Pick<User, 'id' | 'name'> | null;
     assigned_at: string | null;
-    /** Sprint 12 #17 — revisions Marketing asked for (no limit). */
+    /** Sprint 12 #17 — revisions Marketing asked for. History only since Sprint 23 (K20: no longer written). */
     revision_count: number;
     revisions?: DesignRevision[];
     sent_to_client_at: string | null;
-    /** Sprint 22 — the architect handed it to Marketing; cleared once sent to the client. */
+    /** Sprint 22 — history only since Sprint 23 (K20: no longer written). */
     ready_for_client_at: string | null;
     ready_note: string | null;
     created_at: string;
@@ -415,14 +442,16 @@ export type QuotationStatus =
     | 'DRAFT'
     /** Sprint 12 #7 — waiting for the PM / Asisten PM item review. */
     | 'SUBMITTED'
-    /** RAB Proyek only — PM approved, waiting for the CEO. */
-    | 'WAITING_CEO'
-    | 'APPROVED_INTERNAL'
-    /** The Estimator handed the final RAB to Marketing. */
+    /** Sprint 23 K8 — approved by PM / Asisten PM, with Marketing (every type). */
     | 'READY_TO_SEND'
     | 'SENT_TO_CLIENT'
+    /** Sprint 23 K11 — the client said "Tidak Setuju" on the link; Marketing's turn. */
+    | 'CLIENT_REJECTED'
     | 'CLIENT_APPROVED'
     | 'CANCELLED'
+    /** Sprint 12 states removed in Sprint 23 (migrated to READY_TO_SEND) — never persisted any more. */
+    | 'WAITING_CEO'
+    | 'APPROVED_INTERNAL'
     /** Pre-Sprint-12 states — no longer persisted (App\Enums\QuotationStatus). */
     | 'CEO_REVIEW'
     | 'PM_REVIEW'
@@ -462,6 +491,67 @@ export interface Invoice {
     verified_at: string | null;
     reject_reason: string | null;
     rejected_at: string | null;
+    /** Sprint 23 K12d — how many times "Tandai Klien Sudah Bayar" was sent (photos of the current one: `attempt === proof_attempt`). */
+    proof_attempt?: number;
+    /** Sprint 23 K12d — proof photos of every submission, newest attempt first (Finance/CEO/Marketing only). */
+    payment_proofs?: InvoicePaymentProof[];
+    /** Sprint 23 K12 — Invoice::paymentTypeLabel(): "DP", "Termin 2 dari 4 · 30%", "Pelunasan", "Jasa Desain"… */
+    payment_type_label?: string;
+    /** Sprint 23 K12 — "DP · Proyek Kopi Oz" (or the client's name before there is a project). */
+    payment_label?: string;
+    /** Sprint 23 K12b — "Menunggu Konfirmasi Pembayaran DP · Proyek Kopi Oz" while MENUNGGU_VERIFIKASI, else null. */
+    status_label?: string | null;
+}
+
+/** Sprint 23 K12d — one payment proof photo (App\Models\InvoicePaymentProof); served by `finance.invoices.proofs.show`. */
+export interface InvoicePaymentProof {
+    id: number;
+    invoice_id: number;
+    attempt: number;
+    width: number;
+    height: number;
+    size: number;
+    uploaded_by: number;
+    created_at: string;
+    url: string;
+    thumb_url: string;
+}
+
+/** Sprint 23 K12c — one row of "Informasi Pembayaran" (InvoiceService::leadPayments()). */
+export interface LeadPaymentItem {
+    key: string;
+    kind: InvoiceType;
+    label: string;
+    context: string | null;
+    invoice_id: number | null;
+    invoice_number: string | null;
+    amount: number;
+    paid_amount: number;
+    due_date: string | null;
+    schedule_note: string | null;
+    state: 'BELUM_DITAGIH' | 'BELUM_DIBAYAR' | 'MENUNGGU_KONFIRMASI' | 'LUNAS';
+    /** StatusChip domain + status ("Belum Ditagih · Marketing", "Belum Dibayar · Klien", …). */
+    domain: 'invoice' | 'termin';
+    status: string;
+    overdue: boolean;
+    paid_date: string | null;
+    bank_account: string | null;
+    reject_reason: string | null;
+    pdf_url: string | null;
+}
+
+export interface LeadPayments {
+    summary: {
+        total: number;
+        paid: number;
+        awaiting_confirmation: number;
+        unpaid: number;
+        not_billed: number;
+        overdue: number;
+        overdue_count: number;
+        count: number;
+    };
+    items: LeadPaymentItem[];
 }
 
 /** Sprint 12 #8 — one ✔/✘ mark on a RAB item (App\Models\QuotationItemReview). */
@@ -472,11 +562,30 @@ export interface QuotationItemReview {
     quotation_item_id: number | null;
     item_description: string;
     section_name: string | null;
+    /** CEO = Sprint 12 history (the CEO no longer reviews, Sprint 23 K8). */
     stage: 'PM' | 'CEO';
     reviewer_id: number;
     reviewer?: Pick<User, 'id' | 'name'>;
     verdict: 'OK' | 'SALAH';
     note: string | null;
+    /** Sprint 23 K7 — copied from this earlier version's ✔ (item unchanged), not marked again. */
+    carried_from_version: number | null;
+    created_at: string;
+}
+
+/** Sprint 23 K5 — App\Models\QuotationItem::QTY_SOURCES (null = typed by the Estimator). */
+export type QuotationQtySource = 'P' | 'TL' | 'PxTL';
+
+/** Sprint 23 K9 / K11 — App\Models\QuotationNote (append-only, per version). */
+export interface QuotationNote {
+    id: number;
+    quotation_id: number;
+    version: number;
+    kind: 'CEO' | 'CLIENT' | 'MARKETING';
+    /** Null for the client's note (left on the public link). */
+    author_id: number | null;
+    author?: Pick<User, 'id' | 'name'> | null;
+    note: string;
     created_at: string;
 }
 
@@ -486,11 +595,13 @@ export interface QuotationItem {
     /** Sprint 12 #11 — null = pre-Sprint-12 item, shown under "Umum". */
     section_id: number | null;
     description: string;
-    /** Optional dimensions (P, T/L) — informational, the volume is typed. */
+    /** Optional dimensions (P, T/L) — Sprint 23 K5 may derive the volume from them. */
     dim_length: number | null;
     dim_width_height: number | null;
     /** Fractional allowed (Sprint 11) — 2.5. */
     qty: number;
+    /** Sprint 23 K5 — where the volume came from (null = typed). */
+    qty_source: QuotationQtySource | null;
     unit_id: number;
     unit: UnitOption | null;
     unit_price: string;
@@ -644,6 +755,15 @@ export interface Project {
     /** Loaded via `with('pm:id,name')` — see Project::pm() for why it isn't named `projectManager`. */
     pm?: Pick<User, 'id' | 'name'>;
     lead?: Pick<Lead, 'id' | 'client_name'>;
+    /** Sprint 23 K15 — Kepala Tim: a user (`team_lead_id`) or a typed name (outsider/vendor), one of the two. */
+    team_lead_id?: number | null;
+    team_lead_name?: string | null;
+    team_lead?: Pick<User, 'id' | 'name'> | null;
+    /** Sprint 23 K15 — Pengawas (QA/QC), a user with role QA. */
+    supervisor_id?: number | null;
+    supervisor?: Pick<User, 'id' | 'name'> | null;
+    /** Sprint 23 K15 — Tanggal Buka Proyek (start_date is never before it). */
+    opened_on?: string | null;
     status: ProjectStatus;
     start_date: string | null;
     end_date: string | null;
@@ -659,11 +779,14 @@ export interface ProjectStatusNote {
     at: string;
 }
 
+/** Shown to users as a "Timeline" (Sprint 23 K16); runs start_date → target_date ("Tanggal Selesai", K17). */
 export interface Milestone {
     id: number;
     project_id: number;
     project?: Pick<Project, 'id' | 'name'>;
     name: string;
+    /** Sprint 23 K17 — required for new timelines, backfilled for older ones. */
+    start_date: string | null;
     target_date: string;
     status: MilestoneStatus;
     order: number;
@@ -981,6 +1104,8 @@ export interface Termin {
     /** Sprint 12 #20 — the invoice Marketing issued for it. */
     invoice_id?: number | null;
     invoice?: (Pick<Invoice, 'id' | 'number' | 'status'> & Partial<Pick<Invoice, 'amount' | 'reject_reason'>>) | null;
+    /** Sprint 23 K12 — Termin::paymentLabel(): "DP", "Termin 2 dari 4 · 30%", "Pelunasan", "Pekerjaan Tambahan". */
+    payment_label?: string;
     termin_number: number;
     /** DECIMAL(5,2) since Sprint 12 — a scheme row may be 33,33 %. */
     percentage: string | number;

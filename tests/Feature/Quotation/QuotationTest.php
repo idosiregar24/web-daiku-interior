@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\NotificationPriority;
+use App\Enums\NotificationType;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Models\AuditLog;
@@ -15,6 +17,7 @@ use App\Models\User;
 use App\Services\QuotationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -147,7 +150,7 @@ test('estimator can submit a quotation for review', function () {
     expect($quotation->fresh()->status)->toBe(QuotationStatus::Submitted);
 });
 
-// ── Sprint 12 #7–#10: review PM / Asisten PM → CEO (RAB Proyek) → Marketing ──
+// ── Sprint 12 #7–#10, Sprint 23 K8–K10: review PM / Asisten PM → Marketing ──
 
 /** A submitted quotation of `$type` with two items: Kitchen Set + Meja. */
 function submittedQuotation(string $type = 'PROYEK', string $status = 'SUBMITTED'): Quotation
@@ -188,51 +191,56 @@ test('submitting sends the RAB to PM / Asisten PM for review', function () {
         ->toBe(collect([$pm->id, $assistant->id])->sort()->values()->all());
 });
 
-test('a RAB Jasa Survey / Desain needs only the PM review', function (string $type, string $role) {
+test('a PM / Asisten PM approval sends every RAB type straight to Marketing', function (string $type, string $role) {
     $reviewer = User::factory()->create();
     $reviewer->assignRole($role);
+    $marketing = User::factory()->create();
+    $marketing->assignRole('MARKETING');
     $quotation = submittedQuotation($type);
+    $quotation->lead->update(['assigned_to' => $marketing->id]);
 
     $this->actingAs($reviewer)->post(route('quotations.review', $quotation), reviewPayload($quotation, 'approve'))
         ->assertSessionHasNoErrors();
 
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ApprovedInternal)
+    $approval = QuotationApproval::sole();
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::ReadyToSend)
         ->and(QuotationItemReview::where('stage', 'PM')->where('verdict', 'OK')->count())->toBe(2)
-        ->and(AuditLog::where('action', 'quotation.pm_approved')->exists())->toBeTrue();
-})->with([['SURVEY', 'PM'], ['DESAIN', 'ASISTEN_PM']]);
+        ->and($approval->only(['approver_role', 'status', 'approver_id', 'version']))->toBe(['approver_role' => 'PM', 'status' => 'APPROVED', 'approver_id' => $reviewer->id, 'version' => 1])
+        ->and(AuditLog::where('action', 'quotation.pm_approved')->sole()->new_values['status'])->toBe('READY_TO_SEND')
+        ->and(Notification::where('user_id', $marketing->id)->where('type', 'quotation_ready_to_send')->exists())->toBeTrue()
+        ->and(Notification::where('user_id', $quotation->created_by)->where('type', 'quotation_approved')->exists())->toBeTrue();
+})->with([['SURVEY', 'PM'], ['DESAIN', 'ASISTEN_PM'], ['PROYEK', 'PM']]);
 
-test('a RAB Proyek goes PM → CEO → approved internally', function () {
+test('the CEO only hears about an approved RAB Proyek — info, nothing to decide', function (string $type, int $expected) {
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $ceo = User::factory()->create();
     $ceo->assignRole('CEO');
-    $quotation = submittedQuotation();
+    $quotation = submittedQuotation($type);
 
     $this->actingAs($pm)->post(route('quotations.review', $quotation), reviewPayload($quotation, 'approve'))->assertSessionHasNoErrors();
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::WaitingCeo)
-        ->and(Notification::where('user_id', $ceo->id)->where('type', 'quotation_awaiting_ceo')->exists())->toBeTrue();
 
-    // The CEO may approve without marking anything.
-    $this->actingAs($ceo)->post(route('quotations.review', $quotation), ['decision' => 'approve'])->assertSessionHasNoErrors();
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ApprovedInternal)
-        ->and(QuotationApproval::where('quotation_id', $quotation->id)->pluck('approver_role')->all())->toBe(['PM', 'CEO']);
-});
+    $notifications = Notification::where('user_id', $ceo->id)->get();
+    expect($notifications->where('type', 'quotation_project_approved'))->toHaveCount($expected)
+        ->and($notifications->where('type', 'quotation_awaiting_ceo'))->toHaveCount(0)
+        ->and(NotificationType::QuotationProjectApproved->priority())->toBe(NotificationPriority::Info);
+})->with([['PROYEK', 1], ['DESAIN', 0]]);
 
-test('the CEO cannot decide before the PM, nor the PM after', function () {
+test('the CEO can no longer review, and nobody reviews outside SUBMITTED', function () {
     $ceo = User::factory()->create();
     $ceo->assignRole('CEO');
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $submitted = submittedQuotation();
-    $waitingCeo = submittedQuotation('PROYEK', 'WAITING_CEO');
+    $ready = submittedQuotation('PROYEK', 'READY_TO_SEND');
 
-    $this->actingAs($ceo)->post(route('quotations.review', $submitted), reviewPayload($submitted, 'approve'))
-        ->assertSessionHasErrors(['status' => 'RAB ini menunggu review PM / Asisten PM terlebih dahulu.']);
-    $this->actingAs($pm)->post(route('quotations.review', $waitingCeo), reviewPayload($waitingCeo, 'approve'))
-        ->assertSessionHasErrors(['status' => 'RAB ini menunggu keputusan CEO.']);
+    $this->actingAs($ceo)->post(route('quotations.review', $submitted), reviewPayload($submitted, 'approve'))->assertForbidden();
+    $this->actingAs($pm)->post(route('quotations.review', $ready), reviewPayload($ready, 'approve'))
+        ->assertSessionHasErrors(['status' => 'RAB ini tidak sedang menunggu review.']);
 
-    expect($submitted->fresh()->status)->toBe(QuotationStatus::Submitted)
-        ->and($waitingCeo->fresh()->status)->toBe(QuotationStatus::WaitingCeo);
+    expect(fn () => app(QuotationService::class)->reviewStage($submitted, $ceo))->toThrow(ValidationException::class)
+        ->and($submitted->fresh()->status)->toBe(QuotationStatus::Submitted)
+        ->and($ready->fresh()->status)->toBe(QuotationStatus::ReadyToSend);
 });
 
 test('the PM must mark every item, and a ✘ needs a note', function () {
@@ -276,38 +284,37 @@ test('a ✘ forces the RAB back to the Estimator as a new version', function () 
 });
 
 test('a return without any ✘ needs a note', function () {
-    $ceo = User::factory()->create();
-    $ceo->assignRole('CEO');
-    $quotation = submittedQuotation('PROYEK', 'WAITING_CEO');
+    $pm = User::factory()->create();
+    $pm->assignRole('PM');
+    $quotation = submittedQuotation();
 
-    $this->actingAs($ceo)->post(route('quotations.review', $quotation), ['decision' => 'return'])->assertSessionHasErrors('note');
-    $this->actingAs($ceo)->post(route('quotations.review', $quotation), ['decision' => 'return', 'note' => 'Margin terlalu tipis.'])
+    $this->actingAs($pm)->post(route('quotations.review', $quotation), reviewPayload($quotation, 'return'))->assertSessionHasErrors('note');
+    $this->actingAs($pm)->post(route('quotations.review', $quotation), [...reviewPayload($quotation, 'return'), 'note' => 'Margin terlalu tipis.'])
         ->assertSessionHasNoErrors();
 
     expect($quotation->fresh()->status)->toBe(QuotationStatus::Draft)
-        ->and(QuotationRevision::sole()->reason)->toBe(QuotationRevision::REASON_CEO_REJECTED);
+        ->and(QuotationRevision::sole()->reason)->toBe(QuotationRevision::REASON_PM_REJECTED);
 });
 
-test('the Estimator sends the approved RAB to Marketing, Marketing to the client', function () {
-    $estimator = User::factory()->create();
-    $estimator->assignRole('ESTIMATOR');
+test('Marketing sends the PM-approved RAB to the client — there is no "Kirim ke Marketing" any more', function () {
     $marketing = User::factory()->create();
     $marketing->assignRole('MARKETING');
-    $quotation = submittedQuotation('DESAIN', 'APPROVED_INTERNAL');
+    $pm = User::factory()->create();
+    $pm->assignRole('PM');
+    $quotation = submittedQuotation('DESAIN');
     $quotation->lead->update(['assigned_to' => $marketing->id]);
 
     $this->actingAs($marketing)->post(route('quotations.sendToClient', $quotation))->assertSessionHasErrors('status');
+    expect(Route::has('quotations.sendToMarketing'))->toBeFalse();
 
-    $this->actingAs($estimator)->post(route('quotations.sendToMarketing', $quotation))->assertSessionHasNoErrors();
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ReadyToSend)
-        ->and(Notification::where('user_id', $marketing->id)->where('type', 'quotation_ready_to_send')->exists())->toBeTrue();
-
+    $this->actingAs($pm)->post(route('quotations.review', $quotation), reviewPayload($quotation, 'approve'))->assertSessionHasNoErrors();
     $this->actingAs($marketing)->post(route('quotations.sendToClient', $quotation))->assertSessionHasNoErrors();
+
     $quotation->refresh();
     expect($quotation->status)->toBe(QuotationStatus::SentToClient)
         ->and($quotation->valid_until)->not->toBeNull()
         ->and($quotation->first_sent_at)->not->toBeNull()
-        ->and(AuditLog::whereIn('action', ['quotation.sent_to_marketing', 'quotation.sent_to_client'])->count())->toBe(2);
+        ->and(AuditLog::where('action', 'quotation.sent_to_client')->count())->toBe(1);
 });
 
 test('Marketing cancels a running RAB with a reason, releasing its survey', function () {
@@ -335,21 +342,18 @@ test('a closed RAB cannot be cancelled', function () {
         ->toThrow(ValidationException::class);
 });
 
-test('only reviewers review, only the Estimator sends to Marketing, only Marketing/CEO send to the client or cancel', function (string $role) {
+test('only PM / Asisten PM review, only Marketing/CEO send to the client or cancel', function (string $role) {
     $user = User::factory()->create();
     $user->assignRole($role);
     $submitted = submittedQuotation();
-    $approved = submittedQuotation('PROYEK', 'APPROVED_INTERNAL');
     $ready = submittedQuotation('PROYEK', 'READY_TO_SEND');
 
     $review = $this->actingAs($user)->post(route('quotations.review', $submitted), reviewPayload($submitted, 'approve'));
-    $toMarketing = $this->actingAs($user)->post(route('quotations.sendToMarketing', $approved));
     $toClient = $this->actingAs($user)->post(route('quotations.sendToClient', $ready));
     $cancel = $this->actingAs($user)->post(route('quotations.cancel', $ready), ['reason' => 'x']);
 
     $expect = fn ($response, array $allowed) => in_array($role, $allowed, true) ? $response->assertRedirect() : $response->assertForbidden();
-    $expect($review, ['PM', 'ASISTEN_PM', 'CEO']);
-    $expect($toMarketing, ['ESTIMATOR']);
+    $expect($review, ['PM', 'ASISTEN_PM']);
     $expect($toClient, ['MARKETING', 'CEO']);
     $expect($cancel, ['MARKETING', 'CEO']);
 })->with(['ESTIMATOR', 'MARKETING', 'DESIGNER', 'FINANCE', 'PM', 'ASISTEN_PM', 'CEO']);
@@ -360,13 +364,12 @@ test('the detail page tells each reviewer whether it is their turn', function (s
     $quotation = submittedQuotation('PROYEK', $status);
 
     $this->actingAs($user)->get(route('quotations.show', $quotation))
-        ->assertInertia(fn (Assert $page) => $page->where('reviewStage', $stage)->has('itemReviews'));
+        ->assertInertia(fn (Assert $page) => $page->where('reviewStage', $stage)->has('itemReviews')->has('carriedMarks'));
 })->with([
     ['SUBMITTED', 'PM', 'PM'],
     ['SUBMITTED', 'ASISTEN_PM', 'PM'],
     ['SUBMITTED', 'CEO', null],
-    ['WAITING_CEO', 'CEO', 'CEO'],
-    ['WAITING_CEO', 'PM', null],
+    ['READY_TO_SEND', 'PM', null],
 ]);
 
 test('item reviews are append-only', function () {

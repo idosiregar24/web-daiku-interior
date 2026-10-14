@@ -102,26 +102,28 @@ test('a changed title tells the tukang; a priority-only edit, a DONE task or a r
 
 // ── Every P1 has a queue ────────────────────────────────────────────────
 
-test('a client revision lands in the architect\'s own queue, not other architects\'', function () {
+// Sprint 23 K20 — revisions are asked in the WhatsApp group: one architect queue
+// ("Desain sedang Anda kerjakan") holds DESAIN and the old REVISI_DESAIN rows.
+test('a design being worked on lands in the architect\'s own queue, not other architects\'', function () {
     $architect = notificationAuditUser('DESIGNER');
     $other = notificationAuditUser('DESIGNER');
     $mine = Design::factory()->create(['pic_id' => $architect->id, 'status' => DesignStatus::RevisiDesain->value]);
     Design::factory()->create(['pic_id' => $other->id, 'status' => DesignStatus::RevisiDesain->value]);
     Design::factory()->create(['pic_id' => $architect->id, 'status' => DesignStatus::Desain->value]);
 
-    $revisions = notificationAuditInbox($architect, 'design-revision');
-    expect($revisions['count'])->toBe(1)
-        ->and($revisions['items'][0]['href'])->toBe(route('design.show', $mine))
-        ->and($revisions['routeName'])->toBe('design.index')
-        ->and(notificationAuditInbox($architect, 'design-work')['count'])->toBe(1);
+    $work = notificationAuditInbox($architect, 'design-work');
+    expect($work['count'])->toBe(2)
+        ->and(collect($work['items'])->pluck('href'))->toContain(route('design.show', $mine))
+        ->and($work['routeName'])->toBe('design.index')
+        ->and(notificationAuditInbox($architect, 'design-revision'))->toBeNull();
 });
 
-test('a team member (not only the PIC) sees the revision too', function () {
+test('a team member (not only the PIC) sees the design too', function () {
     $architect = notificationAuditUser('DESIGNER');
-    $design = Design::factory()->create(['pic_id' => notificationAuditUser('DESIGNER')->id, 'status' => DesignStatus::RevisiDesain->value]);
+    $design = Design::factory()->create(['pic_id' => notificationAuditUser('DESIGNER')->id, 'status' => DesignStatus::Desain->value]);
     $design->staff()->attach($architect->id);
 
-    expect(notificationAuditInbox($architect, 'design-revision')['count'])->toBe(1);
+    expect(notificationAuditInbox($architect, 'design-work')['count'])->toBe(1);
 });
 
 test('a paid survey waits in its Marketing owner\'s queue until it is done', function () {
@@ -147,16 +149,14 @@ test('every P1 type is one that a "Perlu Tindakan" queue or pop-up covers', func
         'survey_to_schedule' => 'survey-schedule',
         'quotation_requested' => 'quotation-requested',
         'quotation_submitted' => 'quotation-pm',
-        'quotation_awaiting_ceo' => 'quotation-ceo',
         'quotation_returned' => 'quotation-returned',
-        'quotation_client_rejected' => 'quotation-returned',
+        // Sprint 23 K11 — Marketing's queue (the forwarded one reaches the Estimator's quotation-returned).
+        'quotation_client_rejected' => 'quotation-client-rejected',
         'quotation_ready_to_send' => 'quotation-send',
         'invoice_to_issue' => 'quotation-invoice',
         'invoice_awaiting_verification' => 'invoice-verify',
         'invoice_rejected' => 'invoice-proof',
-        'design_revision_requested' => 'design-revision',
         'design_ready_to_assign' => 'design-assign',
-        'design_ready_to_send' => 'design-send',
         'design_acc' => 'quotation-requested',
         'project_opening_pending' => 'project-opening',
     ];

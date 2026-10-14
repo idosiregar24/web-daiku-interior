@@ -25,6 +25,6 @@ export function quotationTitle(quotation: Pick<Quotation, 'type'> & Partial<Pick
 export const PAYMENT_TRIGGER_LABEL: Record<PaymentTermTrigger, string> = {
     DI_MUKA: 'Di muka (saat disetujui)',
     TANGGAL: 'Tanggal tertentu',
-    MILESTONE: 'Milestone selesai',
+    MILESTONE: 'Timeline selesai',
     PROYEK_SELESAI: 'Proyek selesai',
 };

@@ -6,6 +6,7 @@ use App\Enums\MilestoneStatus;
 use App\Enums\NotificationType;
 use App\Models\Milestone;
 use App\Models\Project;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
 class MilestoneService
@@ -46,9 +47,9 @@ class MilestoneService
             $this->notificationService->notifyMany(
                 [$project->pm],
                 NotificationType::MilestoneOverdue,
-                'Milestone Melewati Target',
-                'Milestone '.$milestones->pluck('name')->map(fn ($name) => "\"{$name}\"")->implode(', ')
-                    ." di proyek \"{$project->name}\" melewati target tanggal.",
+                'Timeline Melewati Tanggal Selesai',
+                'Timeline '.$milestones->pluck('name')->map(fn ($name) => "\"{$name}\"")->implode(', ')
+                    ." di proyek \"{$project->name}\" melewati tanggal selesainya.",
                 ['project_id' => $project->id],
             );
         });
@@ -61,6 +62,13 @@ class MilestoneService
      * reorders explicitly afterward (via `reorder()`), never by guessing
      * an `order` value on create. A COMPLETED/CANCELLED project's plan is
      * final (Sprint 9 decision #1).
+     *
+     * Sprint 23 K17 — the form always sends `start_date` (required by
+     * StoreMilestoneRequest); an internal caller without one gets the same
+     * default the migration backfilled: the day after the last timeline's
+     * end, or the project's start for the first — never after its own end.
+     *
+     * @param  array{name: string, start_date?: string|null, target_date: string}  $data
      */
     public function create(Project $project, array $data): Milestone
     {
@@ -70,6 +78,7 @@ class MilestoneService
 
         return $project->milestones()->create([
             ...$data,
+            'start_date' => $data['start_date'] ?? $this->defaultStartDate($project, $data['target_date']),
             'order' => $nextOrder,
         ]);
     }
@@ -110,7 +119,7 @@ class MilestoneService
         // (markOverdueMilestones()), the work can still be handed to QA.
         if (! in_array($milestone->status, [MilestoneStatus::Pending, MilestoneStatus::InProgress, MilestoneStatus::Overdue], true)) {
             throw ValidationException::withMessages([
-                'status' => 'Milestone ini sudah menunggu QA atau sudah selesai.',
+                'status' => 'Timeline ini sudah menunggu QA atau sudah selesai.',
             ]);
         }
 
@@ -125,11 +134,24 @@ class MilestoneService
         return $milestone->fresh();
     }
 
+    private function defaultStartDate(Project $project, string $targetDate): string
+    {
+        $previous = $project->milestones()->reorder()->orderByDesc('order')->orderByDesc('target_date')->orderByDesc('id')->first();
+        $end = Carbon::parse($targetDate)->startOfDay();
+        $start = match (true) {
+            $previous !== null => $previous->target_date->copy()->addDay(),
+            $project->start_date !== null => $project->start_date->copy(),
+            default => $end->copy(),
+        };
+
+        return $start->min($end)->toDateString();
+    }
+
     private function ensureProjectOpen(Project $project): void
     {
         if ($project->isClosed()) {
             throw ValidationException::withMessages([
-                'project' => "Proyek \"{$project->name}\" sudah {$project->status->value} — milestone-nya tidak bisa ditambah atau diajukan ke QA lagi.",
+                'project' => "Proyek \"{$project->name}\" sudah {$project->status->value} — timeline-nya tidak bisa ditambah atau diajukan ke QA lagi.",
             ]);
         }
     }

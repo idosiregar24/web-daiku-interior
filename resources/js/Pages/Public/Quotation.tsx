@@ -11,12 +11,13 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Label } from '@/Components/ui/label';
+import { Textarea } from '@/Components/ui/textarea';
 import { LetterDocument } from '@/Components/modules/quotation/LetterDocument';
 import PublicLayout from '@/Layouts/PublicLayout';
 import { formatDateTime, formatRupiah } from '@/lib/format';
 import type { CompanyLetter, PageProps } from '@/types';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { CheckCircle2, FileDown } from 'lucide-react';
+import { CheckCircle2, FileDown, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { RequiredMark } from '@/Components/shared/RequiredMark';
 
@@ -61,8 +62,11 @@ interface PublicQuotation {
     letter: CompanyLetter;
 }
 
-/** QuotationService::publicState(). */
-type PublicState = 'open' | 'approved' | 'outdated' | 'expired' | 'unavailable';
+/** QuotationService::publicState() — `rejected`: the client said "Tidak Setuju" (Sprint 23 K11). */
+type PublicState = 'open' | 'approved' | 'rejected' | 'outdated' | 'expired' | 'unavailable';
+
+/** App\Models\QuotationNote::MAX_LENGTH — mirrors RejectPublicQuotationRequest. */
+const NOTE_MAX = 1000;
 
 interface PublicQuotationProps {
     token: string;
@@ -70,7 +74,7 @@ interface PublicQuotationProps {
     quotation: PublicQuotation;
 }
 
-const STATE_NOTICE: Record<Exclude<PublicState, 'open' | 'approved'>, string> = {
+const STATE_NOTICE: Record<Exclude<PublicState, 'open' | 'approved' | 'rejected'>, string> = {
     outdated: 'Penawaran ini sudah diperbarui. Silakan minta link penawaran terbaru kepada Marketing kami.',
     expired: 'Masa berlaku penawaran ini sudah habis. Silakan hubungi Marketing kami untuk penawaran terbaru.',
     unavailable: 'Penawaran ini sedang tidak berlaku. Silakan hubungi Marketing kami.',
@@ -78,14 +82,18 @@ const STATE_NOTICE: Record<Exclude<PublicState, 'open' | 'approved'>, string> = 
 
 /**
  * Sprint 12 decisions #13–#14 — the client's offer, opened from the link
- * without logging in: the RAB as on the PDF, its payment scheme, and one
- * action, "Setujui Penawaran", confirmed with a mandatory tick. Revisions
- * go through WhatsApp with Marketing, so there is no reject button.
+ * without logging in: the RAB as on the PDF, its payment scheme, and two
+ * actions: "Setujui Penawaran" (confirmed with a mandatory tick) or —
+ * Sprint 23 K11 — "Tidak Setuju" with a mandatory reason, which goes to
+ * Marketing to revise the offer.
  */
 export default function PublicQuotationPage({ token, state, quotation }: PublicQuotationProps) {
     const { flash } = usePage<PageProps>().props;
     const [confirmOpen, setConfirmOpen] = useState(false);
+    const [rejectOpen, setRejectOpen] = useState(false);
     const form = useForm<{ agree: boolean }>({ agree: false });
+    const rejectForm = useForm<{ note: string }>({ note: '' });
+    const noteMissing = rejectForm.data.note.trim().length < 3;
 
     function closeConfirm() {
         setConfirmOpen(false);
@@ -99,8 +107,24 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
     // "sudah disetujui") — or the link went stale, close it at once: the
     // page's own notice says what happened.
     useEffect(() => {
-        if (state !== 'open') closeConfirm();
+        if (state !== 'open') {
+            closeConfirm();
+            closeReject();
+        }
     }, [state]);
+
+    function closeReject() {
+        setRejectOpen(false);
+        rejectForm.reset();
+        rejectForm.clearErrors();
+    }
+
+    function reject() {
+        rejectForm.post(route('public.quotation.reject', token), {
+            preserveScroll: true,
+            onSuccess: closeReject,
+        });
+    }
 
     function approve() {
         form.post(route('public.quotation.approve', token), {
@@ -122,13 +146,16 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                         Penawaran ini telah Anda setujui{quotation.approvedAt ? ` pada ${formatDateTime(quotation.approvedAt)}` : ''}. Terima kasih.
                     </Notice>
                 )}
-                {state !== 'open' && state !== 'approved' && <Notice tone="warning">{STATE_NOTICE[state]}</Notice>}
+                {state === 'rejected' && (
+                    <Notice tone="info">Anda telah menyatakan tidak setuju dengan penawaran ini. Marketing kami akan menghubungi Anda untuk memperbaikinya.</Notice>
+                )}
+                {state !== 'open' && state !== 'approved' && state !== 'rejected' && <Notice tone="warning">{STATE_NOTICE[state]}</Notice>}
 
                 {/* Sprint 15 — the same letter as the PDF (QuotationLetter). */}
                 <LetterDocument letter={quotation.letter} />
 
                 <div className="flex flex-col-reverse items-stretch gap-2 rounded-2xl bg-card p-4 ring-1 ring-daiku-border sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm text-daiku-muted">Ada yang ingin diubah? Hubungi Marketing kami lewat WhatsApp.</p>
+                    <p className="text-sm text-daiku-muted">Ada yang ingin diubah? Pilih "Tidak Setuju" dan tuliskan alasannya, atau hubungi Marketing kami lewat WhatsApp.</p>
                     <div className="flex flex-col gap-2 sm:flex-row">
                         {state !== 'outdated' && state !== 'unavailable' && (
                             <Button variant="outline" size="lg" asChild>
@@ -136,6 +163,12 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                                     <FileDown className="size-4" />
                                     Unduh PDF
                                 </a>
+                            </Button>
+                        )}
+                        {state === 'open' && (
+                            <Button variant="outline" size="lg" onClick={() => setRejectOpen(true)}>
+                                <XCircle className="size-4" />
+                                Tidak Setuju
                             </Button>
                         )}
                         {state === 'open' && (
@@ -177,6 +210,43 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                         </DialogClose>
                         <Button type="button" onClick={approve} disabled={!form.data.agree || form.processing}>
                             Setujui
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={rejectOpen && state === 'open'} onOpenChange={(open) => (open ? setRejectOpen(true) : closeReject())}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Tidak Setuju dengan Penawaran</DialogTitle>
+                        <DialogDescription>
+                            Beri tahu kami apa yang perlu diubah pada {quotation.typeLabel} versi {quotation.version}. Marketing kami akan menghubungi Anda
+                            dengan penawaran yang diperbaiki.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="reject-note">
+                            Alasan / yang perlu diubah
+                            <RequiredMark />
+                        </Label>
+                        <Textarea
+                            id="reject-note"
+                            rows={4}
+                            maxLength={NOTE_MAX}
+                            value={rejectForm.data.note}
+                            onChange={(event) => rejectForm.setData('note', event.target.value)}
+                            placeholder="mis. Harga lemari terlalu tinggi, saya ingin finishing HPL."
+                        />
+                        {rejectForm.errors.note && <p className="text-sm text-destructive">{rejectForm.errors.note}</p>}
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="outline">
+                                Batal
+                            </Button>
+                        </DialogClose>
+                        <Button type="button" onClick={reject} disabled={noteMissing || rejectForm.processing}>
+                            Kirim
                         </Button>
                     </DialogFooter>
                 </DialogContent>

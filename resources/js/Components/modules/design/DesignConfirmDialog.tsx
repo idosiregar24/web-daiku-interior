@@ -22,9 +22,9 @@ interface DesignConfirmDialogProps {
 }
 
 /**
- * Sprint 12 decision #17 — Marketing's yes/no steps on a design ("Kirim ke
- * Klien", "Desain Disetujui Klien"): no fields, the server checks the
- * status (DesignService) and flashes the outcome.
+ * A yes/no step on a design — since Sprint 23 only "Desain Disetujui Klien"
+ * (the lead's Marketing or the design team): no fields, the server checks
+ * the status and the saved link (DesignService) and flashes the outcome.
  */
 export function DesignConfirmDialog({ open, onOpenChange, title, description, confirmLabel, action }: DesignConfirmDialogProps) {
     const [submitting, setSubmitting] = useState(false);

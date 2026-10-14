@@ -18,6 +18,7 @@ import {
     FormLabel,
     FormMessage,
 } from '@/Components/ui/form';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Input } from '@/Components/ui/input';
 import {
     Select,
@@ -248,7 +249,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="milestone_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Milestone</FormLabel>
+                                        <FormLabel>Timeline</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
@@ -256,7 +257,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                         >
                                             <FormControl>
                                                 <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Pilih milestone" />
+                                                    <SelectValue placeholder="Pilih timeline" />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
@@ -319,7 +320,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 <FormItem>
                                     <FormLabel>Rate per Task (Rp)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" min="0" step="0.01" disabled={isLocked('rate_per_task')} {...field} />
+                                        <MoneyInput decimals={2} disabled={isLocked('rate_per_task')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

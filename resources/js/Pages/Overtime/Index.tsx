@@ -1,4 +1,6 @@
 import { formatRupiah } from '@/lib/format';
+import { domainStatusLabel, statusWithHolder, waitingOn } from '@/lib/waitingOn';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -143,7 +145,7 @@ function RequestOvertimeDialog({ open, onOpenChange, projects }: { open: boolean
                                     <FormItem>
                                         <FormLabel required>Rate/Jam (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="1000" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -395,7 +397,7 @@ export default function OvertimeIndex({
                                 <SelectItem value="all">Semua status</SelectItem>
                                 {STATUS_OPTIONS.map((status) => (
                                     <SelectItem key={status} value={status}>
-                                        {status.replace(/_/g, ' ')}
+                                        {statusWithHolder(domainStatusLabel('overtime', status) ?? status, waitingOn('overtime', status))}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -426,7 +428,7 @@ export default function OvertimeIndex({
                                                 {new Date(overtime.work_date).toLocaleDateString('id-ID')} · {overtime.hours} jam
                                             </p>
                                         </div>
-                                        <StatusChip status={overtime.status} />
+                                        <StatusChip domain="overtime" status={overtime.status} />
                                     </div>
                                     <p className="text-sm font-semibold text-daiku-dark tabular-nums">{formatRupiah(overtime.total_amount)}</p>
                                     {actions && <div className="grid grid-cols-2 gap-2">{actions}</div>}
@@ -468,7 +470,7 @@ export default function OvertimeIndex({
                                     <td className="px-4 py-3 text-daiku-muted">{overtime.hours} jam</td>
                                     <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(overtime.total_amount)}</td>
                                     <td className="px-4 py-3">
-                                        <StatusChip status={overtime.status} />
+                                        <StatusChip domain="overtime" status={overtime.status} />
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex justify-end gap-1">{decisionButtons(overtime)}</div>

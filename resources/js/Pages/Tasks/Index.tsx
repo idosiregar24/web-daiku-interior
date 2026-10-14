@@ -150,7 +150,7 @@ export default function TasksIndex({
         },
         {
             id: 'milestone',
-            header: 'Milestone',
+            header: 'Timeline',
             cell: ({ row }) => row.original.milestone?.name ?? '—',
         },
         {
@@ -165,7 +165,7 @@ export default function TasksIndex({
         {
             accessorKey: 'status',
             header: 'Status',
-            cell: ({ row }) => <StatusChip status={row.original.status} />,
+            cell: ({ row }) => <StatusChip domain="task" status={row.original.status} />,
         },
         {
             accessorKey: 'due_date',
@@ -211,7 +211,7 @@ export default function TasksIndex({
                 description={
                     isFieldStaff
                         ? 'Daftar tugas yang diberikan kepada Anda.'
-                        : 'Semua task di seluruh proyek — filter berdasarkan jatuh tempo, milestone, tukang, dan status.'
+                        : 'Semua task di seluruh proyek — filter berdasarkan jatuh tempo, timeline, tukang, dan status.'
                 }
                 actions={
                     isFieldStaff &&
@@ -377,10 +377,10 @@ export default function TasksIndex({
                                         }
                                     >
                                         <SelectTrigger className="sm:w-64">
-                                            <SelectValue placeholder="Semua milestone" />
+                                            <SelectValue placeholder="Semua timeline" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Semua milestone</SelectItem>
+                                            <SelectItem value="all">Semua timeline</SelectItem>
                                             {milestones.map((milestone) => (
                                                 <SelectItem key={milestone.id} value={String(milestone.id)}>
                                                     {milestone.project?.name} — {milestone.name}

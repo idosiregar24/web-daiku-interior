@@ -53,17 +53,17 @@ export function TaskKanbanBoard({ tasks, milestones, onCardClick }: TaskKanbanBo
         <div>
             <div className="mb-3 flex items-center gap-2">
                 <Select value={milestoneFilter} onValueChange={setMilestoneFilter}>
-                    <SelectTrigger className="w-60" aria-label="Filter milestone">
+                    <SelectTrigger className="w-60" aria-label="Filter timeline">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">Semua milestone</SelectItem>
+                        <SelectItem value="all">Semua timeline</SelectItem>
                         {milestones.map((milestone) => (
                             <SelectItem key={milestone.id} value={String(milestone.id)}>
                                 {milestone.name}
                             </SelectItem>
                         ))}
-                        <SelectItem value={NO_MILESTONE}>Tanpa milestone</SelectItem>
+                        <SelectItem value={NO_MILESTONE}>Tanpa timeline</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

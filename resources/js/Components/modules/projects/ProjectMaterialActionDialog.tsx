@@ -11,6 +11,7 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
@@ -286,7 +287,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                         <FormItem>
                                             <FormLabel required>Harga Beli per {unit || 'satuan'} (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                <MoneyInput decimals={2} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -397,7 +398,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                         <FormItem>
                                             <FormLabel required>Harga gudang (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                <MoneyInput decimals={2} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

@@ -83,10 +83,7 @@ export default function AssetInstallmentIndex({ assets, filters, summary, canPay
             accessorKey: 'installment_status',
             header: 'Status',
             cell: ({ row }) => (
-                <StatusChip
-                    status={row.original.installment_status}
-                    label={ASSET_INSTALLMENT_STATUS_LABELS[row.original.installment_status]}
-                />
+                <StatusChip domain="assetInstallment" status={row.original.installment_status} />
             ),
         },
         {

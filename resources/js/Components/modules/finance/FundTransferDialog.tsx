@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Notice } from '@/Components/shared/Notice';
 import { Button } from '@/Components/ui/button';
 import {
@@ -190,7 +191,7 @@ export function FundTransferDialog({ open, onOpenChange, bankAccounts }: FundTra
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

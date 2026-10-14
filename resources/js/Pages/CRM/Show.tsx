@@ -9,6 +9,7 @@ import { LeadFormDialog } from '@/Components/modules/crm/LeadFormDialog';
 import { LeadStatusDialog } from '@/Components/modules/crm/LeadStatusDialog';
 import { LeadTimeline } from '@/Components/modules/crm/LeadTimeline';
 import { SubmitLeadRequestDialog } from '@/Components/modules/crm/SubmitLeadRequestDialog';
+import { PaymentInfoCard } from '@/Components/modules/finance/PaymentInfoCard';
 import { AutoProjectRabNotice, type RunningProjectRab } from '@/Components/modules/quotation/AutoProjectRabNotice';
 import { RabHistoryCard } from '@/Components/modules/quotation/RabHistoryCard';
 import { QuotationDecisionDialog } from '@/Components/modules/quotation/QuotationDecisionDialog';
@@ -16,10 +17,12 @@ import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpi
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
+import { statusWithHolder, waitingOn, type WaitingDomain } from '@/lib/waitingOn';
 import type {
     Design,
     Lead,
     LeadActiveQuotation,
+    LeadPayments,
     CityOption,
     LeadCategoryOption,
     LeadFollowUp,
@@ -50,7 +53,7 @@ import { type ReactNode, useState } from 'react';
 type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> & {
     follow_ups: LeadFollowUp[];
     surveys: LeadSurvey[];
-    design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
+    design: (Pick<Design, 'id' | 'status' | 'deadline' | 'client_acc' | 'client_acc_at' | 'client_approver'> & { pic?: Pick<User, 'id' | 'name'> | null }) | null;
     quotation: Pick<Quotation, 'id' | 'type' | 'custom_name' | 'status' | 'total_amount' | 'version' | 'valid_until' | 'client_approved_at'> | null;
     /** Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the lead ("Riwayat RAB"), newest first. */
     quotations: (Pick<Quotation, 'id' | 'type' | 'custom_name' | 'parent_quotation_id' | 'status' | 'total_amount' | 'version' | 'created_at'> & {
@@ -78,6 +81,8 @@ interface LeadShowProps {
     projectRab: RunningProjectRab | null;
     /** Sprint 19 Sub 05 — per kind the newest non-cancelled RAB (no RAB Tambahan), Proyek > Desain > Survey. */
     activeQuotations: LeadActiveQuotation[];
+    /** Sprint 23 K12c — "Informasi Pembayaran"; null for every role but CEO, Marketing and the project's PM. */
+    payments: LeadPayments | null;
 }
 
 /**
@@ -97,6 +102,7 @@ export default function LeadShow({
     customRabNames,
     projectRab,
     activeQuotations,
+    payments,
 }: LeadShowProps) {
     const [formOpen, setFormOpen] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -113,6 +119,8 @@ export default function LeadShow({
     const nextFollowUp = lead.follow_ups.filter((followUp) => !followUp.done_at).sort((a, b) => a.scheduled_date.localeCompare(b.scheduled_date))[0];
     const isOverdue = !!nextFollowUp && !isClosed && new Date(nextFollowUp.scheduled_date) < startOfToday();
     const sourceName = lead.lead_source?.name ?? lead.source;
+    // Sprint 23 K4b — one line under the title: what happens next and whose turn it is.
+    const step = leadStep(lead, currentRab);
 
     return (
         <AppLayout
@@ -125,7 +133,7 @@ export default function LeadShow({
                 icon={UserRound}
                 description={
                     <span className="flex flex-wrap items-center gap-2">
-                        <StatusChip status={lead.status} />
+                        <StatusChip domain="lead" status={lead.status} />
                         <StatusChip status={lead.priority} />
                         <span>
                             Dibuat {formatDate(lead.created_at)}
@@ -133,6 +141,7 @@ export default function LeadShow({
                         </span>
                     </span>
                 }
+                step={step}
                 actions={
                     canManage && (
                         <>
@@ -247,12 +256,17 @@ export default function LeadShow({
                             icon={Palette}
                             label="Desain"
                             status={lead.design?.status}
+                            domain="design"
                             href={lead.design ? route('design.show', { design: lead.design.id }) : undefined}
                         >
                             {lead.design ? (
                                 <>
                                     PIC {lead.design.pic?.name ?? '—'} · Deadline {formatDate(lead.design.deadline)}
-                                    {lead.design.client_acc && ' · Sudah di-ACC klien'}
+                                    {/* Sprint 23 K19 — who recorded the client's approval, and when. */}
+                                    {lead.design.client_acc &&
+                                        (lead.design.client_approver && lead.design.client_acc_at
+                                            ? ` · Disetujui klien — dicatat oleh ${lead.design.client_approver.name}, ${formatDateTime(lead.design.client_acc_at)}`
+                                            : ' · Disetujui klien')}
                                 </>
                             ) : (
                                 'Dibuka otomatis setelah klien menyetujui RAB Jasa Desain (lewat "Buat RAB").'
@@ -262,6 +276,7 @@ export default function LeadShow({
                             icon={FileText}
                             label="RAB"
                             status={currentRab?.status}
+                            domain="quotation"
                             href={currentRab ? route('quotations.show', { quotation: currentRab.id }) : undefined}
                         >
                             {currentRab ? (
@@ -291,7 +306,7 @@ export default function LeadShow({
                                                     >
                                                         {rab.title} · Versi {rab.version}
                                                     </Link>
-                                                    <StatusChip status={rab.status} />
+                                                    <StatusChip domain="quotation" status={rab.status} />
                                                 </li>
                                             ))}
                                         </ul>
@@ -305,6 +320,7 @@ export default function LeadShow({
                             icon={FolderKanban}
                             label="Proyek"
                             status={lead.project?.status}
+                            domain="project"
                             href={lead.project ? route('projects.show', { project: lead.project.id }) : undefined}
                         >
                             {lead.project ? (
@@ -314,8 +330,8 @@ export default function LeadShow({
                                 </>
                             ) : lead.quotation?.status === 'CLIENT_APPROVED' ? (
                                 <>
-                                    RAB Proyek disetujui klien {formatDateTime(lead.quotation.client_approved_at)} — menunggu CEO membuka
-                                    proyeknya (Proyek → Menunggu Dibuka).
+                                    RAB Proyek disetujui klien {formatDateTime(lead.quotation.client_approved_at)} — menunggu PM yang
+                                    menyetujui RAB membuka proyeknya (Proyek → Menunggu Dibuka).
                                 </>
                             ) : (
                                 'Dibuka setelah klien menyetujui RAB Proyek lewat link penawaran.'
@@ -324,6 +340,9 @@ export default function LeadShow({
                     </ul>
                 </SectionCard>
             </div>
+
+            {/* Sprint 23 K12c — the client's payments (CEO, Marketing, the project's PM only — props are null otherwise). */}
+            {payments && <PaymentInfoCard payments={payments} className="mt-6" />}
 
             {/* Sprint 14 Sub 02 — every RAB of this client, one section per kind. */}
             <div className="mt-6">
@@ -409,16 +428,56 @@ export default function LeadShow({
     );
 }
 
+/**
+ * Sprint 23 K4b — the step line under the lead's name: the running RAB or
+ * design and whose turn it is ("RAB Proyek: Siap Dikirim · Marketing"),
+ * else what Marketing does next at this stage. Wording comes from
+ * lib/waitingOn.ts, never per page.
+ */
+function leadStep(lead: LeadDetail, currentRab: LeadActiveQuotation | undefined): ReactNode {
+    if (lead.status === 'LOST') {
+        return null;
+    }
+
+    if (lead.status === 'FOLLOW_UP') {
+        return statusWithHolder('Follow-up klien; bila tertarik, tekan "Ajukan Desain/Survey"', waitingOn('lead', lead.status));
+    }
+
+    const running: [string, WaitingDomain, string | undefined][] = [
+        [currentRab?.title ?? 'RAB', 'quotation', currentRab?.status],
+        ['Desain', 'design', lead.design?.status],
+    ];
+
+    for (const [name, domain, status] of running) {
+        if (status && waitingOn(domain, status)) {
+            return (
+                <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {name}: <StatusChip domain={domain} status={status} />
+                </span>
+            );
+        }
+    }
+
+    if (lead.status === 'DEAL_DESAIN') {
+        return statusWithHolder('Buat RAB yang dibutuhkan klien (Survey, Desain, atau Proyek)', waitingOn('lead', lead.status));
+    }
+
+    return null;
+}
+
 function StageRow({
     icon: Icon,
     label,
     status,
+    domain,
     href,
     children,
 }: {
     icon: LucideIcon;
     label: string;
     status?: string;
+    /** Sprint 23 K3 — the status's domain, for its wording and whose turn it is. */
+    domain?: WaitingDomain;
     href?: string;
     children: ReactNode;
 }) {
@@ -428,7 +487,7 @@ function StageRow({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-foreground">{label}</p>
-                    {status && <StatusChip status={status} />}
+                    {status && <StatusChip domain={domain} status={status} />}
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{children}</div>
                 {href && (

@@ -35,7 +35,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
             <PageHeader
                 title="Dashboard QA"
                 icon={ShieldCheck}
-                description="Antrean review milestone, keputusan bulan ini, dan milestone yang berulang kali ditolak."
+                description="Antrean review timeline, keputusan bulan ini, dan timeline yang berulang kali ditolak."
                 actions={
                     <Button variant="outline" asChild>
                         <Link href={route('qa-forms.index')}>
@@ -81,7 +81,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                 <SectionCard
                     title="Antrean Review"
                     icon={Hourglass}
-                    description="Terlama menunggu di atas — sejak milestone (kembali) diserahkan ke QA."
+                    description="Terlama menunggu di atas — sejak timeline (kembali) diserahkan ke QA."
                     flush
                     className="xl:col-span-2"
                     action={<SectionLink href={route('qa-forms.index', { status: 'PENDING' })} />}
@@ -101,15 +101,15 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                                         </Link>
                                         <p className="text-xs text-muted-foreground">
                                             {form.projectName}
-                                            {form.milestoneTargetDate && ` · target ${formatDate(form.milestoneTargetDate)}`}
+                                            {form.milestoneTargetDate && ` · selesai ${formatDate(form.milestoneTargetDate)}`}
                                             {form.projectProgress !== null && ` · progres proyek ${form.projectProgress}%`}
                                         </p>
                                     </div>
                                     <div className="flex shrink-0 flex-col items-end gap-1">
                                         {form.round > 1 ? (
-                                            <StatusChip status="REVIEW_ULANG" tone="warning" label={`Review ke-${form.round}`} />
+                                            <StatusChip status="REVIEW_ULANG" tone="warning" label={`Review ke-${form.round}`} waitingOn="QA" />
                                         ) : (
-                                            <StatusChip status="PENDING" label="Review pertama" />
+                                            <StatusChip status="PENDING" label="Review pertama" waitingOn="QA" />
                                         )}
                                         <span
                                             className={cn(
@@ -129,7 +129,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                 <SectionCard
                     title="Ditolak ≥ 2×"
                     icon={Repeat}
-                    description="Milestone yang berulang kali gagal QA (CEO ikut dinotifikasi)."
+                    description="Timeline yang berulang kali gagal QA (CEO ikut dinotifikasi)."
                     flush
                     footer={
                         repeatRejections.total > repeatRejections.rows.length
@@ -138,7 +138,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                     }
                 >
                     {repeatRejections.rows.length === 0 ? (
-                        <EmptyState icon={Repeat} title="Belum ada milestone yang ditolak dua kali." />
+                        <EmptyState icon={Repeat} title="Belum ada timeline yang ditolak dua kali." />
                     ) : (
                         <ul className="divide-y divide-border">
                             {repeatRejections.rows.map((form) => (
@@ -155,7 +155,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                                                 {form.projectName} · ditolak {form.rejectionCount}×
                                             </p>
                                         </div>
-                                        <StatusChip status={form.status} className="shrink-0" />
+                                        <StatusChip domain="qa" status={form.status} className="shrink-0" />
                                     </div>
                                     {form.notes && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">“{form.notes}”</p>}
                                 </li>

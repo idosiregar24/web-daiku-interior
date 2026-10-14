@@ -18,6 +18,7 @@ use App\Models\Quotation;
 use App\Models\Termin;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -41,20 +42,64 @@ class ProjectService
     ) {}
 
     /**
-     * Sprint 12 decision #19 — the CEO's "Buka Proyek": in one transaction
-     * the project (RAB Fix = the approved quotation, contract value = its
-     * total, PM, optional Asisten PM, start date) and its termins copied
-     * from the payment scheme the client approved. The only way a project
-     * is created since Sprint 12 Sub 7 (no manual project or termin route).
+     * Sprint 23 K14 — the people the "Buka Proyek" form picks from (the
+     * pop-up, "Menunggu Dibuka", and — teamLeads/supervisors — Edit Proyek).
      *
-     * @param  array{name: string, pm_id: int|string, assistant_pm_id?: int|string|null, start_date: string}  $data
+     * @return array{projectManagers: SupportCollection, assistantPms: SupportCollection, teamLeads: SupportCollection, supervisors: SupportCollection}
+     */
+    public function openingFormOptions(): array
+    {
+        return [
+            'projectManagers' => $this->activeHolders('PM'),
+            'assistantPms' => $this->activeHolders('ASISTEN_PM'),
+            ...$this->teamOptions(),
+        ];
+    }
+
+    /**
+     * Kepala Tim: every active account ("semua karyawan aktif", Q9 — a
+     * user, so Sprint 24 can notify them; someone without an account is
+     * typed as a name instead), without technical SUPERADMIN accounts.
+     * Pengawas (QA/QC): active users with role QA.
+     *
+     * @return array{teamLeads: SupportCollection, supervisors: SupportCollection}
+     */
+    public function teamOptions(): array
+    {
+        return [
+            'teamLeads' => User::query()
+                ->where('is_active', true)
+                ->whereDoesntHave('roles', fn ($role) => $role->where('name', 'SUPERADMIN'))
+                ->orderBy('name')
+                ->get(['id', 'name'])
+                ->toBase(),
+            'supervisors' => $this->activeHolders('QA'),
+        ];
+    }
+
+    private function activeHolders(string $role): SupportCollection
+    {
+        return User::role($role)->where('is_active', true)->orderBy('name')->get(['id', 'name'])->toBase();
+    }
+
+    /**
+     * "Buka Proyek" — Sprint 12 #19, by the PM who approved the RAB Proyek
+     * since Sprint 23 K13 (ProjectOpeningPolicy; this method doesn't check
+     * who acts). In one transaction the project (RAB Fix = the approved
+     * quotation, contract value = its total, PM, optional Asisten PM, and
+     * K14/K15: Kepala Tim — a user or a typed name —, optional Pengawas,
+     * Tanggal Buka, Tanggal Mulai, optional Tanggal Selesai) and its
+     * termins copied from the payment scheme the client approved. The
+     * only way a project is created since Sprint 12 Sub 7.
+     *
+     * @param  array{name: string, pm_id: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_id?: int|string|null, opened_on?: string|null, start_date: string, end_date?: string|null}  $data
      */
     public function openFromQuotation(ProjectOpening $opening, array $data, User $actor): Project
     {
         return DB::transaction(function () use ($opening, $data, $actor) {
             $opening = ProjectOpening::whereKey($opening->getKey())->lockForUpdate()->firstOrFail();
 
-            if ($opening->status !== ProjectOpening::STATUS_WAITING) {
+            if (! $opening->isWaiting()) {
                 throw ValidationException::withMessages(['opening' => 'Proyek ini sudah dibuka.']);
             }
 
@@ -65,7 +110,11 @@ class ProjectService
                 'name' => $data['name'],
                 'pm_id' => $data['pm_id'],
                 'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
+                ...$this->teamLeadColumns($data),
+                'supervisor_id' => filled($data['supervisor_id'] ?? null) ? $data['supervisor_id'] : null,
+                'opened_on' => $data['opened_on'] ?? now()->toDateString(),
                 'start_date' => $data['start_date'],
+                'end_date' => $data['end_date'] ?? null,
                 'contract_value' => $quotation->total_amount,
                 'quotation_id' => $quotation->id,
             ]);
@@ -88,7 +137,12 @@ class ProjectService
                 'quotation_version' => $quotation->version,
                 'pm_id' => $project->pm_id,
                 'assistant_pm_id' => $project->assistant_pm_id,
+                'team_lead_id' => $project->team_lead_id,
+                'team_lead_name' => $project->team_lead_name,
+                'supervisor_id' => $project->supervisor_id,
+                'opened_on' => $project->opened_on?->toDateString(),
                 'start_date' => $data['start_date'],
+                'end_date' => $project->end_date?->toDateString(),
                 'contract_value' => $project->contract_value,
                 'termins' => $termins->map(fn ($termin) => $termin->only(['termin_number', 'percentage', 'amount', 'trigger', 'scheduled_date']))->all(),
             ], $actor);
@@ -131,17 +185,24 @@ class ProjectService
             'name' => $data['name'],
             'pm_id' => $data['pm_id'],
             'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
+            'team_lead_id' => $data['team_lead_id'] ?? null,
+            'team_lead_name' => $data['team_lead_name'] ?? null,
+            'supervisor_id' => $data['supervisor_id'] ?? null,
+            'opened_on' => $data['opened_on'] ?? now()->toDateString(),
             'start_date' => $data['start_date'],
+            'end_date' => $data['end_date'] ?? null,
             'contract_value' => $data['contract_value'],
         ]);
 
         // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" — the
         // project's own PM (and Asisten PM) plus the divisions that act on
         // a new project (termins, material planning) and the lead's
-        // Marketing, who invoices the termins (Sprint 12 #20).
+        // Marketing, who invoices the termins (Sprint 12 #20). Sprint 23
+        // K13: this is the CEO's info that the PM opened it; K15: the
+        // Pengawas and a Kepala Tim with an account learn they're on it.
         $this->notificationService->notifyMany(
             User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()
-                ->push($project->pm, $project->assistantPm, $lead->assignee)
+                ->push($project->pm, $project->assistantPm, $lead->assignee, $project->supervisor, $project->teamLead)
                 ->filter()
                 ->unique('id'),
             NotificationType::ProjectOpened,
@@ -171,7 +232,10 @@ class ProjectService
      * racing a termin payment (TerminService::recordPayment() locks the
      * termin row too) — can't both pass these checks against stale state.
      *
-     * @param  array{name: string, start_date: string, end_date?: ?string, contract_value: numeric-string|int|float, status: string, note?: ?string, pm_id?: int|string}  $data
+     * Sprint 23 K15 — also Tanggal Buka, Kepala Tim (user or typed name)
+     * and Pengawas, each only when the form sends it.
+     *
+     * @param  array{name: string, opened_on?: string, start_date: string, end_date?: ?string, contract_value: numeric-string|int|float, status: string, note?: ?string, pm_id?: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_id?: int|string|null}  $data
      */
     public function update(Project $project, array $data, User $actor): Project
     {
@@ -215,6 +279,10 @@ class ProjectService
                 'status' => $newStatus->value,
                 'pm_id' => $newPmId,
                 ...($assistantChanges ? ['assistant_pm_id' => $data['assistant_pm_id'] ?: null] : []),
+                // Sprint 23 K15 — Tanggal Buka, Kepala Tim, Pengawas (when the form sends them).
+                ...(array_key_exists('opened_on', $data) ? ['opened_on' => $data['opened_on']] : []),
+                ...(array_key_exists('team_lead_id', $data) || array_key_exists('team_lead_name', $data) ? $this->teamLeadColumns($data) : []),
+                ...(array_key_exists('supervisor_id', $data) ? ['supervisor_id' => filled($data['supervisor_id']) ? $data['supervisor_id'] : null] : []),
             ]);
 
             if ($assistantChanges) {
@@ -300,7 +368,7 @@ class ProjectService
                     User::role('LOGISTICS')->where('is_active', true)->get()->push($project->pm)->filter(),
                     NotificationType::ProjectMaterialLeftover,
                     'Proyek Tertahan: Material',
-                    "Semua milestone proyek \"{$project->name}\" lolos QA, tetapi proyek belum bisa COMPLETED karena "
+                    "Semua timeline proyek \"{$project->name}\" lolos QA, tetapi proyek belum bisa COMPLETED karena "
                         .implode('; ', $reasons).'. Selesaikan di tab Material.',
                     ['project_id' => $project->id],
                 );
@@ -322,7 +390,7 @@ class ProjectService
             User::role('CEO')->where('is_active', true)->get()->push($project->pm)->filter(),
             NotificationType::ProjectCompleted,
             'Proyek Selesai',
-            "Semua milestone proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
+            "Semua timeline proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
             ['project_id' => $project->id],
         );
 
@@ -389,7 +457,7 @@ class ProjectService
         if (! in_array($to->value, self::MANUAL_TRANSITIONS[$from->value] ?? [], true)) {
             throw ValidationException::withMessages([
                 'status' => $to === ProjectStatus::Completed
-                    ? 'Status COMPLETED hanya diset otomatis setelah semua milestone lolos QA.'
+                    ? 'Status COMPLETED hanya diset otomatis setelah semua timeline lolos QA.'
                     : "Status proyek tidak bisa diubah dari {$from->value} ke {$to->value}.",
             ]);
         }
@@ -536,10 +604,28 @@ class ProjectService
             'name' => $project->name,
             'pm_id' => (int) $project->pm_id,
             'status' => $project->status->value,
+            'opened_on' => $project->opened_on?->toDateString(),
             'start_date' => $project->start_date?->toDateString(),
             'end_date' => $project->end_date?->toDateString(),
             'contract_value' => number_format((float) $project->contract_value, 2, '.', ''),
+            'team_lead_id' => $project->team_lead_id === null ? null : (int) $project->team_lead_id,
+            'team_lead_name' => $project->team_lead_name,
+            'supervisor_id' => $project->supervisor_id === null ? null : (int) $project->supervisor_id,
         ];
+    }
+
+    /**
+     * Sprint 23 K14/K15 — the Kepala Tim is a user **or** a typed name
+     * (outsider/vendor), never both: a picked user clears the name.
+     *
+     * @return array{team_lead_id: int|null, team_lead_name: string|null}
+     */
+    private function teamLeadColumns(array $data): array
+    {
+        $userId = filled($data['team_lead_id'] ?? null) ? (int) $data['team_lead_id'] : null;
+        $name = $userId === null && filled($data['team_lead_name'] ?? null) ? trim($data['team_lead_name']) : null;
+
+        return ['team_lead_id' => $userId, 'team_lead_name' => $name];
     }
 
     /** Money math in integer cents — same approach as TerminService. */

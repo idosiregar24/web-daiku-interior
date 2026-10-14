@@ -5,9 +5,8 @@ namespace App\Http\Controllers\Design;
 use App\Enums\DesignStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Design\AssignDesignRequest;
-use App\Http\Requests\Design\MarkDesignReadyRequest;
-use App\Http\Requests\Design\RequestDesignRevisionRequest;
 use App\Http\Requests\Design\StoreDesignDiscussionRequest;
+use App\Http\Requests\Design\UpdateDesignLinksRequest;
 use App\Http\Requests\Design\UpdateDesignRequest;
 use App\Models\Design;
 use App\Models\Quotation;
@@ -22,9 +21,11 @@ use Inertia\Response;
 /**
  * PRD §4.2. Since Sprint 12 Sub 8 a design is no longer opened by hand
  * from a lead: it is born from an approved RAB Jasa Desain (locked until
- * Finance verifies its invoice), assigned by a Kepala Desain, and sent /
- * revised / approved by Marketing. `index()` is the "Desain" sidebar
- * entry; a plain architect only lists the designs they work on.
+ * Finance verifies its invoice) and assigned by a Kepala Desain. Since
+ * Sprint 23 (G) everything with the client runs in a WhatsApp group: the
+ * page keeps the group link + design links ("Link Desain") and one action,
+ * "Desain Disetujui Klien". `index()` is the "Desain" sidebar entry; a
+ * plain architect only lists the designs they work on.
  */
 class DesignController extends Controller
 {
@@ -37,15 +38,13 @@ class DesignController extends Controller
             ->with(['lead:id,client_name', 'pic:id,name', 'staff:id,name'])
             ->visibleTo($user)
             ->byStatus($request->string('status')->value() ?: null)
-            // Sprint 22 — "Perlu Tindakan" Marketing → designs waiting to be sent to the client.
-            ->when($request->boolean('ready'), fn ($query) => $query->readyToSend())
             ->latest()
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('Design/Index', [
             'designs' => $designs,
-            'filters' => $request->only(['status', 'ready']),
+            'filters' => $request->only(['status']),
             // Decision #15/#16 — the Kepala Desain's queue: paid for yet? assigned yet?
             'queue' => $isHead
                 ? Design::query()
@@ -70,25 +69,23 @@ class DesignController extends Controller
             'assigner:id,name',
             'quotation:id,lead_id,type,status,total_amount,version',
             'revisions.requester:id,name',
+            'clientApprover:id,name',
+            'linksUpdater:id,name',
         ]);
         $flow = $design->isFlowManaged();
-        $isMarketing = $user->hasAnyRole(['MARKETING', 'SUPERADMIN']);
 
         return Inertia::render('Design/Show', [
             'design' => $design,
-            'canManage' => ! $design->status->isLocked() && $user->can('update', $design),
+            // Pre-Sprint-12 designs: the brief form (team, status, links).
+            'canManage' => ! $flow && ! $design->status->isLocked() && $user->can('update', $design),
             // Pre-Sprint-12 designs keep the old Client ACC button (Marketing / Designer).
             'canClientAcc' => ! $flow && $user->hasAnyRole(['MARKETING', 'DESIGNER', 'SUPERADMIN']),
             'canAssign' => $flow && ! $design->client_acc && $user->hasAnyRole(['KEPALA_DESAIN', 'SUPERADMIN'])
                 && $design->status !== DesignStatus::MenungguBayar,
-            'canMarketingActions' => $flow && $isMarketing,
-            // Sprint 22 — the design's team hands a finished design / revision to Marketing.
-            'canMarkReady' => $flow && ! $design->isReadyToSend()
-                && in_array($design->status, Design::SENDABLE_STATUSES, true)
-                && $user->hasAnyRole(['DESIGNER', 'SUPERADMIN']) && $user->can('update', $design),
-            // Sprint 22 K7 — the client's number is for the Marketing sending over WhatsApp only.
-            // Read on its own so it never rides along in `design.lead`.
-            'clientPhone' => $flow && $isMarketing ? $design->lead()->value('phone') : null,
+            // Sprint 23 K18/K19b — the WhatsApp group & design links: the lead's Marketing or the design team.
+            'canEditLinks' => $flow && ! $design->status->isLocked() && $user->can('manageLinks', $design),
+            // Sprint 23 K19 — "Desain Disetujui Klien": the same people (the server also wants a saved link).
+            'canApprove' => $design->awaitsClientApproval() && $user->can('approveForClient', $design),
             'discussion' => $service->threadFor($design, $user),
             // Sprint 17 Sub 04 — the lead's running RAB Proyek ("already requested automatically").
             'projectRab' => Quotation::runningProjectRabSummary($design->lead_id),
@@ -99,11 +96,20 @@ class DesignController extends Controller
         ]);
     }
 
+    /** Pre-Sprint-12 designs only — a Sprint 12 design saves its links through updateLinks(). */
     public function update(UpdateDesignRequest $request, Design $design, DesignService $service): RedirectResponse
     {
         $service->update($design, $request->validated());
 
         return back()->with('success', 'Brief desain berhasil diperbarui.');
+    }
+
+    /** Sprint 23 K18/K19b — route `role:MARKETING|DESIGNER` + DesignPolicy::manageLinks() (in the request). */
+    public function updateLinks(UpdateDesignLinksRequest $request, Design $design, DesignService $service): RedirectResponse
+    {
+        $changed = $service->updateLinks($design, $request->validated(), $request->user());
+
+        return back()->with('success', $changed ? 'Link grup WhatsApp & link desain disimpan.' : 'Tidak ada perubahan link.');
     }
 
     /** Decision #15 — Kepala Desain only (route `role:KEPALA_DESAIN`). */
@@ -115,31 +121,11 @@ class DesignController extends Controller
         return back()->with('success', $wasWaiting ? 'Desain ditugaskan.' : 'Penugasan desain diperbarui.');
     }
 
-    /** Decision #17 — Marketing only (route `role:MARKETING`). */
-    public function sendToClient(Request $request, Design $design, DesignService $service): RedirectResponse
-    {
-        $service->sendToClient($design, $request->user());
-
-        return back()->with('success', 'Desain ditandai terkirim ke klien.');
-    }
-
-    /** Sprint 22 — the design's team or a Kepala Desain (route `role:DESIGNER` + MarkDesignReadyRequest). */
-    public function markReady(MarkDesignReadyRequest $request, Design $design, DesignService $service): RedirectResponse
-    {
-        $service->markReadyToSend($design, $request->validated('note'), $request->user());
-
-        return back()->with('success', 'Desain ditandai siap dikirim — Marketing sudah diberi tahu.');
-    }
-
-    public function requestRevision(RequestDesignRevisionRequest $request, Design $design, DesignService $service): RedirectResponse
-    {
-        $design = $service->requestRevision($design, $request->validated('note'), $request->user());
-
-        return back()->with('success', "Revisi #{$design->revision_count} dikirim ke arsitek.");
-    }
-
+    /** Sprint 23 K19 — route `role:MARKETING|DESIGNER` + DesignPolicy::approveForClient(). */
     public function markClientApproved(Request $request, Design $design, DesignService $service): RedirectResponse
     {
+        $this->authorize('approveForClient', $design);
+
         // Sprint 17 Sub 04 — says whether the RAB Proyek was requested now or was already running.
         $approval = $service->markClientApproved($design, $request->user());
 
@@ -149,8 +135,10 @@ class DesignController extends Controller
     /** Pre-Sprint-12 designs: Client ACC opens the project quotation (PRD §4.2). */
     public function clientAcc(Request $request, Design $design, DesignService $service): RedirectResponse
     {
-        // Sprint 12 designs go through the new approval (same as DesignService::clientAcc()).
+        // Sprint 12 designs go through "Desain Disetujui Klien" (same as DesignService::clientAcc()).
         if ($design->isFlowManaged()) {
+            $this->authorize('approveForClient', $design);
+
             return back()->with('success', $service->markClientApproved($design, $request->user())->message());
         }
 

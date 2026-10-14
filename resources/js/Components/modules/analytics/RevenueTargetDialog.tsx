@@ -1,3 +1,4 @@
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -96,7 +97,7 @@ export function RevenueTargetDialog({ open, onOpenChange, existing }: RevenueTar
                                 <FormItem>
                                     <FormLabel required>Target (Rp)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                        <MoneyInput {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

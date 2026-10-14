@@ -20,6 +20,10 @@ class Project extends Model
         'name',
         'pm_id',
         'assistant_pm_id',
+        'team_lead_id',
+        'team_lead_name',
+        'supervisor_id',
+        'opened_on',
         'status',
         'start_date',
         'end_date',
@@ -30,6 +34,7 @@ class Project extends Model
     {
         return [
             'status' => ProjectStatus::class,
+            'opened_on' => 'date',
             'start_date' => 'date',
             'end_date' => 'date',
             'contract_value' => 'decimal:2',
@@ -47,19 +52,41 @@ class Project extends Model
         return $this->belongsTo(User::class, 'pm_id');
     }
 
-    /** Sprint 12 D2 — optional, chosen by the CEO at "Buka Proyek". */
+    /** Sprint 12 D2 — optional, chosen at "Buka Proyek" (by the approving PM since Sprint 23 K13). */
     public function assistantPm(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assistant_pm_id');
     }
 
-    /** Sprint 12 #19 — the "RAB Fix" the client approved (null on pre-Sprint-12 projects). */
+    /**
+     * Sprint 23 K14/K15 — the Kepala Tim when it is a user; an outsider or
+     * vendor is `team_lead_name` instead (exactly one of the two since
+     * Sprint 23 — see teamLeadLabel()).
+     */
+    public function teamLead(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'team_lead_id');
+    }
+
+    /** Sprint 23 K14/K15 — the Pengawas (QA/QC), a user with role QA; its work arrives in Sprint 24. */
+    public function supervisor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'supervisor_id');
+    }
+
+    /** "Budi" (user) or "CV Kayu Jati" (typed) — null on a project that has neither yet. */
+    public function teamLeadLabel(): ?string
+    {
+        return $this->teamLead?->name ?? $this->team_lead_name;
+    }
+
     /** Sprint 12 #29 — RAB Tambahan requested on this project (any status). */
     public function addenda(): HasMany
     {
         return $this->hasMany(Quotation::class)->whereNotNull('parent_quotation_id')->orderBy('id');
     }
 
+    /** Sprint 12 #19 — the "RAB Fix" the client approved (null on pre-Sprint-12 projects). */
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(Quotation::class);

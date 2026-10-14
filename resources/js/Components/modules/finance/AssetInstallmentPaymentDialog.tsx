@@ -1,5 +1,6 @@
 import { suggestedInstallment } from '@/Components/modules/finance/assetInstallmentStatus';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -118,7 +119,7 @@ export function AssetInstallmentPaymentDialog({ asset, bankAccounts, onOpenChang
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" inputMode="decimal" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

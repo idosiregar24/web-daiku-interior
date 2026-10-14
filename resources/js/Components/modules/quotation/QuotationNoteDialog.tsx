@@ -5,44 +5,54 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/Components/ui/textarea';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-// Mirrors MarkDesignReadyRequest.
+/** App\Models\QuotationNote::MAX_LENGTH. */
+const MAX_LENGTH = 1000;
+
+// Mirrors StoreQuotationNoteRequest / ForwardClientRejectionRequest.
 const schema = z.object({
-    note: z.string().trim().max(500, 'Catatan untuk Marketing maksimal 500 karakter.'),
+    note: z.string().trim().min(1, 'Catatan wajib diisi').max(MAX_LENGTH, `Catatan maksimal ${MAX_LENGTH} karakter`),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-interface DesignReadyDialogProps {
+interface QuotationNoteDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    designId: number;
-    clientName: string;
-    /** The revision being handed over, 0 for the first design. */
-    revisionNumber: number;
-    linkCount: number;
+    /** POST target — `quotations.notes.store` (CEO note) or `quotations.forwardToEstimator` (Marketing). */
+    action: string;
+    title: string;
+    description: ReactNode;
+    label: string;
+    placeholder: string;
+    submitLabel: string;
 }
 
 /**
- * Sprint 22 — the architect hands the finished design (or revision) to
- * Marketing, who is notified and sends it to the client. The architect
- * never contacts the client (Sprint 12 decision #17).
+ * Sprint 23 — one note, one action: the CEO's information-only note (K9)
+ * and Marketing's "Teruskan ke Estimator" after the client's "Tidak
+ * Setuju" (K11). The note is required in both.
  */
-export function DesignReadyDialog({ open, onOpenChange, designId, clientName, revisionNumber, linkCount }: DesignReadyDialogProps) {
+export function QuotationNoteDialog({ open, onOpenChange, action, title, description, label, placeholder, submitLabel }: QuotationNoteDialogProps) {
+    const [processing, setProcessing] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { note: '' } });
 
     useEffect(() => {
-        if (open) form.reset({ note: '' });
+        if (open) {
+            form.reset({ note: '' });
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     function onSubmit(values: FormValues) {
-        router.post(route('design.markReady', { design: designId }), { note: values.note || null }, {
+        router.post(action, values, {
             preserveScroll: true,
-            onError: (errors) => form.setError('note', { message: errors.note ?? errors.status }),
+            onStart: () => setProcessing(true),
+            onFinish: () => setProcessing(false),
+            onError: (errors) => form.setError('note', { message: Object.values(errors).join(' ') }),
             onSuccess: () => onOpenChange(false),
         });
     }
@@ -51,11 +61,8 @@ export function DesignReadyDialog({ open, onOpenChange, designId, clientName, re
         <Dialog open={open} onOpenChange={onOpenChange}>
             <ResponsiveDialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>{revisionNumber > 0 ? `Revisi #${revisionNumber} Siap Dikirim` : 'Desain Siap Dikirim'}</DialogTitle>
-                    <DialogDescription>
-                        {linkCount} link desain <span className="font-medium text-foreground">{clientName}</span> diserahkan ke Marketing.
-                        Marketing mendapat notifikasi lalu mengirimkannya ke klien.
-                    </DialogDescription>
+                    <DialogTitle>{title}</DialogTitle>
+                    <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -64,14 +71,9 @@ export function DesignReadyDialog({ open, onOpenChange, designId, clientName, re
                             name="note"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Catatan untuk Marketing</FormLabel>
+                                    <FormLabel required>{label}</FormLabel>
                                     <FormControl>
-                                        <Textarea
-                                            {...field}
-                                            rows={3}
-                                            maxLength={500}
-                                            placeholder="mis. Warna bar sudah diganti jati gelap, kursi outdoor ada di halaman 4."
-                                        />
+                                        <Textarea {...field} rows={4} autoFocus placeholder={placeholder} maxLength={MAX_LENGTH} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -83,8 +85,8 @@ export function DesignReadyDialog({ open, onOpenChange, designId, clientName, re
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Serahkan ke Marketing
+                            <Button type="submit" disabled={processing}>
+                                {submitLabel}
                             </Button>
                         </DialogFooter>
                     </form>

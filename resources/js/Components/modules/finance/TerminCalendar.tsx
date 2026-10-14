@@ -7,9 +7,8 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/Components/ui/popover';
-import { StatusChip } from '@/Components/shared/StatusChip';
 import { cn } from '@/lib/utils';
-import { isPartiallyPaid, TerminPaymentDialog } from '@/Components/modules/finance/TerminPaymentDialog';
+import { TerminPaymentDialog, TerminStatusChip } from '@/Components/modules/finance/TerminPaymentDialog';
 import type { BankAccount, Termin, TerminStatus } from '@/types';
 import { router } from '@inertiajs/react';
 import {
@@ -44,9 +43,10 @@ const CHIP_CLASS: Record<TerminStatus, string> = {
 };
 
 const LEGEND: { status: TerminStatus; label: string }[] = [
-    { status: 'SCHEDULED', label: 'Terjadwal' },
-    { status: 'INVOICED', label: 'Invoice Terbit' },
-    { status: 'PAID', label: 'Sudah Dibayar' },
+    // Sprint 23 K3 — the termin domain's wording (lib/waitingOn.ts).
+    { status: 'SCHEDULED', label: 'Belum Ditagih' },
+    { status: 'INVOICED', label: 'Ditagih' },
+    { status: 'PAID', label: 'Lunas' },
     { status: 'OVERDUE', label: 'Terlambat' },
 ];
 
@@ -259,8 +259,7 @@ function TerminEventChip({ termin, canPay, onPay }: { termin: Termin; canPay: bo
                 <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-daiku-dark">{termin.project?.name}</p>
                     <div className="flex flex-wrap justify-end gap-1">
-                        <StatusChip status={termin.status} />
-                        {isPartiallyPaid(termin) && <StatusChip status="PARTIAL" label="Dibayar Sebagian" />}
+                        <TerminStatusChip termin={termin} />
                     </div>
                 </div>
                 <p className="text-xs text-daiku-muted">

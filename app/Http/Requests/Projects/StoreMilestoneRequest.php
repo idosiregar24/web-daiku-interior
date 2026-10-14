@@ -4,9 +4,10 @@ namespace App\Http\Requests\Projects;
 
 use Illuminate\Foundation\Http\FormRequest;
 
+/** A project's Timeline (UI name of a milestone, Sprint 23 K16) — mirrored by MilestoneFormDialog. */
 class StoreMilestoneRequest extends FormRequest
 {
-    /** Route-level `role:CEO|PM` middleware already gates this action. */
+    /** Route-level `role:CEO|PM|ASISTEN_PM` + ProjectPolicy::manageWork() gate this action. */
     public function authorize(): bool
     {
         return true;
@@ -16,15 +17,28 @@ class StoreMilestoneRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'target_date' => ['required', 'date'],
+            // Sprint 23 K17 — every new timeline runs from a start to an end date.
+            'start_date' => ['required', 'date'],
+            'target_date' => ['required', 'date', 'after_or_equal:start_date'],
         ];
     }
 
     public function messages(): array
     {
+        return self::timelineMessages();
+    }
+
+    /** @return array<string, string> Shared with UpdateMilestoneRequest. */
+    public static function timelineMessages(): array
+    {
         return [
-            'name.required' => 'Nama milestone wajib diisi.',
-            'target_date.required' => 'Target tanggal wajib diisi.',
+            'name.required' => 'Nama timeline wajib diisi.',
+            'name.max' => 'Nama timeline maksimal 255 karakter.',
+            'start_date.required' => 'Tanggal mulai timeline wajib diisi.',
+            'start_date.date' => 'Tanggal mulai tidak valid.',
+            'target_date.required' => 'Tanggal selesai timeline wajib diisi.',
+            'target_date.date' => 'Tanggal selesai tidak valid.',
+            'target_date.after_or_equal' => 'Tanggal selesai tidak boleh sebelum tanggal mulai.',
         ];
     }
 }

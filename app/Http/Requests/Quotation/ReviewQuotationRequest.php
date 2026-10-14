@@ -7,10 +7,10 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Sprint 12 decision #8 — the PM / Asisten PM / CEO item review. Route-level
- * `role:PM|ASISTEN_PM|CEO` lets reviewers in; QuotationService::reviewStage()
- * decides whose turn it is (PM before CEO). "Every item marked" and "a ✘
- * needs a note" are checked there too, against the quotation's items.
+ * Sprint 12 decision #8 — the PM / Asisten PM item review (Sprint 23 K8:
+ * the CEO no longer reviews). Route-level `role:PM|ASISTEN_PM`;
+ * QuotationService::review() checks the status, that every item not
+ * carried from an earlier ✔ (K7) is marked, and that a ✘ has a note.
  */
 class ReviewQuotationRequest extends FormRequest
 {

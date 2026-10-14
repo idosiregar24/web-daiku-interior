@@ -1,12 +1,24 @@
 import { cn } from '@/lib/utils';
-import type { LucideIcon } from 'lucide-react';
+import { ArrowRight, type LucideIcon } from 'lucide-react';
 import { ReactNode } from 'react';
 
 interface PageHeaderProps {
     title: string;
     description?: ReactNode;
-    /** Primary action(s) — typically a <Button>, rendered at the row's end. */
+    /**
+     * The page's action buttons, rendered at the row's end (full width on a
+     * phone). Sprint 23 K4b: a detail page puts **every** action here —
+     * the main one as a default `<Button>`, the rest `variant="outline"` or
+     * inside `<MoreActions>` — not in cards further down. Buttons that save
+     * a form stay with their form; per-row actions stay in their row.
+     */
     actions?: ReactNode;
+    /**
+     * Sprint 23 K4b — one short line under the title saying what happens
+     * next and whose turn it is ("Kirim link ke klien lalu tunggu
+     * persetujuannya."). Omit when nothing is waiting.
+     */
+    step?: ReactNode;
     /** Optional module icon shown in a brand-tinted tile before the title. */
     icon?: LucideIcon;
     className?: string;
@@ -23,7 +35,7 @@ interface PageHeaderProps {
  *     actions={<Button>Tambah Lead</Button>}
  *   />
  */
-export function PageHeader({ title, description, actions, icon: Icon, className }: PageHeaderProps) {
+export function PageHeader({ title, description, actions, step, icon: Icon, className }: PageHeaderProps) {
     return (
         <div
             className={cn(
@@ -42,9 +54,19 @@ export function PageHeader({ title, description, actions, icon: Icon, className 
                     {description && (
                         <p className="mt-1 text-sm text-muted-foreground">{description}</p>
                     )}
+                    {step && (
+                        <p className="mt-2 inline-flex items-start gap-2 rounded-lg bg-daiku-yellow-light px-3 py-1.5 text-sm text-foreground">
+                            <ArrowRight className="mt-0.5 size-4 shrink-0 text-daiku-yellow-dark" aria-hidden />
+                            <span>{step}</span>
+                        </p>
+                    )}
                 </div>
             </div>
-            {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
+            {actions && (
+                <div className="flex w-full shrink-0 flex-wrap items-center gap-2 *:max-sm:flex-1 sm:w-auto sm:justify-end">
+                    {actions}
+                </div>
+            )}
         </div>
     );
 }

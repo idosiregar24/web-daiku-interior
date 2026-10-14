@@ -268,7 +268,7 @@ test('a dated row needs its date and a milestone row its milestone', function (a
     ]))->toThrow(ValidationException::class, $error);
 })->with([
     [['trigger' => 'TANGGAL'], 'Tanggal jatuh tempo wajib diisi'],
-    [['trigger' => 'MILESTONE'], 'Nama milestone pemicu wajib diisi'],
+    [['trigger' => 'MILESTONE'], 'Nama timeline pemicu wajib diisi'],
 ]);
 
 test('the scheme can only change while DRAFT', function () {

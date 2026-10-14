@@ -12,15 +12,16 @@ import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
 import type { QuotationMonthlyValue, QuotationQueue, QuotationQueueRow, QuotationStatus, QuotationTurnaround } from '@/types';
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, BarChart3, ClipboardCheck, FilePen, FileText, ListOrdered, Send, Timer, UserCheck } from 'lucide-react';
+import { ArrowLeft, BarChart3, ClipboardCheck, FilePen, FileText, ListOrdered, MessageSquareWarning, Send, Timer } from 'lucide-react';
 
 interface QuotationDashboardProps {
     statusCounts: Record<QuotationStatus, number>;
     todo: QuotationQueue;
     waitingPm: QuotationQueue;
-    waitingCeo: QuotationQueue;
-    /** APPROVED_INTERNAL — the Estimator still has to send it to Marketing. */
+    /** READY_TO_SEND — approved by the PM, with Marketing (Sprint 23 K8: no CEO stage). */
     readyToSend: QuotationQueue;
+    /** CLIENT_REJECTED — the client said "Tidak Setuju" on the link (Sprint 23 K11). */
+    clientRejected: QuotationQueue;
     monthly: QuotationMonthlyValue[];
     turnaround: QuotationTurnaround;
 }
@@ -29,20 +30,21 @@ const STATUS_LABEL: Record<QuotationStatus, string> = {
     DIMINTA: 'Diminta Marketing',
     DRAFT: 'Draft (Estimator)',
     SUBMITTED: 'Menunggu PM',
-    WAITING_CEO: 'Menunggu CEO',
-    APPROVED_INTERNAL: 'Disetujui internal',
     READY_TO_SEND: 'Di Marketing',
     SENT_TO_CLIENT: 'Terkirim ke klien',
+    CLIENT_REJECTED: 'Ditolak klien',
     CLIENT_APPROVED: 'Deal (disetujui klien)',
     CANCELLED: 'Dibatalkan',
-    // Pre-Sprint-12 states — never persisted any more, hidden while zero.
+    // Retired states — never persisted any more, hidden while zero.
+    WAITING_CEO: 'Menunggu CEO (lama)',
+    APPROVED_INTERNAL: 'Disetujui internal (lama)',
     CEO_REVIEW: 'CEO review (lama)',
     PM_REVIEW: 'PM review (lama)',
     APPROVED: 'Disetujui (lama)',
     REJECTED: 'Ditolak (lama)',
 };
 
-const LEGACY_STATUSES: QuotationStatus[] = ['CEO_REVIEW', 'PM_REVIEW', 'APPROVED', 'REJECTED'];
+const LEGACY_STATUSES: QuotationStatus[] = ['WAITING_CEO', 'APPROVED_INTERNAL', 'CEO_REVIEW', 'PM_REVIEW', 'APPROVED', 'REJECTED'];
 
 const DECIDER_LABEL: Record<string, string> = { CEO: 'CEO', PM: 'PM', CLIENT: 'klien' };
 
@@ -93,11 +95,12 @@ function queueFooter(queue: QuotationQueue) {
 
 /**
  * Dashboard Quotation — the Estimator's "Analytics – Per Divisi" view
- * (PRD §7.1 `P`, §4.3): work queues of the approval pipeline (Sprint 12:
- * PM / Asisten PM review, then CEO for a RAB Proyek, then Marketing),
- * RAB value per month and turnaround. CEO + Estimator.
+ * (PRD §7.1 `P`, §4.3): work queues of the approval pipeline (Sprint 23:
+ * PM / Asisten PM review, then straight to Marketing; declined by the
+ * client → back through Marketing), RAB value per month and turnaround.
+ * CEO + Estimator.
  */
-export default function QuotationDashboard({ statusCounts, todo, waitingPm, waitingCeo, readyToSend, monthly, turnaround }: QuotationDashboardProps) {
+export default function QuotationDashboard({ statusCounts, todo, waitingPm, readyToSend, clientRejected, monthly, turnaround }: QuotationDashboardProps) {
     const statuses = (Object.keys(STATUS_LABEL) as QuotationStatus[]).filter(
         (status) => !LEGACY_STATUSES.includes(status) || statusCounts[status] > 0,
     );
@@ -110,7 +113,7 @@ export default function QuotationDashboard({ statusCounts, todo, waitingPm, wait
             <PageHeader
                 title="Dashboard Quotation"
                 icon={FileText}
-                description="Antrean RAB, review PM → CEO, dan nilai penawaran per bulan."
+                description="Antrean RAB, review PM → Marketing → klien, dan nilai penawaran per bulan."
                 actions={
                     <Button variant="outline" asChild>
                         <Link href={route('quotations.index')}>
@@ -124,7 +127,7 @@ export default function QuotationDashboard({ statusCounts, todo, waitingPm, wait
             <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard label="Perlu Dikerjakan" value={todo.total} icon={FilePen} hint="Draft RAB, termasuk yang dikembalikan" />
                 <StatCard label="Menunggu PM" value={waitingPm.total} icon={ClipboardCheck} hint="Review item oleh PM / Asisten PM" />
-                <StatCard label="Menunggu CEO" value={waitingCeo.total} icon={UserCheck} hint="RAB Proyek yang sudah di-ACC PM" />
+                <StatCard label="Di Marketing" value={readyToSend.total} icon={Send} hint="Disetujui PM, menunggu dikirim ke klien" />
                 <StatCard
                     label="Waktu ke Klien"
                     value={turnaround.avgDays === null ? '—' : `${turnaround.avgDays.toLocaleString('id-ID')} hari`}
@@ -161,25 +164,25 @@ export default function QuotationDashboard({ statusCounts, todo, waitingPm, wait
                 </SectionCard>
 
                 <SectionCard
-                    title="Menunggu Approval CEO"
-                    icon={UserCheck}
+                    title="Ditolak Klien"
+                    icon={MessageSquareWarning}
                     flush
-                    footer={queueFooter(waitingCeo)}
-                    action={<SectionLink href={route('quotations.index', { status: 'WAITING_CEO' })} />}
+                    footer={queueFooter(clientRejected)}
+                    action={<SectionLink href={route('quotations.index', { status: 'CLIENT_REJECTED' })} />}
                 >
-                    <QueueList queue={waitingCeo} sinceLabel="di-ACC PM" empty="Tidak ada RAB Proyek menunggu CEO." />
+                    <QueueList queue={clientRejected} sinceLabel="ditolak" empty="Tidak ada RAB yang ditolak klien." />
                 </SectionCard>
 
                 <SectionCard
-                    title="Siap Dikirim ke Marketing"
+                    title="Siap Dikirim ke Klien"
                     icon={Send}
-                    description="Sudah disetujui internal — Estimator tinggal mengirim RAB final ke Marketing."
+                    description="Sudah disetujui PM / Asisten PM — Marketing tinggal mengirim link penawaran ke klien."
                     flush
                     className="xl:col-span-2"
                     footer={queueFooter(readyToSend)}
-                    action={<SectionLink href={route('quotations.index', { status: 'APPROVED_INTERNAL' })} />}
+                    action={<SectionLink href={route('quotations.index', { status: 'READY_TO_SEND' })} />}
                 >
-                    <QueueList queue={readyToSend} sinceLabel="disetujui" empty="Tidak ada RAB yang menunggu dikirim ke Marketing." />
+                    <QueueList queue={readyToSend} sinceLabel="disetujui" empty="Tidak ada RAB yang menunggu dikirim ke klien." />
                 </SectionCard>
 
                 <SectionCard
@@ -201,7 +204,7 @@ export default function QuotationDashboard({ statusCounts, todo, waitingPm, wait
                     <ul className="space-y-3">
                         {statuses.map((status) => (
                             <li key={status} className="grid grid-cols-[minmax(0,10rem)_1fr_2.5rem] items-center gap-3">
-                                <StatusChip status={status} label={STATUS_LABEL[status]} className="justify-self-start" />
+                                <StatusChip domain="quotation" status={status} label={STATUS_LABEL[status]} waitingOn={null} className="justify-self-start" />
                                 <div className="h-2 overflow-hidden rounded-full bg-viz-seq-1/70" aria-hidden>
                                     <div
                                         className="h-full rounded-full bg-viz-1"

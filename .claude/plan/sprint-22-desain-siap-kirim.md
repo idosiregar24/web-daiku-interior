@@ -1,5 +1,15 @@
 # Sprint 22 — Serah Terima Desain: Arsitek → Marketing → Klien
 
+> ⚠️ **Dibatalkan oleh Sprint 23 (K18–K20, 2026-10-14).** Proses desain kini
+> berjalan di grup WhatsApp; sistem hanya menyimpan link grup WA + link desain
+> dan satu tombol **"Desain Disetujui Klien"**. Tombol "Desain Siap Dikirim",
+> "Kirim Desain ke Klien" (dialog WA), "Minta Revisi", antrean `design-send` /
+> `design-revision` dan notifikasi `design_ready_to_send` sudah dihapus
+> (tipe notifikasi tetap `@deprecated` untuk data lama; kolom
+> `ready_for_client_at`, `ready_note`, `sent_to_client_at`, `revision_count`
+> tetap ada tapi tidak diisi lagi). Diskusi Desain (K8) tetap. Lihat
+> [`sprint-23-revisi-rab-buka-proyek.md`](sprint-23-revisi-rab-buka-proyek.md) §3G.
+
 > Status: **kode selesai 2026-10-09** (Sub 01–05). Tersisa: coba alur di browser (arsitek → Marketing → WhatsApp) & deploy (migrasi baru).
 > Sumber: tanya-jawab user setelah uji alur RAB Survey & RAB Desain
 > ("apakah orang desain komunikasi di WA? bagaimana keterhubungan tim desain

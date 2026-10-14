@@ -126,7 +126,7 @@ export default function LeadIndex({ leads, filters, marketers, leadSources, lead
         {
             accessorKey: 'status',
             header: 'Status',
-            cell: ({ row }) => <StatusChip status={row.original.status} />,
+            cell: ({ row }) => <StatusChip domain="lead" status={row.original.status} />,
         },
         {
             id: 'assignee',

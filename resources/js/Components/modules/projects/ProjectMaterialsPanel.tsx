@@ -303,16 +303,7 @@ export function ProjectMaterialsPanel({
                                             <p className="text-xs text-daiku-muted">{line.request_channel === 'TUKANG' ? 'Tukang' : 'Tim'}</p>
                                         </td>
                                         <td className="px-4 py-3">
-                                            <StatusChip
-                                                status={line.request_status}
-                                                label={
-                                                    line.request_status === 'MENUNGGU_PM'
-                                                        ? 'Menunggu PM'
-                                                        : line.request_status === 'DIAJUKAN'
-                                                          ? 'Menunggu Logistik'
-                                                          : 'Ditolak'
-                                                }
-                                            />
+                                            <StatusChip domain="materialRequest" status={line.request_status} />
                                             {line.reject_reason && <p className="mt-1 text-xs text-error-ink">{line.reject_reason}</p>}
                                         </td>
                                         <td className="px-4 py-3">
@@ -397,11 +388,7 @@ export function ProjectMaterialsPanel({
                                                                 .join(' · ')}
                                                         </p>
                                                         {line.request_status !== 'DISETUJUI' && (
-                                                            <StatusChip
-                                                                status={line.request_status}
-                                                                label={line.request_status === 'DIAJUKAN' ? 'Menunggu Logistik' : 'Ditolak'}
-                                                                className="mt-1"
-                                                            />
+                                                            <StatusChip domain="materialRequest" status={line.request_status} className="mt-1" />
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-right tabular-nums text-daiku-muted">

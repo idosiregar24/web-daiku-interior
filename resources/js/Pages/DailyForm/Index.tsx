@@ -256,7 +256,7 @@ export default function DailyFormIndex({ forms, pendingTasks, date, isFieldStaff
                                     <td className="px-4 py-3 font-medium">{form.task?.title ?? '—'}</td>
                                     {!isFieldStaff && <td className="px-4 py-3 text-daiku-muted">{form.staff?.name ?? '—'}</td>}
                                     <td className="px-4 py-3">
-                                        <StatusChip status={form.status_update} />
+                                        <StatusChip domain="task" status={form.status_update} waitingOn={null} />
                                     </td>
                                     <td className="px-4 py-3 text-daiku-muted">{form.kendala ?? '—'}</td>
                                     <td className="px-4 py-3 text-daiku-muted">

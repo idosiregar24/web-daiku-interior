@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -104,7 +105,7 @@ export function SupplierDebtPaymentDialog({ open, onOpenChange, debt, bankAccoun
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

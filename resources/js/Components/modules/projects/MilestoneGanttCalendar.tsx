@@ -14,8 +14,8 @@ const BAR_CLASS: Record<MilestoneStatus, string> = {
 
 const LEGEND: { status: MilestoneStatus; label: string }[] = [
     { status: 'PENDING', label: 'Belum Mulai' },
-    { status: 'IN_PROGRESS', label: 'Berjalan' },
-    { status: 'QA_WAITING', label: 'Menunggu QA' },
+    { status: 'IN_PROGRESS', label: 'Dikerjakan' },
+    { status: 'QA_WAITING', label: 'Belum Diperiksa QA' },
     { status: 'COMPLETED', label: 'Selesai' },
     { status: 'OVERDUE', label: 'Terlambat' },
 ];
@@ -52,13 +52,11 @@ interface MilestoneGanttCalendarProps {
 /**
  * "update untuk bagian milestone, design nya harus modern ala ala gantt
  * chart canggih tampil seperti kalender" — a horizontal Gantt-style
- * timeline plotted against real calendar months, replacing the vertical
- * dot-timeline this project shipped with earlier (git history has it if
- * ever needed again). Each milestone's "phase" spans from the
- * previous milestone's target_date (or the project's start_date for the
- * first) to its own target_date — milestones only carry a single
- * target_date, not their own start_date, so this is the only sequential
- * reading of a duration that doesn't invent a new column.
+ * timeline plotted against real calendar months. Sprint 23 K17: each
+ * Timeline's bar runs from its own `start_date` to its `target_date`
+ * (Tanggal Selesai); timelines may overlap. A row without a start date
+ * (none should be left after the backfill) falls back to the previous
+ * row's end, as before.
  *
  * Built as plain HTML/CSS (percentage-based absolute positioning), not a
  * Recharts chart — Recharts has no Gantt/timeline primitive, and every
@@ -73,13 +71,22 @@ export function MilestoneGanttCalendar({
     onMarkDone,
 }: MilestoneGanttCalendarProps) {
     const sorted = [...milestones].sort((a, b) => a.order - b.order);
-    const targetDates = sorted.map((m) => toDay(m.target_date));
+    const phases = sorted.map((milestone, index) => {
+        const end = toDay(milestone.target_date);
+        const start = milestone.start_date
+            ? toDay(milestone.start_date)
+            : index > 0
+              ? toDay(sorted[index - 1].target_date)
+              : end;
+
+        return { milestone, start: start > end ? end : start, end };
+    });
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const earliest = new Date(Math.min(...targetDates.map((d) => d.getTime()), today.getTime()));
-    const latest = new Date(Math.max(...targetDates.map((d) => d.getTime()), today.getTime()));
+    const earliest = new Date(Math.min(...phases.map((phase) => phase.start.getTime()), today.getTime()));
+    const latest = new Date(Math.max(...phases.map((phase) => phase.end.getTime()), today.getTime()));
 
     // Pad both ends by a few days so bars/markers never sit flush on the edge.
     const rangeStart = new Date(earliest.getTime() - 5 * DAY_MS);
@@ -140,12 +147,10 @@ export function MilestoneGanttCalendar({
                         )}
 
                         <div className="flex flex-col gap-2">
-                            {sorted.map((milestone, index) => {
-                                const phaseStart =
-                                    index === 0 ? rangeStart : toDay(sorted[index - 1].target_date);
-                                const phaseEnd = toDay(milestone.target_date);
+                            {phases.map(({ milestone, start: phaseStart, end: phaseEnd }, index) => {
                                 const left = pct(phaseStart);
-                                const width = Math.max(pct(phaseEnd) - left, 2);
+                                // The end day is inclusive — the bar covers it.
+                                const width = Math.max(pct(new Date(phaseEnd.getTime() + DAY_MS)) - left, 2);
                                 const canMarkDone =
                                     canManage &&
                                     ['PENDING', 'IN_PROGRESS', 'OVERDUE'].includes(milestone.status);
@@ -166,11 +171,13 @@ export function MilestoneGanttCalendar({
                                                 title={`${formatShort(phaseStart)} — ${formatShort(phaseEnd)}`}
                                             >
                                                 {milestone.status === 'COMPLETED' && <CheckCircle2 className="size-3.5 shrink-0" />}
-                                                <span className="truncate">{formatShort(phaseEnd)}</span>
+                                                <span className="truncate">
+                                                    {formatShort(phaseStart)} – {formatShort(phaseEnd)}
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="flex shrink-0 items-center gap-1">
-                                            <StatusChip status={milestone.status} />
+                                            <StatusChip domain="milestone" status={milestone.status} />
                                             {canMarkDone && (
                                                 <Button
                                                     variant="outline"
@@ -183,10 +190,10 @@ export function MilestoneGanttCalendar({
                                             )}
                                             {canManage && (
                                                 <>
-                                                    <Button variant="ghost" size="icon-sm" onClick={() => onEdit(milestone)}>
+                                                    <Button variant="ghost" size="icon-sm" aria-label={`Ubah timeline ${milestone.name}`} onClick={() => onEdit(milestone)}>
                                                         <Pencil className="size-4" />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon-sm" onClick={() => onDelete(milestone)}>
+                                                    <Button variant="ghost" size="icon-sm" aria-label={`Hapus timeline ${milestone.name}`} onClick={() => onDelete(milestone)}>
                                                         <Trash2 className="size-4 text-error-ink" />
                                                     </Button>
                                                 </>

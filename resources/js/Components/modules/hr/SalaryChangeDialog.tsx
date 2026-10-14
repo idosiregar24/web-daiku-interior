@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Notice } from '@/Components/shared/Notice';
 import { Button } from '@/Components/ui/button';
 import {
@@ -11,7 +12,6 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
@@ -163,7 +163,7 @@ export function SalaryChangeDialog({ open, onOpenChange, employees, employeeId, 
                                     <FormItem>
                                         <FormLabel required>Gaji Pokok Baru (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="1000" inputMode="decimal" placeholder="0" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

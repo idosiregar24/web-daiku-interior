@@ -10,6 +10,7 @@ use App\Models\ProjectOpening;
 use App\Models\SiteSetting;
 use App\Models\User;
 use App\Services\ActionInboxService;
+use App\Services\ProjectService;
 use App\Services\WebPushService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -92,9 +93,10 @@ class HandleInertiaRequests extends Middleware
             // or every 60 s while the socket is down. Unread "klien
             // menunggu" (P1) first, so an older one is never pushed out.
             'notifications' => $user ? $this->unreadNotifications($user) : [],
-            // Sprint 12 #19 — the CEO's "Buka Proyek" pop-up, on every page.
-            'pendingProjectOpenings' => fn () => $user?->hasAnyRole(['CEO', 'SUPERADMIN'])
-                ? $this->pendingOpenings()
+            // "Buka Proyek" pop-up, on every page — Sprint 23 K13: for the PM
+            // who approved the RAB Proyek (any PM when an Asisten PM did).
+            'pendingProjectOpenings' => fn () => $user?->hasAnyRole(['PM', 'SUPERADMIN'])
+                ? $this->pendingOpenings($user)
                 : null,
             // Sprint 13 #5 — menu route => items waiting there ("Perlu
             // Tindakan" counts, cached 60 s per user — ActionInboxService).
@@ -142,19 +144,24 @@ class HandleInertiaRequests extends Middleware
             ->get();
     }
 
-    /** @return array{openings: mixed, projectManagers: mixed, assistantPms: mixed}|null */
-    private function pendingOpenings(): ?array
+    /**
+     * The openings this user may open (ProjectOpening::openableBy() —
+     * SUPERADMIN: all) + the form's pickers; null when none waits.
+     *
+     * @return array{openings: mixed, projectManagers: mixed, assistantPms: mixed, teamLeads: mixed, supervisors: mixed}|null
+     */
+    private function pendingOpenings(User $user): ?array
     {
         $openings = ProjectOpening::query()
             ->waiting()
+            ->when(! $user->hasRole('SUPERADMIN'), fn ($query) => $query->openableBy($user))
             ->with(['lead:id,client_name', 'quotation:id,total_amount,version,client_approved_at'])
             ->oldest()
             ->get();
 
         return $openings->isEmpty() ? null : [
             'openings' => $openings,
-            'projectManagers' => User::role('PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
-            'assistantPms' => User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            ...app(ProjectService::class)->openingFormOptions(),
         ];
     }
 }

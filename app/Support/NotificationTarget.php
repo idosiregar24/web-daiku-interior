@@ -91,14 +91,11 @@ class NotificationTarget
             NotificationType::InvoiceRejected => route('finance.invoices.index', $id('invoice_id')
                 ? ['awaiting_proof' => 1, 'proof' => $id('invoice_id')]
                 : ['awaiting_proof' => 1]),
-            NotificationType::InvoiceAwaitingVerification => route('finance.invoices.verification'),
+            // Sprint 23 K12b — straight into that invoice's Verifikasi dialog.
+            NotificationType::InvoiceAwaitingVerification => route('finance.invoices.verification', $id('invoice_id') ? ['verify' => $id('invoice_id')] : []),
             // Sprint 19 — straight into the "Jadwalkan Survey" dialog on the paid RAB.
             NotificationType::SurveyToSchedule => $id('quotation_id')
                 ? route('quotations.show', ['quotation' => $id('quotation_id'), 'survey' => 'new'])
-                : null,
-            // Sprint 22 — straight into the "Kirim Desain ke Klien" dialog.
-            NotificationType::DesignReadyToSend => $id('design_id')
-                ? route('design.show', ['design' => $id('design_id'), 'action' => 'send'])
                 : null,
             default => null,
         };

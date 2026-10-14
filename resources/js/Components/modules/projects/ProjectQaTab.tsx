@@ -18,8 +18,8 @@ export function ProjectQaTab({ qaForms, canOpenForm }: { qaForms: QaForm[]; canO
             <EmptyState
                 icon={ShieldCheck}
                 className="rounded-xl border border-dashed border-border"
-                title="Belum ada milestone yang diajukan ke QA."
-                description="Form QA dibuat otomatis saat milestone ditandai selesai."
+                title="Belum ada timeline yang diajukan ke QA."
+                description="Form QA dibuat otomatis saat timeline ditandai selesai."
             />
         );
     }
@@ -29,7 +29,7 @@ export function ProjectQaTab({ qaForms, canOpenForm }: { qaForms: QaForm[]; canO
             <table className="w-full text-sm">
                 <thead className={TABLE_HEAD_CLASS}>
                     <tr>
-                        <th className="px-4 py-2.5 text-left font-semibold">Milestone</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Timeline</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Catatan QA</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Reviewer</th>
@@ -50,7 +50,7 @@ export function ProjectQaTab({ qaForms, canOpenForm }: { qaForms: QaForm[]; canO
                                 )}
                             </td>
                             <td className="px-4 py-3">
-                                <StatusChip status={form.status} />
+                                <StatusChip domain="qa" status={form.status} />
                             </td>
                             <td className="max-w-80 px-4 py-3 text-daiku-muted">{form.notes || '—'}</td>
                             <td className="px-4 py-3 text-daiku-muted">{form.reviewer?.name ?? '—'}</td>

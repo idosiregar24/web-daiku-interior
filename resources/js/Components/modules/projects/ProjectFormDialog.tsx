@@ -1,5 +1,14 @@
+import {
+    ProjectTeamFields,
+    refineTeamLead,
+    TEAM_ERROR_FIELD,
+    teamDefaults,
+    teamFieldsShape,
+    teamPayload,
+} from '@/Components/modules/projects/ProjectTeamFields';
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Notice } from '@/Components/shared/Notice';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import {
@@ -29,16 +38,16 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Project, ProjectStatus, User } from '@/types';
+import type { Project, ProjectStatus, ProjectTeamOptions, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 // COMPLETED is never a manual choice — QaFormService sets it once every
-// milestone passed QA (UpdateProjectRequest / ProjectService::update()).
+// timeline passed QA (UpdateProjectRequest / ProjectService::update()).
 const STATUS_OPTIONS = ['ACTIVE', 'ON_HOLD', 'CANCELLED'] as const satisfies readonly ProjectStatus[];
 
 type EditableStatus = (typeof STATUS_OPTIONS)[number];
@@ -49,13 +58,16 @@ const STATUS_HINT: Record<EditableStatus, string> = {
     CANCELLED: 'Dibatalkan permanen — proyek menjadi read-only.',
 };
 
-// Mirrors UpdateProjectRequest; the cross-field rules below match its
-// `after_or_equal:start_date` and `required_if:status,CANCELLED`.
+// Mirrors UpdateProjectRequest (+ ValidatesProjectPeople); the cross-field
+// rules below match its `after_or_equal:opened_on` / `after_or_equal:start_date`,
+// the Kepala Tim "one of the two" and `required_if:status,CANCELLED`.
 const schema = z
     .object({
         name: z.string().trim().min(1, 'Nama proyek wajib diisi').max(255, 'Nama proyek maksimal 255 karakter'),
         pm_id: z.string(),
         assistant_pm_id: z.string(),
+        ...teamFieldsShape,
+        opened_on: z.date({ message: 'Tanggal buka proyek wajib diisi' }),
         start_date: z.date({ message: 'Tanggal mulai proyek wajib diisi' }),
         end_date: z.date().optional(),
         contract_value: z
@@ -65,6 +77,11 @@ const schema = z
             .refine((v) => Number(v) <= 9999999999999.99, 'Nilai kontrak terlalu besar'),
         status: z.enum(STATUS_OPTIONS),
         note: z.string().max(1000, 'Catatan maksimal 1000 karakter').optional(),
+    })
+    .superRefine(refineTeamLead)
+    .refine((values) => !values.opened_on || !values.start_date || startOfDay(values.start_date) >= startOfDay(values.opened_on), {
+        message: 'Tanggal mulai tidak boleh sebelum tanggal buka proyek',
+        path: ['start_date'],
     })
     .refine((values) => !values.end_date || values.end_date >= values.start_date, {
         message: 'Tanggal selesai tidak boleh sebelum tanggal mulai',
@@ -79,7 +96,7 @@ type FormValues = z.infer<typeof schema>;
 
 const NO_ASSISTANT = 'none';
 
-const FIELDS: string[] = ['name', 'pm_id', 'assistant_pm_id', 'start_date', 'end_date', 'contract_value', 'status', 'note'];
+const FIELDS: string[] = ['name', 'pm_id', 'assistant_pm_id', 'opened_on', 'start_date', 'end_date', 'contract_value', 'status', 'note'];
 
 interface ProjectFormDialogProps {
     open: boolean;
@@ -92,6 +109,8 @@ interface ProjectFormDialogProps {
     assistantPms: Pick<User, 'id' | 'name'>[];
     /** Any DP/pelunasan on a termin fixes the contract value (ProjectService::update()). */
     hasTerminPayments: boolean;
+    /** Sprint 23 K15 — Kepala Tim / Pengawas pickers. */
+    teamOptions: ProjectTeamOptions;
 }
 
 /** "Edit Proyek" (Sprint 9) — CEO any project, PM their own; ProjectService::update() holds the rules. */
@@ -103,10 +122,22 @@ export function ProjectFormDialog({
     projectManagers,
     assistantPms,
     hasTerminPayments,
+    teamOptions,
 }: ProjectFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { name: '', pm_id: '', assistant_pm_id: NO_ASSISTANT, start_date: undefined, end_date: undefined, contract_value: '', status: 'ACTIVE', note: '' },
+        defaultValues: {
+            name: '',
+            pm_id: '',
+            assistant_pm_id: NO_ASSISTANT,
+            ...teamDefaults(),
+            opened_on: undefined,
+            start_date: undefined,
+            end_date: undefined,
+            contract_value: '',
+            status: 'ACTIVE',
+            note: '',
+        },
     });
 
     const status = form.watch('status');
@@ -119,6 +150,8 @@ export function ProjectFormDialog({
             name: project.name,
             pm_id: String(project.pm_id),
             assistant_pm_id: project.assistant_pm_id ? String(project.assistant_pm_id) : NO_ASSISTANT,
+            ...teamDefaults(project),
+            opened_on: project.opened_on ? new Date(project.opened_on) : undefined,
             start_date: project.start_date ? new Date(project.start_date) : undefined,
             end_date: project.end_date ? new Date(project.end_date) : undefined,
             contract_value: String(Number(project.contract_value)),
@@ -130,7 +163,9 @@ export function ProjectFormDialog({
     function onSubmit(values: FormValues) {
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
-                if (FIELDS.includes(field)) {
+                if (TEAM_ERROR_FIELD[field]) {
+                    form.setError(TEAM_ERROR_FIELD[field], { message });
+                } else if (FIELDS.includes(field)) {
                     form.setError(field as keyof FormValues, { message });
                 } else {
                     form.setError('root.server', { message });
@@ -142,6 +177,7 @@ export function ProjectFormDialog({
             route('projects.update', { project: project.id }),
             {
                 name: values.name,
+                opened_on: format(values.opened_on, 'yyyy-MM-dd'),
                 start_date: format(values.start_date, 'yyyy-MM-dd'),
                 end_date: values.end_date ? format(values.end_date, 'yyyy-MM-dd') : null,
                 contract_value: Number(values.contract_value),
@@ -149,6 +185,7 @@ export function ProjectFormDialog({
                 note: statusChanged && values.note?.trim() ? values.note.trim() : null,
                 ...(canChangePm ? { pm_id: Number(values.pm_id) } : {}),
                 assistant_pm_id: values.assistant_pm_id === NO_ASSISTANT ? null : Number(values.assistant_pm_id),
+                ...teamPayload(values),
             },
             { preserveScroll: true, onError, onSuccess: () => onOpenChange(false) },
         );
@@ -158,7 +195,7 @@ export function ProjectFormDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="max-h-[90svh] max-w-lg overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Ubah Proyek</DialogTitle>
                     <DialogDescription>{project.name}</DialogDescription>
@@ -237,7 +274,21 @@ export function ProjectFormDialog({
                                             ))}
                                         </SelectContent>
                                     </Select>
-                                    <FormDescription>Mengerjakan milestone, task, progress & ACC pengajuan barang — tanpa alokasi dana.</FormDescription>
+                                    <FormDescription>Mengerjakan timeline, task, progress & ACC pengajuan barang — tanpa alokasi dana.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <ProjectTeamFields options={teamOptions} project={project} />
+                        <FormField
+                            control={form.control}
+                            name="opened_on"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel required>Tanggal Buka Proyek</FormLabel>
+                                    <FormControl>
+                                        <DatePicker value={field.value} onChange={field.onChange} />
+                                    </FormControl>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -284,7 +335,7 @@ export function ProjectFormDialog({
                                 <FormItem>
                                     <FormLabel required>Nilai Kontrak (Rp)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" step="0.01" min="0" disabled={hasTerminPayments} {...field} />
+                                        <MoneyInput decimals={2} disabled={hasTerminPayments} {...field} />
                                     </FormControl>
                                     <FormDescription>
                                         {hasTerminPayments
@@ -310,7 +361,7 @@ export function ProjectFormDialog({
                                         <SelectContent>
                                             {STATUS_OPTIONS.map((option) => (
                                                 <SelectItem key={option} value={option}>
-                                                    <StatusChip status={option} />
+                                                    <StatusChip domain="project" status={option} waitingOn={null} />
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

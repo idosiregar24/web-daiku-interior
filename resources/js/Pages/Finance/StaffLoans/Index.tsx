@@ -1,4 +1,4 @@
-import { STAFF_LOAN_STATUS_LABEL, staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
+import { staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
 import { DataTable } from '@/Components/shared/DataTable';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -79,7 +79,7 @@ export default function StaffLoanIndex({ loans, filters, summary, staff }: Staff
             cell: ({ row }) => {
                 const status = staffLoanStatus(row.original);
 
-                return <StatusChip status={status} label={STAFF_LOAN_STATUS_LABEL[status]} />;
+                return <StatusChip domain="staffLoan" status={status} />;
             },
         },
         {

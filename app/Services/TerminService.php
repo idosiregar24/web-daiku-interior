@@ -207,7 +207,7 @@ class TerminService
             && $termin->milestone_id
             && $termin->milestone->status !== MilestoneStatus::Completed) {
             throw ValidationException::withMessages([
-                'status' => 'Pelunasan termin ini masih terkunci — milestone terkait belum COMPLETED (lolos QA). DP tetap bisa diterima.',
+                'status' => 'Pelunasan termin ini masih terkunci — timeline terkait belum selesai (lolos QA). DP tetap bisa diterima.',
             ]);
         }
 

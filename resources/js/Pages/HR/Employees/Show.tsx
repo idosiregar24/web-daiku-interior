@@ -60,6 +60,7 @@ export default function EmployeeShow({
         return requested && requested in TAB_LABEL ? requested : 'summary';
     });
     const [editOpen, setEditOpen] = useState(false);
+    const salaryWaiting = canDecideSalary && (salary.changes ?? []).some((change) => change.status === 'PENDING');
 
     return (
         <AppLayout breadcrumbs={[{ label: employee.name, href: route('hr.employees.show', { employee: employee.id }) }, { label: TAB_LABEL[tab] }]}>
@@ -78,6 +79,21 @@ export default function EmployeeShow({
                             label={employee.is_active ? 'Aktif' : 'Nonaktif'}
                         />
                     </span>
+                }
+                step={
+                    salaryWaiting && (
+                        <>
+                            Ada perubahan gaji yang menunggu keputusan Anda —{' '}
+                            <button
+                                type="button"
+                                onClick={() => setTab('salary')}
+                                className="font-medium underline decoration-daiku-yellow underline-offset-4"
+                            >
+                                buka tab Gaji
+                            </button>
+                            .
+                        </>
+                    )
                 }
                 actions={
                     canManage && (

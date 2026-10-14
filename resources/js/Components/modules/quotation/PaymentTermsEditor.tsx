@@ -43,7 +43,7 @@ function buildSchema(maxTerms: number) {
                             ctx.addIssue({ code: 'custom', path: ['due_date'], message: 'Tanggal jatuh tempo wajib diisi' });
                         }
                         if (term.trigger === 'MILESTONE' && !term.milestone_name.trim()) {
-                            ctx.addIssue({ code: 'custom', path: ['milestone_name'], message: 'Nama milestone wajib diisi' });
+                            ctx.addIssue({ code: 'custom', path: ['milestone_name'], message: 'Nama timeline wajib diisi' });
                         }
                     }),
             )

@@ -37,6 +37,13 @@ class Unit extends Model
         'ls' => 'Lumpsum',
     ];
 
+    /**
+     * Sprint 23 K5 — meter lari: a RAB line's volume comes from P or T/L
+     * (the Estimator picks), every other unit's from P × T/L. Identified
+     * by its code; mirrored as METER_LARI in RabBuilder.tsx.
+     */
+    public const METER_LARI = 'm/lari';
+
     protected $fillable = ['code', 'name', 'is_active', 'sort_order'];
 
     protected function casts(): array

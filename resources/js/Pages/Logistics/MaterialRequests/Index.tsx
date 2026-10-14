@@ -46,13 +46,6 @@ const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'Semua' },
 ];
 
-const STATUS_LABEL: Record<MaterialRequestStatus, string> = {
-    MENUNGGU_PM: 'Menunggu PM',
-    DIAJUKAN: 'Menunggu Logistik',
-    DISETUJUI: 'Disetujui',
-    DITOLAK: 'Ditolak',
-};
-
 /**
  * Sprint 11 Sub 4 — "Pengajuan Barang": barang di luar katalog dan
  * kebutuhan dari Tukang. Logistik meninjau (4 keputusan), PM menyetujui
@@ -90,8 +83,9 @@ export default function MaterialRequestIndex({
         return (
             <div className="space-y-1">
                 <StatusChip
+                    domain="materialRequest"
                     status={line.request_status}
-                    label={line.request_status === 'DISETUJUI' && line.review_decision ? DECISION_LABEL[line.review_decision] : STATUS_LABEL[line.request_status]}
+                    label={line.request_status === 'DISETUJUI' && line.review_decision ? DECISION_LABEL[line.review_decision] : undefined}
                 />
                 {line.reject_reason && <p className="max-w-[14rem] text-xs text-error-ink">{line.reject_reason}</p>}
             </div>

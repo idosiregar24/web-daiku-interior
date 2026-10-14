@@ -32,6 +32,11 @@ function projectUpdatePayload(Project $project, array $overrides = []): array
 {
     return [
         'name' => $project->name,
+        // Sprint 23 K15 — Tanggal Buka + Kepala Tim are required on Edit Proyek too.
+        'opened_on' => ($project->opened_on ?? $project->start_date)->toDateString(),
+        'team_lead_id' => $project->team_lead_id,
+        'team_lead_name' => $project->team_lead_id ? null : ($project->team_lead_name ?? 'Tim Pak Darto'),
+        'supervisor_id' => $project->supervisor_id,
         'start_date' => $project->start_date->toDateString(),
         'end_date' => $project->end_date?->toDateString(),
         'contract_value' => (float) $project->contract_value,
@@ -340,6 +345,7 @@ test('tasks and milestones cannot be added to a closed project', function (Proje
 
     $this->actingAs($pm)->post(route('milestones.store', $project), [
         'name' => 'Finishing',
+        'start_date' => now()->toDateString(),
         'target_date' => now()->addWeek()->toDateString(),
     ])->assertSessionHasErrors('project');
 
@@ -360,6 +366,7 @@ test('an ON_HOLD project still accepts new tasks and milestones', function () {
 
     $this->actingAs($pm)->post(route('milestones.store', $project), [
         'name' => 'Finishing',
+        'start_date' => now()->toDateString(),
         'target_date' => now()->addWeek()->toDateString(),
     ])->assertSessionHasNoErrors();
 

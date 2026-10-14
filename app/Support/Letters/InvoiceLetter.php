@@ -261,7 +261,7 @@ final class InvoiceLetter
     private static function terminRows(Termin $termin, ?Quotation $quotation, float $billed): array
     {
         $full = (float) $termin->amount;
-        $rows = [self::row(1, self::terminDescription($termin, $quotation), $termin->milestone_name ? "Milestone: {$termin->milestone_name}" : null, $full)];
+        $rows = [self::row(1, self::terminDescription($termin, $quotation), $termin->milestone_name ? "Timeline: {$termin->milestone_name}" : null, $full)];
         $paidCents = (int) round($full * 100) - (int) round($billed * 100);
 
         return [$rows, $paidCents > 0 ? [

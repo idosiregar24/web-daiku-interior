@@ -55,7 +55,7 @@ export function ProjectOvertimeTab({ requests, canOpenList }: { requests: Overti
                                         {request.reject_note && <span className="mt-1 block text-error-ink">Ditolak: {request.reject_note}</span>}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <StatusChip status={request.status} />
+                                        <StatusChip domain="overtime" status={request.status} />
                                     </td>
                                 </tr>
                             ))}

@@ -34,18 +34,19 @@ function auditUser(string $role): User
 // ── PRD §9.4: sensitive actions are recorded ─────────────────────────────
 
 test('a quotation approval is audited with actor and before/after', function () {
-    $ceo = auditUser('CEO');
-    $quotation = Quotation::factory()->create(['status' => 'WAITING_CEO']);
+    // Sprint 23 K8 — the PM / Asisten PM approval is the internal one (no CEO stage).
+    $pm = auditUser('PM');
+    $quotation = Quotation::factory()->create(['status' => 'SUBMITTED']);
 
-    reviewQuotation($quotation, $ceo);
+    reviewQuotation($quotation, $pm);
 
     $log = AuditLog::sole();
-    expect($log->action)->toBe('quotation.ceo_approved')
-        ->and($log->user_id)->toBe($ceo->id)
+    expect($log->action)->toBe('quotation.pm_approved')
+        ->and($log->user_id)->toBe($pm->id)
         ->and($log->model_type)->toBe('Quotation')
         ->and($log->model_id)->toBe($quotation->id)
-        ->and($log->old_values)->toBe(['status' => 'WAITING_CEO', 'version' => 1])
-        ->and($log->new_values['status'])->toBe('APPROVED_INTERNAL');
+        ->and($log->old_values)->toBe(['status' => 'SUBMITTED', 'version' => 1])
+        ->and($log->new_values['status'])->toBe('READY_TO_SEND');
 });
 
 test('a QA decision is audited', function () {

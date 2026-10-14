@@ -145,8 +145,8 @@ export default function FamilyFundIndex({ entries, filters, summary, canRecordEx
                                             {isIncome ? (
                                                 entry.source_penalty ? (
                                                     <StatusChip
+                                                        domain="penalty"
                                                         status={entry.source_penalty.is_deducted ? 'LUNAS' : 'BELUM_DIBAYAR'}
-                                                        label={entry.source_penalty.is_deducted ? 'Lunas' : 'Belum Dibayar'}
                                                     />
                                                 ) : (
                                                     <span className="text-daiku-muted">—</span>

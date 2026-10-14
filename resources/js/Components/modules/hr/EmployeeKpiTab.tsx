@@ -59,8 +59,6 @@ export interface EmployeeKpiTabProps {
     selfView?: boolean;
 }
 
-const PERIOD_LABEL = { OPEN: 'Terbuka', CLOSED: 'Ditutup' } as const;
-
 /** KPI tab of the employee profile: monthly totals trend + per-month breakdown. */
 export function EmployeeKpiTab({ employee, data, canManage, selfView = false }: EmployeeKpiTabProps) {
     const periods = data?.periods ?? [];
@@ -117,7 +115,7 @@ export function EmployeeKpiTab({ employee, data, canManage, selfView = false }: 
                                             >
                                                 {open ? <ChevronUp className="size-4 text-daiku-muted" /> : <ChevronDown className="size-4 text-daiku-muted" />}
                                                 <span className="font-medium text-foreground">{period.label}</span>
-                                                {!selfView && <StatusChip status={period.status} label={PERIOD_LABEL[period.status]} />}
+                                                {!selfView && <StatusChip domain="kpiPeriod" status={period.status} />}
                                             </button>
                                             <span className="font-semibold tabular-nums">{formatKpiValue(period.total)}</span>
                                             <StatusChip status="KPI_TOTAL" tone={kpiTotalTone(period.total)} label={kpiTotalLabel(period.total)} />

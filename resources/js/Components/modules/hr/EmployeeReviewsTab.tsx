@@ -1,7 +1,6 @@
 import { ReviewDetailView } from '@/Components/modules/hr/ReviewDetailView';
 import {
     formatScore,
-    REVIEW_STATUS_LABEL,
     type ReviewDetail,
     type ReviewSemesterRef,
 } from '@/Components/modules/hr/ReviewShared';
@@ -123,7 +122,11 @@ export function EmployeeReviewsTab({ employee, data, canManage, selfView = false
                                                 {review.grade && <span className="ml-1.5">· {review.grade}</span>}
                                             </p>
                                         </div>
-                                        <StatusChip status={review.status} label={REVIEW_STATUS_LABEL[review.status]} />
+                                        <StatusChip
+                                            domain="performanceReview"
+                                            status={review.status}
+                                            waitingOn={selfView && review.status === 'APPROVED' ? 'Anda' : undefined}
+                                        />
                                         <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
                                     </button>
 

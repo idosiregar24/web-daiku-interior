@@ -1,4 +1,6 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
+import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -10,10 +12,9 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatRupiah } from '@/lib/format';
-import type { BankAccount, Termin } from '@/types';
+import type { BankAccount, Invoice, Termin } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
@@ -30,6 +31,34 @@ function today() {
 /** "Dibayar Sebagian" is derived, not a DB status — mirrors Termin::isPartiallyPaid(). */
 export function isPartiallyPaid(termin: Pick<Termin, 'dp_amount' | 'pelunasan' | 'sisa_piutang'>) {
     return Number(termin.dp_amount) + Number(termin.pelunasan) > 0 && Number(termin.sisa_piutang) > 0;
+}
+
+/**
+ * Sprint 23 K3/K12c — a termin's status and whose turn it is. Not invoiced
+ * yet: "Belum Ditagih · Marketing" (or "Terlambat · Marketing"); invoiced:
+ * the invoice's own state ("Belum Dibayar · Klien", "Menunggu Konfirmasi ·
+ * Finance") plus "Terlambat" when the schedule passed; paid: "Lunas".
+ */
+export function TerminStatusChip({
+    termin,
+}: {
+    termin: Pick<Termin, 'status' | 'dp_amount' | 'pelunasan' | 'sisa_piutang'> & { invoice?: Pick<Invoice, 'status'> | null };
+}) {
+    const invoice = termin.status !== 'PAID' ? termin.invoice : null;
+
+    return (
+        <span className="flex flex-wrap items-center gap-1">
+            {invoice ? (
+                <>
+                    <StatusChip domain="invoice" status={invoice.status} />
+                    {termin.status === 'OVERDUE' && <StatusChip domain="termin" status="OVERDUE" waitingOn={null} />}
+                </>
+            ) : (
+                <StatusChip domain="termin" status={termin.status} waitingOn={termin.status === 'PAID' ? null : 'Marketing'} />
+            )}
+            {isPartiallyPaid(termin) && <StatusChip status="PARTIAL" label="Dibayar Sebagian" />}
+        </span>
+    );
 }
 
 /**
@@ -164,7 +193,8 @@ export function TerminPaymentDialog({ termin, bankAccounts, onClose }: TerminPay
                                 <FormItem>
                                     <FormLabel required>Nominal (Rp)</FormLabel>
                                     <FormControl>
-                                        <Input type="number" min="0" step="0.01" {...field} />
+                                        {/* Sprint 23 K4 — "1.500.000"; the value stays a plain number string. */}
+                                        <MoneyInput {...field} decimals={2} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

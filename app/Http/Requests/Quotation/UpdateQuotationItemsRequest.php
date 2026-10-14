@@ -3,8 +3,10 @@
 namespace App\Http\Requests\Quotation;
 
 use App\Models\Quotation;
+use App\Models\QuotationItem;
 use App\Rules\SelectableUnit;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateQuotationItemsRequest extends FormRequest
 {
@@ -20,6 +22,7 @@ class UpdateQuotationItemsRequest extends FormRequest
      * `items` list without sections is still accepted (pre-Sprint-12
      * callers). Qty may be fractional (Sprint 11 #3); a unit SUPERADMIN
      * deactivated after this draft used it stays acceptable for its lines.
+     * Sprint 23 K5: `qty_source` (P / TL / PxTL, null = typed) rides along.
      */
     public function rules(): array
     {
@@ -32,6 +35,8 @@ class UpdateQuotationItemsRequest extends FormRequest
             "{$prefix}.dim_length" => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             "{$prefix}.dim_width_height" => ['nullable', 'numeric', 'min:0', 'max:99999999'],
             "{$prefix}.qty" => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:999999999'],
+            // Sprint 23 K5 — where the volume came from; QuotationService keeps it only when true.
+            "{$prefix}.qty_source" => ['nullable', Rule::in(QuotationItem::QTY_SOURCES)],
             "{$prefix}.unit_id" => $unit,
             "{$prefix}.unit_price" => ['required', 'numeric', 'min:0'],
         ];
@@ -65,6 +70,7 @@ class UpdateQuotationItemsRequest extends FormRequest
                 "{$prefix}.qty.required" => 'Volume wajib diisi.',
                 "{$prefix}.qty.min" => 'Volume minimal 0,01.',
                 "{$prefix}.qty.decimal" => 'Volume maksimal 2 angka di belakang koma.',
+                "{$prefix}.qty_source.in" => 'Sumber volume tidak valid.',
                 "{$prefix}.unit_id.required" => 'Satuan wajib dipilih.',
                 "{$prefix}.unit_price.required" => 'Harga satuan wajib diisi.',
             ];

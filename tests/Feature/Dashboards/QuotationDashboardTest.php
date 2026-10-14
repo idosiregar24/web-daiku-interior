@@ -48,8 +48,9 @@ test('CEO and Estimator open the quotation dashboard', function (string $role) {
             ->component('Quotation/Dashboard')
             ->has('statusCounts', count(QuotationStatus::cases()))
             ->has('todo.rows')
-            ->has('waitingCeo.rows')
             ->has('waitingPm.rows')
+            ->has('readyToSend.rows')
+            ->has('clientRejected.rows')
             ->has('monthly', 6)
             ->has('turnaround'));
 })->with(['CEO', 'ESTIMATOR']);
@@ -67,16 +68,17 @@ test('queues list the oldest first and a returned draft shows why it came back',
     $fresh = Quotation::factory()->create(['created_at' => '2026-09-29 09:00:00']);
     $submittedLater = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value, 'updated_at' => '2026-09-29 08:00:00']);
     $submittedEarlier = Quotation::factory()->create(['status' => QuotationStatus::Submitted->value, 'updated_at' => '2026-09-26 08:00:00']);
-    $waitingCeo = Quotation::factory()->create(['status' => QuotationStatus::WaitingCeo->value]);
-    $approved = Quotation::factory()->create(['status' => QuotationStatus::ApprovedInternal->value]);
+    $ready = Quotation::factory()->create(['status' => QuotationStatus::ReadyToSend->value]);
+    $declined = Quotation::factory()->create(['status' => QuotationStatus::ClientRejected->value]);
     Quotation::factory()->sentToClient()->create();
 
     $this->actingAs(quotationDashboardUser('ESTIMATOR'))->get(route('quotations.dashboard'))
         ->assertInertia(fn (Assert $page) => $page
             ->where('statusCounts.DRAFT', 2)
             ->where('statusCounts.SUBMITTED', 2)
-            ->where('statusCounts.WAITING_CEO', 1)
-            ->where('statusCounts.APPROVED_INTERNAL', 1)
+            ->where('statusCounts.READY_TO_SEND', 1)
+            ->where('statusCounts.CLIENT_REJECTED', 1)
+            ->where('statusCounts.WAITING_CEO', 0)
             ->where('statusCounts.SENT_TO_CLIENT', 1)
             ->where('statusCounts.CLIENT_APPROVED', 0)
             ->where('todo.total', 2)
@@ -87,14 +89,15 @@ test('queues list the oldest first and a returned draft shows why it came back',
             ->where('todo.rows.0.lastRejection.note', 'Minta material lebih murah')
             ->where('todo.rows.1.id', $fresh->id)
             ->where('todo.rows.1.lastRejection', null)
-            // Sprint 12: SUBMITTED waits for the PM review, then WAITING_CEO for the CEO.
+            // Sprint 23: SUBMITTED waits for the PM review, then straight to Marketing.
             ->where('waitingPm.rows.0.id', $submittedEarlier->id)
             ->where('waitingPm.rows.0.daysWaiting', 4)
             ->where('waitingPm.rows.1.id', $submittedLater->id)
-            ->where('waitingCeo.total', 1)
-            ->where('waitingCeo.rows.0.id', $waitingCeo->id)
+            ->missing('waitingCeo')
             ->where('readyToSend.total', 1)
-            ->where('readyToSend.rows.0.id', $approved->id));
+            ->where('readyToSend.rows.0.id', $ready->id)
+            ->where('clientRejected.total', 1)
+            ->where('clientRejected.rows.0.id', $declined->id));
 });
 
 test('a draft whose latest decision was an approval shows no stale rejection note', function () {

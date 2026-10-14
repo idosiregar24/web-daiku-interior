@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -10,7 +11,6 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
@@ -122,7 +122,7 @@ export function FundExpenseDialog({ open, onOpenChange, spendable, bankAccounts 
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" {...field} autoFocus />
+                                            <MoneyInput {...field} autoFocus />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

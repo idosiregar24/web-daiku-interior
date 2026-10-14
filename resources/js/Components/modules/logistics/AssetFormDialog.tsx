@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
@@ -273,7 +274,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                     <FormItem>
                                         <FormLabel required>Nilai (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -337,7 +338,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                             <FormItem>
                                                 <FormLabel required>Total Cicilan (Rp)</FormLabel>
                                                 <FormControl>
-                                                    <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                    <MoneyInput {...field} />
                                                 </FormControl>
                                                 <FormDescription>Seluruh nominal yang harus dibayar sampai lunas.</FormDescription>
                                                 <FormMessage />
@@ -352,7 +353,7 @@ export function AssetFormDialog({ open, onOpenChange, asset, categories }: Asset
                                                 <FormItem>
                                                     <FormLabel>Cicilan per Bulan</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" min="0" step="any" inputMode="decimal" {...field} />
+                                                        <MoneyInput {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>

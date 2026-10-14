@@ -11,6 +11,7 @@ import {
     DialogTitle,
 } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Input } from '@/Components/ui/input';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
@@ -135,7 +136,7 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                                     <FormItem>
                                         <FormLabel required>Harga Modal / Satuan</FormLabel>
                                         <FormControl>
-                                            <Input inputMode="decimal" placeholder="mis. 250000" {...field} disabled={!!overrun} />
+                                            <MoneyInput decimals={2} placeholder="mis. 250.000" {...field} disabled={!!overrun} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

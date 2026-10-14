@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
 /**
- * Sprint 12 decision #17 — one revision Marketing asked of the architect
- * (DesignService::requestRevision()). Append-only history.
+ * Sprint 12 decision #17 — one revision Marketing asked of the architect.
+ * Append-only history: since Sprint 23 (K20) revisions are asked in the
+ * design's WhatsApp group and no new row is written.
  */
 class DesignRevision extends Model
 {

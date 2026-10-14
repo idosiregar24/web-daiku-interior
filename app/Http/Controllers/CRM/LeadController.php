@@ -18,6 +18,7 @@ use App\Models\LeadSource;
 use App\Models\PipelineLog;
 use App\Models\Quotation;
 use App\Models\User;
+use App\Services\InvoiceService;
 use App\Services\LeadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -75,7 +76,7 @@ class LeadController extends Controller
      * row (CEO/MKT/PM only — Designer and Estimator see the lead, not its
      * log).
      */
-    public function show(Request $request, Lead $lead): Response
+    public function show(Request $request, Lead $lead, InvoiceService $invoiceService): Response
     {
         $user = $request->user();
         $canManage = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']);
@@ -87,8 +88,10 @@ class LeadController extends Controller
             'leadSource:id,name',
             'leadCategory:id,name',
             'city:id,name',
-            'design:id,lead_id,pic_id,status,deadline,client_acc',
+            'design:id,lead_id,pic_id,status,deadline,client_acc,client_acc_by,client_acc_at',
             'design.pic:id,name',
+            // Sprint 23 K19 — "Disetujui klien — dicatat oleh {nama}, {tanggal jam}".
+            'design.clientApprover:id,name',
             'quotation:id,lead_id,type,custom_name,status,total_amount,version,valid_until,client_approved_at',
             // Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the client ("Riwayat RAB"), named.
             'quotations:id,lead_id,type,custom_name,parent_quotation_id,status,total_amount,version,valid_until,letter_number,created_at',
@@ -135,7 +138,13 @@ class LeadController extends Controller
                 'valid_until' => $quotation->valid_until?->toDateString(),
             ]);
 
+        // Sprint 23 K12c (Q17) — "Informasi Pembayaran": CEO, Marketing and the PM of this
+        // lead's project only. Anyone else (Arsitek, Estimator, another PM) gets no data at all.
+        $canViewPayments = $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN'])
+            || ($user->hasRole('PM') && $lead->project !== null && (int) $lead->project->pm_id === (int) $user->id);
+
         return Inertia::render('CRM/Show', [
+            'payments' => $canViewPayments ? $invoiceService->leadPayments($lead, $user) : null,
             // Sprint 16 Sub 08 (K15): a new survey defaults to "Luar Pekanbaru" from the lead's city.
             'lead' => $lead->append('is_outside_home_city'),
             // Flattened instead of serializing the `changedBy` relation —

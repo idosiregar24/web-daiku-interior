@@ -34,7 +34,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
             <PageHeader
                 title="QA Form"
                 icon={ShieldCheck}
-                description="Checklist kualitas per milestone — dibuat otomatis saat PM menandai milestone selesai."
+                description="Checklist kualitas per timeline — dibuat otomatis saat PM menandai timeline selesai."
                 actions={<DashboardLinkButton routeName="qa-forms.dashboard" label="Dashboard QA" icon={BarChart3} roles={['CEO', 'QA']} />}
             />
 
@@ -79,7 +79,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                                             {qaForm.rejection_count > 0 && ` · ditolak ${qaForm.rejection_count}x`}
                                         </span>
                                     </span>
-                                    <StatusChip status={qaForm.status} />
+                                    <StatusChip domain="qa" status={qaForm.status} />
                                 </Link>
                             </li>
                         ))
@@ -90,7 +90,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                     <thead className={TABLE_HEAD_CLASS}>
                         <tr>
                             <th className="px-4 py-2.5 text-left font-semibold">Proyek</th>
-                            <th className="px-4 py-2.5 text-left font-semibold">Milestone</th>
+                            <th className="px-4 py-2.5 text-left font-semibold">Timeline</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Reviewer</th>
                             <th className="px-4 py-2.5 text-left font-semibold">Reject Ke-</th>
@@ -119,7 +119,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                                         </Link>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <StatusChip status={qaForm.status} />
+                                        <StatusChip domain="qa" status={qaForm.status} />
                                     </td>
                                     <td className="px-4 py-3 text-daiku-muted">{qaForm.reviewer?.name ?? '—'}</td>
                                     <td className="px-4 py-3 text-daiku-muted">{qaForm.rejection_count}x</td>

@@ -12,6 +12,7 @@ use App\Models\ProjectOpening;
 use App\Models\Quotation;
 use App\Models\User;
 use App\Services\DesignService;
+use App\Services\QuotationService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -26,19 +27,21 @@ use Tests\TestCase;
  */
 beforeEach(fn () => $this->seed(RoleSeeder::class));
 
-/** Sprint 12 #8 — a review payload: approve with every item ✔, or return with only a note. */
+/** Sprint 12 #8 — a review payload: approve with every item ✔ (Sprint 23 K7: carried ✔ left out), or return with only a note. */
 function presalesReview(Quotation $quotation, string $decision, ?string $note = null): array
 {
+    $carried = app(QuotationService::class)->carriedMarks($quotation);
+
     return [
         'decision' => $decision,
         'note' => $note,
         'items' => $decision === 'approve' || $note === null
-            ? $quotation->items()->get()->map(fn ($item) => ['item_id' => $item->id, 'verdict' => 'OK'])->all()
+            ? $quotation->items()->get()->reject(fn ($item) => isset($carried[$item->id]))->values()->map(fn ($item) => ['item_id' => $item->id, 'verdict' => 'OK'])->all()
             : [],
     ];
 }
 
-/** Sprint 12 Sub 5, over HTTP: the client ticks and approves on the current link, then the CEO opens the project. */
+/** Sprint 12 Sub 5, over HTTP: the client ticks and approves on the current link, then the approving PM opens the project (Sprint 23 K13). */
 function presalesClientApprovesAndProjectOpens(TestCase $test, Quotation $quotation, Lead $lead, User $ceo, User $pm, int $value): void
 {
     $token = $quotation->fresh()->currentShareLink()->token;
@@ -46,10 +49,14 @@ function presalesClientApprovesAndProjectOpens(TestCase $test, Quotation $quotat
     $test->get(route('public.quotation.show', $token))->assertOk();
     $test->post(route('public.quotation.approve', $token), ['agree' => true])->assertSessionHasNoErrors();
 
+    // Sprint 23 K13 — the PM who approved the RAB Proyek opens it (the CEO no longer can).
     $opening = ProjectOpening::where('quotation_id', $quotation->id)->sole();
-    $test->actingAs($ceo)->post(route('projects.openings.open', $opening), [
+    $test->actingAs($ceo)->post(route('projects.openings.open', $opening), [])->assertForbidden();
+    $test->actingAs($pm)->post(route('projects.openings.open', $opening), [
         'name' => "Proyek {$lead->client_name}",
         'pm_id' => $pm->id,
+        'team_lead_name' => 'Tim Pak Darto',
+        'opened_on' => now()->toDateString(),
         'start_date' => now()->toDateString(),
     ])->assertSessionHasNoErrors();
 
@@ -57,18 +64,14 @@ function presalesClientApprovesAndProjectOpens(TestCase $test, Quotation $quotat
 }
 
 /**
- * Sprint 12 #7–#10, over HTTP: PM reviews ✔ → CEO approves (RAB Proyek) →
- * Estimator sends the final RAB to Marketing → Marketing sends it to the client.
+ * Sprint 23 K8–K10, over HTTP: PM reviews ✔ → straight to Marketing (the
+ * CEO is only told) → Marketing sends it to the client.
  */
 function presalesApproveAndSend(TestCase $test, Quotation $quotation, User $pm, User $ceo, User $estimator, User $marketing): void
 {
     $test->actingAs($pm)->post(route('quotations.review', $quotation), presalesReview($quotation, 'approve'))->assertSessionHasNoErrors();
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::WaitingCeo);
+    expect($quotation->fresh()->status)->toBe(QuotationStatus::ReadyToSend);
 
-    $test->actingAs($ceo)->post(route('quotations.review', $quotation), ['decision' => 'approve'])->assertSessionHasNoErrors();
-    expect($quotation->fresh()->status)->toBe(QuotationStatus::ApprovedInternal);
-
-    $test->actingAs($estimator)->post(route('quotations.sendToMarketing', $quotation))->assertSessionHasNoErrors();
     $test->actingAs($marketing)->post(route('quotations.sendToClient', $quotation))->assertSessionHasNoErrors();
 }
 
@@ -111,7 +114,7 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     expect($lead->fresh()->status)->toBe(LeadStatus::DealDesain);
     $designRab = Quotation::where('lead_id', $lead->id)->where('type', 'DESAIN')->sole();
 
-    // 3. Estimator builds it, the PM approves (no CEO for a service RAB),
+    // 3. Estimator builds it, the PM approves (straight to Marketing, Sprint 23),
     // Marketing sends it and the client approves on the link → the design
     // is opened, locked until paid.
     $this->actingAs($estimator)->post(route('quotations.start', $designRab))->assertSessionHasNoErrors();
@@ -120,7 +123,6 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
     ])->assertSessionHasNoErrors();
     $this->actingAs($estimator)->post(route('quotations.submit', $designRab))->assertSessionHasNoErrors();
     $this->actingAs($pm)->post(route('quotations.review', $designRab), presalesReview($designRab, 'approve'))->assertSessionHasNoErrors();
-    $this->actingAs($estimator)->post(route('quotations.sendToMarketing', $designRab))->assertSessionHasNoErrors();
     $this->actingAs($marketing)->post(route('quotations.sendToClient', $designRab))->assertSessionHasNoErrors();
     $this->post(route('public.quotation.approve', $designRab->fresh()->currentShareLink()->token), ['agree' => true])
         ->assertSessionHasNoErrors();
@@ -142,27 +144,27 @@ test('the full presales flow — Lead to Design to Quotation to Deal — works e
 
     expect($design->fresh()->status)->toBe(DesignStatus::MenungguPenugasan);
 
-    // 5. The Kepala Desain assigns the architect; they upload the design;
-    // Marketing sends it, asks one revision, resends, and the client approves.
+    // 5. The Kepala Desain assigns the architect; Marketing saves the WhatsApp
+    // group, the architect the design links (revisions happen in the group),
+    // and Marketing records the client's approval (Sprint 23 G).
     $this->actingAs($head)->post(route('design.assign', $design), [
         'pic_id' => $designer->id,
         'start_date' => now()->toDateString(),
         'target_hari' => 10,
     ])->assertSessionHasNoErrors();
-    $this->actingAs($designer)->put(route('design.update', $design), ['design_urls' => ['https://figma.com/file/v1']])
+    $this->actingAs($marketing)->put(route('design.links.update', $design), ['whatsapp_group_url' => 'https://chat.whatsapp.com/AbCdEf123'])
         ->assertSessionHasNoErrors();
-    $this->actingAs($marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
-    $this->actingAs($marketing)->post(route('design.requestRevision', $design), ['note' => 'Meja makan untuk 8 orang.'])
-        ->assertSessionHasNoErrors();
-    $this->actingAs($designer)->put(route('design.update', $design), ['design_urls' => ['https://figma.com/file/v2']])
-        ->assertSessionHasNoErrors();
-    $this->actingAs($marketing)->post(route('design.sendToClient', $design))->assertSessionHasNoErrors();
+    $this->actingAs($designer)->put(route('design.links.update', $design), [
+        'whatsapp_group_url' => 'https://chat.whatsapp.com/AbCdEf123',
+        'design_urls' => ['https://figma.com/file/v2'],
+    ])->assertSessionHasNoErrors();
     $this->actingAs($marketing)->post(route('design.markClientApproved', $design))->assertSessionHasNoErrors();
 
     $design->refresh();
     expect($design->client_acc)->toBeTrue()
         ->and($design->status)->toBe(DesignStatus::AccDesain)
-        ->and($design->revision_count)->toBe(1);
+        ->and($design->client_acc_by)->toBe($marketing->id)
+        ->and($design->links_updated_by)->toBe($designer->id);
 
     // The Estimator is asked for the RAB Proyek built on that design.
     $quotation = Quotation::where('lead_id', $lead->id)->where('type', 'PROYEK')->sole();
@@ -254,18 +256,17 @@ test('the presales flow survives rejections — CEO return, client reject, revis
     ])->assertRedirect();
     expect($design->fresh()->status)->toBe(DesignStatus::PembuatanPenawaran);
 
-    // 3. PM approves v1, the CEO returns it → revision #1, back to DRAFT as v2.
+    // 3. The PM returns v1 (Sprint 23: no CEO stage) → revision #1, back to DRAFT as v2.
     $this->actingAs($estimator)->post(route('quotations.submit', ['quotation' => $quotation->id]))->assertRedirect();
-    $this->actingAs($pm)->post(route('quotations.review', $quotation), presalesReview($quotation, 'approve'))->assertSessionHasNoErrors();
-    $this->actingAs($ceo)->post(route('quotations.review', $quotation), presalesReview($quotation, 'return', 'Harga terlalu tinggi.'))
+    $this->actingAs($pm)->post(route('quotations.review', $quotation), [...presalesReview($quotation, 'approve'), 'decision' => 'return', 'note' => 'Harga terlalu tinggi.'])
         ->assertSessionHasNoErrors();
 
     $quotation->refresh();
     expect($quotation->status)->toBe(QuotationStatus::Draft)
         ->and($quotation->version)->toBe(2)
-        ->and($quotation->revisions()->pluck('reason', 'version')->all())->toBe([1 => 'CEO_REJECTED']);
+        ->and($quotation->revisions()->pluck('reason', 'version')->all())->toBe([1 => 'PM_REJECTED']);
 
-    // 4. Estimator revises v2 → PM & CEO approve → sent and valid for 14
+    // 4. Estimator revises v2 → PM approves → Marketing sends, valid for 14
     // days; design WAITING_ACC_PENAWARAN.
     $this->actingAs($estimator)->put(route('quotations.items.update', ['quotation' => $quotation->id]), [
         'items' => [['description' => 'Kitchen Set Custom', 'qty' => 1, 'unit_id' => unitId('set'), 'unit_price' => 27_000_000]],
@@ -294,10 +295,10 @@ test('the presales flow survives rejections — CEO return, client reject, revis
             $revision->version, $revision->reason, (float) $revision->total_amount,
         ])->all())->toBe([
             [2, 'CLIENT_REJECTED', 27_000_000.0],
-            [1, 'CEO_REJECTED', 30_000_000.0],
+            [1, 'PM_REJECTED', 30_000_000.0],
         ]);
 
-    // 6. v3 goes through PM → CEO again (a day later) and the deal closes:
+    // 6. v3 goes through the PM again (a day later) and the deal closes:
     // lead CLOSING, project created, design PRODUKSI.
     Carbon::setTestNow(Carbon::parse('2026-10-01 09:00:00', 'Asia/Jakarta'));
 

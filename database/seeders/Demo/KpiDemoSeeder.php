@@ -61,8 +61,8 @@ class KpiDemoSeeder extends Seeder
             ['Milestone tepat waktu', 'milestone_on_time_rate', 90, 25],
             ['QA lolos pertama kali', 'qa_first_pass_rate', 80, 20],
             ['Proyek delay', 'project_delay_count', 1, 20, 'LOWER_BETTER'],
-            // Sprint 12 #9 — RAB the PM approved that the CEO sent back.
-            ['RAB di-ACC lalu dikembalikan CEO', 'pm_review_escaped_count', 1, 15, 'LOWER_BETTER'],
+            // Sprint 12 #9 / Sprint 23 K8 — RAB the PM approved that the client turned down.
+            ['RAB di-ACC lalu ditolak klien', 'pm_review_escaped_count', 1, 15, 'LOWER_BETTER'],
             ['Koordinasi tim', null, 90, 20],
         ],
         'Quality Assurance' => [

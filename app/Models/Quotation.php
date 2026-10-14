@@ -158,6 +158,12 @@ class Quotation extends Model
         return $this->hasMany(QuotationApproval::class)->latest('created_at');
     }
 
+    /** Sprint 23 K9 / K11 — CEO, client and Marketing notes per version, oldest first (append-only). */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(QuotationNote::class)->orderBy('id');
+    }
+
     /** Closed (rejected) versions, newest first — PRD §4.3 "Versi Revisi", see QuotationRevision. */
     public function revisions(): HasMany
     {

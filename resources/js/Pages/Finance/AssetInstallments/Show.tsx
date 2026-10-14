@@ -1,5 +1,5 @@
 import { AssetInstallmentPaymentDialog } from '@/Components/modules/finance/AssetInstallmentPaymentDialog';
-import { ASSET_INSTALLMENT_STATUS_LABELS, installmentProgress } from '@/Components/modules/finance/assetInstallmentStatus';
+import { installmentProgress } from '@/Components/modules/finance/assetInstallmentStatus';
 import { DataTable } from '@/Components/shared/DataTable';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { Notice } from '@/Components/shared/Notice';
@@ -117,7 +117,7 @@ export default function AssetInstallmentShow({ asset, canPay, bankAccounts }: As
             <SectionCard title="Rencana Cicilan" icon={FileText} className="mb-6">
                 <DetailList className="sm:grid-cols-4">
                     <DetailItem label="Status">
-                        <StatusChip status={status} label={ASSET_INSTALLMENT_STATUS_LABELS[status]} />
+                        <StatusChip domain="assetInstallment" status={status} />
                     </DetailItem>
                     <DetailItem label="Cicilan per Bulan" valueClassName="font-medium">
                         {asset.installment_amount ? formatRupiah(asset.installment_amount) : '—'}

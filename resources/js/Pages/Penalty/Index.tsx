@@ -42,11 +42,6 @@ interface PenaltyIndexProps {
     bankAccounts: Pick<BankAccount, 'id' | 'label'>[];
 }
 
-const STATUS_LABEL: Record<PenaltyPaymentStatus, string> = {
-    BELUM_DIBAYAR: 'Belum Dibayar',
-    LUNAS: 'Lunas',
-};
-
 /**
  * PRD §7.1 "Penalty – View" — Field Staff see only their own
  * (server-scoped in PenaltyController::index()), CEO/PM read-only.
@@ -196,7 +191,7 @@ export default function PenaltyIndex({
                                                 <td className="px-4 py-3 text-daiku-muted">{penalty.type.replace(/_/g, ' ')}</td>
                                                 <td className="px-4 py-3 text-daiku-muted">{formatDate(penalty.date_occurred)}</td>
                                                 <td className="px-4 py-3">
-                                                    <StatusChip status={status} label={STATUS_LABEL[status]} />
+                                                    <StatusChip domain="penalty" status={status} />
                                                     {penalty.is_deducted && (
                                                         <span className="mt-0.5 block text-xs text-daiku-muted">
                                                             {formatDate(penalty.finance_transaction?.date ?? penalty.collected_at)}

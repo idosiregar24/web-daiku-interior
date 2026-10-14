@@ -11,9 +11,11 @@ use App\Exports\QuotationExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Quotation\CancelQuotationRequest;
 use App\Http\Requests\Quotation\ClientRejectQuotationRequest;
+use App\Http\Requests\Quotation\ForwardClientRejectionRequest;
 use App\Http\Requests\Quotation\ReviewQuotationRequest;
 use App\Http\Requests\Quotation\SaveClientNotesRequest;
 use App\Http\Requests\Quotation\SavePaymentTermsRequest;
+use App\Http\Requests\Quotation\StoreQuotationNoteRequest;
 use App\Http\Requests\Quotation\UpdateQuotationItemsRequest;
 use App\Models\Design;
 use App\Models\Quotation;
@@ -35,11 +37,14 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * PRD §4.3. RAB builder (Sprint 2 Week 4; Sprint 12 sections & payment
- * scheme), PDF/Excel export, the Sprint 12 approval flow (item review by
- * PM / Asisten PM, then CEO for a RAB Proyek; Estimator → Marketing →
- * client) and the client's rejection, revision history and validity
- * period (Sprint 9) — see QuotationService's docblock for the state
- * machine. The client's acceptance is PublicQuotationController (Sprint 12 Sub 5).
+ * scheme; Sprint 23 K5 volume from P / T/L), PDF/Excel export, the
+ * approval flow (Sprint 23: item review by PM / Asisten PM inside the RAB
+ * table → straight to Marketing → client; the CEO only adds notes), the
+ * client's rejection (recorded here, or left on the link and forwarded to
+ * the Estimator by Marketing), revision history and validity period
+ * (Sprint 9) — see QuotationService's docblock for the state machine. The
+ * client's own decision is PublicQuotationController (Sprint 12 Sub 5,
+ * Sprint 23 K11).
  */
 class QuotationController extends Controller
 {
@@ -84,22 +89,28 @@ class QuotationController extends Controller
         ]);
 
         $user = $request->user();
-        $isReviewer = fn (string $stage) => $user->hasAnyRole([...QuotationService::REVIEW_ROLES[$stage], 'SUPERADMIN']);
+        $service = app(QuotationService::class);
+        $submitted = $quotation->status === QuotationStatus::Submitted;
 
         return Inertia::render('Quotation/Show', [
             'quotation' => $quotation,
             'canManage' => $user->hasAnyRole(['ESTIMATOR', 'SUPERADMIN']),
-            // Sprint 12 #7–#8 — whose review it is right now (QuotationService::reviewStage()).
-            'reviewStage' => match (true) {
-                $quotation->status === QuotationStatus::Submitted && $isReviewer(QuotationItemReview::STAGE_PM) => QuotationItemReview::STAGE_PM,
-                $quotation->status === QuotationStatus::WaitingCeo && $isReviewer(QuotationItemReview::STAGE_CEO) => QuotationItemReview::STAGE_CEO,
-                default => null,
-            },
+            // Sprint 23 K6 — the viewer marks ✔/✘ inside the RAB table now (QuotationService::reviewStage()).
+            'reviewStage' => $submitted && $user->hasAnyRole([...QuotationService::REVIEWER_ROLES, 'SUPERADMIN'])
+                ? QuotationItemReview::STAGE_PM
+                : null,
+            // Sprint 23 K7 — item id → the version whose ✔ it carries (locked in the review).
+            'carriedMarks' => (object) ($submitted ? $service->carriedMarks($quotation) : []),
             // ✔/✘ marks of this version and the one before (the ✘ the Estimator is fixing).
             'itemReviews' => $quotation->itemReviews()
                 ->with('reviewer:id,name')
                 ->where('version', '>=', $quotation->version - 1)
                 ->get(),
+            // Sprint 23 K9 / K11 — CEO, client and Marketing notes, for the people working the RAB.
+            'notes' => $user->hasAnyRole(self::NOTE_READERS)
+                ? $quotation->notes()->with('author:id,name')->get()
+                : [],
+            'canAddNote' => $user->hasAnyRole(['CEO', 'SUPERADMIN']) && $quotation->status !== QuotationStatus::Cancelled,
             // Send to the client, record their rejection, cancel — the
             // `quotations.sendToClient` / `clientReject` / `cancel` roles.
             'canClientDecide' => $user->hasAnyRole(['CEO', 'MARKETING', 'SUPERADMIN']),
@@ -131,6 +142,9 @@ class QuotationController extends Controller
             'surveyPanel' => $this->surveyPanel($quotation, $user),
         ]);
     }
+
+    /** Sprint 23 K9 — who reads the RAB's notes (Estimator, PM side, Marketing, CEO). */
+    private const NOTE_READERS = ['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'MARKETING', 'SUPERADMIN'];
 
     /**
      * Sprint 19 Sub 03 (K2) — a RAB Jasa Survey's survey, scheduled from
@@ -200,24 +214,30 @@ class QuotationController extends Controller
         return back()->with('success', 'Quotation berhasil disubmit untuk review.');
     }
 
-    /** Sprint 12 #8 — ✔/✘ per item, then approve or return (PM / Asisten PM, then CEO for a RAB Proyek). */
+    /** Sprint 12 #8 / Sprint 23 K6–K8 — ✔/✘ per item, then approve (straight to Marketing) or return. */
     public function review(ReviewQuotationRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
     {
         $quotation = $service->review($quotation, $request->validated(), $request->user());
 
-        return back()->with('success', match ($quotation->status) {
-            QuotationStatus::Draft => "RAB dikembalikan ke Estimator sebagai versi {$quotation->version}.",
-            QuotationStatus::WaitingCeo => 'RAB disetujui — diteruskan ke CEO.',
-            default => 'RAB disetujui — Estimator bisa mengirimnya ke Marketing.',
-        });
+        return back()->with('success', $quotation->status === QuotationStatus::Draft
+            ? "RAB dikembalikan ke Estimator sebagai versi {$quotation->version}."
+            : 'RAB disetujui dan langsung diteruskan ke Marketing untuk dikirim ke klien.');
     }
 
-    /** Sprint 12 #10 — the Estimator hands the internally approved RAB to Marketing. */
-    public function sendToMarketing(Request $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    /** Sprint 23 K9 — the CEO's information-only note (never returns the RAB). */
+    public function storeNote(StoreQuotationNoteRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
     {
-        $service->sendToMarketing($quotation, $request->user());
+        $service->addCeoNote($quotation, $request->validated('note'), $request->user());
 
-        return back()->with('success', 'RAB final dikirim ke Marketing.');
+        return back()->with('success', 'Catatan disimpan dan dikirim ke Estimator, PM, dan Marketing.');
+    }
+
+    /** Sprint 23 K11 — Marketing completes the client's "Tidak Setuju" and hands it to the Estimator. */
+    public function forwardToEstimator(ForwardClientRejectionRequest $request, Quotation $quotation, QuotationService $service): RedirectResponse
+    {
+        $quotation = $service->forwardClientRejection($quotation, $request->user(), $request->validated('note'));
+
+        return back()->with('success', "Diteruskan ke Estimator — RAB dibuka lagi sebagai versi {$quotation->version} untuk direvisi.");
     }
 
     /** Sprint 12 #10 — Marketing sends the final RAB to the client (Sub 5 adds the approval link). */

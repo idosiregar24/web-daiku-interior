@@ -57,12 +57,22 @@ progres milestone (PRD §4.6). Jangan expose relasi `tasks` di response
 Setiap kali menambah route baru untuk suatu modul, cek baris matriks di
 PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
 
-- `Quotation Approval` → **PM / Asisten PM lalu CEO**, berurutan (Sprint 12
-  keputusan #7 menggantikan urutan CEO → PM PRD §7.1; CEO hanya untuk RAB
-  Proyek). Dijaga state machine `QuotationService::reviewStage()`: status
-  SUBMITTED hanya bisa diputuskan PM/Asisten PM, WAITING_CEO hanya CEO —
-  keputusan CEO ditolak selama PM belum ACC. Route `quotations.review`
-  cukup `role:PM|ASISTEN_PM|CEO`; giliran siapa diputuskan di Service.
+- `Quotation Approval` → **PM / Asisten PM saja** (Sprint 23 K8 menggantikan
+  urutan PM → CEO Sprint 12 #7 dan CEO → PM PRD §7.1). ACC PM langsung
+  READY_TO_SEND untuk semua tipe; CEO hanya menerima notifikasi info (RAB
+  Proyek) dan menulis catatan append-only (`quotations.notes.store`,
+  `role:CEO`) — **tidak** bisa mengembalikan RAB. Route `quotations.review`
+  = `role:PM|ASISTEN_PM`; `QuotationService::reviewStage()` hanya
+  menerima SUBMITTED.
+- **Buka Proyek** (Sprint 23 K13): `projects.openings.open` = `role:PM` +
+  `ProjectOpeningPolicy::open` (hanya PM yang meng-ACC RAB Proyek itu —
+  `project_openings.opener_id`; semua PM bila Asisten PM yang meng-ACC atau
+  PM itu nonaktif). CEO tidak membuka proyek.
+- **Foto bukti bayar** (Sprint 23 K12d): disimpan di disk privat
+  (`InvoicePaymentProof::DISK`), dikodekan ulang ke WebP tanpa EXIF, hanya
+  dibuka lewat `finance.invoices.proofs.show` (`role:CEO|MARKETING|FINANCE`
+  + `InvoicePolicy::viewPaymentProofs`), tabel append-only — jangan pernah
+  beri URL publik.
 - `Finance – Termin`: termin tidak lagi dibuat manual (Sprint 12 Sub 7 —
   dari skema bayar saat Buka Proyek). Invoice diterbitkan **Marketing**,
   pembayaran diverifikasi **hanya Finance**; termin yang sudah ber-invoice
@@ -72,7 +82,9 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
   – Per Divisi" (partial dashboard sesuai divisi mereka sendiri) — jangan
   reuse query yang sama tanpa scoping per divisi.
 - **Link persetujuan klien** (`penawaran/{token}`, Sprint 12 Sub 5) adalah
-  satu-satunya route publik yang menulis data: token acak 48 karakter per
+  satu-satunya route publik yang menulis data — dua aksi: `setujui` dan
+  `tolak` (Sprint 23 K11, catatan wajib 3–1000 karakter, IP/perangkat
+  diaudit): token acak 48 karakter per
   versi, `throttle:30,1`, `noindex` + `no-referrer`, respons lewat
   `PublicQuotationResource` (whitelist — jangan kirim model mentah), link
   versi lama hanya menampilkan "sudah diperbarui".

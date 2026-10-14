@@ -104,11 +104,7 @@ export default function PayrollIndex({
             header: 'Status',
             enableSorting: false,
             cell: ({ row }) =>
-                row.original.payment ? (
-                    <StatusChip status="PAID" label="Dibayar" />
-                ) : (
-                    <StatusChip status="PENDING" label="Belum dibayar" />
-                ),
+                <StatusChip domain="payroll" status={row.original.payment ? 'PAID' : 'PENDING'} />,
         },
         {
             id: 'adjustments',

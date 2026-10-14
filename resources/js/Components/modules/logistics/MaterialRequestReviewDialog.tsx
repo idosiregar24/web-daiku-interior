@@ -1,3 +1,4 @@
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { UnitSelect } from '@/Components/shared/UnitSelect';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
@@ -194,7 +195,8 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
         });
     }
 
-    const field = (name: keyof FormValues, label: string, props: React.ComponentProps<typeof Input> = {}, required = false) => (
+    // `'money'` → MoneyInput (Sprint 23 K4: "1.500.000", value stays a plain number string).
+    const field = (name: keyof FormValues, label: string, props: React.ComponentProps<typeof Input> | 'money' = {}, required = false) => (
         <FormField
             control={form.control}
             name={name}
@@ -202,14 +204,14 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                 <FormItem>
                     <FormLabel required={required}>{label}</FormLabel>
                     <FormControl>
-                        <Input {...input} {...props} />
+                        {props === 'money' ? <MoneyInput {...input} /> : <Input {...input} {...props} />}
                     </FormControl>
                     <FormMessage />
                 </FormItem>
             )}
         />
     );
-    const money = { type: 'number', min: '0', step: 'any', inputMode: 'decimal' } as const;
+    const money = 'money' as const;
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
@@ -285,8 +287,9 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                             <span>{other.display_name}</span>
                                             <span className="text-daiku-muted">· {other.project.name}</span>
                                             <StatusChip
+                                                domain="materialRequest"
                                                 status={other.request_status}
-                                                label={other.review_decision ? DECISION_LABEL[other.review_decision] : other.request_status}
+                                                label={other.review_decision ? DECISION_LABEL[other.review_decision] : undefined}
                                             />
                                         </li>
                                     ))}

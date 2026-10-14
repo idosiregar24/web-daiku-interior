@@ -144,7 +144,7 @@ export default function ReviewsIndex({
             header: 'Status',
             cell: ({ row }) => (
                 <div className="flex flex-wrap items-center gap-1.5">
-                    <StatusChip status={row.original.status} label={REVIEW_STATUS_LABEL[row.original.status]} />
+                    <StatusChip domain="performanceReview" status={row.original.status} />
                     {row.original.status === 'DRAFT' && row.original.has_return_note && (
                         <StatusChip status="RETURNED" tone="warning" label="Dikembalikan" />
                     )}

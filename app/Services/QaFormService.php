@@ -77,7 +77,7 @@ class QaFormService
             ['QA'],
             NotificationType::QaFormCreated,
             'QA Form Baru',
-            "Milestone \"{$milestone->name}\" ({$milestone->project->name}) {$state}.",
+            "Timeline \"{$milestone->name}\" ({$milestone->project->name}) {$state}.",
             ['qa_form_id' => $qaForm->id, 'project_id' => $milestone->project_id],
         );
     }
@@ -119,7 +119,7 @@ class QaFormService
                 $milestone->update(['status' => MilestoneStatus::Completed->value]);
                 $this->advanceNextMilestone($milestone);
                 $this->completeProjectIfDone($milestone->project);
-                $this->notifyPm($milestone, $qaForm, 'QA menyetujui milestone "'.$milestone->name.'".', NotificationType::QaApproved);
+                $this->notifyPm($milestone, $qaForm, 'QA menyetujui timeline "'.$milestone->name.'".', NotificationType::QaApproved);
             } else {
                 $qaForm->update([
                     'status' => QaStatus::Rejected->value,
@@ -132,14 +132,14 @@ class QaFormService
 
                 // Unblock the PM to keep fixing — see MilestoneService::markDone()'s docblock.
                 $milestone->update(['status' => MilestoneStatus::InProgress->value]);
-                $this->notifyPm($milestone, $qaForm, 'QA menolak milestone "'.$milestone->name.'": '.$notes, NotificationType::QaRejected);
+                $this->notifyPm($milestone, $qaForm, 'QA menolak timeline "'.$milestone->name.'": '.$notes, NotificationType::QaRejected);
 
                 if ($qaForm->rejection_count >= 2) {
                     $this->notificationService->notifyRoles(
                         ['CEO'],
                         NotificationType::QaRejectedTwice,
                         'QA Reject Berulang',
-                        'Milestone "'.$milestone->name.'" ('.$milestone->project->name.') ditolak QA '.$qaForm->rejection_count.'x berturut-turut.',
+                        'Timeline "'.$milestone->name.'" ('.$milestone->project->name.') ditolak QA '.$qaForm->rejection_count.'x berturut-turut.',
                         ['qa_form_id' => $qaForm->id, 'milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
                     );
                 }

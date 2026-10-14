@@ -45,8 +45,8 @@ const BAR_CLASS: Record<MilestoneStatus, string> = {
 
 const LEGEND: { status: MilestoneStatus; label: string }[] = [
     { status: 'PENDING', label: 'Belum Mulai' },
-    { status: 'IN_PROGRESS', label: 'Berjalan' },
-    { status: 'QA_WAITING', label: 'Menunggu QA' },
+    { status: 'IN_PROGRESS', label: 'Dikerjakan' },
+    { status: 'QA_WAITING', label: 'Belum Diperiksa QA' },
     { status: 'COMPLETED', label: 'Selesai' },
     { status: 'OVERDUE', label: 'Terlambat' },
 ];
@@ -60,7 +60,7 @@ function toDay(value: string | Date): Date {
     return date;
 }
 
-/** Defaults to the earliest not-yet-COMPLETED milestone's month (the one a PM actually cares about right now), falling back to the first milestone or today if there's nothing sensible. */
+/** Defaults to the earliest not-yet-COMPLETED timeline's month (the one a PM actually cares about right now), falling back to the first timeline or today if there's nothing sensible. */
 function defaultMonth(milestones: Milestone[]): Date {
     const sorted = [...milestones].sort(
         (a, b) => new Date(a.target_date).getTime() - new Date(b.target_date).getTime(),
@@ -74,38 +74,45 @@ interface PhaseSegment {
     milestone: Milestone;
     start: Date;
     end: Date;
+    /** Row inside a day cell — the same for every day of the segment, so its bar reads as one line. */
+    lane: number;
 }
 
 /**
  * "Buat semisal dari tanggal 5-7 ada garis dari 5 sampai ke 7 agar
- * kelihatan dari kapan sampai kapan" — each milestone (after the first)
- * spans from the day *after* the previous milestone's target_date through
- * its own target_date, same phase concept MilestoneGanttCalendar already
- * uses, just re-expressed as day-by-day segments a month grid can render
- * as a continuous bar. Starts a day later than the Gantt version
- * (exclusive, not inclusive) on purpose — that keeps segments from ever
- * sharing a boundary day, so no two bars ever need to stack in the same
- * cell. The first milestone has no predecessor to span from, so it stays
- * a single-day segment on its own target_date.
+ * kelihatan dari kapan sampai kapan" — Sprint 23 K17: each Timeline spans
+ * its own `start_date` → `target_date` (Tanggal Selesai). Timelines may
+ * overlap, so each segment gets a lane (the lowest one free on its first
+ * day) and every day cell renders lanes in order — a bar stays on the
+ * same row across the days it covers. A row without a start date (none
+ * should be left after the backfill) starts the day after the previous
+ * one ends, as before.
  */
 function buildPhaseSegments(milestones: Milestone[]): PhaseSegment[] {
     const sorted = [...milestones].sort((a, b) => a.order - b.order);
-
-    return sorted.map((milestone, index) => {
+    const segments = sorted.map((milestone, index) => {
         const end = toDay(milestone.target_date);
+        const start = milestone.start_date
+            ? toDay(milestone.start_date)
+            : index > 0
+              ? addDays(toDay(sorted[index - 1].target_date), 1)
+              : end;
 
-        if (index === 0) {
-            return { milestone, start: end, end };
-        }
-
-        const prevEnd = toDay(sorted[index - 1].target_date);
-        const start = addDays(prevEnd, 1);
-
-        // Guard against out-of-order target_dates (e.g. a milestone
-        // manually re-dated earlier than its predecessor) producing a
-        // negative-length segment — collapse to a single day instead.
-        return { milestone, start: start > end ? end : start, end };
+        // Out-of-order dates collapse to a single day instead of a negative span.
+        return { milestone, start: start > end ? end : start, end, lane: 0 };
     });
+
+    const laneEnds: Date[] = [];
+
+    [...segments]
+        .sort((a, b) => a.start.getTime() - b.start.getTime() || a.end.getTime() - b.end.getTime())
+        .forEach((segment) => {
+            const free = laneEnds.findIndex((laneEnd) => laneEnd < segment.start);
+            segment.lane = free === -1 ? laneEnds.length : free;
+            laneEnds[segment.lane] = segment.end;
+        });
+
+    return segments;
 }
 
 interface MilestoneCalendarProps {
@@ -150,17 +157,12 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
     const segments = useMemo(() => buildPhaseSegments(milestones), [milestones]);
 
     /**
-     * One *array* per calendar day (not a single entry) — segments don't
-     * overlap by construction (see buildPhaseSegments()'s docblock), but
-     * two milestones can still land on the exact same target_date (no DB
-     * constraint stops that), which collapses both into single-day
-     * segments that do land on the same day. Pushing into an array and
-     * stacking every entry, instead of a plain `Map.set()` that would
-     * silently overwrite one with the other, is what actually handles
-     * that case.
+     * One array per calendar day, indexed by lane (see buildPhaseSegments())
+     * — overlapping timelines stack, and an empty lane keeps a spacer so
+     * the bars below it don't jump rows from one day to the next.
      */
     const barsByDay = useMemo(() => {
-        const map = new Map<string, { milestone: Milestone; isStart: boolean; isEnd: boolean }[]>();
+        const map = new Map<string, ({ milestone: Milestone; isStart: boolean; isEnd: boolean } | undefined)[]>();
 
         for (const segment of segments) {
             const segmentDays = eachDayOfInterval({ start: segment.start, end: segment.end });
@@ -174,7 +176,7 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
                 };
 
                 if (!map.has(key)) map.set(key, []);
-                map.get(key)!.push(entry);
+                map.get(key)![segment.lane] = entry;
             });
         }
 
@@ -202,7 +204,7 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
 
                 <Card>
                     <CardContent className="space-y-1 pt-4">
-                        <p className="text-xs text-daiku-muted">Milestone selesai</p>
+                        <p className="text-xs text-daiku-muted">Timeline selesai</p>
                         <p className="text-lg font-semibold text-daiku-dark">
                             {completedCount} / {milestones.length}
                         </p>
@@ -278,7 +280,8 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
                                     </span>
                                     {bars.length > 0 && (
                                         <div className="mt-1 flex flex-col gap-1">
-                                            {bars.map((bar) => (
+                                            {Array.from(bars, (bar, lane) =>
+                                                bar ? (
                                                 <MilestonePhaseBar
                                                     key={bar.milestone.id}
                                                     milestone={bar.milestone}
@@ -289,7 +292,10 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
                                                     onDelete={onDelete}
                                                     onMarkDone={onMarkDone}
                                                 />
-                                            ))}
+                                                ) : (
+                                                    <span key={`lane-${lane}`} className="block h-4" aria-hidden />
+                                                ),
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -349,10 +355,12 @@ function MilestonePhaseBar({
             <PopoverContent className="w-64 space-y-2" align="start">
                 <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-daiku-dark">{milestone.name}</p>
-                    <StatusChip status={milestone.status} />
+                    <StatusChip domain="milestone" status={milestone.status} />
                 </div>
                 <p className="text-xs text-daiku-muted">
-                    Target: {new Date(milestone.target_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    {milestone.start_date &&
+                        `${new Date(milestone.start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} – `}
+                    {new Date(milestone.target_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </p>
                 {canManage && (
                     <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -364,7 +372,7 @@ function MilestonePhaseBar({
                         )}
                         <Button variant="outline" size="sm" onClick={() => onEdit(milestone)}>
                             <Pencil className="size-4" />
-                            Ubah Milestone
+                            Ubah Timeline
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => onDelete(milestone)}>
                             <Trash2 className="size-4 text-error-ink" />

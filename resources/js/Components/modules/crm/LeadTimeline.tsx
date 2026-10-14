@@ -201,7 +201,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
                                         )}
                                     </div>
                                     {followUp.done_at ? (
-                                        <StatusChip status="SELESAI" />
+                                        <StatusChip status="SELESAI" label="Selesai" />
                                     ) : (
                                         canWrite && (
                                             <Button
@@ -267,7 +267,7 @@ export function LeadTimeline({ lead, canManage, suggestLostFrom }: LeadTimelineP
                                                 </a>
                                             )}
                                         </div>
-                                        <StatusChip status={survey.status} />
+                                        <StatusChip domain="leadSurvey" status={survey.status} />
                                     </div>
                                     {survey.status === 'MENUNGGU_BAYAR' && <SurveyPaymentStep survey={survey} />}
                                     {survey.result_note && <p className="text-sm whitespace-pre-line">{survey.result_note}</p>}

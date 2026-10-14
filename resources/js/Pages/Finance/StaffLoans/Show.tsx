@@ -1,6 +1,7 @@
-import { STAFF_LOAN_STATUS_LABEL, staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
+import { staffLoanStatus } from '@/Components/modules/finance/staffLoanStatus';
 import { DataTable } from '@/Components/shared/DataTable';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -111,7 +112,7 @@ export default function StaffLoanShow({ loan, bankAccounts }: { loan: StaffLoan;
                     value={formatRupiah(loan.remaining)}
                     icon={Wallet}
                     tone={status === 'LUNAS' ? 'success' : 'warning'}
-                    hint={<StatusChip status={status} label={STAFF_LOAN_STATUS_LABEL[status]} />}
+                    hint={<StatusChip domain="staffLoan" status={status} />}
                 />
             </div>
 
@@ -222,7 +223,7 @@ function PaymentDialog({ loan, bankAccounts, open, onOpenChange }: PaymentDialog
                                     <FormItem>
                                         <FormLabel required>Nominal (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

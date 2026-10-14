@@ -44,9 +44,9 @@ interface ProjectDashboardProps {
 }
 
 const MILESTONE_REASON: Record<AttentionMilestone['reason'], { label: string; tone: 'error' | 'warning' | 'info' }> = {
-    OVERDUE: { label: 'Lewat target', tone: 'error' },
-    QA_WAITING: { label: 'Menunggu QA', tone: 'warning' },
-    DUE_SOON: { label: 'Target ≤ 7 hari', tone: 'info' },
+    OVERDUE: { label: 'Lewat tanggal selesai', tone: 'error' },
+    QA_WAITING: { label: 'Belum diperiksa QA', tone: 'warning' },
+    DUE_SOON: { label: 'Selesai ≤ 7 hari', tone: 'info' },
 };
 
 const projectColumns: ColumnDef<MonitorProject>[] = [
@@ -65,7 +65,7 @@ const projectColumns: ColumnDef<MonitorProject>[] = [
             </div>
         ),
     },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <StatusChip status={row.original.status} /> },
+    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} /> },
     { accessorKey: 'pm', header: 'PM', cell: ({ row }) => row.original.pm ?? '—' },
     {
         accessorKey: 'progress',
@@ -82,7 +82,7 @@ const projectColumns: ColumnDef<MonitorProject>[] = [
     },
     {
         accessorKey: 'milestonesCompleted',
-        header: 'Milestone',
+        header: 'Timeline',
         cell: ({ row }) => (
             <span className="tabular-nums">
                 {row.original.milestonesCompleted}/{row.original.milestonesTotal}
@@ -128,7 +128,7 @@ export default function ProjectDashboard({
             <PageHeader
                 title="Monitor Proyek"
                 icon={FolderKanban}
-                description="Task terlambat, jatuh tempo minggu ini, milestone, dan lembur yang menunggu keputusan."
+                description="Task terlambat, jatuh tempo minggu ini, timeline, dan lembur yang menunggu keputusan."
                 actions={
                     <>
                         {pmOptions.length > 0 && (
@@ -181,7 +181,7 @@ export default function ProjectDashboard({
                     value={stats.pendingOvertime}
                     icon={Clock}
                     tone={stats.pendingOvertime > 0 ? 'warning' : 'default'}
-                    hint={`${stats.qaWaiting} milestone menunggu QA`}
+                    hint={`${stats.qaWaiting} timeline menunggu QA`}
                 />
             </div>
 
@@ -256,7 +256,7 @@ export default function ProjectDashboard({
                                         </p>
                                     </div>
                                     <div className="flex shrink-0 flex-col items-end gap-1">
-                                        <StatusChip status={task.status} />
+                                        <StatusChip domain="task" status={task.status} />
                                         <span className={cn('text-xs', task.isToday ? 'font-medium text-warning-ink' : 'text-muted-foreground')}>
                                             {task.isToday ? 'Hari ini' : formatDate(task.dueDate)}
                                         </span>
@@ -268,13 +268,13 @@ export default function ProjectDashboard({
                 </SectionCard>
 
                 <SectionCard
-                    title="Milestone Perlu Perhatian"
+                    title="Timeline Perlu Perhatian"
                     icon={Flag}
-                    description="Lewat target, menunggu QA, atau target dalam 7 hari."
+                    description="Lewat tanggal selesai, menunggu QA, atau selesai dalam 7 hari."
                     flush
                 >
                     {milestones.length === 0 ? (
-                        <EmptyState icon={Flag} title="Tidak ada milestone yang perlu perhatian." />
+                        <EmptyState icon={Flag} title="Tidak ada timeline yang perlu perhatian." />
                     ) : (
                         <ul className="divide-y divide-border">
                             {milestones.map((milestone) => (
@@ -285,7 +285,7 @@ export default function ProjectDashboard({
                                             <Link href={route('projects.show', { project: milestone.projectId })} className="hover:underline">
                                                 {milestone.projectName}
                                             </Link>
-                                            {' · target '}
+                                            {' · selesai '}
                                             {formatDate(milestone.targetDate)} ({dueLabel(milestone.daysLeft)})
                                         </p>
                                     </div>
@@ -336,7 +336,7 @@ export default function ProjectDashboard({
             <SectionCard
                 title="Progres Proyek"
                 icon={TrendingUp}
-                description="Progres terakhir dari Progress Log, milestone lolos QA, dan task terlambat."
+                description="Progres terakhir dari Progress Log, timeline lolos QA, dan task terlambat."
                 flush
             >
                 <DataTable

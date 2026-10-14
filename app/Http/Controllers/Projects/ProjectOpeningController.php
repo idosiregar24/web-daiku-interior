@@ -9,8 +9,10 @@ use App\Services\ProjectService;
 use Illuminate\Http\RedirectResponse;
 
 /**
- * Sprint 12 decision #19 — "Buka Proyek" (CEO): the pop-up on every page
- * and the "Menunggu Dibuka" list on Proyek post here.
+ * "Buka Proyek" — the pop-up on every page, the "Menunggu Dibuka" list on
+ * Proyek and "Proyek siap dibuka" in Perlu Tindakan post here. Sprint 23
+ * K13: route `role:PM` + ProjectOpeningPolicy::open() in OpenProjectRequest
+ * (the PM who approved the RAB Proyek; any PM when an Asisten PM did).
  */
 class ProjectOpeningController extends Controller
 {

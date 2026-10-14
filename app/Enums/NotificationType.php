@@ -31,20 +31,37 @@ enum NotificationType: string
     case DesignClientApproved = 'design_client_approved';
     case DesignDiscussion = 'design_discussion';
     case DesignReadyToAssign = 'design_ready_to_assign';
-    // Sprint 22 — the architect handed the design to Marketing to send to the client.
+    /**
+     * @deprecated Sprint 23 K20 — never sent any more (the design runs in a
+     * WhatsApp group: no "Desain Siap Dikirim" / "Kirim ke Klien" / "Minta
+     * Revisi"). Kept so stored rows still render; demoted to Info (no queue).
+     */
     case DesignReadyToSend = 'design_ready_to_send';
+    /** @deprecated Sprint 23 K20 — see DesignReadyToSend. */
     case DesignRevisionRequested = 'design_revision_requested';
+    /** @deprecated Sprint 23 K20 — see DesignReadyToSend. */
     case DesignSentToClient = 'design_sent_to_client';
 
     // RAB & penawaran
     case QuotationRequested = 'quotation_requested';
     case QuotationStarted = 'quotation_started';
     case QuotationSubmitted = 'quotation_submitted';
+    /**
+     * @deprecated Sprint 23 K8 — never sent any more (the CEO no longer
+     * approves a RAB Proyek). Kept so stored rows still render; demoted to
+     * Info (no queue).
+     */
     case QuotationAwaitingCeo = 'quotation_awaiting_ceo';
     case QuotationReturned = 'quotation_returned';
     case QuotationApproved = 'quotation_approved';
+    // Sprint 23 K8/K10 — sent when the PM / Asisten PM approves (no "Kirim ke Marketing").
     case QuotationReadyToSend = 'quotation_ready_to_send';
+    // Sprint 23 K9 — the CEO hears a RAB Proyek was approved by the PM (info only).
+    case QuotationProjectApproved = 'quotation_project_approved';
+    // Sprint 23 K9 — the CEO's information-only note on a RAB.
+    case QuotationNoteAdded = 'quotation_note_added';
     case QuotationClientApproved = 'quotation_client_approved';
+    // Sprint 23 K11 — the client's "Tidak Setuju" on the link (to Marketing), forwarded to the Estimator.
     case QuotationClientRejected = 'quotation_client_rejected';
     case QuotationCancelled = 'quotation_cancelled';
     case ProjectRabAutoRequested = 'project_rab_auto_requested';
@@ -161,16 +178,13 @@ enum NotificationType: string
             self::LeadFollowUpDue,
             self::QuotationRequested,
             self::QuotationSubmitted,
-            self::QuotationAwaitingCeo,
             self::QuotationReturned,
             self::QuotationClientRejected,
             self::QuotationReadyToSend,
             self::InvoiceToIssue,
             self::InvoiceAwaitingVerification,
             self::InvoiceRejected,
-            self::DesignRevisionRequested,
             self::DesignReadyToAssign,
-            self::DesignReadyToSend,
             self::DesignAcc,
             self::LeadSurveyReady,
             self::SurveyToSchedule,
@@ -209,6 +223,8 @@ enum NotificationType: string
 
             self::QuotationApproved,
             self::QuotationCancelled,
+            // Sprint 23 K9 — the CEO's note reaches the Estimator, PM and Marketing (never blocks the flow).
+            self::QuotationNoteAdded,
             // Sprint 18 Sub 06: the follow-up that needs doing arrives as
             // its own P1 (invoice_to_issue / project_opening_pending) —
             // this one only reports the client's ACC, so a phone rings once.
@@ -235,9 +251,16 @@ enum NotificationType: string
             self::AccountUpdated => NotificationPriority::Update,
 
             self::QuotationStarted,
+            // Sprint 23 K9 — the CEO is told, nothing to do (info only).
+            self::QuotationProjectApproved,
+            // Sprint 23 K8 — retired, old rows only.
+            self::QuotationAwaitingCeo,
             self::ProjectRabAutoRequested,
             self::ProjectRabAwaitingOpening,
             self::DesignAwaitingPayment,
+            // Sprint 23 K20 — retired, old rows only.
+            self::DesignReadyToSend,
+            self::DesignRevisionRequested,
             self::ProjectCompleted,
             self::ProjectPmUnassigned,
             self::ProjectAssistantUnassigned,
@@ -276,6 +299,8 @@ enum NotificationType: string
             self::QuotationReturned,
             self::QuotationApproved,
             self::QuotationReadyToSend,
+            self::QuotationProjectApproved,
+            self::QuotationNoteAdded,
             self::QuotationClientApproved,
             self::QuotationClientRejected,
             self::QuotationCancelled,

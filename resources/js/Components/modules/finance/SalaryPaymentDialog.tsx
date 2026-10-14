@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
@@ -134,7 +135,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                                     <FormItem>
                                         <FormLabel>Tunjangan / Bonus (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -147,7 +148,7 @@ export function SalaryPaymentDialog({ row, period, periodLabel, bankAccounts, on
                                     <FormItem>
                                         <FormLabel>Potongan (Rp)</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0" {...field} />
+                                            <MoneyInput {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

@@ -1,9 +1,9 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { Button } from '@/Components/ui/button';
 import { Card, CardContent } from '@/Components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import AppLayout from '@/Layouts/AppLayout';
@@ -103,7 +103,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                         <FormItem>
                                             <FormLabel required>Total Hutang (Rp)</FormLabel>
                                             <FormControl>
-                                                <Input type="number" min="0" step="0.01" {...field} />
+                                                <MoneyInput {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>

@@ -42,10 +42,11 @@ use Illuminate\Support\Carbon;
  * services (same rules, audit and notifications as the app).
  *
  * Covered here: surveys DIJADWALKAN / SIAP / SELESAI / BATAL; RAB at
- * DIMINTA, APPROVED_INTERNAL, READY_TO_SEND, SENT_TO_CLIENT (valid and
- * expired), returned by the CEO, rejected by the client, CANCELLED; Jasa
+ * DIMINTA, READY_TO_SEND (with a CEO note), SENT_TO_CLIENT (valid and
+ * expired), returned by the PM, rejected by the client (recorded by
+ * Marketing, and CLIENT_REJECTED on the link — Sprint 23), CANCELLED; Jasa
  * Desain invoices waiting for verification and rejected by Finance;
- * designs in REVISI_DESAIN and ACC_DESAIN; an approved RAB Proyek waiting
+ * designs in DESAIN (WhatsApp group + links) and ACC_DESAIN; an approved RAB Proyek waiting
  * for "Buka Proyek"; projects ON_HOLD, CANCELLED and COMPLETED; a running
  * project with an OVERDUE milestone, a milestone waiting for QA, tasks in
  * PENGECEKAN and OVER, an OVERDUE termin, an INVOICED termin, a rejected
@@ -154,8 +155,13 @@ class WorkflowScenarioSeeder extends Seeder
     private function quotationStates(): void
     {
         $this->rab($this->lead('Mega Lestari'), QuotationType::Desain, 'requested');
-        $this->rab($this->lead('Wulan Sari'), QuotationType::Proyek, 'approved_internal');
-        $this->rab($this->lead('Bayu Saputra'), QuotationType::Proyek, 'ready');
+        // Sprint 23 K11 — the client said "Tidak Setuju" on the link: Marketing's turn.
+        $wulan = $this->rab($this->lead('Wulan Sari'), QuotationType::Proyek, 'sent');
+        $this->quotations->clientDecline($wulan->currentShareLink(), 'Harga lemari terlalu tinggi, mohon opsi finishing HPL.', 'WorkflowScenarioSeeder');
+
+        // Sprint 23 K9 — with Marketing, plus the CEO's information-only note.
+        $bayu = $this->rab($this->lead('Bayu Saputra'), QuotationType::Proyek, 'ready');
+        $this->quotations->addCeoNote($bayu, 'Pastikan klien tahu jadwal produksi ±6 minggu sebelum dikirim.', $this->ceo);
         $this->rab($this->lead('Nina Kurnia'), QuotationType::Proyek, 'sent');
 
         // Sent 20 days ago — its 14-day validity is over; the client's link says so.
@@ -167,9 +173,13 @@ class WorkflowScenarioSeeder extends Seeder
         $putri = $this->rab($this->lead('Putri Ayu'), QuotationType::Proyek, 'sent');
         $this->quotations->clientReject($putri, $this->marketing, 'Klien minta HPL diganti duco dan budget turun ±10%.');
 
-        // The CEO sent it back → DRAFT version 2.
-        $hadi = $this->rab($this->lead('Hadi Susanto'), QuotationType::Proyek, 'waiting_ceo');
-        $this->quotations->review($hadi, ['decision' => 'return', 'note' => 'Margin terlalu tipis — cek ulang harga multiplek.', 'items' => []], $this->ceo);
+        // The PM sent it back → DRAFT version 2.
+        $hadi = $this->rab($this->lead('Hadi Susanto'), QuotationType::Proyek, 'submitted');
+        $this->quotations->review($hadi, [
+            'decision' => 'return',
+            'note' => 'Margin terlalu tipis — cek ulang harga multiplek.',
+            'items' => $hadi->items()->get()->map(fn ($item) => ['item_id' => $item->id, 'verdict' => 'OK'])->all(),
+        ], $this->pm);
 
         // Cancelled by Marketing.
         $ratna = $this->rab($this->lead('Ratna Dewi'), QuotationType::Proyek, 'submitted');
@@ -193,13 +203,13 @@ class WorkflowScenarioSeeder extends Seeder
         $this->invoices->reject($invoice, 'Nominal transfer Rp 500.000 kurang dari tagihan — minta klien transfer kekurangannya.', $this->finance);
     }
 
-    // ── Design: revision asked, approved by the client ──────────────────
+    // ── Design: worked on in the WhatsApp group, approved by the client ─
 
     private function designStates(): void
     {
         $designs = app(DesignService::class);
 
-        foreach (['Andi Wijaya' => 'revision', 'Sari Indah' => 'approved'] as $name => $stage) {
+        foreach (['Andi Wijaya' => 'designing', 'Sari Indah' => 'approved'] as $name => $stage) {
             $lead = $this->lead($name);
             $quotation = $this->rab($lead, QuotationType::Desain, 'approved');
             $this->pay($this->invoices->issueForQuotation($quotation, ['due_date' => now()->toDateString()], $this->marketing));
@@ -209,22 +219,20 @@ class WorkflowScenarioSeeder extends Seeder
                 'start_date' => now()->subDays(10)->toDateString(),
                 'target_hari' => 14,
             ], $this->head);
-            $designs->update($design, [
-                'jenis_project' => 'RUANG_TAMU_TV',
+            // Sprint 23 K18 — revisions are asked in the WhatsApp group; the system keeps the links.
+            $designs->updateLinks($design, [
+                'whatsapp_group_url' => 'https://chat.whatsapp.com/Demo'.str($name)->studly(),
                 'design_urls' => ['https://drive.google.com/demo-desain-'.str($name)->slug()],
-            ]);
-            $designs->sendToClient($design, $this->marketing);
+            ], $this->designer);
 
-            if ($stage === 'revision') {
-                $designs->requestRevision($design, 'Klien minta backdrop TV diganti panel kayu, bukan marmer.', $this->marketing);
-            } else {
+            if ($stage === 'approved') {
                 // → ACC_DESAIN and a RAB Proyek asked from the Estimator (DIMINTA).
                 $designs->markClientApproved($design, $this->marketing);
             }
         }
     }
 
-    // ── Approved RAB Proyek waiting for the CEO's "Buka Proyek" ─────────
+    // ── Approved RAB Proyek waiting for the PM's "Buka Proyek" ──────────
 
     private function waitingProjectOpening(): void
     {
@@ -371,8 +379,8 @@ class WorkflowScenarioSeeder extends Seeder
 
     /**
      * Asks for a RAB of `$type` on the lead and walks it to `$stop`:
-     * requested · draft · submitted · waiting_ceo · approved_internal ·
-     * ready · sent · approved (the client approved on the link).
+     * requested · draft · submitted · ready (PM approved, with Marketing) ·
+     * sent · approved (the client approved on the link).
      *
      * @param  list<array<string, mixed>>|null  $terms
      */
@@ -385,7 +393,7 @@ class WorkflowScenarioSeeder extends Seeder
             $quotation = $lead->quotations()->where('type', $type->value)->latest('id')->firstOrFail();
         }
 
-        $steps = ['requested', 'draft', 'submitted', 'waiting_ceo', 'approved_internal', 'ready', 'sent', 'approved'];
+        $steps = ['requested', 'draft', 'submitted', 'ready', 'sent', 'approved'];
         $reached = fn (string $step) => array_search($stop, $steps, true) >= array_search($step, $steps, true);
 
         if (! $reached('draft')) {
@@ -405,25 +413,12 @@ class WorkflowScenarioSeeder extends Seeder
 
         $this->quotations->submit($quotation->fresh());
 
-        if (! $reached('waiting_ceo')) {
-            return $quotation->fresh();
-        }
-
-        $this->approveAll($quotation->fresh(), $this->pm);
-
-        if ($type === QuotationType::Proyek) {
-            if ($stop === 'waiting_ceo') {
-                return $quotation->fresh();
-            }
-
-            $this->approveAll($quotation->fresh(), $this->ceo);
-        }
-
         if (! $reached('ready')) {
             return $quotation->fresh();
         }
 
-        $this->quotations->sendToMarketing($quotation->fresh(), $this->estimator);
+        // Sprint 23 K8/K10 — the PM's approval hands it straight to Marketing.
+        $this->approveAll($quotation->fresh(), $this->pm);
 
         if (! $reached('sent')) {
             return $quotation->fresh();
@@ -488,8 +483,11 @@ class WorkflowScenarioSeeder extends Seeder
         return app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
             'name' => 'Proyek '.$client,
             'pm_id' => $this->pm->id,
+            // Sprint 23 K14 — the approving PM opens; Kepala Tim typed (an outside team).
+            'team_lead_name' => 'Tim Pak Darto',
+            'opened_on' => now()->subDays(max($startedDaysAgo, 0))->toDateString(),
             'start_date' => now()->subDays($startedDaysAgo)->toDateString(),
-        ], $this->ceo);
+        ], $this->pm);
     }
 
     /** @return array<string, mixed> */

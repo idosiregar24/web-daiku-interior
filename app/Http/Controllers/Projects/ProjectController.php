@@ -31,12 +31,12 @@ class ProjectController extends Controller
      * Staff is R* ("hanya data milik user") — scoped here to projects
      * where they have a task assigned, not the full project list.
      */
-    public function index(Request $request): Response
+    public function index(Request $request, ProjectService $projectService): Response
     {
         $user = $request->user();
 
         $projects = Project::query()
-            ->with(['pm:id,name'])
+            ->with(['pm:id,name', 'lead:id,client_name'])
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
             ->visibleTo($user)
@@ -44,19 +44,24 @@ class ProjectController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        // Sprint 12 #19 — approved RAB Proyek waiting for the CEO's "Buka Proyek".
+        // Approved RAB Proyek waiting for "Buka Proyek" — Sprint 23 K13: the
+        // approving PM opens (ProjectOpeningPolicy, per row `can_open`); the
+        // CEO and the other PMs follow along read-only.
         $seesOpenings = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
-        $canOpen = $user->hasAnyRole(['CEO', 'SUPERADMIN']);
+        $openings = $seesOpenings
+            ? ProjectOpening::query()
+                ->waiting()
+                ->with(['lead:id,client_name', 'quotation:id,total_amount,version,client_approved_at', 'opener:id,name,is_active'])
+                ->oldest()
+                ->get()
+                ->each(fn (ProjectOpening $opening) => $opening->setAttribute('can_open', $user->can('open', $opening)))
+            : collect();
 
         return Inertia::render('Projects/Index', [
             'projects' => $projects,
-            'pendingOpenings' => $seesOpenings ? ProjectOpening::query()
-                ->waiting()
-                ->with(['lead:id,client_name', 'quotation:id,total_amount,version,client_approved_at'])
-                ->oldest()
-                ->get() : [],
-            'canOpenProjects' => $canOpen,
-            'assistantPms' => $canOpen ? User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
+            'pendingOpenings' => $openings->values(),
+            // The form's pickers — only for someone who may open one of them.
+            'openingForm' => $openings->contains('can_open', true) ? $projectService->openingFormOptions() : null,
             'filters' => $request->only(['status', 'pm_id']),
             'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
         ]);
@@ -127,7 +132,8 @@ class ProjectController extends Controller
         // Lembur page (overtime.index, role:CEO|PM|FINANCE).
         $canViewOvertime = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
 
-        $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name']);
+        // Sprint 23 K15 — Kepala Tim (user or typed name) and Pengawas on the overview.
+        $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name', 'teamLead:id,name', 'supervisor:id,name']);
 
         return Inertia::render('Projects/Show', [
             'project' => $project,
@@ -140,6 +146,8 @@ class ProjectController extends Controller
             'assistantPms' => $canEditProject
                 ? User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
+            // Sprint 23 K15 — Kepala Tim / Pengawas pickers for Edit Proyek.
+            'teamOptions' => $canEditProject ? $projectService->teamOptions() : null,
             // Once any termin received money the contract value is fixed (ProjectService::update()).
             'hasTerminPayments' => $canEditProject && $project->hasTerminPayments(),
             'statusNote' => $projectService->statusNote($project),

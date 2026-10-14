@@ -5,7 +5,7 @@ import type { Milestone } from '@/types';
 import { Pencil, Trash2 } from 'lucide-react';
 
 /**
- * Sprint 13 P2 — the project's milestones as a plain list for a phone
+ * Sprint 13 P2 — the project's Timelines (Sprint 23 K16) as a plain list for a phone
  * (the Gantt and calendar need width). Same actions as the Gantt rows:
  * Tandai Selesai (queues QA), edit, delete — for those who manage it.
  */
@@ -36,9 +36,12 @@ export function MilestoneList({
                                 <p className="font-medium text-foreground">
                                     {index + 1}. {milestone.name}
                                 </p>
-                                <p className="text-xs text-muted-foreground">Target {formatDate(milestone.target_date)}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    {milestone.start_date ? `${formatDate(milestone.start_date)} – ` : 'Selesai '}
+                                    {formatDate(milestone.target_date)}
+                                </p>
                             </div>
-                            <StatusChip status={milestone.status} />
+                            <StatusChip domain="milestone" status={milestone.status} />
                         </div>
                         {canManage && (
                             <div className="flex items-center gap-2">

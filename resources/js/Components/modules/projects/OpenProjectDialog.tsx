@@ -1,64 +1,93 @@
-import { DatePicker } from '@/Components/shared/DatePicker';
-import { Button } from '@/Components/ui/button';
 import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/Components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
+    ProjectTeamFields,
+    refineTeamLead,
+    TEAM_ERROR_FIELD,
+    teamDefaults,
+    teamFieldsShape,
+    teamPayload,
+} from '@/Components/modules/projects/ProjectTeamFields';
+import { DatePicker } from '@/Components/shared/DatePicker';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
+import { Button } from '@/Components/ui/button';
+import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatRupiah } from '@/lib/format';
-import type { ProjectOpening } from '@/types';
+import type { PageProps, ProjectOpening, ProjectOpeningFormOptions } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { router } from '@inertiajs/react';
-import { format } from 'date-fns';
+import { router, usePage } from '@inertiajs/react';
+import { format, startOfDay } from 'date-fns';
 import { type ReactNode, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const NO_ASSISTANT = 'none';
 
-// Mirrors OpenProjectRequest.
-const schema = z.object({
-    name: z.string().trim().min(1, 'Nama proyek wajib diisi').max(255),
-    pm_id: z.string().min(1, 'Project Manager wajib dipilih'),
-    assistant_pm_id: z.string(),
-    start_date: z.date({ message: 'Tanggal mulai wajib diisi' }),
-});
+// Mirrors OpenProjectRequest (+ ValidatesProjectPeople for Kepala Tim / Pengawas).
+const schema = z
+    .object({
+        name: z.string().trim().min(1, 'Nama proyek wajib diisi').max(255, 'Nama proyek maksimal 255 karakter'),
+        pm_id: z.string().min(1, 'Project Manager wajib dipilih'),
+        assistant_pm_id: z.string(),
+        ...teamFieldsShape,
+        opened_on: z.date({ message: 'Tanggal buka proyek wajib diisi' }),
+        start_date: z.date({ message: 'Tanggal mulai wajib diisi' }),
+        end_date: z.date().optional(),
+    })
+    .superRefine((values, ctx) => {
+        refineTeamLead(values, ctx);
+
+        if (values.start_date && values.opened_on && startOfDay(values.start_date) < startOfDay(values.opened_on)) {
+            ctx.addIssue({ code: 'custom', path: ['start_date'], message: 'Tanggal mulai tidak boleh sebelum tanggal buka proyek' });
+        }
+
+        if (values.end_date && values.start_date && startOfDay(values.end_date) < startOfDay(values.start_date)) {
+            ctx.addIssue({ code: 'custom', path: ['end_date'], message: 'Tanggal selesai tidak boleh sebelum tanggal mulai' });
+        }
+    });
 
 type FormValues = z.infer<typeof schema>;
-type Person = { id: number; name: string };
+
+const FIELDS = ['name', 'pm_id', 'assistant_pm_id', 'opened_on', 'start_date', 'end_date'] as const;
 
 interface OpenProjectDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     opening: ProjectOpening;
-    projectManagers: Person[];
-    assistantPms: Person[];
+    options: ProjectOpeningFormOptions;
     /** Extra footer action — "Nanti" in the pop-up. */
     secondaryAction?: ReactNode;
 }
 
 /**
- * Sprint 12 decision #19 — the CEO's "Buka Proyek" for a RAB Proyek the
- * client approved: name, PM, optional Asisten PM (D2), start date. The
- * contract value and termins come from the approved RAB and its payment
- * scheme (ProjectService::openFromQuotation()).
+ * "Buka Proyek" for a RAB Proyek the client approved — Sprint 23 K13/K14:
+ * filled by the PM who approved that RAB (default PM = themself). Name,
+ * PM, optional Asisten PM, Kepala Tim (karyawan or a typed name),
+ * optional Pengawas (QA/QC), Tanggal Buka, Tanggal Mulai (not before it),
+ * optional Tanggal Selesai. Contract value and termins come from the
+ * approved RAB and its payment scheme (ProjectService::openFromQuotation()).
  */
-export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers, assistantPms, secondaryAction }: OpenProjectDialogProps) {
+export function OpenProjectDialog({ open, onOpenChange, opening, options, secondaryAction }: OpenProjectDialogProps) {
+    const me = usePage<PageProps>().props.auth.user.id;
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { name: '', pm_id: '', assistant_pm_id: NO_ASSISTANT, start_date: undefined },
+        defaultValues: { name: '', pm_id: '', assistant_pm_id: NO_ASSISTANT, ...teamDefaults(), opened_on: undefined, start_date: undefined, end_date: undefined },
     });
 
     useEffect(() => {
         if (open) {
-            form.reset({ name: `Proyek ${opening.lead.client_name}`, pm_id: '', assistant_pm_id: NO_ASSISTANT, start_date: new Date() });
+            const today = new Date();
+
+            form.reset({
+                name: `Proyek ${opening.lead.client_name}`,
+                pm_id: options.projectManagers.some((pm) => pm.id === me) ? String(me) : '',
+                assistant_pm_id: NO_ASSISTANT,
+                ...teamDefaults(),
+                opened_on: today,
+                start_date: today,
+                end_date: undefined,
+            });
         }
     }, [open, opening.id]);
 
@@ -69,13 +98,17 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                 name: values.name,
                 pm_id: Number(values.pm_id),
                 assistant_pm_id: values.assistant_pm_id === NO_ASSISTANT ? null : Number(values.assistant_pm_id),
+                ...teamPayload(values),
+                opened_on: format(values.opened_on, 'yyyy-MM-dd'),
                 start_date: format(values.start_date, 'yyyy-MM-dd'),
+                end_date: values.end_date ? format(values.end_date, 'yyyy-MM-dd') : null,
             },
             {
                 onError: (errors) =>
-                    Object.entries(errors).forEach(([field, message]) =>
-                        form.setError(field in values ? (field as keyof FormValues) : 'name', { message }),
-                    ),
+                    Object.entries(errors).forEach(([field, message]) => {
+                        const target = TEAM_ERROR_FIELD[field] ?? ((FIELDS as readonly string[]).includes(field) ? (field as keyof FormValues) : 'name');
+                        form.setError(target, { message });
+                    }),
                 onSuccess: () => onOpenChange(false),
             },
         );
@@ -83,7 +116,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Buka Proyek</DialogTitle>
                     <DialogDescription>
@@ -120,9 +153,10 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {projectManagers.map((pm) => (
+                                                {options.projectManagers.map((pm) => (
                                                     <SelectItem key={pm.id} value={String(pm.id)}>
                                                         {pm.name}
+                                                        {pm.id === me ? ' (Anda)' : ''}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -145,7 +179,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                                             </FormControl>
                                             <SelectContent>
                                                 <SelectItem value={NO_ASSISTANT}>Tanpa asisten</SelectItem>
-                                                {assistantPms.map((assistant) => (
+                                                {options.assistantPms.map((assistant) => (
                                                     <SelectItem key={assistant.id} value={String(assistant.id)}>
                                                         {assistant.name}
                                                     </SelectItem>
@@ -157,19 +191,56 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                                 )}
                             />
                         </div>
+                        <ProjectTeamFields options={options} />
                         <FormField
                             control={form.control}
-                            name="start_date"
+                            name="opened_on"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel required>Tanggal Mulai</FormLabel>
+                                    <FormLabel required>Tanggal Buka Proyek</FormLabel>
                                     <FormControl>
                                         <DatePicker value={field.value} onChange={field.onChange} />
                                     </FormControl>
+                                    <FormDescription>Hari proyek dibuka di sistem — bisa berbeda dengan tanggal mulai pekerjaan.</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
                         />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <FormField
+                                control={form.control}
+                                name="start_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel required>Tanggal Mulai</FormLabel>
+                                        <FormControl>
+                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="end_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Tanggal Selesai</FormLabel>
+                                        <div className="flex gap-2">
+                                            <FormControl>
+                                                <DatePicker value={field.value} onChange={field.onChange} />
+                                            </FormControl>
+                                            {field.value && (
+                                                <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => field.onChange(undefined)}>
+                                                    Kosongkan
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                         <DialogFooter>
                             {secondaryAction ?? (
                                 <DialogClose asChild>
@@ -184,7 +255,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, projectManagers
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

@@ -66,7 +66,7 @@ export default function SupplierDebtIndex({ debts, filters, summary }: SupplierD
             accessorKey: 'status',
             header: 'Status',
             cell: ({ row }) => (
-                <StatusChip status={row.original.status} label={SUPPLIER_DEBT_STATUS_LABELS[row.original.status]} />
+                <StatusChip domain="supplierDebt" status={row.original.status} />
             ),
         },
         {

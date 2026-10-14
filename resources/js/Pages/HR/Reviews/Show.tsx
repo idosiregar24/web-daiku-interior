@@ -6,7 +6,6 @@ import {
     REVIEW_ASPECTS,
     REVIEW_RECOMMENDATION_LABEL,
     REVIEW_RECOMMENDATIONS,
-    REVIEW_STATUS_LABEL,
     type ReviewAspect,
     type ReviewDetail,
 } from '@/Components/modules/hr/ReviewShared';
@@ -189,8 +188,15 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                             · {review.employee.position ?? '—'}
                             {review.employee.division ? ` (${review.employee.division})` : ''}
                         </span>
-                        <StatusChip status={review.status} label={REVIEW_STATUS_LABEL[review.status]} />
+                        <StatusChip domain="performanceReview" status={review.status} />
                     </span>
+                }
+                step={
+                    canDecide && review.status === 'SUBMITTED'
+                        ? 'Giliran Anda: setujui evaluasi ini, atau kembalikan ke SDM dengan catatan.'
+                        : editable
+                          ? 'Lengkapi penilaian, lalu tekan "Simpan & Ajukan ke CEO" di bawah.'
+                          : undefined
                 }
                 actions={
                     <>
@@ -231,10 +237,8 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                         <span className="font-medium">Dikembalikan CEO:</span> {review.return_note}
                     </Notice>
                 )}
-                {review.status === 'SUBMITTED' && (
-                    <Notice tone="info">
-                        {canDecide ? 'Evaluasi ini menunggu persetujuan Anda.' : 'Evaluasi sudah diajukan dan menunggu persetujuan CEO.'}
-                    </Notice>
+                {review.status === 'SUBMITTED' && !canDecide && (
+                    <Notice tone="info">Evaluasi sudah diajukan dan menunggu persetujuan CEO.</Notice>
                 )}
                 {review.status === 'APPROVED' && (
                     <Notice tone="success">

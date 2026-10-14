@@ -71,7 +71,7 @@ export function RabHistoryCard({ quotations, action }: { quotations: HistoryQuot
                                             >
                                                 QUO-{String(quotation.id).padStart(5, '0')} · Versi {quotation.version}
                                             </Link>
-                                            <StatusChip status={quotation.status} />
+                                            <StatusChip domain="quotation" status={quotation.status} />
                                             <span className="tabular-nums">{formatRupiah(quotation.total_amount)}</span>
                                             <span className="text-xs text-muted-foreground">{formatDate(quotation.created_at)}</span>
                                             {quotation.letter_number && (

@@ -60,30 +60,39 @@ function inboxRequest(Project $project, MaterialRequestStatus $status): ProjectM
 
 // ── CEO ─────────────────────────────────────────────────────────────────
 
-test('the CEO queue of RAB waiting for a decision matches the filtered quotation list', function () {
+test('the CEO has no RAB queue any more — the PM approval goes straight to Marketing (Sprint 23 K8)', function () {
     $ceo = inboxUser('CEO');
-    Quotation::factory()->count(2)->create(['status' => QuotationStatus::WaitingCeo->value]);
+    Quotation::factory()->count(2)->create(['status' => QuotationStatus::ReadyToSend->value]);
     Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
 
-    $group = inboxGroup($ceo, 'quotation-ceo');
+    expect(inboxGroup($ceo, 'quotation-ceo'))->toBeNull()
+        ->and(inboxGroup($ceo, 'quotation-send'))->toBeNull();
+});
+
+test('Marketing\'s queue of RAB the client declined matches the filtered quotation list', function () {
+    $marketing = inboxUser('MARKETING');
+    Quotation::factory()->count(2)->create(['status' => QuotationStatus::ClientRejected->value]);
+    Quotation::factory()->create(['status' => QuotationStatus::SentToClient->value]);
+
+    $group = inboxGroup($marketing, 'quotation-client-rejected');
 
     expect($group['count'])->toBe(2)
         ->and($group['routeName'])->toBe('quotations.index')
         ->and($group['items'])->toHaveCount(2);
 
-    $this->actingAs($ceo)
-        ->get(route('quotations.index', ['status' => QuotationStatus::WaitingCeo->value]))
+    $this->actingAs($marketing)
+        ->get(route('quotations.index', ['status' => QuotationStatus::ClientRejected->value]))
         ->assertInertia(fn (Assert $page) => $page->where('quotations.total', $group['count']));
 });
 
 test('a queue lists at most five items but counts them all, busiest queue first', function () {
-    $ceo = inboxUser('CEO');
-    Quotation::factory()->count(7)->create(['status' => QuotationStatus::WaitingCeo->value]);
-    openingFor(Quotation::factory()->approved()->create());
+    $marketing = inboxUser('MARKETING');
+    Quotation::factory()->count(7)->create(['status' => QuotationStatus::ReadyToSend->value]);
+    Quotation::factory()->create(['status' => QuotationStatus::ClientRejected->value]);
 
-    $groups = app(ActionInboxService::class)->for($ceo, fresh: true);
+    $groups = app(ActionInboxService::class)->for($marketing, fresh: true);
 
-    expect(collect($groups)->pluck('key')->all())->toBe(['quotation-ceo', 'project-opening'])
+    expect(collect($groups)->pluck('key')->all())->toBe(['quotation-send', 'quotation-client-rejected'])
         ->and($groups[0]['count'])->toBe(7)
         ->and($groups[0]['items'])->toHaveCount(ActionInboxService::ITEMS_PER_GROUP);
 });
@@ -332,7 +341,7 @@ test('no daily-form queue on Sunday — there is no penalty then', function () {
 // ── Empty ───────────────────────────────────────────────────────────────
 
 test('roles without a queue, and SUPERADMIN, get nothing', function (string $role) {
-    Quotation::factory()->create(['status' => QuotationStatus::WaitingCeo->value]);
+    Quotation::factory()->create(['status' => QuotationStatus::ReadyToSend->value]);
     Quotation::factory()->create(['status' => QuotationStatus::Submitted->value]);
     QaForm::factory()->create();
 

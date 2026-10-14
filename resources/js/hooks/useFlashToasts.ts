@@ -1,14 +1,16 @@
 import type { PageProps } from '@/types';
 import { router, usePage } from '@inertiajs/react';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
  * Surfaces server feedback that otherwise has nowhere to render:
  *
  * - `flash` — every controller redirects with `->with('success', ...)`
- *   (shared by HandleInertiaRequests). Toasted once per `key`, since
+ *   (shared by HandleInertiaRequests). Shown once per `key`, since
  *   Inertia keeps the previous flash prop across partial reloads.
+ *   Sprint 23 K1: success opens the centred `SuccessDialog` (the returned
+ *   `success` / `closeSuccess`, rendered by AppLayout); errors stay toasts.
  * - Validation errors from button-only actions (mark paid, approve,
  *   mark done…) — service-layer rules like "termin masih terkunci" throw
  *   a ValidationException on a key no form field displays, so without
@@ -18,6 +20,7 @@ import { toast } from 'sonner';
 export function useFlashToasts() {
     const { flash } = usePage<PageProps>().props;
     const lastKey = useRef<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => {
         if (!flash || flash.key === lastKey.current) {
@@ -27,7 +30,7 @@ export function useFlashToasts() {
         lastKey.current = flash.key;
 
         if (flash.success) {
-            toast.success(flash.success);
+            setSuccess(flash.success);
         }
 
         if (flash.error) {
@@ -46,4 +49,8 @@ export function useFlashToasts() {
             }),
         [],
     );
+
+    const closeSuccess = useCallback(() => setSuccess(null), []);
+
+    return { success, closeSuccess };
 }

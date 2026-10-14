@@ -18,7 +18,7 @@ class MilestoneController extends Controller
         $this->authorize('manageWork', $project);
         $service->create($project, $request->validated());
 
-        return back()->with('success', 'Milestone berhasil ditambahkan.');
+        return back()->with('success', 'Timeline berhasil ditambahkan.');
     }
 
     public function update(UpdateMilestoneRequest $request, Milestone $milestone, MilestoneService $service): RedirectResponse
@@ -26,7 +26,7 @@ class MilestoneController extends Controller
         $this->authorize('manageWork', $milestone->project);
         $service->update($milestone, $request->validated());
 
-        return back()->with('success', 'Milestone berhasil diperbarui.');
+        return back()->with('success', 'Timeline berhasil diperbarui.');
     }
 
     public function destroy(Milestone $milestone): RedirectResponse
@@ -34,7 +34,7 @@ class MilestoneController extends Controller
         $this->authorize('manageWork', $milestone->project);
         $milestone->delete();
 
-        return back()->with('success', 'Milestone berhasil dihapus.');
+        return back()->with('success', 'Timeline berhasil dihapus.');
     }
 
     /**
@@ -47,6 +47,6 @@ class MilestoneController extends Controller
         $this->authorize('manageWork', $milestone->project);
         $service->markDone($milestone);
 
-        return back()->with('success', 'Milestone diajukan untuk review QA.');
+        return back()->with('success', 'Timeline diajukan untuk review QA.');
     }
 }

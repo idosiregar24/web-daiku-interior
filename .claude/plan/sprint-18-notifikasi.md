@@ -358,17 +358,19 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | Marketing minta RAB / RAB Tambahan | Semua Estimator | `quotation_requested` | 1 |
 > | Estimator mulai menyusun | Peminta (Marketing) | `quotation_started` | 4 |
 > | RAB diajukan | Semua PM & Asisten PM | `quotation_submitted` | 1 |
-> | PM ACC RAB Proyek | CEO | `quotation_awaiting_ceo` | 1 |
-> | PM/CEO mengembalikan | Estimator penyusun | `quotation_returned` | 1 |
-> | RAB disetujui internal | Estimator penyusun | `quotation_approved` | 3 |
-> | RAB siap dikirim | Marketing pemegang lead (+ peminta) | `quotation_ready_to_send` | 1 |
-> | Klien menolak penawaran | Estimator + Marketing | `quotation_client_rejected` | 1 |
+> | ~~PM ACC RAB Proyek~~ — dihapus Sprint 23 K8 (CEO tidak meng-ACC lagi; tipe `@deprecated`, P4) | — | `quotation_awaiting_ceo` | 4 |
+> | PM ACC **RAB Proyek** (info, Sprint 23 K9) | CEO | `quotation_project_approved` | 4 |
+> | CEO menulis catatan RAB (Sprint 23 K9) | Estimator, peminta, Marketing, PM/Asisten PM | `quotation_note_added` | 3 |
+> | PM / Asisten PM mengembalikan | Estimator penyusun | `quotation_returned` | 1 |
+> | RAB disetujui PM | Estimator penyusun | `quotation_approved` | 3 |
+> | RAB siap dikirim (langsung saat PM ACC — Sprint 23 K10) | Marketing pemegang lead (+ peminta) | `quotation_ready_to_send` | 1 |
+> | Klien **Tidak Setuju** di link (Sprint 23 K11) / Marketing meneruskan ke Estimator | Marketing pemegang lead / Estimator | `quotation_client_rejected` | 1 |
 > | Klien ACC penawaran | Estimator, peminta, Marketing, pengirim link | `quotation_client_approved` | 3 |
 > | Klien ACC RAB jasa / DP RAB Proyek | Marketing pemegang lead | `invoice_to_issue` | 1 |
-> | Klien ACC RAB Proyek | CEO | `project_opening_pending` | 1 |
+> | Klien ACC RAB Proyek | PM yang meng-ACC RAB itu (semua PM bila Asisten PM yang meng-ACC) — Sprint 23 K13 | `project_opening_pending` | 1 |
 > | RAB Proyek non-DP menunggu Buka Proyek | Marketing | `project_rab_awaiting_opening` | 4 |
 > | RAB dibatalkan | Estimator penyusun | `quotation_cancelled` | 3 |
-> | Bukti bayar dikirim | Finance | `invoice_awaiting_verification` | 1 |
+> | Bukti bayar dikirim (judul = "Menunggu Konfirmasi Pembayaran DP · Proyek X", + foto bukti — Sprint 23 K12b/K12d; membuka dialog Verifikasi) | Finance | `invoice_awaiting_verification` | 1 |
 > | Bukti ditolak | Penerbit, Marketing, pengirim bukti | `invoice_rejected` | 1 |
 > | Pembayaran terverifikasi | Penerbit + Marketing | `invoice_verified` | 2 (Sprint 19; sebelumnya 3) |
 > | Survey sudah dibayar | Marketing pemegang lead | `lead_survey_ready` | 1 |
@@ -379,22 +381,22 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | Desain ACC klien → RAB Proyek otomatis | Estimator / Marketing / tim desain | `design_acc` / `project_rab_auto_requested` / `design_client_approved` | 1 / 4 / 3 |
 > | Jasa Desain belum / sudah dibayar | Kepala Desain | `design_awaiting_payment` / `design_ready_to_assign` | 4 / 1 |
 > | Desain ditugaskan | PIC + tim | `design_assigned` | 2 |
-> | Desain siap dikirim (Sprint 22) | Marketing pemegang lead | `design_ready_to_send` | 1 |
-> | Desain dikirim ke klien / klien minta revisi | Tim desain | `design_sent_to_client` / `design_revision_requested` | 3 / 1 |
+> | ~~Desain siap dikirim / dikirim ke klien / minta revisi~~ — dihapus Sprint 23 K20 (desain lewat grup WA; tipe `@deprecated`, tidak dikirim lagi) | — | `design_ready_to_send` / `design_sent_to_client` / `design_revision_requested` | 4 / 3 / 4 |
+> | "Desain Disetujui Klien" ditekan (Sprint 23 K19) | Arsitek (PIC + asisten); Marketing pemegang lead bila orang lain yang menekan | `design_client_approved` / `project_rab_auto_requested` | 3 / 4 |
 > | Diskusi desain | PIC, tim, Estimator | `design_discussion` | 2 |
 > | Deal (RAB Proyek ACC) | Semua PM | `deal_confirmed` | 3 |
-> | Proyek dibuka | CEO, Finance, Logistik, PM, Asisten PM | `project_opened` | 3 |
+> | Proyek dibuka (oleh PM — Sprint 23 K13) | CEO, Finance, Logistik, PM, Asisten PM, Marketing, Pengawas, Kepala Tim (bila punya akun) | `project_opened` | 3 |
 > | PM / Asisten PM ditunjuk / diganti | Orang yang ditunjuk / diganti | `project_pm_*` / `project_assistant_*` | 2 / 4 |
 > | RAB Tambahan disetujui | PM, Asisten PM, Marketing, Finance | `project_addendum_added` | 3 |
 > | Task baru / dialihkan | Tukang | `task_assigned` | 2 |
 > | Deadline/isi task diubah PM | Tukang | `task_updated` | 2 |
-> | Task / milestone lewat deadline | PM proyek | `task_overdue` / `milestone_overdue` | 2 |
+> | Task / timeline lewat tanggal selesai | PM proyek | `task_overdue` / `milestone_overdue` | 2 |
 > | Form harian belum diisi (20:30) | Tukang | `daily_form_reminder` | 2 |
 > | Penalti form harian | Tukang + Finance | `penalty_issued` | 3 |
 > | Lembur diajukan | PM proyek | `overtime_submitted` | 2 |
 > | Lembur ACC PM | Tukang / Finance | `overtime_approved_pm` / `overtime_awaiting_finance` | 3 / 2 |
 > | Lembur ACC Finance / ditolak | Tukang (+ PM bila ditolak Finance) | `overtime_approved_finance` / `overtime_rejected` | 3 |
-> | Milestone selesai → QA | Semua QA | `qa_form_created` | 2 |
+> | Timeline selesai → QA | Semua QA | `qa_form_created` | 2 |
 > | QA approve / reject | PM proyek | `qa_approved` / `qa_rejected` | 3 / 2 |
 > | QA reject 2× | CEO | `qa_rejected_twice` | 2 |
 > | Overrun anggaran diajukan / diputuskan | CEO / PM peminta | `budget_overrun_*` | 2 / 3 |

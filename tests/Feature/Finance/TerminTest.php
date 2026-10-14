@@ -340,3 +340,26 @@ test('a DP can be received before the linked milestone is COMPLETED, but pelunas
         ->pelunasan->toBe('0.00')
         ->status->toBe(TerminStatus::Scheduled);
 });
+
+test('the termin list names each termin within its RAB and carries its invoice state (Sprint 23 K12)', function () {
+    $finance = User::factory()->create();
+    $finance->assignRole('FINANCE');
+    $project = Project::factory()->create(['name' => 'Kopi Oz']);
+
+    foreach ([[1, 40, '2026-10-01'], [2, 40, '2026-10-08'], [3, 20, '2026-10-15']] as [$number, $percentage, $date]) {
+        Termin::factory()->create([
+            'project_id' => $project->id,
+            'termin_number' => $number,
+            'percentage' => $percentage,
+            'scheduled_date' => $date,
+        ]);
+    }
+
+    $this->actingAs($finance)->get(route('finance.termins.index'))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('termins.data.0.payment_label', 'Termin 1 dari 3 · 40%')
+            ->where('termins.data.1.payment_label', 'Termin 2 dari 3 · 40%')
+            // The last termin of its RAB is the pelunasan.
+            ->where('termins.data.2.payment_label', 'Pelunasan')
+            ->where('termins.data.0.invoice', null));
+});

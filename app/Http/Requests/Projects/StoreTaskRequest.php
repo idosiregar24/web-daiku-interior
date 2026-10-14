@@ -33,9 +33,9 @@ class StoreTaskRequest extends FormRequest
                     $milestone = Milestone::find($value);
 
                     if (! $milestone || (int) $milestone->project_id !== (int) $project->id) {
-                        $fail('Milestone harus milik proyek ini.');
+                        $fail('Timeline harus milik proyek ini.');
                     } elseif ($milestone->status === MilestoneStatus::Completed) {
-                        $fail('Milestone ini sudah COMPLETED (lolos QA) — tidak bisa ditambah task baru.');
+                        $fail('Timeline ini sudah selesai (lolos QA) — tidak bisa ditambah task baru.');
                     }
                 },
             ],
@@ -65,7 +65,7 @@ class StoreTaskRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'milestone_id.integer' => 'Milestone tidak valid.',
+            'milestone_id.integer' => 'Timeline tidak valid.',
             'title.required' => 'Judul task wajib diisi.',
             'title.max' => 'Judul task maksimal 150 karakter.',
             'assignee_id.required' => 'Task harus di-assign ke salah satu tukang.',

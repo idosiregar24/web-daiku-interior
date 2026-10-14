@@ -151,7 +151,7 @@ export default function KpiIndex({ periods, selected, board, trend, filters, str
             enableSorting: false,
             cell: ({ row }) =>
                 row.original.manualMissing > 0 ? (
-                    <StatusChip status="KPI_MANUAL_MISSING" tone="warning" label={`${row.original.manualMissing} nilai manual kosong`} />
+                    <StatusChip status="KPI_MANUAL_MISSING" tone="warning" label={`${row.original.manualMissing} nilai manual kosong`} waitingOn="HR" />
                 ) : (
                     <StatusChip
                         status="KPI_TOTAL"
@@ -225,7 +225,7 @@ export default function KpiIndex({ periods, selected, board, trend, filters, str
                                 ))}
                             </SelectContent>
                         </Select>
-                        <StatusChip status={selected.status} label={PERIOD_LABEL[selected.status]} />
+                        <StatusChip domain="kpiPeriod" status={selected.status} />
                         {selected.status === 'CLOSED' && (
                             <span className="text-sm text-daiku-muted">
                                 Ditutup {selected.closerName ? `oleh ${selected.closerName} ` : ''}

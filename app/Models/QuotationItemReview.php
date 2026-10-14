@@ -8,9 +8,15 @@ use LogicException;
 
 /**
  * Sprint 12 decision #8 — one ✔ OK / ✘ SALAH mark on one RAB item by the
- * PM / Asisten PM (stage PM) or the CEO (stage CEO), for one quotation
- * version. Written only by QuotationService::review(). Append-only like
- * QuotationRevision: the KPI data of decision #9 can't be rewritten.
+ * PM / Asisten PM (stage PM), for one quotation version. Written only by
+ * QuotationService::review(). Append-only like QuotationRevision: the KPI
+ * data of decision #9 can't be rewritten.
+ *
+ * Sprint 23 K7: a ✔ copied from an earlier version for an unchanged item
+ * has `carried_from_version` (the version the PM really checked it in);
+ * `item_fingerprint` (QuotationItem::fingerprint()) is how the next
+ * version recognises the same item. Stage CEO rows are Sprint 12 history
+ * — the CEO no longer reviews (K8).
  */
 class QuotationItemReview extends Model
 {
@@ -18,6 +24,7 @@ class QuotationItemReview extends Model
 
     public const STAGE_PM = 'PM';
 
+    /** @deprecated Sprint 12 — the CEO's review of a RAB Proyek, removed in Sprint 23 (K8). */
     public const STAGE_CEO = 'CEO';
 
     public const VERDICT_OK = 'OK';
@@ -34,11 +41,19 @@ class QuotationItemReview extends Model
         'reviewer_id',
         'verdict',
         'note',
+        'carried_from_version',
+        'item_fingerprint',
     ];
 
     protected function casts(): array
     {
-        return ['version' => 'integer'];
+        return ['version' => 'integer', 'carried_from_version' => 'integer'];
+    }
+
+    /** Copied from an earlier version (K7) rather than marked by the reviewer now. */
+    public function isCarried(): bool
+    {
+        return $this->carried_from_version !== null;
     }
 
     protected static function booted(): void

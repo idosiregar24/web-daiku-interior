@@ -24,8 +24,8 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 /*
  * Sprint 12 Sub 12 — RAB Tambahan (decision #29, D7): requested from a
- * running project, the usual RAB flow (Estimator → PM → CEO → client
- * link), and its approval adds to the project instead of opening one.
+ * running project, the usual RAB flow (Estimator → PM → Marketing →
+ * client link), and its approval adds to the project instead of opening one.
  */
 
 beforeEach(function () {
@@ -62,7 +62,7 @@ function addendumUser(string $role): User
     return $user;
 }
 
-/** Runs a requested addendum through Estimator → PM → CEO → Marketing → client link; returns it approved. */
+/** Runs a requested addendum through Estimator → PM → Marketing → client link; returns it approved. */
 function approvedAddendum(object $test, ?Quotation $addendum = null): Quotation
 {
     $service = app(QuotationService::class);
@@ -79,9 +79,8 @@ function approvedAddendum(object $test, ?Quotation $addendum = null): Quotation
     ]);
     $service->submit($addendum);
     reviewQuotation($addendum->fresh(), $test->pm);
-    expect($addendum->fresh()->status)->toBe(QuotationStatus::WaitingCeo);
-    reviewQuotation($addendum->fresh(), $test->ceo);
-    $service->sendToMarketing($addendum->fresh(), $test->estimator);
+    // Sprint 23 K8/K10 — straight to Marketing, no CEO stage.
+    expect($addendum->fresh()->status)->toBe(QuotationStatus::ReadyToSend);
     $service->sendToClient($addendum->fresh(), $test->marketing);
 
     $test->post(route('public.quotation.approve', $addendum->fresh()->currentShareLink()->token), ['agree' => true])

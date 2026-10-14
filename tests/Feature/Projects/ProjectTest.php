@@ -47,8 +47,9 @@ test('field staff project index is scoped to projects with their own assigned ta
         );
 });
 
-test('only the CEO opens a project (Sprint 12 #19)', function (string $role, bool $allowed) {
+test('only a PM opens a project — the CEO no longer does (Sprint 23 K13)', function (string $role, bool $allowed) {
     $lead = Lead::factory()->create(['status' => LeadStatus::Closing->value]);
+    // No PM-stage approval row: any PM may open (ProjectOpening::canBeOpenedBy()).
     $opening = openingFor(Quotation::factory()->approved()->create(['lead_id' => $lead->id]));
     $pm = User::factory()->create();
     $pm->assignRole('PM');
@@ -58,12 +59,14 @@ test('only the CEO opens a project (Sprint 12 #19)', function (string $role, boo
     $response = $this->actingAs($user)->post(route('projects.openings.open', $opening), [
         'name' => 'Proyek Rumah Budi',
         'pm_id' => $pm->id,
+        'team_lead_name' => 'Tim Pak Darto',
+        'opened_on' => now()->toDateString(),
         'start_date' => now()->toDateString(),
     ]);
 
     $allowed ? $response->assertRedirect() : $response->assertForbidden();
     expect(Project::where('lead_id', $lead->id)->exists())->toBe($allowed);
-})->with([['CEO', true], ['PM', false], ['MARKETING', false], ['FINANCE', false]]);
+})->with([['PM', true], ['CEO', false], ['MARKETING', false], ['FINANCE', false]]);
 
 test('project service refuses to create a project from a lead that is not DEAL_DESAIN or CLOSING', function () {
     $lead = Lead::factory()->create(['status' => LeadStatus::FollowUp->value]);
@@ -119,6 +122,7 @@ test('PM can add a milestone to their project', function () {
 
     $response = $this->actingAs($pm)->post(route('milestones.store', ['project' => $project->id]), [
         'name' => '3D Design',
+        'start_date' => now()->toDateString(),
         'target_date' => now()->addWeek()->toDateString(),
     ]);
 
@@ -133,6 +137,7 @@ test('roles without write access cannot add a milestone', function () {
 
     $this->actingAs($qa)->post(route('milestones.store', ['project' => $project->id]), [
         'name' => '3D Design',
+        'start_date' => now()->toDateString(),
         'target_date' => now()->addWeek()->toDateString(),
     ])->assertForbidden();
 });
@@ -144,6 +149,7 @@ test('PM can update and delete a milestone', function () {
 
     $this->actingAs($pm)->put(route('milestones.update', ['milestone' => $milestone->id]), [
         'name' => 'Finishing',
+        'start_date' => now()->toDateString(),
         'target_date' => now()->addWeek()->toDateString(),
         'status' => MilestoneStatus::InProgress->value,
     ])->assertRedirect();

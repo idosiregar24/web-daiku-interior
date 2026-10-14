@@ -21,10 +21,11 @@ class QuotationDashboardController extends Controller
         return Inertia::render('Quotation/Dashboard', [
             'statusCounts' => $dashboards->quotationStatusCounts(),
             'todo' => $dashboards->quotationQueue(QuotationStatus::Draft),
-            // Sprint 12 #7: PM / Asisten PM review first, then the CEO (RAB Proyek).
             'waitingPm' => $dashboards->quotationQueue(QuotationStatus::Submitted),
-            'waitingCeo' => $dashboards->quotationQueue(QuotationStatus::WaitingCeo),
-            'readyToSend' => $dashboards->quotationQueue(QuotationStatus::ApprovedInternal),
+            // Sprint 23 K8/K10 — the PM's approval goes straight to Marketing (no CEO stage).
+            'readyToSend' => $dashboards->quotationQueue(QuotationStatus::ReadyToSend),
+            // Sprint 23 K11 — the client said "Tidak Setuju"; Marketing forwards it back.
+            'clientRejected' => $dashboards->quotationQueue(QuotationStatus::ClientRejected),
             'monthly' => $dashboards->quotationMonthlyValue(),
             'turnaround' => $dashboards->quotationTurnaround(),
         ]);

@@ -1,9 +1,11 @@
 import { BottomNav } from '@/Components/shared/BottomNav';
 import { BrandLogoTile, BrandMark } from '@/Components/shared/BrandMark';
 import { CommandMenu } from '@/Components/shared/CommandMenu';
+import { GlobalLoadingOverlay } from '@/Components/shared/GlobalLoadingOverlay';
 import { PushOptIn } from '@/Components/shared/PushOptIn';
 import { type QuickCreateItem, QuickCreateMenu } from '@/Components/shared/QuickCreateMenu';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { SuccessDialog } from '@/Components/shared/SuccessDialog';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Badge } from '@/Components/ui/badge';
 import {
@@ -104,7 +106,7 @@ import {
 } from 'lucide-react';
 import { Fragment, lazy, PropsWithChildren, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-// Sprint 12 #19 "Buka Proyek" pop-up — CEO only, and only while an approved
+// "Buka Proyek" pop-up — the approving PM only (Sprint 23 K13), and only while an approved
 // RAB Proyek waits. Loaded on demand (Sprint 13 H8): its form, date picker
 // and selects would otherwise ride along on every page, the Tukang's too.
 const ProjectOpeningPrompt = lazy(() =>
@@ -1385,14 +1387,17 @@ export default function AppLayout({
     header,
     children,
 }: PropsWithChildren<{ breadcrumbs?: BreadcrumbEntry[]; header?: ReactNode }>) {
-    useFlashToasts();
+    const { success, closeSuccess } = useFlashToasts();
     const isFieldStaff = useIsFieldStaff();
     const { pendingProjectOpenings } = usePage<PageProps>().props;
 
     return (
         <div className="flex h-screen overflow-hidden bg-daiku-gray">
             <Toaster position="top-right" richColors closeButton />
-            {/* Sprint 12 #19 — CEO only; renders nothing when no RAB Proyek waits. */}
+            {/* Sprint 23 K1–K2 — success pop-up and loading in the middle of the screen. */}
+            <SuccessDialog message={success} onClose={closeSuccess} />
+            <GlobalLoadingOverlay />
+            {/* Sprint 23 K13 — the approving PM only; renders nothing when no RAB Proyek waits. */}
             {pendingProjectOpenings && (
                 <Suspense fallback={null}>
                     <ProjectOpeningPrompt />
