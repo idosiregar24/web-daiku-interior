@@ -388,6 +388,18 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | Proyek dibuka (oleh PM — Sprint 23 K13) | CEO, Finance, Logistik, PM, Asisten PM, Marketing, Pengawas, Kepala Tim (bila punya akun) | `project_opened` | 3 |
 > | PM / Asisten PM ditunjuk / diganti | Orang yang ditunjuk / diganti | `project_pm_*` / `project_assistant_*` | 2 / 4 |
 > | RAB Tambahan disetujui | PM, Asisten PM, Marketing, Finance | `project_addendum_added` | 3 |
+> | Sprint 24 · Gambar kerja baru (Buka Proyek) / ditugaskan / selesai | Kepala Desain / arsitek / PM, Asisten PM, Pengawas | `working_drawing_to_assign` / `_assigned` / `_completed` | 2 |
+> | Sprint 24 · TM selesai | Pengawas, Asisten PM | `technical_meeting_completed` | 2 |
+> | Sprint 24 · Jasa pengawas diajukan (DP / pelunasan) | PM proyek | `supervisor_payment_requested` | 2 |
+> | Sprint 24 · Jasa pengawas disetujui/ditolak PM; dibayar | Pengawas | `supervisor_payment_decided` / `supervisor_payment_paid` | 3 |
+> | Sprint 24 · "Bayar Pengawas: DP · Proyek X" | Finance | `supervisor_payment_to_pay` | 2 |
+> | Sprint 24 · Start Produksi (DP disetujui) | Logistik, Kepala Tim, Pengawas, Asisten PM | `production_started` | 2 |
+> | Sprint 24 · Laporan mingguan belum diisi (Jumat) / dikirim / diputuskan | Pengawas / PM / Pengawas | `weekly_report_reminder` / `_submitted` / `_decided` | 2 / 2 / 3 |
+> | Sprint 24 · Actual activity ≥ 70% | PM proyek | `project_progress_reached` | 2 |
+> | Sprint 24 · Berangkat ke lokasi disetujui | Pengawas, Kepala Tim, Logistik, Asisten PM | `site_departure_approved` | 2 |
+> | Sprint 24 · Temuan finishing dicatat | PM, Asisten PM | `site_finding_recorded` | 3 |
+> | Sprint 24 · H-30% (setiap hari) | PM proyek | `project_deadline_near` | 2 |
+> | Sprint 24 · Pengawas ditunjuk / diganti | Orang yang ditunjuk / diganti | `project_supervisor_assigned` / `_unassigned` | 2 / 4 |
 > | Task baru / dialihkan | Tukang | `task_assigned` | 2 |
 > | Deadline/isi task diubah PM | Tukang | `task_updated` | 2 |
 > | Task / timeline lewat tanggal selesai | PM proyek | `task_overdue` / `milestone_overdue` | 2 |

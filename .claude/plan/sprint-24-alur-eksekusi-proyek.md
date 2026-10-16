@@ -1,9 +1,11 @@
 # Sprint 24 — Alur Eksekusi Proyek: Gambar Kerja → TM → Pengawas → Produksi → QC
 
-> Status: **plan dikunci (2026-10-13)** — P1–P16 dan E1–E4 dijawab; E5
-> memakai usulan (§5). Belum ada kode yang diubah. Pengerjaan baru
-> dimulai kalau user bilang **"kerjakan"**, dan **setelah Sprint 23 Sub 07–09**
-> (Pengawas, Timeline bertanggal, halaman Desain baru) selesai.
+> Status: **kode selesai 2026-10-15** (Sub 01–12) — 2187 test lulus (40
+> test baru di `tests/Feature/Projects/ExecutionFlowTest.php`), `npm run build`
+> & Pint bersih, 6 migrasi jalan di DB dev, seed demo penuh lulus, tab Eksekusi
+> dicek di browser, `/security-review` bersih (§7). Tersisa: uji alur
+> per role di browser oleh user, deploy (migrasi baru). Hasil & keputusan
+> tambahan: §7. Plan dikunci 2026-10-13 (P1–P16, E1–E4; E5 = usulan).
 >
 > Sumber: foto papan tulis ([`sprint-24/papan-tulis-2026-10-13.jpg`](sprint-24/papan-tulis-2026-10-13.jpg))
 > + cerita & jawaban user 2026-10-13. Di luar PRD — PRD §4.5/§4.6 (Task, QA),
@@ -108,3 +110,62 @@ Target ─ Activity / Actual   (per tukang per hari)
 | 10 | Temuan finishing | `site_findings`, task perbaikan, menahan QA/penyelesaian |
 | 11 | H-30% | Job harian + notifikasi berulang |
 | 12 | Uji & dokumen | Pest (RBAC tiap route baru), build, Pint, `/security-review` (pembayaran), matriks notifikasi, `simulasi-alur-klien.md`, `CLAUDE.md` golden rule baru |
+
+## 7. Hasil pengerjaan (2026-10-15)
+
+| Sub | Status | Catatan / keputusan tambahan |
+|---|---|---|
+| 01 Fase proyek | ✅ | `projects.phase` (enum `ProjectPhase`, default kolom `PRODUKSI` = proyek lama tidak terkunci) + `phase_changed_at`, `production_started_at`; hanya `ProjectPhaseService::advance()` yang memindahkan (maju satu langkah, audit `project.phase_changed`). Chip fase + "menunggu siapa" (`waitingOn` domain `projectPhase`), langkah berikutnya di `PageHeader step`. Label role QA → **QA/QC** (menu, tab, holder). |
+| 02 Gambar Kerja | ✅ | **Tabel sendiri `working_drawings`** (+ `working_drawing_staff`), bukan baris `designs` — `designs.lead_id` unik dan dipakai KPI/delay desain klien. Buka Proyek → `WorkingDrawingService::openForProject()` + notifikasi Kepala Desain; dialog penugasan = `AssignDesignDialog` (prop `submitUrl`/`subject`); link + "Gambar Kerja Selesai" → fase TM + notifikasi PM, Asisten PM, Pengawas. Menu **Desain** jadi hub: Desain · Gambar Kerja (`design.working-drawings.*`); tab hub yang paling spesifik dipilih (`useActiveNav`). |
+| 03 TM | ✅ | `technical_meetings` + `technical_meeting_attendees` (user atau nama). Form TM di tab **Eksekusi** (PM / Asisten PM proyek: `ProjectPolicy::runMeeting`) menyimpan notulen, peserta, jasa pengawas (total + DP %), Tanggal Selesai (default = selesai timeline terakhir). Pengawas mengisi bahan lewat tab Material (`projects.materials.store` + `role:QA`, `planMaterials` = Pengawas proyek itu). "TM Selesai" menolak bila checklist belum lengkap (E1) → PERSIAPAN. |
+| 04 Jasa & DP pengawas | ✅ | `supervisor_fees`, `supervisor_payments` (DIAJUKAN → DISETUJUI_PM / DITOLAK → DIBAYAR, tanpa hapus). Syarat DP dicek sistem (bahan · upah · tiap timeline punya target). PM proyek memutuskan (nominal bisa diubah, tidak boleh melebihi sisa jasa); DP disetujui = **Start Produksi** + notifikasi Logistik/Kepala Tim/Pengawas. Finance membayar di **Pembayaran Staf → Jasa Pengawas** (`finance.supervisor-payments.*`) → transaksi PENGELUARAN kategori baru `JASA_PENGAWAS` (system-managed). Label "DP · Proyek X" dari `SupervisorPayment::label`. Pelunasan (E3) saat proyek COMPLETED. |
+| 05 Daily Target | ✅ | Task = daily target: wajib timeline & tanggal di dalam rentangnya (`TaskService::ensureWithinTimeline`; task perbaikan temuan dikecualikan), baru bisa dibuat mulai PERSIAPAN, `planned_date` (target awal). Pengawas proyek boleh membuat/ubah/hapus/geser (`ProjectPolicy::manageTargets`, `TaskPolicy` + route `role:…|QA`) dan **melihat task proyeknya** (`taskVisibility($user, $project)`; QA lain tetap tidak — PRD §4.6). |
+| 06 Actual Activity | ✅ | Ubah status/kendala oleh tukang sendiri (`tasks.updateStatus`) menulis baris hari itu di `daily_task_forms` (`TaskService::recordActivity`, satu per task per hari). Tombol besar **✔ Selesai** di kartu tugas (Hari Ini & Tugas). Tukang baru bisa mulai saat fase PRODUKSI. Penalti: tukang dengan target hari ini (jatuh tempo hari ini, atau OVER) di proyek yang sedang produksi dan **tanpa satu pun** laporan hari itu. Teks pengingat/penalti/antrean diganti "target belum dilaporkan". Tabel **Target vs Actual** per tukang per hari (minggu bisa digeser). |
+| 07 Bergulir & geser | ✅ | `TaskOverdueJob` (00:00) lebih dulu menggulirkan target yang belum selesai ke hari kerja berikutnya selama masih di dalam timeline (`rollover_count`, riwayat `task_schedule_changes` ROLLOVER); lewat timeline → OVER (+ Pengawas ikut diberi tahu). **Geser** (`tasks.reschedule`) dan **Tukar Hari** (`projects.targets.swap`, semua target dua tanggal, opsional per tukang, ditolak utuh bila ada yang keluar timeline). |
+| 08 Laporan mingguan | ✅ | `weekly_reports` (unik per proyek per minggu; ditolak → diperbaiki di baris yang sama). PM setujui (opsional + nominal pembayaran mingguan → langsung antrean Finance) / tolak (alasan wajib). `WeeklyReportReminderJob` Jumat 15:00 (`config/daiku.php` `execution`). Minggu ke-N dihitung dari minggu Start Produksi. |
+| 09 Progres 70% & berangkat | ✅ | `Project::actualProgress()` = DONE ÷ semua task (E5: bobot sama) — di daftar proyek, Overview, tab Eksekusi. Pertama ≥ 70% → notifikasi PM sekali (`progress_70_notified_at`). "Setujui Berangkat ke Lokasi" (PM proyek, terkunci < 70%) → PEMASANGAN + notifikasi Pengawas, Kepala Tim, Logistik. |
+| 10 Temuan finishing | ✅ | `site_findings` (TERBUKA/SELESAI) dicatat Pengawas saat PEMASANGAN; "Jadikan Task Perbaikan" (boleh lewat tanggal timeline); task DONE menutup temuan; "Tandai Selesai" manual (Pengawas/PM). Temuan terbuka menahan ACC QA timeline itu (atau semua, bila temuan tanpa timeline) dan `completeIfFinished()`. |
+| 11 H-30% | ✅ | `ProjectDeadlineReminderJob` 08:00: proyek ACTIVE sejak hari ke-⌈70% × durasi⌉ (mulai → Tanggal Selesai, inklusif; 10 hari → hari ke-7) → notifikasi PM sekali sehari; peringatan juga di tab Eksekusi. |
+| 12 Uji & dokumen | ✅ sebagian | Pest (RBAC setiap route baru + aturan), 19 test lama disesuaikan (task wajib timeline, penalti per target hari ini), seed demo: proyek lama di-*fast-forward* ke Produksi (`ExecutionFlowDemo::skipToProduction`), skenario baru satu proyek per fase (`WorkflowScenarioSeeder::executionFlow`). Dokumen: golden rule #17, `security-standards.md` §4, matriks notifikasi Sprint 18, `simulasi-alur-klien.md` Tahap 7. **Belum:** `/security-review`. |
+
+**Koreksi user 2026-10-15 — Pengawas = QA = QC adalah orang yang sama.**
+Pemeriksaan QA timeline (form QA lama) kini milik **Pengawas proyek itu**:
+notifikasi `qa_form_created`, antrean "Timeline menunggu pemeriksaan", daftar
+QA/QC dan tombol Lolos/Tolak (`QaFormPolicy::review`,
+`Project::isQaReviewableBy()`); proyek tanpa Pengawas (sebelum Sprint 23)
+tetap untuk semua user role QA. Nama di layar: **Pengawas (QA/QC)** (label
+role, menu, "menunggu siapa", notifikasi, teks timeline).
+
+Tambahan di luar daftar: notifikasi saat Pengawas diganti lewat Ubah Proyek
+(`project_supervisor_assigned` / `_unassigned`, sisa Sprint 23 Sub 07).
+Tab **Eksekusi** (`ProjectExecutionService::overview()`) hanya untuk CEO, PM,
+QA, Finance, Logistik, Asisten PM proyeknya; nilai jasa & pembayaran hanya
+untuk CEO / PM / Finance / Pengawas proyek itu (Marketing tidak menerima
+props-nya). Catatan teknis: tab Eksekusi di-*import* biasa — `lazy()` membuat
+chunk halaman Show hilang dari manifest Vite.
+
+### Security review (2026-10-15)
+
+`/security-review` atas seluruh perubahan Sprint 24: **tidak ada temuan HIGH/MEDIUM** (setiap route baru terikat ke proyek baris itu sendiri lewat Policy; batas uang lewat `ensureWithinFee()`; URL divalidasi `url:http,https`; nilai jasa hanya ke CEO / PM / Finance / Pengawas proyek). Dua catatan di bawah ambang:
+
+| # | Catatan | Status |
+|---|---|---|
+| S1 | Tab Eksekusi terbuka untuk **semua** user role QA (bukan hanya Pengawas proyek itu), sehingga QA lain melihat `findings[].task` (judul/status/tukang/tanggal task perbaikan) dan `targetVsActual` (jumlah target per tukang per hari) — sedikit menyimpang dari "QA tidak melihat detail task kecuali proyek yang diawasinya" (PRD §4.6). Dampak rendah (staf internal, sebagian besar angka). Bila nanti perlu: kosongkan kedua bagian itu kecuali `taskVisibility($user, $project) === 'all'` di `ProjectExecutionService::overview()`. | **Ditandai — sengaja tidak diubah** (keputusan user 2026-10-15) |
+| S2 | Dua persetujuan laporan mingguan bersamaan bisa sama-sama lolos `ensureWithinFee()` dan bersama melebihi nilai jasa (hanya baris laporan yang dikunci). | ✅ Diperbaiki — `SupervisorPaymentService::createWeekly()` mengunci baris proyek dulu, sama seperti `requestDp()` / `decide()` |
+
+### Uji alur di browser (2026-10-15)
+
+Browser headless, DB SQLite terpisah (seed demo penuh), per role: Kepala Desain menugaskan Gambar Kerja → simpan link → Selesai (→ TM) · PM menyimpan TM (Tanggal Selesai default dari timeline terakhir) · Pengawas menambah bahan & daily target (tanggal di luar timeline ditolak) · PM "TM Selesai" (→ Persiapan) · Pengawas "Ajukan DP" · PM menolak nominal di atas jasa lalu menyetujui (→ Produksi) · Finance membayar di Jasa Pengawas · Tukang ✔ Selesai di Hari Ini · laporan mingguan Jumat (kirim → setujui + bayar mingguan) · ≥ 70% → notifikasi PM sekali → Berangkat ke Lokasi (→ Pemasangan) · temuan → task perbaikan → selesai menutup temuan · Geser tanggal · job bergulir, pengingat Jumat (tidak dobel), H-30%. Semua lolos.
+
+Bug yang ditemukan & diperbaiki saat uji:
+
+- Banner Hari Ini "N target belum dilaporkan" salah hitung — tanggal dibandingkan di browser. Kini dihitung di server (`missingToday` = `Task::awaitingDailyForm()`); tanda "dilaporkan hari ini" di kartu (Hari Ini & Tugas) hanya untuk target hari ini / Terlambat.
+- Batas tanggal dialog Geser & form Daily Target meleset satu hari — kolom tanggal-saja diserialisasi sebagai UTC. `Task::due_date/planned_date` dan `Milestone::start_date/target_date` kini di-cast `date:Y-m-d`.
+- Data demo membuat item katalog dobel ("Paku Tembak F30") — `ExecutionFlowDemo` kini memakai item katalog yang sudah ada.
+
+Bukan bug: pop-up "Buka Proyek" yang tampak tidak bisa ditutup di uji otomatis ternyata efek alat uji (koordinat klik pada sesi browser yang disambung ulang); tiap tutup menunda satu RAB dan RAB berikutnya muncul.
+
+### Perbaikan tambahan dari user (2026-10-15)
+
+- **Link RAB klien — pop-up tidak menutup setelah "Setujui" berhasil.** Penyebab: `PublicQuotationController` membalas dengan `back()`, padahal halaman penawaran mengirim `Referrer-Policy: no-referrer` dan sesi baru tidak menyimpan URL sebelumnya (kunjungan Inertia tidak dicatat) → redirect ke `/` (company profile Blade) yang Inertia tampilkan sebagai pop-up. Kini Setujui / Tidak Setuju / penolakan validasi selalu kembali ke `public.quotation.show` (`toOffer()`, `onOffer()`, `getRedirectUrl()` di kedua Form Request). Sesi kedaluwarsa (419) pada permintaan Inertia dibalas "Halaman sudah terlalu lama dibuka — silakan coba lagi" (`bootstrap/app.php`), bukan pop-up error Laravel; pesannya tampil di halaman dan di dalam dialog.
+- **PDF invoice bergaya surat RAB** (`pdf/layouts/invoice`): judul INVOICE + tanggal kanan, Nomor / Perihal / data invoice / Status, "Ditagihkan kepada", "Dengan hormat", tabel bergaris dengan header biru muda + baris TOTAL TAGIHAN, TERBILANG, Cara Pembayaran sebagai tabel rekening, Catatan bernomor, tanda tangan — menggantikan gaya "tagihan modern" Sprint 17 Sub 05. Data tetap dari `InvoiceLetter`.

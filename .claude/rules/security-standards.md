@@ -94,6 +94,19 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
   sekali** — filter di controller, bukan hanya disembunyikan di UI.
 - **Asisten PM** (Sprint 12 Sub 11) hanya pada proyek yang ditugaskan
   (`Project::isManagedBy()` di Policy) — role check saja tidak cukup.
+- **Pengawas (QA/QC)** (Sprint 24) hanya pada proyek yang ia awasi
+  (`Project::isSupervisedBy()`, `ProjectPolicy::supervise` /
+  `manageTargets` / `planMaterials`): daily target, DP / pelunasan, laporan
+  mingguan, temuan. QA lain tetap **tidak** melihat task (PRD §4.6 —
+  `taskVisibility($user, $project)`). Pengawas = QA = QC (satu orang):
+  pemeriksaan QA timeline juga hanya oleh Pengawas proyek itu
+  (`QaFormPolicy::review`); proyek tanpa Pengawas tetap terbuka untuk semua
+  user role QA.
+- **Jasa Pengawas** (Sprint 24 D4): keputusan PM proyek itu saja
+  (`ProjectPolicy::approveExecution`, juga laporan mingguan & "Berangkat ke
+  Lokasi"), pembayaran **hanya Finance** (`finance.supervisor-payments.pay`),
+  tidak pernah melebihi nilai jasa, tanpa route hapus. Nilai jasa &
+  pembayaran hanya dikirim ke CEO / PM / Finance / Pengawas proyek itu.
 
 Setiap route ber-role wajib feature test RBAC (PRD §10.3 DoD: "RBAC sudah
 diuji untuk semua role yang relevan") — minimal: 1 test role yang berhak

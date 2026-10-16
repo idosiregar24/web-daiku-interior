@@ -344,29 +344,55 @@ membuatnya **Siap Dikirim**.
 > Marketing dan Asisten PM **tidak** bisa melihat alokasi dana maupun
 > realisasi — coba login sebagai Marketing untuk memastikan tab ini tidak ada.
 
-### Langkah 22 · PM membuat timeline & task
+### Langkah 22a · Gambar Kerja (Sprint 24)
+- Proyek baru masuk tahap **Gambar Kerja** (tab **Eksekusi** menunjukkan
+  tahapnya). **Login:** kepaladesain → **Desain → Gambar Kerja** → proyek →
+  **Tugaskan Arsitek** (PIC, asisten, tanggal mulai, target hari).
+- **Login:** arsitek → simpan link gambar kerja → **Gambar Kerja Selesai**
+  (tanpa persetujuan klien). **Hasil:** proyek pindah ke tahap **Technical
+  Meeting**; PM & Pengawas mendapat notifikasi.
+
+### Langkah 22 · PM menjalankan Technical Meeting & membuat timeline
 - Tab **Timeline** → **Tambah Timeline** (nama + **tanggal mulai** + tanggal
   selesai; tanggal mulai disarankan = hari setelah timeline sebelumnya):
   1. `Persiapan & Bongkar` — hari ini s.d. +7 hari
   2. `Pemasangan Interior` — +8 s.d. +30 hari  *(nama sama dengan pemicu Termin 2)*
   3. `Finishing & Serah Terima` — +31 s.d. +40 hari
 - Gantt menggambar batang mulai → selesai.
-- Tab **Task** → **Tambah Task**:
-  - Judul Task: `Bongkar plafon lama lantai 1`
-  - Tukang: Field Staff Daiku Interior
-  - Timeline: Persiapan & Bongkar
-  - Jatuh Tempo: +3 hari · Prioritas: HIGH · Rate per Task: 250.000
-- **Hasil:** tukang mendapat notifikasi task baru.
+- **Login:** qa (Pengawas) → tab **Material** → tambah bahan yang digunakan.
+- **Login:** PM → tab **Eksekusi** → kartu **Technical Meeting**: tanggal,
+  notulen, peserta (akun atau ketik nama), **Nilai Jasa Pengawas**
+  `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan TM** → setelah
+  semua syarat ✓ → **TM Selesai**. **Hasil:** tahap **Persiapan**.
+- **Login:** qa (Pengawas) → tab **Task** → **Tambah Daily Target** (wajib
+  timeline, tanggal di dalam rentang timeline, isi **Upah**):
+  - Judul: `Bongkar plafon lama lantai 1` · Tukang: Field Staff Daiku Interior
+  - Timeline: Persiapan & Bongkar · Tanggal Target: +3 hari · Upah: 250.000
+- Tab **Eksekusi** → **Ajukan DP Pengawas** (aktif bila bahan ✓ · upah ✓ ·
+  tiap timeline punya target). **Login:** PM → **Putuskan → Setujui**.
+  **Hasil:** **Start Produksi** — Logistik diminta memesan bahan; Finance
+  melihat "Bayar Pengawas: DP · Proyek …" di **Pembayaran Staf → Jasa
+  Pengawas** → **Bayar**.
 
-### Langkah 23 · Tukang mengerjakan task (dari HP)
+### Langkah 23 · Tukang mengerjakan target (dari HP)
 - **Login:** fieldstaff@daikuinterior.com (sebaiknya dari HP / layar kecil)
-- **Hari Ini** → kartu task → ubah status ke **Dikerjakan** → Simpan.
-- **Form Harian wajib** setiap hari kerja (Senin–Sabtu) **sebelum pukul
-  21.00** (pengingat 20.30): **Isi Form Harian** → status + kendala/catatan:
+- **Hari Ini** → tombol besar **✔ Selesai** di kartu target, atau ketuk
+  kartu → status / **kendala** → Simpan. Itulah laporan hari itu (tidak ada
+  form terpisah lagi). Wajib setiap hari kerja (Senin–Sabtu) **sebelum pukul
+  21.00** (pengingat 20.30) untuk target hari itu:
   ```
   Bongkar plafon 60% selesai, besok lanjut sisi bar.
   ```
-  Tidak mengisi → penalti otomatis.
+  Tidak menyentuh satu pun target hari itu → penalti otomatis. Target yang
+  belum selesai **bergulir** ke hari kerja berikutnya selama masih di dalam
+  timeline; lewat timeline → **Terlambat**.
+- **Pengawas** bisa **Geser Tanggal** (menu baris task) atau **Tukar Hari**
+  (tab Eksekusi → Target vs Actual), hanya di dalam rentang timeline.
+- **Jumat:** Pengawas → tab Eksekusi → **Laporan Mingguan** → PM
+  **Putuskan** (setujui + nominal jasa minggu ini, atau tolak + alasan).
+- Actual activity ≥ 70% → PM mendapat notifikasi → **Setujui Berangkat ke
+  Lokasi** → tahap **Pemasangan**: Pengawas mencatat **Temuan Finishing** →
+  **Jadikan Task Perbaikan**. Temuan terbuka menahan QA timeline.
 - Selesai bekerja → status **Minta dicek** → PM memeriksa lalu mengubah ke **Selesai**.
 - **Opsional:** **Ajukan Barang** (nama + jumlah + catatan → ACC PM/Asisten
   PM → Logistik) dan **Pengajuan lembur** (→ PM **Setujui Lembur**).

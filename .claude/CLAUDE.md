@@ -212,6 +212,31 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     Public pages other than `/` run in the session-less `site` route group
     (`routes/site.php`); every `web` response gets `X-Robots-Tag: noindex`
     (`NoIndexSystemPages`); `robots.txt`/`sitemap.xml` are routes.
+17. **Alur eksekusi proyek (Sprint 24 — `plan/sprint-24-alur-eksekusi-proyek.md`).**
+    An ACTIVE project has a `phase` (`ProjectPhase`: GAMBAR_KERJA → TM →
+    PERSIAPAN → PRODUKSI → PEMASANGAN) moved only by `ProjectPhaseService`
+    (projects opened before Sprint 24 are PRODUKSI). Buka Proyek opens a
+    **Gambar Kerja** (`working_drawings`, its own table — not a `designs` row;
+    final at "Gambar Kerja Selesai", no client ACC) → the PM's Technical
+    Meeting (`TechnicalMeetingService`; Pengawas plans the materials) → the
+    Pengawas (QA/QC = `projects.supervisor_id`, `Project::isSupervisedBy()`)
+    plans daily targets and asks the DP → the PM approving it is Start
+    Produksi. A task is a **daily target**: always in a timeline, its day
+    inside the timeline (`TaskService::ensureWithinTimeline`), `planned_date`
+    kept; the Tukang's own status/kendala update **is** the day's report
+    (`TaskService::recordActivity` → `daily_task_forms`) and the penalty is
+    per untouched target of today; unfinished targets roll over at midnight
+    inside their timeline, else OVER. Jasa Pengawas money only through
+    `SupervisorPaymentService` (PM approves, Finance pays → PENGELUARAN
+    `JASA_PENGAWAS`, never above the fee, append-only). Progress = actual
+    activity (`Project::actualProgress()`); ≥ 70 % unlocks "Berangkat ke
+    Lokasi"; open `site_findings` hold QA and completion. The project's
+    "Eksekusi" tab is built once in `ProjectExecutionService::overview()`.
+    **Pengawas = QA = QC — one person** (role `QA`, shown as "Pengawas
+    (QA/QC)"): a timeline's QA check, its notification and queue belong to
+    the project's Pengawas (`QaFormPolicy::review`,
+    `Project::isQaReviewableBy()`); only a project without a Pengawas is open
+    to every QA user.
 
 ## Local environment
 
