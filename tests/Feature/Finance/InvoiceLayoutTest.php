@@ -91,7 +91,9 @@ function dpTermin(object $test): Termin
     ]);
 }
 
-test('a service invoice is a bill: summary per RAB group, total, payment box — not the offer letter', function () {
+// 2026-10-15 — the invoice is written in the offer's letter style (layouts/invoice): Nomor / Perihal,
+// "Dengan hormat", the bordered light-blue table, TERBILANG, Cara Pembayaran as a table.
+test('a service invoice is a letter-style bill: summary per RAB group, total, payment table', function () {
     $html = view('pdf.invoice', ['invoice' => billedDesignRab($this), 'siteSettings' => SiteSetting::current()])->render();
 
     expect($html)
@@ -105,19 +107,19 @@ test('a service invoice is a bill: summary per RAB group, total, payment box —
         // One row per group, the discount, then what is billed.
         ->toContain('Desain Ruang Tamu')->toContain('4.000.000')->toContain('Desain Dapur')
         ->toContain('Diskon')->toContain('- 500.000')
-        ->toContain('Total Tagihan')->toContain('Rp 5.500.000')->toContain('LIMA JUTA LIMA RATUS RIBU RUPIAH')
+        ->toContain('TOTAL TAGIHAN')->toContain('Rp 5.500.000')->toContain('LIMA JUTA LIMA RATUS RIBU RUPIAH')
         // Cara Pembayaran — active accounts only.
         ->toContain('Cara Pembayaran')->toContain('5835123456')->toContain('PT Daiku Uji Kreasi')
         ->toContain('Cantumkan No. Invoice 9/INV/Daiku/X/2026 pada berita transfer.')
         ->not->toContain('777000111')
         ->toContain('BELUM DIBAYAR')
         ->toContain('Rincian item pekerjaan sesuai Penawaran No. 7/OFF/Daiku/X/2026.')
-        // Not the offer: no item breakdown, no letter phrasing.
+        // The offer's letter frame and table style …
+        ->toContain('Perihal')->toContain('Dengan hormat')->toContain('TERBILANG:')->toContain('table class="rab"')
+        // … but still a bill, not the offer: no item breakdown, no validity, no offer closing.
         ->not->toContain('Gambar kerja ruang tamu')
         ->not->toContain('Berlaku Sampai')
-        ->not->toContain('Demikian penawaran')
-        ->not->toContain('Dengan hormat')
-        ->not->toContain('Perihal');
+        ->not->toContain('Demikian penawaran');
 
     $this->actingAs($this->marketing)->get(route('finance.invoices.pdf', Invoice::sole()))
         ->assertOk()->assertHeader('Content-Type', 'application/pdf');

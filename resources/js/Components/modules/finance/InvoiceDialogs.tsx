@@ -21,7 +21,7 @@ import type { BankAccount, Invoice, InvoiceType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { Banknote, ExternalLink } from 'lucide-react';
+import { Banknote, ExternalLink, FileDown } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { type FieldValues, type Path, type UseFormReturn, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -343,12 +343,25 @@ export function InvoiceProofButton({
     return (
         <span className="inline-flex flex-wrap items-center gap-2">
             {invoice.reject_reason && <span className="text-xs text-error-ink">Ditolak Finance: {invoice.reject_reason}</span>}
-            <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+            {/* The step that waits on Marketing — the primary (yellow) button, not a quiet outline. */}
+            <Button size="sm" onClick={() => setOpen(true)}>
                 <Banknote className="size-4" />
                 Tandai Klien Sudah Bayar
             </Button>
             {open && <InvoiceProofDialog open onOpenChange={setOpen} invoice={invoice} />}
         </span>
+    );
+}
+
+/** "Unduh PDF" of an invoice as a real (outline) button — next to InvoiceProofButton wherever an invoice row is shown. */
+export function InvoicePdfButton({ invoiceId, size = 'sm' }: { invoiceId: number; size?: 'sm' | 'default' }) {
+    return (
+        <Button variant="outline" size={size} asChild>
+            <a href={route('finance.invoices.pdf', { invoice: invoiceId })} target="_blank" rel="noopener noreferrer">
+                <FileDown className="size-4" />
+                Unduh PDF
+            </a>
+        </Button>
     );
 }
 

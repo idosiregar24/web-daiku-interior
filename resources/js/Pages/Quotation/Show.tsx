@@ -1,6 +1,6 @@
 import { RabReferenceList } from '@/Components/modules/quotation/RabReferenceList';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
-import { INVOICE_TYPE_LABEL, InvoiceProofButton, InvoiceStatusChip, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
+import { INVOICE_TYPE_LABEL, InvoicePdfButton, InvoiceProofButton, InvoiceStatusChip, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { MoreActions } from '@/Components/shared/MoreActions';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -504,15 +504,10 @@ export default function QuotationShow({
                                         {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)} · jatuh tempo {formatDate(invoice.due_date)}
                                     </span>
                                     <InvoiceStatusChip invoice={invoice} />
-                                    <a
-                                        href={route('finance.invoices.pdf', { invoice: invoice.id })}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-1 text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
-                                    >
-                                        Unduh PDF
-                                    </a>
-                                    <InvoiceProofButton invoice={{ ...invoice, lead: quotation.lead }} canSubmit={canSubmitProof} />
+                                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                                        <InvoicePdfButton invoiceId={invoice.id} />
+                                        <InvoiceProofButton invoice={{ ...invoice, lead: quotation.lead }} canSubmit={canSubmitProof} />
+                                    </span>
                                 </div>
                             ))}
                         </div>

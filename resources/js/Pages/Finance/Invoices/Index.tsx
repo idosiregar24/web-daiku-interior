@@ -10,6 +10,7 @@ import {
     INVOICE_TYPE_LABEL,
     InvoicePaymentInfo,
     InvoicePaymentType,
+    InvoicePdfButton,
     InvoiceProofDialog,
     InvoiceRejectDialog,
     InvoiceStatusChip,
@@ -21,7 +22,7 @@ import { domainStatusLabel } from '@/lib/waitingOn';
 import type { BankAccount, Invoice, InvoiceStatus, InvoiceType, PaginatedData } from '@/types';
 import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
 import { Head, Link, router } from '@inertiajs/react';
-import { Banknote, FileCheck2, FileDown, ReceiptText } from 'lucide-react';
+import { Banknote, FileCheck2, ReceiptText } from 'lucide-react';
 import { useState } from 'react';
 
 interface InvoiceIndexProps {
@@ -75,14 +76,9 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
 
         return (
             <>
-                <Button variant="outline" size={size} asChild>
-                    <a href={route('finance.invoices.pdf', { invoice: invoice.id })} target="_blank" rel="noopener noreferrer">
-                        <FileDown className="size-4" />
-                        Unduh PDF
-                    </a>
-                </Button>
+                <InvoicePdfButton invoiceId={invoice.id} size={size} />
                 {canSubmitProof && invoice.status === 'DITERBITKAN' && (
-                    <Button size={size} variant="outline" onClick={() => setAction({ kind: 'proof', invoice })}>
+                    <Button size={size} onClick={() => setAction({ kind: 'proof', invoice })}>
                         <Banknote className="size-4" />
                         Tandai Klien Sudah Bayar
                     </Button>
