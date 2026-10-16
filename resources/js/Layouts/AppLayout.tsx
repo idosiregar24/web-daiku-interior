@@ -49,8 +49,8 @@ import {
     Banknote,
     BarChart3,
     Bell,
-    BellRing,
     BellOff,
+    BellRing,
     CalendarCheck,
     CalendarClock,
     CalendarRange,
@@ -58,9 +58,11 @@ import {
     CheckCheck,
     ChevronDown,
     ChevronsUpDown,
-    Clock,
     ClipboardCheck,
     ClipboardList,
+    Clock,
+    Database,
+    DraftingCompass,
     FileCheck2,
     FileText,
     FolderKanban,
@@ -68,6 +70,7 @@ import {
     Gavel,
     Globe,
     HandCoins,
+    HardHat,
     History,
     House,
     IdCard,
@@ -77,7 +80,6 @@ import {
     LayoutTemplate,
     ListChecks,
     LogOut,
-    type LucideIcon,
     Menu,
     MessageSquareQuote,
     Network,
@@ -88,18 +90,18 @@ import {
     Receipt,
     ReceiptText,
     ScrollText,
-    ShieldCheck,
-    SlidersHorizontal,
-    Target,
-    TrendingUp,
-    User as UserIcon,
-    UserRound,
-    Users,
-    UserCog,
-    Database,
     Settings,
     Settings2,
+    ShieldCheck,
+    SlidersHorizontal,
     Store,
+    Target,
+    TrendingUp,
+    type LucideIcon,
+    User as UserIcon,
+    UserCog,
+    UserRound,
+    Users,
     Wallet,
     WalletCards,
     Warehouse,
@@ -208,10 +210,18 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM'],
             },
             {
+                // Sprint 24 D2 — client designs + each project's Gambar Kerja.
                 label: 'Desain',
                 icon: Palette,
-                routeName: 'design.index',
-                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA'],
+                tabs: [
+                    { label: 'Desain', icon: Palette, routeName: 'design.index', roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA'] },
+                    {
+                        label: 'Gambar Kerja',
+                        icon: DraftingCompass,
+                        routeName: 'design.working-drawings.index',
+                        roles: ['CEO', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA'],
+                    },
+                ],
             },
             {
                 label: 'Quotation',
@@ -250,7 +260,7 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'],
             },
             {
-                label: 'QA',
+                label: 'Pengawas (QA/QC)',
                 icon: ShieldCheck,
                 routeName: 'qa-forms.index',
                 roles: ['CEO', 'PM', 'QA'],
@@ -299,6 +309,8 @@ const NAV_GROUPS: NavGroup[] = [
                     // Salaries are confidential — not PM (sprint-09 decision #7).
                     { label: 'Penggajian', icon: WalletCards, routeName: 'finance.payroll.index', roles: ['CEO', 'FINANCE'] },
                     { label: 'Pinjaman Tukang', icon: HandCoins, routeName: 'finance.staffLoans.index', roles: ['CEO', 'PM', 'FINANCE'] },
+                    // Sprint 24 D4 — the Pengawas's fee, approved by the PM, paid by Finance.
+                    { label: 'Jasa Pengawas', icon: HardHat, routeName: 'finance.supervisor-payments.index', roles: ['CEO', 'FINANCE'] },
                     { label: 'Penalti', icon: AlertOctagon, routeName: 'penalties.index', roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'] },
                 ],
             },
@@ -482,7 +494,7 @@ const ROLE_GROUP_ORDER: Partial<Record<Role, string[]>> = {
     PM: ['Utama', 'Eksekusi', 'Presales', 'Logistik', 'Keuangan'],
     ASISTEN_PM: ['Utama', 'Eksekusi', 'Presales', 'Logistik'],
     FIELD_STAFF: ['Utama', 'Eksekusi', 'Logistik', 'Keuangan'],
-    QA: ['Utama', 'Eksekusi', 'Presales'],
+    QA: ['Utama', 'Eksekusi', 'Presales', 'Keuangan'],
     ESTIMATOR: ['Utama', 'Presales', 'Logistik'],
 };
 
@@ -493,7 +505,8 @@ export const ROLE_LABEL: Record<Role, string> = {
     DESIGNER: 'Arsitek',
     ESTIMATOR: 'Estimator',
     PM: 'Project Manager',
-    QA: 'Quality Assurance',
+    // Sprint 24 D14 — QA and QC are one role: the project's Pengawas.
+    QA: 'Pengawas (QA/QC)',
     FINANCE: 'Finance',
     LOGISTICS: 'Logistik',
     FIELD_STAFF: 'Field Staff',
@@ -590,7 +603,9 @@ export function useActiveNav(): { group: NavGroup; item: NavItem; tab: NavTab | 
         ] as const) {
             for (const group of list) {
                 const item = group.items.find(isCurrentNav);
-                if (item) return { group, item, tab: item.tabs?.find(isCurrentRoute) ?? null, visible };
+                // The most specific tab wins (Desain `design.*` vs Gambar Kerja `design.working-drawings.*`).
+                const tab = item?.tabs?.filter(isCurrentRoute).sort((a, b) => (navPattern(b)?.length ?? 0) - (navPattern(a)?.length ?? 0))[0] ?? null;
+                if (item) return { group, item, tab, visible };
             }
         }
 

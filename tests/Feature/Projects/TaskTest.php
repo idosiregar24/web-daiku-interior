@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\TaskStatus;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\Task;
 use App\Models\User;
@@ -47,8 +48,11 @@ test('PM can assign a task to a field staff', function () {
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
     $project = Project::factory()->create();
+    // Sprint 24 D6 — every daily target sits in a timeline, on a day inside it.
+    $milestone = Milestone::factory()->create(['project_id' => $project->id, 'start_date' => now()->toDateString(), 'target_date' => now()->addWeeks(2)->toDateString()]);
 
     $response = $this->actingAs($pm)->post(route('tasks.store', ['project' => $project->id]), [
+        'milestone_id' => $milestone->id,
         'title' => 'Pasang kusen',
         'assignee_id' => $staff->id,
         'due_date' => now()->addWeek()->toDateString(),

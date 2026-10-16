@@ -49,6 +49,8 @@ class NotificationTarget
      */
     private const RESOURCE_ROUTES = [
         'qa_form_id' => ['qa-forms.show', 'qa_form'],
+        // Sprint 24 D2 — Gambar Kerja.
+        'working_drawing_id' => ['design.working-drawings.show', 'workingDrawing'],
         'quotation_id' => ['quotations.show', 'quotation'],
         'design_id' => ['design.show', 'design'],
         'project_id' => ['projects.show', 'project'],
@@ -93,6 +95,24 @@ class NotificationTarget
                 : ['awaiting_proof' => 1]),
             // Sprint 23 K12b — straight into that invoice's Verifikasi dialog.
             NotificationType::InvoiceAwaitingVerification => route('finance.invoices.verification', $id('invoice_id') ? ['verify' => $id('invoice_id')] : []),
+            // Sprint 24 — Finance's queue of Pengawas payments; the rest of the execution flow on the
+            // project's "Eksekusi" tab.
+            NotificationType::SupervisorPaymentToPay => route('finance.supervisor-payments.index'),
+            NotificationType::WorkingDrawingCompleted,
+            NotificationType::TechnicalMeetingCompleted,
+            NotificationType::SupervisorPaymentRequested,
+            NotificationType::SupervisorPaymentDecided,
+            NotificationType::SupervisorPaymentPaid,
+            NotificationType::ProductionStarted,
+            NotificationType::WeeklyReportReminder,
+            NotificationType::WeeklyReportSubmitted,
+            NotificationType::WeeklyReportDecided,
+            NotificationType::ProjectProgressReached,
+            NotificationType::SiteDepartureApproved,
+            NotificationType::SiteFindingRecorded,
+            NotificationType::ProjectDeadlineNear => $id('project_id')
+                ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'execution'])
+                : null,
             // Sprint 19 — straight into the "Jadwalkan Survey" dialog on the paid RAB.
             NotificationType::SurveyToSchedule => $id('quotation_id')
                 ? route('quotations.show', ['quotation' => $id('quotation_id'), 'survey' => 'new'])

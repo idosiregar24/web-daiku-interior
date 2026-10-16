@@ -55,6 +55,9 @@ interface AssignDesignDialogProps {
     design: AssignableDesign;
     /** Active architects (DESIGNER) — the Kepala Desain is one of them. */
     architects: Person[];
+    /** Sprint 24 D2 — the same dialog assigns a project's Gambar Kerja (its own route). */
+    submitUrl?: string;
+    subject?: string;
 }
 
 /**
@@ -62,7 +65,7 @@ interface AssignDesignDialogProps {
  * architect (themself allowed), assistants and the timeline. Reopened as
  * "Ubah Penugasan" while the design is still being worked on.
  */
-export function AssignDesignDialog({ open, onOpenChange, design, architects }: AssignDesignDialogProps) {
+export function AssignDesignDialog({ open, onOpenChange, design, architects, submitUrl, subject = 'Desain' }: AssignDesignDialogProps) {
     const me = usePage().props.auth.user;
     const reassigning = design.pic_id != null;
 
@@ -87,7 +90,7 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
 
     function onSubmit(values: FormValues) {
         router.post(
-            route('design.assign', { design: design.id }),
+            submitUrl ?? route('design.assign', { design: design.id }),
             {
                 pic_id: Number(values.pic_id),
                 assistant_ids: values.assistant_ids.map(Number),
@@ -110,9 +113,9 @@ export function AssignDesignDialog({ open, onOpenChange, design, architects }: A
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>{reassigning ? 'Ubah Penugasan' : 'Tugaskan Desain'}</DialogTitle>
+                    <DialogTitle>{reassigning ? 'Ubah Penugasan' : `Tugaskan ${subject}`}</DialogTitle>
                     <DialogDescription>
-                        Desain <span className="font-medium text-foreground">{design.client_name}</span> — pilih PIC arsitek (boleh Anda
+                        {subject} <span className="font-medium text-foreground">{design.client_name}</span> — pilih PIC arsitek (boleh Anda
                         sendiri), asisten, dan timeline.
                     </DialogDescription>
                 </DialogHeader>

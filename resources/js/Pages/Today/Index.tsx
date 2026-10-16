@@ -5,7 +5,7 @@ import { Notice } from '@/Components/shared/Notice';
 import { PushOptIn } from '@/Components/shared/PushOptIn';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PageProps } from '@/types';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { CalendarCheck, CalendarDays } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -19,6 +19,8 @@ interface TodayIndexProps {
     tasks: FieldTask[];
     /** Non-working day only: next week's tasks. */
     upcoming: FieldTask[];
+    /** Sprint 24 D7 — today's targets (due today or OVER) not reported yet. */
+    missingToday: number;
 }
 
 function greeting(hour: number) {
@@ -39,10 +41,16 @@ function dayLabel(date: string) {
  * missing before the penalty hour, and one tap to update a task (status +
  * form in a single save). On Sunday — no penalty — next week's tasks.
  */
-export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, today, tasks, upcoming }: TodayIndexProps) {
+export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, today, tasks, upcoming, missingToday }: TodayIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const [active, setActive] = useState<FieldTask | null>(null);
-    const missing = tasks.filter((task) => !task.has_form_today).length;
+    // Sprint 24 D7 — counted on the server (Task::awaitingDailyForm, same as the queue & penalty).
+    const missing = missingToday;
+
+    /** Sprint 24 D7 — the big ✔: the target is done, and that is today's report. */
+    function check(task: FieldTask) {
+        router.patch(route('tasks.updateStatus', { task: task.id }), { status: 'DONE' }, { preserveScroll: true });
+    }
 
     const upcomingByDay = useMemo(() => {
         const groups = new Map<string, FieldTask[]>();
@@ -74,17 +82,17 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                 <>
                     {missing > 0 && canSubmitDailyForm && (
                         <Notice tone="warning" className="mb-4">
-                            <strong>{missing} form harian belum diisi</strong> · batas sebelum penalti {penaltyAt} WIB. Ketuk tugas lalu Simpan.
+                            <strong>{missing} target hari ini belum dilaporkan</strong> · centang yang selesai, atau ketuk tugas untuk isi kendala — sebelum {penaltyAt} WIB.
                         </Notice>
                     )}
                     {missing > 0 && !canSubmitDailyForm && (
                         <Notice tone="error" className="mb-4">
-                            Batas {penaltyAt} WIB sudah lewat — form harian hari ini tidak bisa diisi lagi.
+                            Batas {penaltyAt} WIB sudah lewat — laporan target hari ini sudah ditutup.
                         </Notice>
                     )}
                     {missing === 0 && tasks.length > 0 && (
                         <Notice tone="success" className="mb-4">
-                            Semua form harian hari ini sudah diisi. Terima kasih!
+                            Semua target hari ini sudah dilaporkan. Terima kasih!
                         </Notice>
                     )}
 
@@ -98,7 +106,7 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                     ) : (
                         <div className="flex flex-col gap-3">
                             {tasks.map((task) => (
-                                <TaskCard key={task.id} task={task} onOpen={setActive} />
+                                <TaskCard key={task.id} task={task} onOpen={setActive} onCheck={check} />
                             ))}
                         </div>
                     )}

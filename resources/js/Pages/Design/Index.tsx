@@ -1,4 +1,5 @@
 import { DataTable } from '@/Components/shared/DataTable';
+import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import {
@@ -135,6 +136,8 @@ export default function DesignIndex({ designs, filters, queue, architects }: Des
                 description="Proyek desain — dibuka otomatis saat klien menyetujui RAB Jasa Desain, dikerjakan setelah dibayar dan ditugaskan Kepala Desain."
                 actions={<DashboardLinkButton routeName="design.dashboard" label="KPI Desain" icon={BarChart3} roles={['CEO', 'DESIGNER']} />}
             />
+            {/* Sprint 24 D2 — Desain hub: client designs | Gambar Kerja. */}
+            <ModuleTabs />
 
             {queue && (
                 <SectionCard

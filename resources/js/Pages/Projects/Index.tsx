@@ -55,7 +55,27 @@ const columns: ColumnDef<Project>[] = [
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => <StatusChip domain="project" status={row.original.status} />,
+        cell: ({ row }) => (
+            <div className="flex flex-wrap gap-1">
+                <StatusChip domain="project" status={row.original.status} />
+                {/* Sprint 24 D1 — the execution phase while it runs. */}
+                {row.original.status === 'ACTIVE' && row.original.phase && <StatusChip domain="projectPhase" status={row.original.phase} />}
+            </div>
+        ),
+    },
+    {
+        // Sprint 24 D11 — actual activity: DONE ÷ all daily targets.
+        id: 'progress',
+        header: 'Actual Activity',
+        cell: ({ row }) => {
+            const total = row.original.tasks_count ?? 0;
+
+            return total === 0 ? (
+                <span className="text-muted-foreground">—</span>
+            ) : (
+                <span className="tabular-nums">{Math.floor(((row.original.done_tasks_count ?? 0) * 100) / total)}%</span>
+            );
+        },
     },
     {
         accessorKey: 'start_date',

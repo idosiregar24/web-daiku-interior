@@ -67,6 +67,8 @@ export const CATEGORY_OPTIONS: Record<FinanceTransactionType, { value: FinanceCa
         { value: 'PERALATAN_ASET', label: 'Peralatan/Aset' },
         { value: 'BBM', label: 'BBM' },
         { value: 'PINJAMAN', label: 'Pinjaman' },
+        // Sprint 24 D4 — system-managed (SupervisorPaymentService), listed for labels/filters.
+        { value: 'JASA_PENGAWAS', label: 'Jasa Pengawas' },
         { value: 'LAINNYA', label: 'Lainnya' },
     ],
 };

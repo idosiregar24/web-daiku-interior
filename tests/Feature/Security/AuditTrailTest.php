@@ -96,7 +96,8 @@ test('termin payment and fund usage are audited', function () {
 
 test('a penalty issued by the scheduled job is audited as the system', function () {
     $staff = auditUser('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => 'ONPROGRESS']);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => 'ONPROGRESS', 'due_date' => now('Asia/Jakarta')->toDateString()]);
 
     app(PenaltyService::class)->runDailyCheck();
 

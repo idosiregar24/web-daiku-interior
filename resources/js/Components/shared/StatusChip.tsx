@@ -125,6 +125,15 @@ const STATUS_TONE: Record<string, Tone> = {
     SIAP: 'success',
     SELESAI: 'success',
     BATAL: 'neutral',
+    // Sprint 24 — ProjectPhase, WorkingDrawing, SupervisorPayment, SiteFinding
+    GAMBAR_KERJA: 'info',
+    TM: 'info',
+    PERSIAPAN: 'warning',
+    PEMASANGAN: 'info',
+    DIKERJAKAN: 'info',
+    DISETUJUI_PM: 'info',
+    DIBAYAR: 'success',
+    TERBUKA: 'warning',
 };
 
 /** Labels that read better than the humanized code (Sprint 12 #5, #3). */

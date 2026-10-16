@@ -2,7 +2,6 @@
 
 namespace Database\Seeders\Demo;
 
-use App\Enums\MilestoneStatus;
 use App\Enums\TaskStatus;
 use App\Models\DailyTaskForm;
 use App\Models\Project;
@@ -33,8 +32,9 @@ class TodayDemoSeeder extends Seeder
             return;
         }
 
-        $milestone = $project->milestones()->where('status', '!=', MilestoneStatus::Completed->value)->first();
         $now = DailyFormSchedule::now();
+        // Sprint 24 D6 — targets sit inside a timeline that covers this week.
+        $milestone = ExecutionFlowDemo::timeline($project, 'Pekerjaan Minggu Ini', -1, 10);
 
         $specs = [
             ['title' => 'Pasang rangka plafon gypsum', 'status' => TaskStatus::OnProgress, 'due' => $now],
@@ -60,8 +60,9 @@ class TodayDemoSeeder extends Seeder
             return $task;
         });
 
-        // Today's form for the first task only — the other two stay "belum diisi".
-        DailyTaskForm::create([
+        // Today's report for the first task only — the other two stay "belum dilaporkan"
+        // (Sprint 24 D7: its status change may already have written the row).
+        DailyTaskForm::where('task_id', $tasks[0]->id)->forDate($now->toDateString())->exists() || DailyTaskForm::create([
             'task_id' => $tasks[0]->id,
             'staff_id' => $tukang->id,
             'work_date' => $now->toDateString(),

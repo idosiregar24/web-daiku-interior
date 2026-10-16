@@ -28,6 +28,8 @@ enum FinanceCategory: string
     /** Sprint 12 Sub 6 — verified Jasa Survey / Jasa Desain invoices (InvoiceService). */
     case PendapatanSurvey = 'PENDAPATAN_SURVEY';
     case PendapatanDesain = 'PENDAPATAN_DESAIN';
+    /** Sprint 24 D4 — paying the Pengawas (SupervisorPaymentService). */
+    case JasaPengawas = 'JASA_PENGAWAS';
     case Lainnya = 'LAINNYA';
 
     /**
@@ -57,6 +59,7 @@ enum FinanceCategory: string
             self::PenaltyCollect, // Sprint 9 decision #10 — PenaltyCollectionService only
             self::PendapatanSurvey, // Sprint 12 Sub 6 — InvoiceService::verify() only
             self::PendapatanDesain,
+            self::JasaPengawas, // Sprint 24 D4 — SupervisorPaymentService::pay() only
         ];
     }
 
@@ -86,6 +89,7 @@ enum FinanceCategory: string
             self::PenaltyCollect => 'Penalty Collect',
             self::PendapatanSurvey => 'Pendapatan Jasa Survey',
             self::PendapatanDesain => 'Pendapatan Jasa Desain',
+            self::JasaPengawas => 'Jasa Pengawas',
             self::Lainnya => 'Lainnya',
         };
     }

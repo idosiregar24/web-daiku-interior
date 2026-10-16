@@ -53,6 +53,7 @@ use App\Services\StaffPaymentService;
 use App\Services\StockService;
 use App\Services\SupplierDebtService;
 use App\Services\TaskService;
+use Database\Seeders\Demo\ExecutionFlowDemo;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
@@ -527,6 +528,9 @@ class DemoDataSeeder extends Seeder
                 'opened_on' => now()->subDays(9)->toDateString(),
                 'start_date' => now()->subDays(7)->toDateString(),
             ], $this->pm);
+            // Sprint 24 — these demo projects are already in production (the
+            // phase-by-phase flow is WorkflowScenarioSeeder::executionFlow()).
+            $project = ExecutionFlowDemo::skipToProduction($project);
 
             $results[] = ['lead' => $lead->fresh(), 'project' => $project];
         }
@@ -591,15 +595,16 @@ class DemoDataSeeder extends Seeder
             // below (walkFirstProjectThroughQa()) instead of having their
             // final status written directly here — so start every one of
             // them at the migration default (PENDING).
+            // Sprint 24 D6 — every daily target sits inside its timeline (start → offset).
             $milestoneSpecs = $isFirstProject
                 ? [
-                    ['name' => '3D Design', 'offset' => -10],
-                    ['name' => 'Produksi', 'offset' => 5],
-                    ['name' => 'Instalasi & Finishing', 'offset' => 20],
+                    ['name' => '3D Design', 'start' => -12, 'offset' => -4],
+                    ['name' => 'Produksi', 'start' => -3, 'offset' => 5],
+                    ['name' => 'Instalasi & Finishing', 'start' => 6, 'offset' => 20],
                 ]
                 : [
-                    ['name' => '3D Design', 'status' => MilestoneStatus::InProgress, 'offset' => 3],
-                    ['name' => 'Produksi', 'status' => MilestoneStatus::Pending, 'offset' => 15],
+                    ['name' => '3D Design', 'status' => MilestoneStatus::InProgress, 'start' => -6, 'offset' => 3],
+                    ['name' => 'Produksi', 'status' => MilestoneStatus::Pending, 'start' => 4, 'offset' => 15],
                 ];
 
             $milestones = [];
@@ -607,6 +612,7 @@ class DemoDataSeeder extends Seeder
             foreach ($milestoneSpecs as $spec) {
                 $milestone = $milestoneService->create($project, [
                     'name' => $spec['name'],
+                    'start_date' => now()->addDays($spec['start'])->toDateString(),
                     'target_date' => now()->addDays($spec['offset'])->toDateString(),
                 ]);
 
@@ -624,7 +630,7 @@ class DemoDataSeeder extends Seeder
             $taskSpecs = $isFirstProject
                 ? [
                     ['title' => 'Pasang kitchen set', 'status' => TaskStatus::Done, 'due_offset' => -5, 'milestone' => 0],
-                    ['title' => 'Finishing cat dinding', 'status' => TaskStatus::Done, 'due_offset' => -3, 'milestone' => 0],
+                    ['title' => 'Finishing cat dinding', 'status' => TaskStatus::Done, 'due_offset' => -4, 'milestone' => 0],
                     ['title' => 'Rakit lemari pakaian', 'status' => TaskStatus::OnProgress, 'due_offset' => 2, 'milestone' => 1],
                     ['title' => 'Pasang partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 4, 'milestone' => 1],
                     ['title' => 'Cek kualitas instalasi listrik', 'status' => TaskStatus::Pending, 'due_offset' => -1, 'milestone' => 1], // overdue on purpose
@@ -632,7 +638,7 @@ class DemoDataSeeder extends Seeder
                 : [
                     ['title' => 'Survey lokasi awal', 'status' => TaskStatus::Done, 'due_offset' => -2, 'milestone' => 0],
                     ['title' => 'Pasang partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 3, 'milestone' => 0],
-                    ['title' => 'Pengecatan interior', 'status' => TaskStatus::Pending, 'due_offset' => 10, 'milestone' => 0],
+                    ['title' => 'Pengecatan interior', 'status' => TaskStatus::Pending, 'due_offset' => 10, 'milestone' => 1],
                 ];
 
             foreach ($taskSpecs as $taskIndex => $spec) {
@@ -668,6 +674,11 @@ class DemoDataSeeder extends Seeder
         $today = now('Asia/Jakarta')->toDateString();
 
         foreach ($tasksByStaff->slice(0, -1) as $entry) {
+            // Sprint 24 D7 — the Tukang's own status change already wrote today's activity row on a working day.
+            if (DailyTaskForm::where('task_id', $entry['task']->id)->forDate($today)->exists()) {
+                continue;
+            }
+
             DailyTaskForm::create([
                 'task_id' => $entry['task']->id,
                 'staff_id' => $entry['staff']->id,

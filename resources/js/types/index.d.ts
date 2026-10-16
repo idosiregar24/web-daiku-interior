@@ -765,6 +765,13 @@ export interface Project {
     /** Sprint 23 K15 — Tanggal Buka Proyek (start_date is never before it). */
     opened_on?: string | null;
     status: ProjectStatus;
+    /** Sprint 24 D1 — execution phase (PRODUKSI on projects opened before Sprint 24). */
+    phase?: ProjectPhase;
+    /** Sprint 24 D11 — DONE ÷ all targets, % (detail page). */
+    actual_progress?: number;
+    /** `withCount` on the project list (Sprint 24 D11). */
+    tasks_count?: number;
+    done_tasks_count?: number;
     start_date: string | null;
     end_date: string | null;
     contract_value: string;
@@ -806,13 +813,17 @@ export interface Task {
     /** `status` is loaded on the task list (hides edit actions on closed projects). */
     project?: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'status'>>;
     milestone_id: number | null;
-    milestone?: Pick<Milestone, 'id' | 'name'>;
+    milestone?: Pick<Milestone, 'id' | 'name'> & Partial<Pick<Milestone, 'start_date' | 'target_date'>>;
     title: string;
     description: string | null;
     assignee_id: number | null;
     assignee?: Pick<User, 'id' | 'name'>;
     created_by: number;
     due_date: string | null;
+    /** Sprint 24 D6 — the day the target was first planned for (due_date moves on rollover / geser). */
+    planned_date?: string | null;
+    /** Sprint 24 D8 — how often it rolled to the next working day. */
+    rollover_count?: number;
     status: TaskStatus;
     /** Status before TaskOverdueJob set OVER — restored when the PM moves the deadline back. */
     pre_overdue_status?: TaskStatus | null;
@@ -1152,6 +1163,8 @@ export type FinanceCategory =
     /** Sprint 12 Sub 6 — verified Jasa Survey / Jasa Desain invoices. */
     | 'PENDAPATAN_SURVEY'
     | 'PENDAPATAN_DESAIN'
+    /** Sprint 24 D4 — SupervisorPaymentService only. */
+    | 'JASA_PENGAWAS'
     | 'LAINNYA';
 
 export interface FinanceTransaction {
@@ -2278,4 +2291,153 @@ export interface ServicePageDetail extends ServicePageContent {
     public_url: string;
     types: string[];
     still_placeholder: boolean;
+}
+
+
+/** Sprint 24 D1 — the execution phase inside ACTIVE (App\Enums\ProjectPhase). */
+export type ProjectPhase = 'GAMBAR_KERJA' | 'TM' | 'PERSIAPAN' | 'PRODUKSI' | 'PEMASANGAN';
+export type WorkingDrawingStatus = 'MENUNGGU_PENUGASAN' | 'DIKERJAKAN' | 'SELESAI';
+export type SupervisorPaymentKind = 'DP' | 'MINGGUAN' | 'PELUNASAN';
+export type SupervisorPaymentStatus = 'DIAJUKAN' | 'DISETUJUI_PM' | 'DITOLAK' | 'DIBAYAR';
+export type WeeklyReportStatus = 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
+export type SiteFindingStatus = 'TERBUKA' | 'SELESAI';
+
+/** One line of a checklist (TM Selesai, syarat DP). */
+export interface ExecutionRequirement {
+    key: string;
+    label: string;
+    done: boolean;
+}
+
+/** Sprint 24 D2 — WorkingDrawingController::show `drawing`. */
+export interface WorkingDrawing {
+    id: number;
+    project_id: number;
+    project?: Pick<Project, 'id' | 'name' | 'phase' | 'start_date' | 'end_date'> & {
+        lead?: Pick<Lead, 'id' | 'client_name'>;
+        pm?: Pick<User, 'id' | 'name'> | null;
+        supervisor?: Pick<User, 'id' | 'name'> | null;
+    };
+    status: WorkingDrawingStatus;
+    pic_id: number | null;
+    pic?: Pick<User, 'id' | 'name'> | null;
+    staff?: Pick<User, 'id' | 'name'>[];
+    assigner?: Pick<User, 'id' | 'name'> | null;
+    assigned_at: string | null;
+    start_date: string | null;
+    target_hari: number | null;
+    deadline: string | null;
+    drawing_urls: string[] | null;
+    note: string | null;
+    links_updater?: Pick<User, 'id' | 'name'> | null;
+    links_updated_at: string | null;
+    completer?: Pick<User, 'id' | 'name'> | null;
+    completed_at: string | null;
+    created_at: string;
+}
+
+/** Sprint 24 D4 — a Jasa Pengawas payment (Finance queue row). */
+export interface SupervisorPayment {
+    id: number;
+    project_id: number;
+    project?: Pick<Project, 'id' | 'name'>;
+    supervisor?: Pick<User, 'id' | 'name'> | null;
+    kind: SupervisorPaymentKind;
+    /** "DP · Proyek Kopi Oz" — SupervisorPayment::label (Sprint 23 K12b style). */
+    label: string;
+    amount: string;
+    status: SupervisorPaymentStatus;
+    decider?: Pick<User, 'id' | 'name'> | null;
+    decided_at: string | null;
+    payer?: Pick<User, 'id' | 'name'> | null;
+    paid_at: string | null;
+}
+
+/** Sprint 24 — ProjectExecutionService::overview(), the project's "Eksekusi" tab. */
+export interface ProjectExecution {
+    phase: ProjectPhase;
+    phases: { value: ProjectPhase; label: string; state: 'done' | 'current' | 'upcoming' }[];
+    isLegacy: boolean;
+    workingDrawing: {
+        id: number;
+        status: WorkingDrawingStatus;
+        pic: string | null;
+        staff: string[];
+        deadline: string | null;
+        drawing_urls: string[];
+        note: string | null;
+        completed_at: string | null;
+        completer: string | null;
+        canOpen: boolean;
+    } | null;
+    meeting: {
+        meeting_date: string | null;
+        notes: string | null;
+        attendees: { user_id: number | null; name: string | null; label: string }[];
+        completed_at: string | null;
+        completer: string | null;
+    } | null;
+    meetingRequirements: ExecutionRequirement[];
+    attendeeOptions: Pick<User, 'id' | 'name'>[];
+    defaultEndDate: string | null;
+    fee: { total_amount: number; dp_percent: number; dp_amount: number; committed: number; paid: number; remaining: number } | null;
+    dpRequirements: ExecutionRequirement[];
+    payments: {
+        id: number;
+        kind: SupervisorPaymentKind;
+        label: string;
+        amount: number;
+        status: SupervisorPaymentStatus;
+        requested_at: string | null;
+        decided_at: string | null;
+        decider: string | null;
+        decision_note: string | null;
+        paid_at: string | null;
+    }[];
+    weeklyReports: {
+        id: number;
+        week_number: number;
+        week_start: string;
+        notes: string;
+        links: string[];
+        status: WeeklyReportStatus;
+        supervisor: string | null;
+        submitted_at: string | null;
+        decided_at: string | null;
+        decider: string | null;
+        decision_note: string | null;
+        payment_amount: number | null;
+    }[];
+    currentWeek: { week_start: string; week_number: number; is_report_day: boolean } | null;
+    progress: number;
+    threshold: number;
+    departure: { approved_at: string; approver: string | null } | null;
+    findings: {
+        id: number;
+        description: string;
+        photo_url: string | null;
+        status: SiteFindingStatus;
+        milestone: { id: number; name: string } | null;
+        task: { id: number; title: string; status: TaskStatus; assignee: string | null; due_date: string | null } | null;
+        reporter: string | null;
+        created_at: string | null;
+    }[];
+    targetVsActual: {
+        week_start: string;
+        days: string[];
+        rows: { staff_id: number; name: string; target: number; actual: number; cells: Record<string, { target: number; actual: number; rolled: number }> }[];
+    } | null;
+    deadline: { end_date: string | null; warn_from: string | null; warning: boolean; days_left: number | null };
+    can: {
+        saveMeeting: boolean;
+        completeMeeting: boolean;
+        requestDp: boolean;
+        decide: boolean;
+        submitWeekly: boolean;
+        approveDeparture: boolean;
+        recordFinding: boolean;
+        resolveFinding: boolean;
+        manageTargets: boolean;
+        requestSettlement: boolean;
+    };
 }

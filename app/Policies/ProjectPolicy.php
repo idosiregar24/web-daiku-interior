@@ -56,7 +56,8 @@ class ProjectPolicy
             return true;
         }
 
-        return $this->ownsAsPm($user, $project);
+        // Sprint 24 D3 — the Pengawas fills "bahan yang digunakan" at the TM.
+        return $this->ownsAsPm($user, $project) || $project->isSupervisedBy($user);
     }
 
     /**
@@ -83,6 +84,45 @@ class ProjectPolicy
         }
 
         return $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
+    }
+
+    /**
+     * Sprint 24 D6/D9 — daily targets (tasks): planned and moved by any PM
+     * (PRD §7.1 unscoped PM CRUD), the Asisten PM of this project, and — new —
+     * the project's Pengawas (QA/QC).
+     */
+    public function manageTargets(User $user, Project $project): bool
+    {
+        if ($user->hasRole('PM')) {
+            return true;
+        }
+
+        return ($user->hasRole('ASISTEN_PM') && $project->isManagedBy($user)) || $project->isSupervisedBy($user);
+    }
+
+    /**
+     * Sprint 24 D3 — the Technical Meeting record (date, minutes, attendees,
+     * Jasa Pengawas, Timeline): the project's PM or its Asisten PM.
+     */
+    public function runMeeting(User $user, Project $project): bool
+    {
+        return $this->ownsAsPm($user, $project) || ($user->hasRole('ASISTEN_PM') && $project->isManagedBy($user));
+    }
+
+    /**
+     * Sprint 24 D4/D10/D11 — decisions with money or the site in them
+     * (Pengawas payments, weekly reports, "Berangkat ke Lokasi"): the
+     * project's own PM, like the budget (#22 — not the Asisten PM).
+     */
+    public function approveExecution(User $user, Project $project): bool
+    {
+        return $this->ownsAsPm($user, $project);
+    }
+
+    /** Sprint 24 D5/D10/D12/E3 — the Pengawas's own steps: DP / pelunasan request, weekly report, findings. */
+    public function supervise(User $user, Project $project): bool
+    {
+        return $project->isSupervisedBy($user);
     }
 
     /** Sprint 12 #29 — "Minta RAB Tambahan": Marketing, or the PM of this project. */
@@ -113,16 +153,22 @@ class ProjectPolicy
 
     /**
      * Which task rows a viewer of this project may see — PRD §7.1 gives
-     * task read to CEO/PM (all) and Field Staff (own only, U†). QA
-     * explicitly never sees task detail (PRD §4.6), and the remaining
-     * roles have no task row in the matrix at all.
+     * task read to CEO/PM (all) and Field Staff (own only, U†). QA never
+     * sees task detail (PRD §4.6) — except, since Sprint 24, on the project
+     * it is the Pengawas of — and the remaining roles have no task row.
      *
      * @return 'all'|'own'|'none'
      */
-    public function taskVisibility(User $user): string
+    public function taskVisibility(User $user, ?Project $project = null): string
     {
         // ASISTEN_PM reads what the PM reads (Sprint 12 Sub 1).
         if ($user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'SUPERADMIN'])) {
+            return 'all';
+        }
+
+        // Sprint 24 D6 — the project's Pengawas plans its daily targets (a QA
+        // who isn't its Pengawas still never sees task detail, PRD §4.6).
+        if ($project && $project->isSupervisedBy($user)) {
             return 'all';
         }
 

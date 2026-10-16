@@ -264,7 +264,13 @@ export default function TasksIndex({
                     ) : (
                         <div className="flex flex-col gap-3">
                             {tasks.data.map((task) => (
-                                <TaskCard key={task.id} task={task as FieldTask} onOpen={setSheetTask} />
+                                <TaskCard
+                                    key={task.id}
+                                    task={task as FieldTask}
+                                    onOpen={setSheetTask}
+                                    // Sprint 24 D7 — the ✔ is the day's report.
+                                    onCheck={(target) => router.patch(route('tasks.updateStatus', { task: target.id }), { status: 'DONE' }, { preserveScroll: true })}
+                                />
                             ))}
                         </div>
                     )}

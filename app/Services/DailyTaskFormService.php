@@ -59,7 +59,7 @@ class DailyTaskFormService
                 'status' => $data['status'],
                 'kendala' => $data['kendala'] ?? null,
                 'note' => $data['notes'] ?? null,
-            ], $actor);
+            ], $actor, recordActivity: false);
 
             return DailyTaskForm::create([
                 'task_id' => $task->id,

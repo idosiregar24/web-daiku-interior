@@ -15,7 +15,7 @@ const BAR_CLASS: Record<MilestoneStatus, string> = {
 const LEGEND: { status: MilestoneStatus; label: string }[] = [
     { status: 'PENDING', label: 'Belum Mulai' },
     { status: 'IN_PROGRESS', label: 'Dikerjakan' },
-    { status: 'QA_WAITING', label: 'Belum Diperiksa QA' },
+    { status: 'QA_WAITING', label: 'Belum Diperiksa Pengawas' },
     { status: 'COMPLETED', label: 'Selesai' },
     { status: 'OVERDUE', label: 'Terlambat' },
 ];

@@ -31,7 +31,13 @@ export type WaitingDomain =
     | 'staffLoan'
     | 'supplierDebt'
     | 'assetInstallment'
-    | 'payroll';
+    | 'payroll'
+    // Sprint 24 — alur eksekusi proyek.
+    | 'projectPhase'
+    | 'workingDrawing'
+    | 'supervisorPayment'
+    | 'weeklyReport'
+    | 'siteFinding';
 
 /** Who holds the turn, per domain → status. Missing = nobody (done/cancelled). */
 const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
@@ -97,7 +103,7 @@ const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
     milestone: {
         PENDING: 'PM',
         IN_PROGRESS: 'Tukang',
-        QA_WAITING: 'QA',
+        QA_WAITING: 'Pengawas (QA/QC)',
         OVERDUE: 'PM',
     },
     // TaskService — the assignee moves it (an OVER task too, until DONE);
@@ -111,7 +117,7 @@ const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
     // QaFormService — QA reviews; a rejection is fixed and re-sent by the
     // project's PM / Asisten PM (Selesaikan timeline → resubmit).
     qa: {
-        PENDING: 'QA',
+        PENDING: 'Pengawas (QA/QC)',
         REJECTED: 'PM / Asisten PM',
     },
     // pmApprove is `role:PM` only — the Asisten PM doesn't decide overtime.
@@ -159,6 +165,30 @@ const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
     },
     payroll: {
         PENDING: 'Finance',
+    },
+    // Sprint 24 D1 — who moves the project on to the next phase.
+    projectPhase: {
+        GAMBAR_KERJA: 'Kepala Desain / Arsitek',
+        TM: 'PM',
+        PERSIAPAN: 'Pengawas → PM',
+        PRODUKSI: 'Pengawas & Tukang',
+        PEMASANGAN: 'Pengawas',
+    },
+    workingDrawing: {
+        MENUNGGU_PENUGASAN: 'Kepala Desain',
+        DIKERJAKAN: 'Arsitek',
+    },
+    // SupervisorPaymentService — the PM decides, Finance pays.
+    supervisorPayment: {
+        DIAJUKAN: 'PM',
+        DISETUJUI_PM: 'Finance',
+    },
+    weeklyReport: {
+        DIAJUKAN: 'PM',
+        DITOLAK: 'Pengawas',
+    },
+    siteFinding: {
+        TERBUKA: 'Pengawas / Tukang',
     },
 };
 
@@ -276,6 +306,33 @@ const LABEL: Partial<Record<WaitingDomain, Partial<Record<string, string>>>> = {
     payroll: {
         PENDING: 'Belum Dibayar',
         PAID: 'Dibayar',
+    },
+    projectPhase: {
+        GAMBAR_KERJA: 'Gambar Kerja',
+        TM: 'Technical Meeting',
+        PERSIAPAN: 'Persiapan Produksi',
+        PRODUKSI: 'Produksi',
+        PEMASANGAN: 'Pemasangan',
+    },
+    workingDrawing: {
+        MENUNGGU_PENUGASAN: 'Menunggu Penugasan',
+        DIKERJAKAN: 'Dikerjakan',
+        SELESAI: 'Selesai',
+    },
+    supervisorPayment: {
+        DIAJUKAN: 'Diajukan',
+        DISETUJUI_PM: 'Disetujui PM',
+        DITOLAK: 'Ditolak',
+        DIBAYAR: 'Dibayar',
+    },
+    weeklyReport: {
+        DIAJUKAN: 'Diajukan',
+        DISETUJUI: 'Disetujui',
+        DITOLAK: 'Ditolak',
+    },
+    siteFinding: {
+        TERBUKA: 'Terbuka',
+        SELESAI: 'Selesai',
     },
 };
 

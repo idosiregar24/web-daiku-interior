@@ -49,7 +49,14 @@ class TodayController extends Controller
                 ->orderBy('due_date')
                 ->orderBy('id')
                 ->get($columns)
-                ->map(fn (Task $task) => [...$task->toArray(), 'has_form_today' => $filled->has($task->id)]);
+                // Sprint 24 D7 — only today's targets (due today, or OVER) are reported today;
+                // the mark is left off the others.
+                ->map(fn (Task $task) => [
+                    ...$task->toArray(),
+                    ...($task->status === TaskStatus::Over || $task->due_date?->toDateString() === $now->toDateString()
+                        ? ['has_form_today' => $filled->has($task->id)]
+                        : []),
+                ]);
         }
 
         // Sunday: Monday–Saturday of the coming week, one group per day client-side.
@@ -61,6 +68,9 @@ class TodayController extends Controller
             // The form can still be sent today (working day, before the cutoff).
             'canSubmitDailyForm' => $isWorkDay && ! DailyFormSchedule::isPastCutoff($now),
             'today' => $now->toDateString(),
+            // Sprint 24 D7 — today's targets not reported yet: the same scope as the
+            // "Perlu Tindakan" queue and the penalty run (never re-derived client-side).
+            'missingToday' => $isWorkDay ? Task::query()->awaitingDailyForm($user, $now->toDateString())->count() : 0,
             'tasks' => $tasks ?? [],
             'upcoming' => $nextWeek
                 ? $open()

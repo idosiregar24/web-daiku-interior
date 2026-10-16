@@ -14,6 +14,7 @@ use App\Http\Controllers\CRM\LeadSurveyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Design\DesignController;
 use App\Http\Controllers\Design\DesignDashboardController;
+use App\Http\Controllers\Design\WorkingDrawingController;
 use App\Http\Controllers\Finance\AssetInstallmentController;
 use App\Http\Controllers\Finance\FamilyGatheringFundController;
 use App\Http\Controllers\Finance\FinanceAllocationConfigController;
@@ -23,6 +24,7 @@ use App\Http\Controllers\Finance\InvoiceController;
 use App\Http\Controllers\Finance\PayrollController;
 use App\Http\Controllers\Finance\PenaltyController;
 use App\Http\Controllers\Finance\StaffLoanController;
+use App\Http\Controllers\Finance\SupervisorPaymentController;
 use App\Http\Controllers\Finance\SupplierDebtController;
 use App\Http\Controllers\Finance\TerminController;
 use App\Http\Controllers\HR\HrDashboardController;
@@ -56,6 +58,7 @@ use App\Http\Controllers\Projects\ProjectAddendumController;
 use App\Http\Controllers\Projects\ProjectBudgetController;
 use App\Http\Controllers\Projects\ProjectController;
 use App\Http\Controllers\Projects\ProjectDashboardController;
+use App\Http\Controllers\Projects\ProjectExecutionController;
 use App\Http\Controllers\Projects\ProjectOpeningController;
 use App\Http\Controllers\Projects\TaskController;
 use App\Http\Controllers\PublicQuotationController;
@@ -209,6 +212,25 @@ Route::middleware('auth')->prefix('design')->name('design.')->group(function () 
     Route::get('dashboard', [DesignDashboardController::class, 'index'])
         ->middleware('role:CEO|DESIGNER')
         ->name('dashboard');
+
+    // Sprint 24 D2 — "Gambar Kerja" of each project: a tab of the Desain hub,
+    // assigned by a Kepala Desain, finished by its team (WorkingDrawingPolicy).
+    // Before `{design}` so the wildcard doesn't swallow it.
+    Route::prefix('gambar-kerja')->name('working-drawings.')->group(function () {
+        Route::get('/', [WorkingDrawingController::class, 'index'])
+            ->middleware('role:CEO|DESIGNER|PM|ASISTEN_PM|QA')
+            ->name('index');
+        Route::get('{workingDrawing}', [WorkingDrawingController::class, 'show'])
+            ->middleware('role:CEO|DESIGNER|PM|ASISTEN_PM|QA')
+            ->name('show');
+        Route::post('{workingDrawing}/assign', [WorkingDrawingController::class, 'assign'])
+            ->middleware('role:KEPALA_DESAIN')
+            ->name('assign');
+        Route::middleware('role:DESIGNER')->group(function () {
+            Route::put('{workingDrawing}/links', [WorkingDrawingController::class, 'updateLinks'])->name('links.update');
+            Route::post('{workingDrawing}/complete', [WorkingDrawingController::class, 'complete'])->name('complete');
+        });
+    });
 
     Route::get('{design}', [DesignController::class, 'show'])
         ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|QA')
@@ -387,6 +409,41 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         Route::post('lines/{line}/overruns', [ProjectBudgetController::class, 'requestOverrun'])->name('overruns.store');
     });
 
+    // Sprint 24 — alur eksekusi (ProjectExecutionController; ProjectPolicy narrows
+    // each to the project's PM / Asisten PM / Pengawas on top of the role).
+    Route::middleware('throttle:60,1')->group(function () {
+        // D3 — Technical Meeting: the project's PM or Asisten PM.
+        Route::put('{project}/technical-meeting', [ProjectExecutionController::class, 'saveMeeting'])
+            ->middleware('role:PM|ASISTEN_PM')
+            ->name('technical-meeting.save');
+        Route::post('{project}/technical-meeting/complete', [ProjectExecutionController::class, 'completeMeeting'])
+            ->middleware('role:PM|ASISTEN_PM')
+            ->name('technical-meeting.complete');
+        // D5 / E3 — the Pengawas asks for the DP, or the pelunasan once the project is done.
+        Route::post('{project}/supervisor-payments/dp', [ProjectExecutionController::class, 'requestDp'])
+            ->middleware('role:QA')
+            ->name('supervisor-payments.dp');
+        Route::post('{project}/supervisor-payments/settlement', [ProjectExecutionController::class, 'requestSettlement'])
+            ->middleware('role:QA')
+            ->name('supervisor-payments.settlement');
+        // D10 — the Friday report.
+        Route::post('{project}/weekly-reports', [ProjectExecutionController::class, 'submitWeeklyReport'])
+            ->middleware('role:QA')
+            ->name('weekly-reports.store');
+        // D11 — "Setujui Berangkat ke Lokasi": the project's PM.
+        Route::post('{project}/departure', [ProjectExecutionController::class, 'approveDeparture'])
+            ->middleware('role:PM')
+            ->name('departure.approve');
+        // D12 — finishing findings on site.
+        Route::post('{project}/site-findings', [ProjectExecutionController::class, 'storeFinding'])
+            ->middleware('role:QA')
+            ->name('site-findings.store');
+        // D9 — "Tukar" two days of targets.
+        Route::post('{project}/targets/swap-days', [ProjectExecutionController::class, 'swapDays'])
+            ->middleware('role:PM|ASISTEN_PM|QA')
+            ->name('targets.swap');
+    });
+
     // Sprint 12 #29 — "Minta RAB Tambahan": Marketing or the project's PM (ProjectPolicy::requestAddendum()).
     Route::post('{project}/addenda', [ProjectAddendumController::class, 'store'])
         ->middleware('role:MARKETING|PM')
@@ -414,6 +471,24 @@ Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM'])->group(function () {
 
     Route::post('milestones/{milestone}/mark-done', [MilestoneController::class, 'markDone'])
         ->name('milestones.markDone');
+});
+
+// Sprint 24 D4/D10/D12 — decisions on rows that carry their project: the
+// project's PM decides payments & weekly reports (ProjectPolicy::approveExecution());
+// a finding becomes a repair task / is closed by whoever plans or supervises it.
+Route::middleware(['auth', 'throttle:60,1'])->group(function () {
+    Route::post('supervisor-payments/{supervisorPayment}/decide', [ProjectExecutionController::class, 'decidePayment'])
+        ->middleware('role:PM')
+        ->name('supervisor-payments.decide');
+    Route::post('weekly-reports/{weeklyReport}/decide', [ProjectExecutionController::class, 'decideWeeklyReport'])
+        ->middleware('role:PM')
+        ->name('weekly-reports.decide');
+    Route::post('site-findings/{siteFinding}/repair-task', [ProjectExecutionController::class, 'repairTask'])
+        ->middleware('role:PM|ASISTEN_PM|QA')
+        ->name('site-findings.repair-task');
+    Route::post('site-findings/{siteFinding}/resolve', [ProjectExecutionController::class, 'resolveFinding'])
+        ->middleware('role:PM|QA')
+        ->name('site-findings.resolve');
 });
 
 // Progress Log — PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read (see
@@ -447,18 +522,25 @@ Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('tasks')->name('t
     Route::get('/', [TaskController::class, 'index'])->name('index');
 });
 
+// Sprint 24 D6 — + the project's Pengawas (QA, ProjectPolicy::manageTargets()).
 Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA'])
     ->name('tasks.store');
 
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM|FIELD_STAFF', 'throttle:60,1'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|FIELD_STAFF', 'throttle:60,1'])
     ->name('tasks.updateStatus');
+
+// Sprint 24 D9 — "Geser" one target inside its timeline (TaskPolicy::reschedule()).
+Route::patch('tasks/{task}/schedule', [TaskController::class, 'reschedule'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA', 'throttle:60,1'])
+    ->name('tasks.reschedule');
 
 // Sprint 9 — full edit / delete: PM only ("Task – Create/Edit" CRUD).
 // Field Staff get 403 (task immutability, CLAUDE.md golden rule #6).
 // Sprint 12 #22 — the Asisten PM on the projects assigned to them (TaskPolicy).
-Route::middleware(['auth', 'role:PM|ASISTEN_PM'])->group(function () {
+// Sprint 24 D6 — + the project's Pengawas (TaskPolicy).
+Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA'])->group(function () {
     Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 });
@@ -663,6 +745,14 @@ Route::middleware('auth')->prefix('finance')->name('finance.')->group(function (
         ->middleware('role:CEO|PM|FINANCE')
         ->name('dashboard');
 
+    // Sprint 24 D4 — Jasa Pengawas the PM approved: CEO reads, Finance pays (PENGELUARAN "Jasa Pengawas").
+    Route::get('supervisor-payments', [SupervisorPaymentController::class, 'index'])
+        ->middleware('role:CEO|FINANCE')
+        ->name('supervisor-payments.index');
+    Route::post('supervisor-payments/{supervisorPayment}/pay', [SupervisorPaymentController::class, 'pay'])
+        ->middleware(['role:FINANCE', 'throttle:60,1'])
+        ->name('supervisor-payments.pay');
+
     Route::get('staff-payments', [FinanceTransactionController::class, 'staffPayments'])
         ->middleware('role:CEO|PM|FINANCE')
         ->name('staffPayments.index');
@@ -752,8 +842,9 @@ Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(functi
 // proyek" is the more specific rule (same precedent as CRM – Lead write
 // access, see .claude/plan/README.md). Read happens on the project's own
 // Material tab (ProjectController::show()).
+// Sprint 24 D3 — + the project's Pengawas (QA) fills "bahan yang digunakan" (ProjectPolicy::planMaterials()).
 Route::post('projects/{project}/materials', [ProjectMaterialController::class, 'store'])
-    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS'])
+    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
     ->name('projects.materials.store');
 Route::put('project-materials/{project_material}', [ProjectMaterialController::class, 'update'])
     ->middleware(['auth', 'role:PM|LOGISTICS'])

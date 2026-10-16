@@ -20,8 +20,14 @@ class QaFormController extends Controller
 {
     public function index(Request $request): Response
     {
+        $user = $request->user();
         $qaForms = QaForm::query()
             ->with(['project:id,name', 'milestone:id,name,order', 'reviewer:id,name'])
+            // Sprint 24 D14 — a Pengawas (QA/QC) works on its own projects (plus those without one).
+            ->when(
+                $user->hasRole('QA') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']),
+                fn ($query) => $query->whereHas('project', fn ($project) => $project->qaReviewableBy($user)),
+            )
             ->when(
                 $request->string('status')->value(),
                 fn ($query, $status) => $query->where('status', $status),
@@ -38,16 +44,19 @@ class QaFormController extends Controller
 
     public function show(QaForm $qaForm): Response
     {
-        $qaForm->load(['project:id,name', 'milestone:id,name,order,status', 'reviewer:id,name']);
+        $qaForm->load(['project:id,name,supervisor_id', 'milestone:id,name,order,status', 'reviewer:id,name']);
 
         return Inertia::render('QA/Show', [
             'qaForm' => $qaForm,
-            'canReview' => request()->user()->hasAnyRole(['QA', 'SUPERADMIN']),
+            // Sprint 24 D14 — the project's Pengawas (QA/QC) (QaFormPolicy).
+            'canReview' => request()->user()->can('review', $qaForm),
         ]);
     }
 
     public function update(ReviewQaFormRequest $request, QaForm $qaForm, QaFormService $service): RedirectResponse
     {
+        $this->authorize('review', $qaForm);
+
         $service->review(
             $qaForm,
             $request->validated('decision'),
@@ -56,6 +65,6 @@ class QaFormController extends Controller
             $request->user(),
         );
 
-        return back()->with('success', 'Keputusan QA berhasil disimpan.');
+        return back()->with('success', 'Keputusan Pengawas (QA/QC) disimpan.');
     }
 }

@@ -42,7 +42,8 @@ enum NotificationCategory: string
             'ASISTEN_PM' => [self::Quotation, self::Project, self::Task, self::Qa, self::Logistics, self::Hr],
             'DESIGNER' => [self::Design, self::Hr],
             'KEPALA_DESAIN' => [self::Design, self::Hr],
-            'QA' => [self::Qa, self::Hr],
+            // Sprint 24 — the Pengawas (QA/QC) runs the execution flow: TM, DP, weekly reports, findings.
+            'QA' => [self::Qa, self::Project, self::Finance, self::Hr],
             'FINANCE' => [self::Finance, self::Project, self::Task, self::Overtime, self::Hr],
             'LOGISTICS' => [self::Logistics, self::Project, self::Hr],
             'HR' => [self::Hr],

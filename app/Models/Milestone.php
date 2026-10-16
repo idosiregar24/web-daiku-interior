@@ -33,8 +33,9 @@ class Milestone extends Model
     {
         return [
             'status' => MilestoneStatus::class,
-            'start_date' => 'date',
-            'target_date' => 'date',
+            // Sprint 24 — serialised as "2026-10-15" (see Task::casts()).
+            'start_date' => 'date:Y-m-d',
+            'target_date' => 'date:Y-m-d',
         ];
     }
 

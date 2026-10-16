@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Projects;
 
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Projects\RescheduleTargetRequest;
 use App\Http\Requests\Projects\StoreTaskRequest;
 use App\Http\Requests\Projects\UpdateTaskRequest;
 use App\Http\Requests\Projects\UpdateTaskStatusRequest;
@@ -57,6 +59,15 @@ class TaskController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // Sprint 24 D7 — the "dilaporkan hari ini" mark only on today's targets (due today, or OVER).
+        if ($isFieldStaff && $formDay) {
+            $tasks->getCollection()->each(function (Task $task) use ($now) {
+                if ($task->status !== TaskStatus::Over && $task->due_date?->toDateString() !== $now->toDateString()) {
+                    $task->offsetUnset('has_form_today');
+                }
+            });
+        }
+
         return Inertia::render('Tasks/Index', [
             'tasks' => $tasks,
             'filters' => $request->only(['status', 'assignee_id', 'milestone_id', 'due']),
@@ -83,11 +94,20 @@ class TaskController extends Controller
 
     public function store(StoreTaskRequest $request, Project $project, TaskService $service): RedirectResponse
     {
-        // Sprint 12 #22 — also the Asisten PM of this project.
-        $this->authorize('manageWork', $project);
+        // Sprint 12 #22 — also the Asisten PM of this project; Sprint 24 D6 — and its Pengawas.
+        $this->authorize('manageTargets', $project);
         $service->create($project, $request->validated(), $request->user());
 
-        return back()->with('success', 'Task berhasil ditambahkan.');
+        return back()->with('success', 'Daily target berhasil ditambahkan.');
+    }
+
+    /** Sprint 24 D9 — "Geser" one target inside its timeline (TaskPolicy::reschedule()). */
+    public function reschedule(RescheduleTargetRequest $request, Task $task, TaskService $service): RedirectResponse
+    {
+        $this->authorize('reschedule', $task);
+        $service->reschedule($task, $request->validated('due_date'), $request->user(), $request->validated('note'));
+
+        return back()->with('success', 'Tanggal target digeser.');
     }
 
     /**

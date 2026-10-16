@@ -45,7 +45,7 @@ interface ProjectDashboardProps {
 
 const MILESTONE_REASON: Record<AttentionMilestone['reason'], { label: string; tone: 'error' | 'warning' | 'info' }> = {
     OVERDUE: { label: 'Lewat tanggal selesai', tone: 'error' },
-    QA_WAITING: { label: 'Belum diperiksa QA', tone: 'warning' },
+    QA_WAITING: { label: 'Belum diperiksa Pengawas', tone: 'warning' },
     DUE_SOON: { label: 'Selesai ≤ 7 hari', tone: 'info' },
 };
 
@@ -181,7 +181,7 @@ export default function ProjectDashboard({
                     value={stats.pendingOvertime}
                     icon={Clock}
                     tone={stats.pendingOvertime > 0 ? 'warning' : 'default'}
-                    hint={`${stats.qaWaiting} timeline menunggu QA`}
+                    hint={`${stats.qaWaiting} timeline menunggu Pengawas (QA/QC)`}
                 />
             </div>
 

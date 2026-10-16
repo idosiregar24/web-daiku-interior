@@ -47,6 +47,6 @@ class MilestoneController extends Controller
         $this->authorize('manageWork', $milestone->project);
         $service->markDone($milestone);
 
-        return back()->with('success', 'Timeline diajukan untuk review QA.');
+        return back()->with('success', 'Timeline diajukan ke Pengawas (QA/QC) untuk diperiksa.');
     }
 }

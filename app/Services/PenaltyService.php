@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\NotificationType;
+use App\Enums\ProjectPhase;
 use App\Enums\TaskStatus;
 use App\Models\FamilyGatheringFund;
 use App\Models\Penalty;
@@ -63,7 +64,7 @@ class PenaltyService
                     FamilyGatheringFund::create([
                         'type' => 'INCOME',
                         'amount' => self::AMOUNT,
-                        'description' => "Penalti form harian belum diisi — {$staff->name} ({$today})",
+                        'description' => "Penalti target harian tidak dilaporkan — {$staff->name} ({$today})",
                         'source_penalty_id' => $penalty->id,
                         'recorded_by' => $financeUser->id,
                     ]);
@@ -82,8 +83,8 @@ class PenaltyService
                     $staff,
                     NotificationType::PenaltyIssued,
                     'Penalti Form Harian',
-                    'Anda dikenakan penalti Rp 50.000 karena form harian tanggal '
-                        .Carbon::parse($today)->translatedFormat('d F Y').' belum diisi sampai 21:00 WIB.',
+                    'Anda dikenakan penalti Rp 50.000 karena target tanggal '
+                        .Carbon::parse($today)->translatedFormat('d F Y').' tidak dilaporkan sama sekali (tidak dicentang, tanpa kendala) sampai 21:00 WIB.',
                     ['penalty_id' => $penalty->id],
                 );
 
@@ -91,7 +92,7 @@ class PenaltyService
                     ['FINANCE'],
                     NotificationType::PenaltyIssued,
                     'Penalti Dijatuhkan',
-                    "{$staff->name} dikenakan penalti Rp 50.000 (form harian {$today} kosong) — masuk Dana Family Gathering.",
+                    "{$staff->name} dikenakan penalti Rp 50.000 (target {$today} tidak dilaporkan) — masuk Dana Family Gathering.",
                     ['penalty_id' => $penalty->id],
                 );
             });
@@ -119,8 +120,8 @@ class PenaltyService
             $this->notificationService->notify(
                 $staff,
                 NotificationType::DailyFormReminder,
-                'Form Harian Belum Diisi',
-                'Isi form harian sebelum 21:00 WIB untuk menghindari penalti Rp 50.000.',
+                'Target Hari Ini Belum Dilaporkan',
+                'Centang target yang selesai atau isi kendalanya sebelum 21:00 WIB untuk menghindari penalti Rp 50.000.',
                 ['staff_id' => $staff->id],
             );
 
@@ -131,11 +132,12 @@ class PenaltyService
     }
 
     /**
-     * Field Staff with at least one not-DONE task on an ACTIVE project and
-     * no daily form for `$date` — the population both the reminder and the
-     * penalty act on. Tasks of ON_HOLD/COMPLETED/CANCELLED projects don't
-     * count: there is no work to report on a paused project (Sprint 9
-     * decision #1).
+     * Sprint 24 D7 — Field Staff with a target today (a not-DONE task due
+     * today, or an OVER one still owed) on an ACTIVE project that is in
+     * production, who haven't touched any of their tasks today — no check,
+     * no status, no kendala (TaskService::recordActivity() writes the day's
+     * row; the old daily form writes the same row). Paused or not-yet-
+     * producing projects don't count (Sprint 9 decision #1, Sprint 24 D1).
      *
      * @return Collection<int, User>
      */
@@ -144,8 +146,11 @@ class PenaltyService
         return User::role('FIELD_STAFF')
             ->where('is_active', true)
             ->whereHas('assignedTasks', fn ($query) => $query
-                ->where('status', '!=', TaskStatus::Done->value)
-                ->whereHas('project', fn ($project) => $project->active()))
+                ->where(fn ($task) => $task
+                    ->where(fn ($due) => $due->whereDate('due_date', $date->toDateString())->where('status', '!=', TaskStatus::Done->value))
+                    ->orWhere('status', TaskStatus::Over->value))
+                ->whereHas('project', fn ($project) => $project->active()
+                    ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value])))
             // whereDate(), not where() — `work_date` is cast to 'date' and
             // stored with a midnight time component, so a bare string
             // comparison never matches (see DailyTaskFormService::store()'s

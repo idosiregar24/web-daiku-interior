@@ -18,8 +18,8 @@ export function ProjectQaTab({ qaForms, canOpenForm }: { qaForms: QaForm[]; canO
             <EmptyState
                 icon={ShieldCheck}
                 className="rounded-xl border border-dashed border-border"
-                title="Belum ada timeline yang diajukan ke QA."
-                description="Form QA dibuat otomatis saat timeline ditandai selesai."
+                title="Belum ada timeline yang diajukan ke Pengawas (QA/QC)."
+                description="Form pemeriksaan dibuat otomatis saat timeline ditandai selesai, untuk Pengawas (QA/QC) proyek."
             />
         );
     }
@@ -31,7 +31,7 @@ export function ProjectQaTab({ qaForms, canOpenForm }: { qaForms: QaForm[]; canO
                     <tr>
                         <th className="px-4 py-2.5 text-left font-semibold">Timeline</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Status</th>
-                        <th className="px-4 py-2.5 text-left font-semibold">Catatan QA</th>
+                        <th className="px-4 py-2.5 text-left font-semibold">Catatan Pengawas</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Reviewer</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Diputuskan</th>
                         <th className="px-4 py-2.5 text-right font-semibold">Ditolak</th>

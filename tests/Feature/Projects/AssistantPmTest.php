@@ -73,13 +73,15 @@ test('the Asisten PM manages milestones, tasks and progress on its project — 4
     $otherMilestone = Milestone::factory()->create(['project_id' => $this->other->id]);
     $this->actingAs($this->assistant)->delete(route('milestones.destroy', $otherMilestone))->assertForbidden();
 
+    // Sprint 24 D6 — a daily target sits in a timeline of its own project.
     $task = [
+        'milestone_id' => $milestone->id,
         'title' => 'Pasang rangka',
         'assignee_id' => $this->tukang->id,
         'due_date' => now()->addDays(3)->toDateString(),
     ];
     $this->actingAs($this->assistant)->post(route('tasks.store', $this->project), $task)->assertSessionHasNoErrors();
-    $this->actingAs($this->assistant)->post(route('tasks.store', $this->other), $task)->assertForbidden();
+    $this->actingAs($this->assistant)->post(route('tasks.store', $this->other), [...$task, 'milestone_id' => $otherMilestone->id])->assertForbidden();
 
     $mine = Task::where('project_id', $this->project->id)->sole();
     $this->actingAs($this->assistant)->patch(route('tasks.updateStatus', $mine), ['status' => 'ONPROGRESS'])->assertSessionHasNoErrors();

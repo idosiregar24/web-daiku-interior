@@ -21,7 +21,8 @@ test('penalty service penalizes a staff member with an active task who never sub
     $finance->assignRole('FINANCE');
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-08-17']);
 
     $created = app(PenaltyService::class)->runDailyCheck();
 
@@ -36,7 +37,8 @@ test('penalty service skips staff who already submitted a daily form today', fun
 
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
-    $task = Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    $task = // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-08-17']);
     DailyTaskForm::factory()->create([
         'task_id' => $task->id,
         'staff_id' => $staff->id,
@@ -66,7 +68,8 @@ test('penalty service is idempotent — re-running the same day never doubles a 
 
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-08-17']);
 
     app(PenaltyService::class)->runDailyCheck();
     $secondRun = app(PenaltyService::class)->runDailyCheck();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Projects;
 
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Models\Invoice;
@@ -17,6 +18,7 @@ use App\Models\Vendor;
 use App\Policies\ProjectPolicy;
 use App\Services\FinanceAllocationService;
 use App\Services\ProjectBudgetService;
+use App\Services\ProjectExecutionService;
 use App\Services\ProjectService;
 use App\Services\SupplierDebtService;
 use Illuminate\Http\RedirectResponse;
@@ -37,6 +39,8 @@ class ProjectController extends Controller
 
         $projects = Project::query()
             ->with(['pm:id,name', 'lead:id,client_name'])
+            // Sprint 24 D11 — actual activity (DONE ÷ all targets) on the list.
+            ->withCount(['tasks', 'tasks as done_tasks_count' => fn ($query) => $query->where('status', TaskStatus::Done->value)])
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
             ->visibleTo($user)
@@ -75,11 +79,14 @@ class ProjectController extends Controller
         SupplierDebtService $supplierDebtService,
         ProjectService $projectService,
         ProjectBudgetService $budgetService,
+        ProjectExecutionService $executionService,
     ): Response {
         $this->authorize('view', $project);
 
         $user = $request->user();
-        $taskVisibility = $policy->taskVisibility($user);
+        $taskVisibility = $policy->taskVisibility($user, $project);
+        // Sprint 24 D6 — the project's Pengawas (QA/QC) plans its daily targets.
+        $supervises = $project->isSupervisedBy($user);
         // ASISTEN_PM (Sprint 12 Sub 1) reads every tab the PM reads; its write
         // actions arrive in Sub 4 (RAB) and Sub 11 (its assigned projects).
         // Sprint 12 #30: Marketing follows milestones and progress too.
@@ -88,7 +95,7 @@ class ProjectController extends Controller
         // (milestones, tasks, progress) — not on allocation / realisation.
         $assists = $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
         $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']) || $assists;
-        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists;
+        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists || $supervises;
         // Sprint 9 "Edit Proyek": CEO any project, PM their own
         // (ProjectPolicy::update()); COMPLETED/CANCELLED are read-only for
         // everyone, so the action isn't offered at all there.
@@ -118,7 +125,7 @@ class ProjectController extends Controller
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
         // planned would just produce duplicate requests.
-        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN']);
+        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN']) || $supervises;
         // Sprint 11 §5.6: a PM plans/records only on their own project.
         $isRunning = in_array($project->status, [ProjectStatus::Active, ProjectStatus::OnHold], true);
         $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);
@@ -135,8 +142,14 @@ class ProjectController extends Controller
         // Sprint 23 K15 — Kepala Tim (user or typed name) and Pengawas on the overview.
         $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name', 'teamLead:id,name', 'supervisor:id,name']);
 
+        $project->setAttribute('actual_progress', $project->actualProgress());
+
         return Inertia::render('Projects/Show', [
             'project' => $project,
+            // Sprint 24 — the "Eksekusi" tab (phase, Gambar Kerja, TM, Pengawas, production, QC).
+            'execution' => ProjectExecutionService::canView($user, $project)
+                ? $executionService->overview($project, $user, $request->query('week'))
+                : null,
             'canEditProject' => $canEditProject,
             'canChangePm' => $canChangePm,
             'projectManagers' => $canChangePm
@@ -163,7 +176,7 @@ class ProjectController extends Controller
                 ? []
                 : $project->tasks()
                     ->when($taskVisibility === 'own', fn ($query) => $query->where('assignee_id', $user->id))
-                    ->with(['assignee:id,name', 'milestone:id,name'])
+                    ->with(['assignee:id,name', 'milestone:id,name,start_date,target_date'])
                     // A DONE task whose wage is paid is locked (TaskService::update()).
                     ->when($canManageTasks, fn ($query) => $query->withExists('wagePayment as is_wage_paid'))
                     ->latest()

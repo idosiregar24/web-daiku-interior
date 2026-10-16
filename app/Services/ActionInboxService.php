@@ -10,12 +10,17 @@ use App\Enums\LeadStatus;
 use App\Enums\LeadSurveyStatus;
 use App\Enums\MaterialRequestStatus;
 use App\Enums\OvertimeStatus;
+use App\Enums\ProjectPhase;
 use App\Enums\QaStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\QuotationType;
 use App\Enums\ReviewStatus;
+use App\Enums\SupervisorPaymentKind;
+use App\Enums\SupervisorPaymentStatus;
 use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
+use App\Enums\WeeklyReportStatus;
+use App\Enums\WorkingDrawingStatus;
 use App\Models\BudgetOverrunRequest;
 use App\Models\Design;
 use App\Models\Invoice;
@@ -24,14 +29,17 @@ use App\Models\Lead;
 use App\Models\LeadSurvey;
 use App\Models\OvertimeRequest;
 use App\Models\PerformanceReview;
+use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\ProjectOpening;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\SalaryChange;
+use App\Models\SupervisorPayment;
 use App\Models\Task;
 use App\Models\Termin;
 use App\Models\User;
+use App\Models\WorkingDrawing;
 use App\Support\DailyFormSchedule;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -149,6 +157,8 @@ class ActionInboxService
             $groups[] = $this->projectOpenings($user);
             // pmApprove is `role:PM` — the Asisten PM doesn't decide overtime.
             $groups[] = $this->overtime(OvertimeStatus::Pending, 'overtime-pm', 'Lembur menunggu ACC PM');
+            // Sprint 24 — TM, Pengawas payments, weekly reports, "Berangkat ke Lokasi".
+            $groups[] = $this->executionForPm($user);
         }
 
         if ($user->hasRole('ESTIMATOR')) {
@@ -172,10 +182,12 @@ class ActionInboxService
             $groups[] = $this->invoicesToVerify();
             $groups[] = $this->overtime(OvertimeStatus::PendingFinance, 'overtime-finance', 'Lembur menunggu ACC Finance');
             $groups[] = $this->overdueTermins();
+            $groups[] = $this->supervisorPaymentsToPay();
         }
 
         if ($user->hasRole('KEPALA_DESAIN')) {
             $groups[] = $this->designsToAssign($user);
+            $groups[] = $this->workingDrawingsToAssign();
         }
 
         // Sprint 18 Sub 06 — the architect's own work. Sprint 23 K20: revisions
@@ -183,6 +195,7 @@ class ActionInboxService
         // (REVISI_DESAIN only on rows of the Sprint 12/22 flow).
         if ($user->hasRole('DESIGNER')) {
             $groups[] = $this->ownDesigns($user, [DesignStatus::Brief, DesignStatus::Desain, DesignStatus::RevisiDesain], 'design-work', 'Desain sedang Anda kerjakan', 'Simpan link grup WhatsApp & link desain, lalu tekan "Desain Disetujui Klien" begitu klien setuju di grup.');
+            $groups[] = $this->ownWorkingDrawings($user);
         }
 
         if ($user->hasRole('LOGISTICS')) {
@@ -190,7 +203,8 @@ class ActionInboxService
         }
 
         if ($user->hasRole('QA')) {
-            $groups[] = $this->pendingQa();
+            $groups[] = $this->pendingQa($user);
+            $groups[] = $this->executionForSupervisor($user);
         }
 
         if ($user->hasRole('HR')) {
@@ -391,7 +405,7 @@ class ActionInboxService
     private function rejectedQa(User $user): ?array
     {
         return $this->group(
-            'qa-rejected', 'QA ditolak — perlu perbaikan', 'Perbaiki temuan QA lalu ajukan ulang dari tab Timeline proyek.', 'qa', 'projects.index',
+            'qa-rejected', 'Timeline ditolak Pengawas — perlu perbaikan', 'Perbaiki temuan Pengawas (QA/QC) lalu ajukan ulang dari tab Timeline proyek.', 'qa', 'projects.index',
             route('projects.index'),
             QaForm::query()
                 ->where('status', QaStatus::Rejected->value)
@@ -660,18 +674,142 @@ class ActionInboxService
         );
     }
 
-    private function pendingQa(): ?array
+    /** Sprint 24 D14 — the Pengawas (QA/QC) of the project (every QA on a project without one). */
+    private function pendingQa(User $user): ?array
     {
         return $this->group(
-            'qa-pending', 'Timeline menunggu QA', 'Periksa timeline yang selesai dikerjakan.', 'qa', 'qa-forms.index',
+            'qa-pending', 'Timeline menunggu pemeriksaan', 'Periksa timeline proyek yang Anda awasi.', 'qa', 'qa-forms.index',
             route('qa-forms.index', ['status' => QaStatus::Pending->value]),
-            QaForm::query()->where('status', QaStatus::Pending->value)->with(['project:id,name', 'milestone:id,name'])->oldest('created_at')->oldest('id'),
+            QaForm::query()
+                ->where('status', QaStatus::Pending->value)
+                ->whereHas('project', fn (Builder $project) => $project->qaReviewableBy($user))
+                ->with(['project:id,name', 'milestone:id,name'])
+                ->oldest('created_at')
+                ->oldest('id'),
             fn (QaForm $form) => [
                 'id' => $form->id,
                 'title' => $form->project?->name ?? 'Proyek',
                 'subtitle' => $form->milestone?->name,
                 'at' => $form->created_at,
                 'href' => route('qa-forms.show', $form),
+            ],
+        );
+    }
+
+    // ── Sprint 24: alur eksekusi proyek ──────────────────────────────────
+
+    /** Kepala Desain — a new project's Gambar Kerja waiting for its architect. */
+    private function workingDrawingsToAssign(): ?array
+    {
+        return $this->group(
+            'working-drawing-assign', 'Gambar kerja menunggu penugasan', 'Proyek baru dibuka — tugaskan arsitek gambar kerjanya.', 'design', 'design.working-drawings.index',
+            route('design.working-drawings.index', ['status' => WorkingDrawingStatus::MenungguPenugasan->value]),
+            WorkingDrawing::query()->where('status', WorkingDrawingStatus::MenungguPenugasan->value)->with('project:id,name')->oldest('id'),
+            fn (WorkingDrawing $drawing) => [
+                'id' => $drawing->id,
+                'title' => $drawing->project?->name ?? "Gambar Kerja #{$drawing->id}",
+                'subtitle' => null,
+                'at' => $drawing->created_at,
+                'href' => route('design.working-drawings.show', $drawing),
+            ],
+        );
+    }
+
+    /** The architect's own Gambar Kerja in progress. */
+    private function ownWorkingDrawings(User $user): ?array
+    {
+        return $this->group(
+            'working-drawing-work', 'Gambar kerja sedang Anda kerjakan', 'Simpan link gambar kerja lalu tekan "Gambar Kerja Selesai".', 'design', 'design.working-drawings.index',
+            route('design.working-drawings.index', ['status' => WorkingDrawingStatus::Dikerjakan->value]),
+            WorkingDrawing::query()->ownedBy($user)->where('status', WorkingDrawingStatus::Dikerjakan->value)->with('project:id,name')->oldest('deadline'),
+            fn (WorkingDrawing $drawing) => [
+                'id' => $drawing->id,
+                'title' => $drawing->project?->name ?? "Gambar Kerja #{$drawing->id}",
+                'subtitle' => $drawing->deadline ? 'Deadline '.$drawing->deadline->translatedFormat('d M Y') : null,
+                'at' => $drawing->assigned_at,
+                'href' => route('design.working-drawings.show', $drawing),
+            ],
+        );
+    }
+
+    /**
+     * The PM's own projects waiting on them in the execution flow: the TM
+     * to run, a Pengawas payment or weekly report to decide, the 70 %
+     * "Berangkat ke Lokasi".
+     */
+    private function executionForPm(User $user): ?array
+    {
+        $threshold = ProductionService::departureThreshold();
+
+        return $this->group(
+            'execution-pm', 'Proyek menunggu keputusan PM', 'Technical Meeting, pengajuan jasa pengawas, laporan mingguan, atau berangkat ke lokasi.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->where('pm_id', $user->id)
+                ->where(fn (Builder $q) => $q
+                    ->where('phase', ProjectPhase::Tm->value)
+                    ->orWhereHas('supervisorPayments', fn (Builder $payment) => $payment->where('status', SupervisorPaymentStatus::Diajukan->value))
+                    ->orWhereHas('weeklyReports', fn (Builder $report) => $report->where('status', WeeklyReportStatus::Diajukan->value))
+                    ->orWhere(fn (Builder $ready) => $ready->where('phase', ProjectPhase::Produksi->value)->whereNotNull('progress_70_notified_at')))
+                ->oldest('phase_changed_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => match (true) {
+                    $project->phase === ProjectPhase::Tm => 'Technical Meeting',
+                    $project->phase === ProjectPhase::Produksi && $project->progress_70_notified_at !== null => "Actual activity ≥ {$threshold}% — berangkat ke lokasi?",
+                    default => 'Pengajuan / laporan pengawas',
+                },
+                'at' => $project->phase_changed_at,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
+            ],
+        );
+    }
+
+    /** The Pengawas's own steps: the DP conditions at PERSIAPAN, a rejected weekly report. */
+    private function executionForSupervisor(User $user): ?array
+    {
+        return $this->group(
+            'execution-supervisor', 'Proyek menunggu Pengawas', 'Lengkapi bahan, upah & daily target lalu ajukan DP, atau perbaiki laporan mingguan.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->where('supervisor_id', $user->id)
+                ->where(fn (Builder $q) => $q
+                    ->where(fn (Builder $prep) => $prep
+                        ->where('phase', ProjectPhase::Persiapan->value)
+                        ->whereDoesntHave('supervisorPayments', fn (Builder $payment) => $payment
+                            ->where('kind', SupervisorPaymentKind::Dp->value)
+                            ->whereIn('status', SupervisorPaymentStatus::committedValues())))
+                    ->orWhereHas('weeklyReports', fn (Builder $report) => $report->where('status', WeeklyReportStatus::Ditolak->value)))
+                ->oldest('phase_changed_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => $project->phase === ProjectPhase::Persiapan ? 'Syarat produksi & DP pengawas' : 'Laporan mingguan ditolak PM',
+                'at' => $project->phase_changed_at,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
+            ],
+        );
+    }
+
+    /** Finance — Jasa Pengawas the PM approved ("Bayar Pengawas: DP · Proyek X"). */
+    private function supervisorPaymentsToPay(): ?array
+    {
+        return $this->group(
+            'supervisor-pay', 'Jasa pengawas menunggu dibayar', 'Disetujui PM — catat pembayarannya.', 'salary', 'finance.supervisor-payments.index',
+            route('finance.supervisor-payments.index'),
+            SupervisorPayment::query()
+                ->where('status', SupervisorPaymentStatus::DisetujuiPm->value)
+                ->with(['project:id,name', 'weeklyReport:id,week_number'])
+                ->oldest('decided_at'),
+            fn (SupervisorPayment $payment) => [
+                'id' => $payment->id,
+                'title' => "Bayar Pengawas: {$payment->label}",
+                'subtitle' => $this->rupiah($payment->amount),
+                'at' => $payment->decided_at,
+                'href' => route('finance.supervisor-payments.index'),
             ],
         );
     }
@@ -760,7 +898,7 @@ class ActionInboxService
         }
 
         return $this->group(
-            'daily-form', 'Form harian belum diisi', 'Isi sebelum '.DailyFormSchedule::penaltyAt().' WIB supaya tidak kena penalti.', 'dailyform', 'today.index',
+            'daily-form', 'Target hari ini belum dilaporkan', 'Centang yang selesai atau isi kendala sebelum '.DailyFormSchedule::penaltyAt().' WIB supaya tidak kena penalti.', 'dailyform', 'today.index',
             route('today.index'),
             Task::query()->awaitingDailyForm($user, $today->toDateString())->with('project:id,name')->orderBy('id'),
             fn (Task $task) => [

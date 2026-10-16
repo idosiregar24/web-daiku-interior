@@ -2,13 +2,16 @@
 
 namespace App\Models;
 
+use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
+use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Project extends Model
 {
@@ -25,6 +28,12 @@ class Project extends Model
         'supervisor_id',
         'opened_on',
         'status',
+        'phase',
+        'phase_changed_at',
+        'production_started_at',
+        'progress_70_notified_at',
+        'departure_approved_by',
+        'departure_approved_at',
         'start_date',
         'end_date',
         'contract_value',
@@ -34,6 +43,11 @@ class Project extends Model
     {
         return [
             'status' => ProjectStatus::class,
+            'phase' => ProjectPhase::class,
+            'phase_changed_at' => 'datetime',
+            'production_started_at' => 'datetime',
+            'progress_70_notified_at' => 'datetime',
+            'departure_approved_at' => 'datetime',
             'opened_on' => 'date',
             'start_date' => 'date',
             'end_date' => 'date',
@@ -68,10 +82,94 @@ class Project extends Model
         return $this->belongsTo(User::class, 'team_lead_id');
     }
 
-    /** Sprint 23 K14/K15 — the Pengawas (QA/QC), a user with role QA; its work arrives in Sprint 24. */
+    /** Sprint 23 K14/K15 — the Pengawas (QA/QC), a user with role QA; its work is Sprint 24's (D3–D12). */
     public function supervisor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'supervisor_id');
+    }
+
+    /** Sprint 24 D14 — the user is this project's Pengawas (QA/QC). */
+    public function isSupervisedBy(User $user): bool
+    {
+        return $this->supervisor_id !== null && (int) $this->supervisor_id === (int) $user->id && $user->hasRole('QA');
+    }
+
+    /**
+     * Sprint 24 D14 — Pengawas = QA = QC: the project's Pengawas checks its
+     * timelines; a project without a Pengawas (older ones) is open to every
+     * user with role QA.
+     */
+    public function isQaReviewableBy(User $user): bool
+    {
+        return $this->supervisor_id === null ? $user->hasRole('QA') : $this->isSupervisedBy($user);
+    }
+
+    /** Query twin of isQaReviewableBy(): projects this Pengawas checks. */
+    public function scopeQaReviewableBy(Builder $query, User $user): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->where('supervisor_id', $user->id)->orWhereNull('supervisor_id'));
+    }
+
+    /** Sprint 24 D2 — the project's Gambar Kerja (null on projects opened before Sprint 24). */
+    public function workingDrawing(): HasOne
+    {
+        return $this->hasOne(WorkingDrawing::class);
+    }
+
+    /** Sprint 24 D3 — the Technical Meeting. */
+    public function technicalMeeting(): HasOne
+    {
+        return $this->hasOne(TechnicalMeeting::class);
+    }
+
+    /** Sprint 24 D4 — Jasa Pengawas (set at the TM). */
+    public function supervisorFee(): HasOne
+    {
+        return $this->hasOne(SupervisorFee::class);
+    }
+
+    public function supervisorPayments(): HasMany
+    {
+        return $this->hasMany(SupervisorPayment::class)->orderBy('id');
+    }
+
+    /** Sprint 24 D10 — the Pengawas's Friday reports. */
+    public function weeklyReports(): HasMany
+    {
+        return $this->hasMany(WeeklyReport::class)->orderByDesc('week_start');
+    }
+
+    /** Sprint 24 D12 — finishing findings on site. */
+    public function siteFindings(): HasMany
+    {
+        return $this->hasMany(SiteFinding::class)->latest('id');
+    }
+
+    public function departureApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'departure_approved_by');
+    }
+
+    /**
+     * Sprint 24 D11/E5 — progress = "actual activity": DONE tasks ÷ all
+     * tasks of the project, every task weighing the same. 0 without tasks.
+     */
+    public function actualProgress(): int
+    {
+        $counts = $this->tasks()
+            ->selectRaw('COUNT(*) AS total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS done', [TaskStatus::Done->value])
+            ->toBase()
+            ->first();
+
+        $total = (int) ($counts->total ?? 0);
+
+        return $total === 0 ? 0 : (int) floor(((int) $counts->done) * 100 / $total);
+    }
+
+    /** The phase, treating a null (never on a real row — the column defaults to PRODUKSI) as PRODUKSI. */
+    public function currentPhase(): ProjectPhase
+    {
+        return $this->phase ?? ProjectPhase::Produksi;
     }
 
     /** "Budi" (user) or "CV Kayu Jati" (typed) — null on a project that has neither yet. */

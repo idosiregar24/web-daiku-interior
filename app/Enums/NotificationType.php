@@ -90,6 +90,26 @@ enum NotificationType: string
     case BudgetOverrunApproved = 'budget_overrun_approved';
     case BudgetOverrunRejected = 'budget_overrun_rejected';
 
+    // Sprint 24 — alur eksekusi proyek (Gambar Kerja → TM → Pengawas → Produksi → QC)
+    case WorkingDrawingToAssign = 'working_drawing_to_assign';
+    case WorkingDrawingAssigned = 'working_drawing_assigned';
+    case WorkingDrawingCompleted = 'working_drawing_completed';
+    case TechnicalMeetingCompleted = 'technical_meeting_completed';
+    case SupervisorPaymentRequested = 'supervisor_payment_requested';
+    case SupervisorPaymentDecided = 'supervisor_payment_decided';
+    case SupervisorPaymentToPay = 'supervisor_payment_to_pay';
+    case SupervisorPaymentPaid = 'supervisor_payment_paid';
+    case ProductionStarted = 'production_started';
+    case WeeklyReportReminder = 'weekly_report_reminder';
+    case WeeklyReportSubmitted = 'weekly_report_submitted';
+    case WeeklyReportDecided = 'weekly_report_decided';
+    case ProjectProgressReached = 'project_progress_reached';
+    case SiteDepartureApproved = 'site_departure_approved';
+    case SiteFindingRecorded = 'site_finding_recorded';
+    case ProjectDeadlineNear = 'project_deadline_near';
+    case ProjectSupervisorAssigned = 'project_supervisor_assigned';
+    case ProjectSupervisorUnassigned = 'project_supervisor_unassigned';
+
     // Tugas & form harian
     case TaskAssigned = 'task_assigned';
     case TaskOverdue = 'task_overdue';
@@ -190,6 +210,21 @@ enum NotificationType: string
             self::SurveyToSchedule,
             self::ProjectOpeningPending => NotificationPriority::ClientWaiting,
 
+            // Sprint 24 — each is the next step of someone in the execution flow.
+            self::WorkingDrawingToAssign,
+            self::WorkingDrawingAssigned,
+            self::WorkingDrawingCompleted,
+            self::TechnicalMeetingCompleted,
+            self::SupervisorPaymentRequested,
+            self::SupervisorPaymentToPay,
+            self::ProductionStarted,
+            self::WeeklyReportReminder,
+            self::WeeklyReportSubmitted,
+            self::ProjectProgressReached,
+            self::SiteDepartureApproved,
+            self::ProjectDeadlineNear,
+            self::ProjectSupervisorAssigned,
+
             self::DesignAssigned,
             self::DesignDiscussion,
             self::TerminInvoiceDue,
@@ -248,6 +283,11 @@ enum NotificationType: string
             self::DisciplinaryIssued,
             self::SalaryChangeDecided,
             self::ReviewApprovedReviewer,
+            // Sprint 24 — the Pengawas hears how the PM / Finance decided; the PM a finding.
+            self::SupervisorPaymentDecided,
+            self::SupervisorPaymentPaid,
+            self::WeeklyReportDecided,
+            self::SiteFindingRecorded,
             self::AccountUpdated => NotificationPriority::Update,
 
             self::QuotationStarted,
@@ -264,6 +304,7 @@ enum NotificationType: string
             self::ProjectCompleted,
             self::ProjectPmUnassigned,
             self::ProjectAssistantUnassigned,
+            self::ProjectSupervisorUnassigned,
             self::MaterialRequestSummary,
             self::ReviewApproved => NotificationPriority::Info,
         };
@@ -290,7 +331,10 @@ enum NotificationType: string
             self::DesignReadyToAssign,
             self::DesignReadyToSend,
             self::DesignRevisionRequested,
-            self::DesignSentToClient => NotificationCategory::Design,
+            self::DesignSentToClient,
+            self::WorkingDrawingToAssign,
+            self::WorkingDrawingAssigned,
+            self::WorkingDrawingCompleted => NotificationCategory::Design,
 
             self::QuotationRequested,
             self::QuotationStarted,
@@ -313,7 +357,9 @@ enum NotificationType: string
             self::InvoiceVerified,
             self::TerminInvoiceDue,
             self::TerminReminder,
-            self::TerminOverdue => NotificationCategory::Finance,
+            self::TerminOverdue,
+            self::SupervisorPaymentToPay,
+            self::SupervisorPaymentPaid => NotificationCategory::Finance,
 
             self::ProjectOpeningPending,
             self::ProjectOpened,
@@ -326,7 +372,20 @@ enum NotificationType: string
             self::MilestoneOverdue,
             self::BudgetOverrunRequested,
             self::BudgetOverrunApproved,
-            self::BudgetOverrunRejected => NotificationCategory::Project,
+            self::BudgetOverrunRejected,
+            self::TechnicalMeetingCompleted,
+            self::SupervisorPaymentRequested,
+            self::SupervisorPaymentDecided,
+            self::ProductionStarted,
+            self::WeeklyReportReminder,
+            self::WeeklyReportSubmitted,
+            self::WeeklyReportDecided,
+            self::ProjectProgressReached,
+            self::SiteDepartureApproved,
+            self::SiteFindingRecorded,
+            self::ProjectDeadlineNear,
+            self::ProjectSupervisorAssigned,
+            self::ProjectSupervisorUnassigned => NotificationCategory::Project,
 
             self::TaskAssigned,
             self::TaskOverdue,

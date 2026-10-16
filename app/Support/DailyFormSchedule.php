@@ -42,6 +42,26 @@ final class DailyFormSchedule
         return ($at ?? self::now())->format('H:i') >= self::penaltyAt();
     }
 
+    /**
+     * Sprint 24 D8 — the first working day on or after `$from` (`$after`:
+     * strictly after it) — where an unfinished daily target rolls to.
+     */
+    public static function nextWorkDay(Carbon $from, bool $after = false): Carbon
+    {
+        $day = $from->copy()->startOfDay();
+
+        if ($after) {
+            $day->addDay();
+        }
+
+        // workDays() is never empty in practice; the bound only guards a broken config.
+        for ($i = 0; $i < 7 && ! self::isWorkDay($day); $i++) {
+            $day->addDay();
+        }
+
+        return $day;
+    }
+
     public static function now(): Carbon
     {
         return now(self::TIMEZONE);

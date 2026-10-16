@@ -119,7 +119,7 @@ class MilestoneService
         // (markOverdueMilestones()), the work can still be handed to QA.
         if (! in_array($milestone->status, [MilestoneStatus::Pending, MilestoneStatus::InProgress, MilestoneStatus::Overdue], true)) {
             throw ValidationException::withMessages([
-                'status' => 'Timeline ini sudah menunggu QA atau sudah selesai.',
+                'status' => 'Timeline ini sudah menunggu pemeriksaan Pengawas (QA/QC) atau sudah selesai.',
             ]);
         }
 

@@ -282,7 +282,11 @@ test('trigger: assigning a task notifies the field staff', function () {
     $pm = userWithRole('PM');
     $project = Project::factory()->create(['pm_id' => $pm->id]);
 
+    // Sprint 24 D6 — a daily target sits in a timeline.
+    $milestone = Milestone::factory()->create(['project_id' => $project->id, 'start_date' => now()->toDateString(), 'target_date' => now()->addDays(10)->toDateString()]);
+
     app(TaskService::class)->create($project, [
+        'milestone_id' => $milestone->id,
         'title' => 'Pasang kabinet',
         'assignee_id' => $staff->id,
         'due_date' => now()->addDays(3)->toDateString(),
@@ -306,7 +310,8 @@ test('trigger: newly overdue tasks notify the project PM once', function () {
 test('trigger: a penalty notifies the staff member and Finance', function () {
     $staff = userWithRole('FIELD_STAFF');
     $finance = userWithRole('FINANCE');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => now('Asia/Jakarta')->toDateString()]);
 
     app(PenaltyService::class)->runDailyCheck();
 
@@ -317,8 +322,9 @@ test('trigger: a penalty notifies the staff member and Finance', function () {
 test('trigger: the daily form reminder skips staff who already submitted and never repeats', function () {
     $late = userWithRole('FIELD_STAFF');
     $done = userWithRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $late->id]);
-    $doneTask = Task::factory()->create(['assignee_id' => $done->id]);
+    // Sprint 24 D7 — targets for today.
+    Task::factory()->create(['assignee_id' => $late->id, 'due_date' => now('Asia/Jakarta')->toDateString()]);
+    $doneTask = Task::factory()->create(['assignee_id' => $done->id, 'due_date' => now('Asia/Jakarta')->toDateString()]);
     DailyTaskForm::factory()->create(['task_id' => $doneTask->id, 'staff_id' => $done->id, 'work_date' => now()->toDateString()]);
 
     $service = app(PenaltyService::class);
@@ -406,7 +412,7 @@ test('an OVERDUE termin can still be marked paid', function () {
 test('the reminder jobs are idempotent across a same-day re-run', function () {
     Carbon::setTestNow(now()->setTime(20, 30));
     $staff = userWithRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id]);
+    Task::factory()->create(['assignee_id' => $staff->id, 'due_date' => now('Asia/Jakarta')->toDateString()]);
 
     dispatch_sync(new DailyFormReminderJob);
     dispatch_sync(new DailyFormReminderJob);

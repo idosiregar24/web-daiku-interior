@@ -33,8 +33,10 @@ test('a Tukang lands on Hari Ini', function () {
 
 test("Hari Ini lists the Tukang's own open tasks with today's form mark", function () {
     monday();
-    $withForm = Task::factory()->create(['assignee_id' => $this->tukang->id, 'status' => TaskStatus::OnProgress->value]);
-    $withoutForm = Task::factory()->create(['assignee_id' => $this->tukang->id]);
+    // Sprint 24 D7 — the mark (and the count) is for today's targets only.
+    $withForm = Task::factory()->create(['assignee_id' => $this->tukang->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-10-05']);
+    $withoutForm = Task::factory()->create(['assignee_id' => $this->tukang->id, 'due_date' => '2026-10-05']);
+    $later = Task::factory()->create(['assignee_id' => $this->tukang->id, 'due_date' => '2026-10-08']);
     Task::factory()->create(['assignee_id' => $this->tukang->id, 'status' => TaskStatus::Done->value]);
     Task::factory()->create(); // someone else's
     DailyTaskForm::factory()->create(['task_id' => $withForm->id, 'staff_id' => $this->tukang->id]);
@@ -47,11 +49,13 @@ test("Hari Ini lists the Tukang's own open tasks with today's form mark", functi
             ->where('isWorkDay', true)
             ->where('penaltyAt', '21:00')
             ->where('canSubmitDailyForm', true)
-            ->has('tasks', 2)
+            ->has('tasks', 3)
             ->where('tasks', fn ($tasks) => collect($tasks)->pluck('has_form_today', 'id')->sortKeys()->all() === [
                 $withForm->id => true,
                 $withoutForm->id => false,
+                $later->id => null,
             ])
+            ->where('missingToday', 1)
             ->where('upcoming', []));
 });
 
@@ -145,7 +149,7 @@ test("another Tukang's task can't be saved from the sheet", function () {
 
 test('the task list marks today\'s form for a Tukang', function () {
     monday();
-    $task = Task::factory()->create(['assignee_id' => $this->tukang->id]);
+    $task = Task::factory()->create(['assignee_id' => $this->tukang->id, 'due_date' => '2026-10-05']);
 
     $this->actingAs($this->tukang)
         ->get(route('tasks.index'))

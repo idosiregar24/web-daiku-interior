@@ -31,6 +31,7 @@ use App\Services\QaFormService;
 use App\Services\QuotationService;
 use App\Services\TaskService;
 use App\Services\TerminService;
+use App\Services\WeeklyReportService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -103,6 +104,7 @@ class WorkflowScenarioSeeder extends Seeder
         $this->waitingProjectOpening();
         $this->closedProjects();
         $this->busyProject();
+        $this->executionFlow();
     }
 
     // ── CRM: survey branches ────────────────────────────────────────────
@@ -288,21 +290,21 @@ class WorkflowScenarioSeeder extends Seeder
 
         // Milestones: one waiting for QA, one past its target (→ OVERDUE).
         $milestones = app(MilestoneService::class);
-        $late = $milestones->create($project, ['name' => 'Persiapan & Bongkar', 'target_date' => now()->subDays(8)->toDateString()]);
-        $production = $milestones->create($project, ['name' => 'Produksi Furnitur', 'target_date' => now()->addDays(10)->toDateString()]);
+        $late = $milestones->create($project, ['name' => 'Persiapan & Bongkar', 'start_date' => now()->subDays(20)->toDateString(), 'target_date' => now()->subDays(8)->toDateString()]);
+        $production = $milestones->create($project, ['name' => 'Produksi Furnitur', 'start_date' => now()->subDays(7)->toDateString(), 'target_date' => now()->addDays(10)->toDateString()]);
         $milestones->update($production, ['name' => $production->name, 'target_date' => $production->target_date, 'status' => MilestoneStatus::InProgress->value]);
         $milestones->markDone($production);
 
         // Tasks: one being checked, one past due (→ OVER).
         $tasks = app(TaskService::class);
         $checking = $tasks->create($project, [
-            'milestone_id' => $late->id, 'title' => 'Bongkar plafon lama', 'assignee_id' => $this->tukang->id,
+            'milestone_id' => $production->id, 'title' => 'Bongkar plafon lama', 'assignee_id' => $this->tukang->id,
             'due_date' => now()->addDay()->toDateString(), 'priority' => 'HIGH', 'rate_per_task' => 200_000,
         ], $this->pm);
         $tasks->updateStatus($checking, ['status' => 'PENGECEKAN'], $this->tukang);
         $tasks->create($project, [
             'milestone_id' => $late->id, 'title' => 'Pasang rangka hollow', 'assignee_id' => $this->tukang->id,
-            'due_date' => now()->subDays(2)->toDateString(), 'priority' => 'MEDIUM', 'rate_per_task' => 150_000,
+            'due_date' => now()->subDays(9)->toDateString(), 'priority' => 'MEDIUM', 'rate_per_task' => 150_000,
         ], $this->pm);
 
         // The daily jobs: overdue milestones / tasks / termins.
@@ -468,26 +470,81 @@ class WorkflowScenarioSeeder extends Seeder
         $this->invoices->verify($invoice, ['bank_account_id' => BankAccount::firstOrFail()->id, 'paid_date' => now()->toDateString()], $this->finance);
     }
 
+    // ── Sprint 24: the execution flow, one project per phase ────────────
+
+    private function executionFlow(): void
+    {
+        $tasks = app(TaskService::class);
+        $target = fn (Project $project, int $milestoneId, string $title, int $dueOffset) => $tasks->create($project, [
+            'milestone_id' => $milestoneId, 'title' => $title, 'assignee_id' => $this->tukang->id,
+            'due_date' => now()->addDays($dueOffset)->toDateString(), 'priority' => 'MEDIUM', 'rate_per_task' => 175_000,
+        ], $this->qa);
+
+        // 1. Just opened — its Gambar Kerja waits for the Kepala Desain.
+        $this->openedProject('Rina Marlina', startedDaysAgo: 0, running: false);
+
+        // 2. Gambar Kerja done — the PM runs the Technical Meeting.
+        $meeting = $this->openedProject('Bambang Sutrisno', startedDaysAgo: 0, running: false);
+        $meeting = ExecutionFlowDemo::finishWorkingDrawing($meeting);
+        ExecutionFlowDemo::timeline($meeting, 'Produksi Kabinet', 5, 20);
+
+        // 3. TM done, daily targets planned by the Pengawas, DP asked — waiting for the PM.
+        $preparing = $this->openedProject('Siska Amelia', startedDaysAgo: 0, running: false);
+        $preparing = ExecutionFlowDemo::finishWorkingDrawing($preparing);
+        $wardrobe = ExecutionFlowDemo::timeline($preparing, 'Produksi Lemari', 0, 12);
+        $preparing = ExecutionFlowDemo::holdMeeting($preparing, $this->pm);
+        $target($preparing, $wardrobe->id, 'Potong panel lemari', 1);
+        $target($preparing, $wardrobe->id, 'Rakit badan lemari', 3);
+        ExecutionFlowDemo::requestDp($preparing, $this->pm, approve: false);
+
+        // 4. In production: targets checked off, one rolled, this week's report waiting for the PM.
+        $producing = $this->openedProject('Hendra Gunawan', startedDaysAgo: 10, running: false);
+        $producing = ExecutionFlowDemo::finishWorkingDrawing($producing);
+        $furniture = ExecutionFlowDemo::timeline($producing, 'Produksi Furnitur', -10, 10);
+        $producing = ExecutionFlowDemo::holdMeeting($producing, $this->pm);
+        $done = [
+            $target($producing, $furniture->id, 'Potong multiplek meja', -3),
+            $target($producing, $furniture->id, 'Rakit rangka meja', -2),
+        ];
+        $target($producing, $furniture->id, 'Lapis HPL meja', 0);
+        $target($producing, $furniture->id, 'Pasang laci & engsel', 2);
+        $producing = ExecutionFlowDemo::requestDp($producing, $this->pm);
+
+        foreach ($done as $task) {
+            $tasks->updateStatus($task, ['status' => 'DONE'], $this->tukang);
+        }
+
+        app(WeeklyReportService::class)->submit($producing, [
+            'notes' => 'Rangka meja selesai sesuai gambar kerja; HPL mulai dilapis. Bahan cukup sampai minggu depan.',
+            'links' => ['https://drive.google.com/drive/folders/demo-laporan-mingguan'],
+        ], $this->qa);
+    }
+
     /**
      * A project opened by the CEO from an approved RAB Proyek.
      *
      * @param  list<array<string, mixed>>|null  $terms
      */
-    private function openedProject(string $client, ?array $terms = null, int $startedDaysAgo = 14): Project
+    private function openedProject(string $client, ?array $terms = null, int $startedDaysAgo = 14, bool $running = true): Project
     {
         $quotation = $this->rab($this->lead($client), QuotationType::Proyek, 'approved', $terms ?? [
             ['label' => 'DP', 'percentage' => 30, 'trigger' => 'DI_MUKA'],
             ['label' => 'Pelunasan', 'percentage' => 70, 'trigger' => 'PROYEK_SELESAI'],
         ]);
 
-        return app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
+        $project = app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
             'name' => 'Proyek '.$client,
             'pm_id' => $this->pm->id,
             // Sprint 23 K14 — the approving PM opens; Kepala Tim typed (an outside team).
             'team_lead_name' => 'Tim Pak Darto',
+            // Sprint 24 — the Pengawas (QA/QC) runs the execution flow.
+            'supervisor_id' => $this->qa->id,
             'opened_on' => now()->subDays(max($startedDaysAgo, 0))->toDateString(),
             'start_date' => now()->subDays($startedDaysAgo)->toDateString(),
         ], $this->pm);
+
+        // Sprint 24 — the older scenarios are projects already in production.
+        return $running ? ExecutionFlowDemo::skipToProduction($project) : $project;
     }
 
     /** @return array<string, mixed> */

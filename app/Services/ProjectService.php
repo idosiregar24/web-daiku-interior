@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\LeadStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\NotificationType;
+use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
 use App\Enums\TerminStatus;
@@ -118,6 +119,10 @@ class ProjectService
                 'contract_value' => $quotation->total_amount,
                 'quotation_id' => $quotation->id,
             ]);
+
+            // Sprint 24 D1/D2 — a new project starts at Gambar Kerja, in the design team's queue.
+            $project->update(['phase' => ProjectPhase::GambarKerja->value, 'phase_changed_at' => now()]);
+            app(WorkingDrawingService::class)->openForProject($project);
 
             $termins = $this->terminService->createFromPaymentTerms($project, $quotation);
             // Sprint 17 Sub 06 (K2) — a DP already billed from the RAB becomes the DP termin's invoice.
@@ -320,6 +325,12 @@ class ProjectService
                 $this->notifyPmChange($locked, $newPm, $previousPm, $actor);
             }
 
+            // Sprint 24 (left over from Sprint 23 Sub 07) — the new Pengawas learns
+            // they run this project's execution flow; the previous one that they don't.
+            if (in_array('supervisor_id', $changed, true)) {
+                $this->notifySupervisorChange($locked, $before['supervisor_id'], $actor);
+            }
+
             return $locked;
         });
     }
@@ -346,6 +357,11 @@ class ProjectService
         $milestones = $project->milestones()->get(['id', 'status']);
 
         if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
+            return false;
+        }
+
+        // Sprint 24 D12 — an open finishing finding holds the project too.
+        if ($project->siteFindings()->open()->exists()) {
             return false;
         }
 
@@ -570,6 +586,27 @@ class ProjectService
                 NotificationType::ProjectAssistantUnassigned,
                 'Pergantian Asisten PM',
                 "Anda bukan lagi Asisten PM proyek \"{$project->name}\".",
+                ['project_id' => $project->id],
+            );
+        }
+    }
+
+    private function notifySupervisorChange(Project $project, ?int $previousId, User $actor): void
+    {
+        $this->notificationService->notifyMany(
+            [$project->supervisor()->first()],
+            NotificationType::ProjectSupervisorAssigned,
+            'Ditunjuk sebagai Pengawas (QA/QC)',
+            "Anda ditunjuk sebagai Pengawas proyek \"{$project->name}\" oleh {$actor->name} — cek tab Eksekusi.",
+            ['project_id' => $project->id],
+        );
+
+        if ($previousId && ($previous = User::find($previousId))) {
+            $this->notificationService->notify(
+                $previous,
+                NotificationType::ProjectSupervisorUnassigned,
+                'Pergantian Pengawas',
+                "Anda bukan lagi Pengawas proyek \"{$project->name}\".",
                 ['project_id' => $project->id],
             );
         }

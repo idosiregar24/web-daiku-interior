@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\FinanceCategory;
+use App\Enums\ProjectPhase;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +26,8 @@ class Task extends Model
         'assignee_id',
         'created_by',
         'due_date',
+        'planned_date',
+        'rollover_count',
         'status',
         'pre_overdue_status',
         'priority',
@@ -41,7 +44,11 @@ class Task extends Model
             'status' => TaskStatus::class,
             'pre_overdue_status' => TaskStatus::class,
             'priority' => TaskPriority::class,
-            'due_date' => 'date',
+            // Sprint 24 — date-only columns reach the browser as "2026-10-15" (a bare
+            // 'date' cast serialises to UTC midnight, the day before in WIB).
+            'due_date' => 'date:Y-m-d',
+            'planned_date' => 'date:Y-m-d',
+            'rollover_count' => 'integer',
             'is_locked' => 'boolean',
             'rate_per_task' => 'decimal:2',
             'completed_at' => 'datetime',
@@ -78,6 +85,18 @@ class Task extends Model
         return $this->hasMany(OvertimeRequest::class);
     }
 
+    /** Sprint 24 D8/D9 — every move of the target date (rollover, geser, tukar, edit). */
+    public function scheduleChanges(): HasMany
+    {
+        return $this->hasMany(TaskScheduleChange::class)->latest('id');
+    }
+
+    /** Sprint 24 D12 — the finding this task repairs, if it is a "Task Perbaikan". */
+    public function siteFinding(): HasOne
+    {
+        return $this->hasOne(SiteFinding::class);
+    }
+
     /**
      * The wage payment for this task, if Finance recorded one — same
      * marker as StaffPaymentService::isTaskPaid() (GAJI_KARYAWAN with
@@ -102,14 +121,19 @@ class Task extends Model
     }
 
     /**
-     * A Field Staff's not-DONE tasks still lacking their form for `$date`
-     * — the Form Harian fill-in list (PRD §4.5) and the "Perlu Tindakan"
-     * queue (Sprint 13) both read this.
+     * A Field Staff's targets of `$date` not reported yet — due that day
+     * (or OVER, still owed), not DONE, on a project in production, without
+     * that day's activity row (Sprint 24 D7: a check / status / kendala on
+     * the task writes it). The Hari Ini warning and the "Perlu Tindakan"
+     * queue (Sprint 13) read this; the penalty run asks the same per staff.
      */
     public function scopeAwaitingDailyForm(Builder $query, User $staff, string $date): Builder
     {
         return $query->where('assignee_id', $staff->id)
             ->where('status', '!=', TaskStatus::Done->value)
+            ->where(fn (Builder $due) => $due->whereDate('due_date', $date)->orWhere('status', TaskStatus::Over->value))
+            ->whereHas('project', fn (Builder $project) => $project->active()
+                ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value]))
             ->whereDoesntHave('dailyTaskForms', fn (Builder $form) => $form->where('staff_id', $staff->id)->forDate($date));
     }
 

@@ -186,7 +186,8 @@ test('a deactivated tukang may keep the task they already hold', function () {
 test('a task can only move to a milestone of its own project that has not passed QA', function () {
     $pm = taskUpdateUser('PM');
     $task = editableTask();
-    $ownOpen = Milestone::factory()->create(['project_id' => $task->project_id]);
+    // Sprint 24 D6 — a timeline that covers the task's day.
+    $ownOpen = Milestone::factory()->create(['project_id' => $task->project_id, 'start_date' => $task->due_date->copy()->subDays(5), 'target_date' => $task->due_date->copy()->addDays(5)]);
     $ownCompleted = Milestone::factory()->create(['project_id' => $task->project_id, 'status' => MilestoneStatus::Completed->value]);
     $foreign = Milestone::factory()->create();
 

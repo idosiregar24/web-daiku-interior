@@ -319,9 +319,11 @@ test('daily form reminders and penalties skip staff whose open tasks are all on 
     $mixed = projectUpdateUser('FIELD_STAFF');
     $onHold = Project::factory()->create(['status' => ProjectStatus::OnHold->value]);
     $active = Project::factory()->create();
-    Task::factory()->create(['project_id' => $onHold->id, 'assignee_id' => $onHoldOnly->id, 'status' => TaskStatus::OnProgress->value]);
-    Task::factory()->create(['project_id' => $onHold->id, 'assignee_id' => $mixed->id, 'status' => TaskStatus::OnProgress->value]);
-    Task::factory()->create(['project_id' => $active->id, 'assignee_id' => $mixed->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — targets for today.
+    $today = now('Asia/Jakarta')->toDateString();
+    Task::factory()->create(['project_id' => $onHold->id, 'assignee_id' => $onHoldOnly->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => $today]);
+    Task::factory()->create(['project_id' => $onHold->id, 'assignee_id' => $mixed->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => $today]);
+    Task::factory()->create(['project_id' => $active->id, 'assignee_id' => $mixed->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => $today]);
 
     $service = app(PenaltyService::class);
 
@@ -336,8 +338,10 @@ test('tasks and milestones cannot be added to a closed project', function (Proje
     $pm = projectUpdateUser('PM');
     $staff = projectUpdateUser('FIELD_STAFF');
     $project = projectOwnedBy($pm, ['status' => $status->value]);
+    $milestone = Milestone::factory()->create(['project_id' => $project->id, 'start_date' => now()->toDateString(), 'target_date' => now()->addWeeks(2)->toDateString()]);
 
     $this->actingAs($pm)->post(route('tasks.store', $project), [
+        'milestone_id' => $milestone->id,
         'title' => 'Pasang kusen',
         'assignee_id' => $staff->id,
         'due_date' => now()->addWeek()->toDateString(),
@@ -350,15 +354,17 @@ test('tasks and milestones cannot be added to a closed project', function (Proje
     ])->assertSessionHasErrors('project');
 
     expect($project->tasks()->count())->toBe(0)
-        ->and($project->milestones()->count())->toBe(0);
+        ->and($project->milestones()->count())->toBe(1);
 })->with([ProjectStatus::Cancelled, ProjectStatus::Completed]);
 
 test('an ON_HOLD project still accepts new tasks and milestones', function () {
     $pm = projectUpdateUser('PM');
     $staff = projectUpdateUser('FIELD_STAFF');
     $project = projectOwnedBy($pm, ['status' => ProjectStatus::OnHold->value]);
+    $milestone = Milestone::factory()->create(['project_id' => $project->id, 'start_date' => now()->toDateString(), 'target_date' => now()->addWeeks(2)->toDateString()]);
 
     $this->actingAs($pm)->post(route('tasks.store', $project), [
+        'milestone_id' => $milestone->id,
         'title' => 'Pasang kusen',
         'assignee_id' => $staff->id,
         'due_date' => now()->addWeek()->toDateString(),
@@ -371,7 +377,7 @@ test('an ON_HOLD project still accepts new tasks and milestones', function () {
     ])->assertSessionHasNoErrors();
 
     expect($project->tasks()->count())->toBe(1)
-        ->and($project->milestones()->count())->toBe(1);
+        ->and($project->milestones()->count())->toBe(2);
 });
 
 test('a milestone of a cancelled project cannot be handed to QA', function () {

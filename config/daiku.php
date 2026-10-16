@@ -21,6 +21,23 @@ return [
     ],
 
     /*
+     * Sprint 24 — the project execution flow (ProductionService,
+     * WeeklyReportService, SupervisorPaymentService).
+     */
+    'execution' => [
+        // D11 — actual activity (DONE ÷ all targets) that unlocks "Setujui Berangkat ke Lokasi".
+        'site_departure_progress' => 70,
+        // D13 — the PM is told every day once this share of the project's
+        // duration (start → Tanggal Selesai) has passed ("H-30%").
+        'deadline_warning_ratio' => 0.7,
+        // D10 — the Pengawas's weekly report day (Carbon day-of-week, 5 = Jumat) and reminder hour (WIB).
+        'weekly_report_day' => 5,
+        'weekly_report_reminder_at' => '15:00',
+        // D4 — default DP of the Jasa Pengawas, editable per project at the TM.
+        'supervisor_dp_percent' => 10,
+    ],
+
+    /*
      * Sprint 18 Sub 06 (K3) — an unopened "klien menunggu" (P1) notification
      * rings the devices once more after `after_minutes`, only on working
      * days (daily_form.work_days) between `from` and `until` WIB. Older than

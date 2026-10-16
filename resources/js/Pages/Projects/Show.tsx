@@ -25,11 +25,15 @@ import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
 import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
+import { RescheduleTaskDialog } from '@/Components/modules/projects/RescheduleTaskDialog';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
-import { INVOICE_TYPE_LABEL, InvoiceProofButton, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
+import { INVOICE_TYPE_LABEL, InvoicePdfButton, InvoiceProofButton, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { ProjectOvertimeTab } from '@/Components/modules/projects/ProjectOvertimeTab';
 import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
+
+// Sprint 24 — the execution flow tab. Imported statically: a lazy() chunk shared with this page made Vite drop the page's manifest entry.
+import { ProjectExecutionTab } from '@/Components/modules/projects/ProjectExecutionTab';
 import { BELOW_MD, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
@@ -44,6 +48,7 @@ import type {
     ProgressLog,
     Project,
     ProjectBudget,
+    ProjectExecution,
     ProjectMaterial,
     ProjectStatusNote,
     ProjectTeamOptions,
@@ -79,12 +84,15 @@ import {
     Wallet,
     Layers,
     FilePlus2,
+    Route,
     GalleryHorizontalEnd,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface ProjectShowProps {
     project: Project;
+    /** Sprint 24 — ProjectExecutionService::overview() (null for roles without the tab). */
+    execution: ProjectExecution | null;
     /** ProjectPolicy::update() and not COMPLETED/CANCELLED. */
     canEditProject: boolean;
     /** CEO only — PRD §4.4 "PM di-assign oleh CEO". */
@@ -198,9 +206,9 @@ function OverviewTab({
         { label: 'Nilai Kontrak', value: formatRupiah(project.contract_value) },
     ];
 
-    // "Project overview: progress bar dari log terbaru" — progressLogs is
-    // already ordered newest-first (Project::progressLogs()).
-    const latestPercentage = progressLogs[0]?.percentage ?? 0;
+    // Sprint 24 D11 — the main progress is the actual activity (DONE ÷ all
+    // targets); the newest progress log (newest-first) stays as the note.
+    const latestPercentage = project.actual_progress ?? progressLogs[0]?.percentage ?? 0;
 
     return (
         <div className="grid gap-6 lg:grid-cols-3">
@@ -245,7 +253,7 @@ function OverviewTab({
             </SectionCard>
 
             {/* Beside the project info; "Menunggu" goes under it. */}
-            <SectionCard title="Progress Keseluruhan" icon={Activity} className="self-start lg:col-start-3 lg:row-start-1">
+            <SectionCard title="Progress (Actual Activity)" icon={Activity} className="self-start lg:col-start-3 lg:row-start-1">
 
                 <p className="text-4xl leading-none font-semibold tracking-tight text-foreground">{latestPercentage}%</p>
                 <ProgressBar value={latestPercentage} label="Progress keseluruhan proyek" className="mt-4" />
@@ -310,7 +318,7 @@ function MilestoneTab({
     }
 
     function onMarkDone(milestone: Milestone) {
-        if (!confirm(`Tandai timeline "${milestone.name}" selesai? QA Form akan dibuat otomatis untuk diperiksa.`)) return;
+        if (!confirm(`Tandai timeline "${milestone.name}" selesai? Pengawas (QA/QC) proyek akan diminta memeriksanya.`)) return;
         router.post(route('milestones.markDone', { milestone: milestone.id }));
     }
 
@@ -378,6 +386,7 @@ function TaskAssigneeTable({
     onStatusClick,
     onEditClick,
     onDeleteClick,
+    onRescheduleClick,
 }: {
     assigneeName: string;
     tasks: Task[];
@@ -387,6 +396,7 @@ function TaskAssigneeTable({
     onStatusClick: (task: Task) => void;
     onEditClick: (task: Task) => void;
     onDeleteClick: (task: Task) => void;
+    onRescheduleClick: (task: Task) => void;
 }) {
     const doneCount = tasks.filter((t) => t.status === 'DONE').length;
 
@@ -444,7 +454,7 @@ function TaskAssigneeTable({
                                             Ubah Status Task
                                         </Button>
                                         {canEdit && (
-                                            <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} />
+                                            <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} onReschedule={onRescheduleClick} />
                                         )}
                                     </div>
                                 )}
@@ -484,6 +494,8 @@ function TaskTab({
     const [statusOpen, setStatusOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [activeTask, setActiveTask] = useState<Task | null>(null);
+    // Sprint 24 D9 — "Geser Tanggal" inside the timeline.
+    const [reschedulingTask, setReschedulingTask] = useState<Task | null>(null);
     const canEdit = canManage && !isClosed;
 
     function openStatus(task: Task) {
@@ -528,7 +540,7 @@ function TaskTab({
                 <div className="mb-4 flex justify-end">
                     <Button size="sm" onClick={openCreate}>
                         <Plus className="size-4" />
-                        Tambah Task
+                        Tambah Daily Target
                     </Button>
                 </div>
             )}
@@ -549,6 +561,7 @@ function TaskTab({
                                 tasks={group.tasks}
                                 canManage={canManage}
                                 canEdit={canEdit}
+                                onRescheduleClick={setReschedulingTask}
                                 onStatusClick={openStatus}
                                 onEditClick={openEdit}
                                 onDeleteClick={openDelete}
@@ -576,6 +589,7 @@ function TaskTab({
                         fieldStaff={fieldStaff}
                     />
                     <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} />
+                    <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} />
                 </>
             )}
             <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
@@ -886,15 +900,8 @@ function DocumentsTab({ documents, canSubmitProof }: { documents: ProjectDocumen
                                 </span>
                                 <span className="flex flex-wrap items-center gap-2">
                                     <StatusChip domain="invoice" status={invoice.status} />
+                                    <InvoicePdfButton invoiceId={invoice.id} />
                                     <InvoiceProofButton invoice={invoice} canSubmit={canSubmitProof} />
-                                    <a
-                                        href={route('finance.invoices.pdf', { invoice: invoice.id })}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs font-medium underline decoration-daiku-yellow underline-offset-4"
-                                    >
-                                        Unduh PDF
-                                    </a>
                                 </span>
                             </li>
                         ))}
@@ -978,8 +985,9 @@ const PROJECT_TAB_LABEL: Record<string, string> = {
     budget: 'Alokasi Dana',
     documents: 'Dokumen',
     overview: 'Overview',
+    execution: 'Eksekusi',
     milestone: 'Timeline',
-    qa: 'QA',
+    qa: 'QA/QC',
     task: 'Task',
     overtime: 'Lembur',
     progress: 'Progress',
@@ -1010,6 +1018,16 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         return 'Lengkapi Kepala Tim proyek ini lewat Ubah Proyek · PM.';
     }
 
+    // Sprint 24 D1 — before production the phase says what comes next.
+    switch (project.phase) {
+        case 'GAMBAR_KERJA':
+            return 'Gambar kerja sedang disiapkan tim desain · Kepala Desain / Arsitek.';
+        case 'TM':
+            return 'Jadwalkan Technical Meeting, susun Timeline & jasa pengawas, lalu TM Selesai · PM.';
+        case 'PERSIAPAN':
+            return 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.';
+    }
+
     if (milestones.length === 0) {
         return 'Susun Timeline proyek (tanggal mulai & selesai tiap tahap) · PM.';
     }
@@ -1017,7 +1035,7 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
     const rejected = qaForms.filter((form) => form.status === 'REJECTED').length;
 
     if (rejected > 0) {
-        return `${rejected} timeline ditolak QA — perbaiki lalu tandai selesai lagi · PM.`;
+        return `${rejected} timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi · PM.`;
     }
 
     const waitingQa = milestones.filter((milestone) => milestone.status === 'QA_WAITING').length;
@@ -1029,7 +1047,7 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         return `Timeline berjalan: ${next.name} — selesai ${formatDate(next.target_date)}${next.status === 'OVERDUE' ? ' (terlambat)' : ''}.`;
     }
 
-    return waitingQa > 0 ? `${waitingQa} timeline menunggu pemeriksaan · QA.` : undefined;
+    return waitingQa > 0 ? `${waitingQa} timeline menunggu pemeriksaan · Pengawas (QA/QC).` : undefined;
 }
 
 /** Why a non-ACTIVE project looks the way it does — status + (from the audit trail) who/why. */
@@ -1064,6 +1082,7 @@ function ProjectStatusNotice({ project, statusNote }: { project: Project; status
 
 export default function ProjectShow({
     project,
+    execution,
     canEditProject,
     canChangePm,
     projectManagers,
@@ -1115,6 +1134,7 @@ export default function ProjectShow({
     // to the overview.
     const [tab, setTab] = useQueryTab(
         {
+            execution: Boolean(execution),
             milestone: true,
             qa: canViewQa,
             task: canViewTasks,
@@ -1134,12 +1154,29 @@ export default function ProjectShow({
         const overtimeWaiting = overtimeRequests.filter((request) => request.status === 'PENDING' || request.status === 'PENDING_FINANCE').length;
         const requestsWaiting = projectMaterials.filter((line) => line.request_status === 'MENUNGGU_PM' || line.request_status === 'DIAJUKAN').length;
         const nextTermin = termins.find((termin) => termin.status !== 'PAID');
+        // Sprint 24 — the execution flow's open decisions.
+        const paymentsWaiting = execution?.payments.filter((payment) => payment.status === 'DIAJUKAN').length ?? 0;
+        const reportsWaiting = execution?.weeklyReports.filter((report) => report.status === 'DIAJUKAN').length ?? 0;
+        const findingsOpen = execution?.findings.filter((finding) => finding.status === 'TERBUKA').length ?? 0;
+
+        if (paymentsWaiting + reportsWaiting > 0) {
+            rows.push({
+                key: 'execution',
+                label: `${paymentsWaiting + reportsWaiting} pengawas`,
+                detail: 'Pengajuan jasa pengawas / laporan mingguan menunggu PM',
+                tab: 'execution',
+                tone: 'warning',
+            });
+        }
+        if (findingsOpen > 0) {
+            rows.push({ key: 'findings', label: `${findingsOpen} temuan`, detail: 'Temuan finishing di lokasi belum selesai', tab: 'execution', tone: 'error' });
+        }
 
         if (qaRejected > 0) {
-            rows.push({ key: 'qa-rejected', label: `${qaRejected} QA`, detail: 'Timeline ditolak QA — perbaiki lalu tandai selesai lagi', tab: 'qa', tone: 'error' });
+            rows.push({ key: 'qa-rejected', label: `${qaRejected} QA`, detail: 'Timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi', tab: 'qa', tone: 'error' });
         }
         if (qaPending > 0) {
-            rows.push({ key: 'qa-pending', label: `${qaPending} QA`, detail: 'Timeline menunggu pemeriksaan QA', tab: 'qa', tone: 'warning' });
+            rows.push({ key: 'qa-pending', label: `${qaPending} QA`, detail: 'Timeline menunggu pemeriksaan Pengawas (QA/QC)', tab: 'qa', tone: 'warning' });
         }
         if (overtimeWaiting > 0) {
             rows.push({ key: 'overtime', label: `${overtimeWaiting} lembur`, detail: 'Pengajuan lembur menunggu keputusan PM / Finance', tab: 'overtime', tone: 'warning' });
@@ -1158,7 +1195,7 @@ export default function ProjectShow({
         }
 
         return rows;
-    }, [qaForms, overtimeRequests, projectMaterials, termins]);
+    }, [qaForms, overtimeRequests, projectMaterials, termins, execution]);
     const [editOpen, setEditOpen] = useState(false);
     const isClosed = project.status === 'COMPLETED' || project.status === 'CANCELLED';
     // Sprint 20 Sub 04 — a finished project can become a portfolio draft
@@ -1184,6 +1221,7 @@ export default function ProjectShow({
                 actions={
                     <>
                         <StatusChip domain="project" status={project.status} />
+                        {project.status === 'ACTIVE' && project.phase && <StatusChip domain="projectPhase" status={project.phase} />}
                         {canMakePortfolio && (
                             <Button
                                 variant="outline"
@@ -1250,6 +1288,12 @@ export default function ProjectShow({
                         <LayoutDashboard />
                         Overview
                     </TabsTrigger>
+                    {execution && (
+                        <TabsTrigger value="execution">
+                            <Route />
+                            Eksekusi
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="milestone">
                         <Flag />
                         Timeline
@@ -1257,7 +1301,7 @@ export default function ProjectShow({
                     {canViewQa && (
                         <TabsTrigger value="qa">
                             <ShieldCheck />
-                            QA
+                            QA/QC
                         </TabsTrigger>
                     )}
                     {canViewTasks && (
@@ -1302,6 +1346,11 @@ export default function ProjectShow({
                 <TabsContent value="overview" className="mt-6">
                     <OverviewTab project={project} progressLogs={progressLogs} waiting={waiting} onOpenTab={setTab} />
                 </TabsContent>
+                {execution && (
+                    <TabsContent value="execution" className="mt-6">
+                        <ProjectExecutionTab project={project} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />
+                    </TabsContent>
+                )}
                 <TabsContent value="milestone" className="mt-6">
                     <MilestoneTab
                         project={project}

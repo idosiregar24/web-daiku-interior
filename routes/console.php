@@ -8,12 +8,14 @@ use App\Jobs\LeadFollowUpReminderJob;
 use App\Jobs\MaterialRequestReminderJob;
 use App\Jobs\MilestoneOverdueJob;
 use App\Jobs\OpenKpiPeriodJob;
+use App\Jobs\ProjectDeadlineReminderJob;
 use App\Jobs\PruneNotificationsJob;
 use App\Jobs\RepushClientWaitingJob;
 use App\Jobs\TaskOverdueJob;
 use App\Jobs\TerminInvoiceReminderJob;
 use App\Jobs\TerminOverdueJob;
 use App\Jobs\TerminReminderJob;
+use App\Jobs\WeeklyReportReminderJob;
 use App\Support\DailyFormSchedule;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -36,6 +38,19 @@ Schedule::job(new DailyPenaltyJob)
 // PRD §4.5 "Task overdue detection ... via scheduled job tengah malam".
 Schedule::job(new TaskOverdueJob)
     ->dailyAt('00:00')
+    ->timezone('Asia/Jakarta');
+
+// (Sprint 24 D8: the same run first rolls an unfinished daily target to the
+// next working day while that day is still inside its timeline.)
+
+// Sprint 24 D10 — Friday afternoon: the Pengawas's weekly report (config/daiku.php `execution`).
+Schedule::job(new WeeklyReportReminderJob)
+    ->weeklyOn((int) config('daiku.execution.weekly_report_day', 5), config('daiku.execution.weekly_report_reminder_at', '15:00'))
+    ->timezone('Asia/Jakarta');
+
+// Sprint 24 D13 — "H-30%": every morning until the project is closed.
+Schedule::job(new ProjectDeadlineReminderJob)
+    ->dailyAt('08:00')
     ->timezone('Asia/Jakarta');
 
 // PRD §4.4 milestone OVERDUE (CSV Sprint 6) — same midnight run as tasks.

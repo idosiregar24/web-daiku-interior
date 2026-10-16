@@ -2,7 +2,7 @@ import { StatusChip } from '@/Components/shared/StatusChip';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
-import { CircleCheck, CircleX, ChevronRight } from 'lucide-react';
+import { Check, CircleCheck, CircleX, ChevronRight } from 'lucide-react';
 
 /** A Tukang's task as the phone screens show it (+ today's form mark where known). */
 export type FieldTask = Pick<Task, 'id' | 'title' | 'status' | 'kendala' | 'note' | 'due_date' | 'project' | 'milestone'> & {
@@ -16,15 +16,18 @@ const TODAY = () => new Date().toISOString().slice(0, 10);
  * Sprint 13 H4 — a task as a tappable card instead of a table row:
  * title, project, status, due date and (on working days) whether today's
  * daily form is in. The whole card is the button (≥ 48px touch target).
+ * Sprint 24 D7 — `onCheck` adds the big ✔ "Selesai" beside it: the check
+ * IS the day's actual activity (no separate daily form).
  */
-export function TaskCard({ task, onOpen }: { task: FieldTask; onOpen: (task: FieldTask) => void }) {
+export function TaskCard({ task, onOpen, onCheck }: { task: FieldTask; onOpen: (task: FieldTask) => void; onCheck?: (task: FieldTask) => void }) {
     const overdue = task.status === 'OVER' || (task.due_date !== null && task.due_date.slice(0, 10) < TODAY() && task.status !== 'DONE');
 
     return (
+        <div className="flex w-full items-stretch gap-2">
         <button
             type="button"
             onClick={() => onOpen(task)}
-            className="flex w-full items-center gap-3 rounded-xl bg-card p-4 text-left shadow-xs ring-1 ring-border transition-colors active:bg-daiku-yellow-light/60"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl bg-card p-4 text-left shadow-xs ring-1 ring-border transition-colors active:bg-daiku-yellow-light/60"
         >
             <span className="min-w-0 flex-1">
                 <span className="block font-medium text-foreground">{task.title}</span>
@@ -49,11 +52,23 @@ export function TaskCard({ task, onOpen }: { task: FieldTask; onOpen: (task: Fie
                         )}
                     >
                         {task.has_form_today ? <CircleCheck className="size-3.5" /> : <CircleX className="size-3.5" />}
-                        {task.has_form_today ? 'Form hari ini sudah diisi' : 'Form hari ini belum diisi'}
+                        {task.has_form_today ? 'Sudah dilaporkan hari ini' : 'Belum dilaporkan hari ini'}
                     </span>
                 )}
             </span>
             <ChevronRight className="size-5 shrink-0 text-muted-foreground/60" />
         </button>
+        {onCheck && task.status !== 'DONE' && (
+            <button
+                type="button"
+                onClick={() => onCheck(task)}
+                aria-label={`Tandai "${task.title}" selesai`}
+                className="flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-success/10 text-xs font-medium text-success-ink ring-1 ring-success/30 transition-colors active:bg-success/20"
+            >
+                <Check className="size-6" />
+                Selesai
+            </button>
+        )}
+        </div>
     );
 }

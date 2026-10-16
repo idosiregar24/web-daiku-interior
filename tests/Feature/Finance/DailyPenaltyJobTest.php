@@ -23,7 +23,8 @@ test('DailyPenaltyJob runs PenaltyService::runDailyCheck() via the container', f
     $finance->assignRole('FINANCE');
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-08-17']);
 
     app(DailyPenaltyJob::class)->handle(app(PenaltyService::class));
 
@@ -37,7 +38,8 @@ test('DailyPenaltyJob stays idempotent and still writes the unpaid fund INCOME r
     $finance->assignRole('FINANCE');
     $staff = User::factory()->create();
     $staff->assignRole('FIELD_STAFF');
-    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value]);
+    // Sprint 24 D7 — a target for today.
+    Task::factory()->create(['assignee_id' => $staff->id, 'status' => TaskStatus::OnProgress->value, 'due_date' => '2026-08-17']);
 
     app(DailyPenaltyJob::class)->handle(app(PenaltyService::class));
     app(DailyPenaltyJob::class)->handle(app(PenaltyService::class));

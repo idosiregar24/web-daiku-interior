@@ -70,14 +70,23 @@ class QaFormService
         return $qaForm->fresh();
     }
 
-    /** PRD §4.9 "Milestone selesai → QA Form dibuat → Tim QA". */
+    /**
+     * PRD §4.9 "Milestone selesai → QA Form dibuat → Tim QA" — since Sprint 24
+     * D14 the project's Pengawas (QA/QC); every QA user only on a project
+     * without one.
+     */
     private function notifyQaTeam(QaForm $qaForm, Milestone $milestone, string $state): void
     {
-        $this->notificationService->notifyRoles(
-            ['QA'],
+        $supervisor = $milestone->project->supervisor;
+        $recipients = $supervisor
+            ? collect([$supervisor])->filter(fn (User $user) => $user->is_active)
+            : User::role('QA')->where('is_active', true)->get();
+
+        $this->notificationService->notifyMany(
+            $recipients,
             NotificationType::QaFormCreated,
-            'QA Form Baru',
-            "Timeline \"{$milestone->name}\" ({$milestone->project->name}) {$state}.",
+            'Pemeriksaan Timeline',
+            "Timeline \"{$milestone->name}\" ({$milestone->project->name}) {$state} — periksa sebagai Pengawas (QA/QC).",
             ['qa_form_id' => $qaForm->id, 'project_id' => $milestone->project_id],
         );
     }
@@ -103,6 +112,13 @@ class QaFormService
             ]);
         }
 
+        // Sprint 24 D12 — an open finishing finding holds the timeline's approval.
+        if ($decision === 'approve' && ($open = SiteFindingService::openFor($qaForm->milestone)) > 0) {
+            throw ValidationException::withMessages([
+                'decision' => "Masih ada {$open} temuan finishing yang belum selesai di timeline ini — selesaikan dulu sebelum lolos QA.",
+            ]);
+        }
+
         return DB::transaction(function () use ($qaForm, $decision, $checklistData, $notes, $actor) {
             $milestone = $qaForm->milestone()->with('project.pm')->firstOrFail();
             $before = ['status' => $qaForm->status, 'rejection_count' => $qaForm->rejection_count];
@@ -119,7 +135,7 @@ class QaFormService
                 $milestone->update(['status' => MilestoneStatus::Completed->value]);
                 $this->advanceNextMilestone($milestone);
                 $this->completeProjectIfDone($milestone->project);
-                $this->notifyPm($milestone, $qaForm, 'QA menyetujui timeline "'.$milestone->name.'".', NotificationType::QaApproved);
+                $this->notifyPm($milestone, $qaForm, 'Pengawas (QA/QC) meloloskan timeline "'.$milestone->name.'".', NotificationType::QaApproved);
             } else {
                 $qaForm->update([
                     'status' => QaStatus::Rejected->value,
@@ -132,14 +148,14 @@ class QaFormService
 
                 // Unblock the PM to keep fixing — see MilestoneService::markDone()'s docblock.
                 $milestone->update(['status' => MilestoneStatus::InProgress->value]);
-                $this->notifyPm($milestone, $qaForm, 'QA menolak timeline "'.$milestone->name.'": '.$notes, NotificationType::QaRejected);
+                $this->notifyPm($milestone, $qaForm, 'Pengawas (QA/QC) menolak timeline "'.$milestone->name.'": '.$notes, NotificationType::QaRejected);
 
                 if ($qaForm->rejection_count >= 2) {
                     $this->notificationService->notifyRoles(
                         ['CEO'],
                         NotificationType::QaRejectedTwice,
-                        'QA Reject Berulang',
-                        'Timeline "'.$milestone->name.'" ('.$milestone->project->name.') ditolak QA '.$qaForm->rejection_count.'x berturut-turut.',
+                        'Timeline Ditolak Berulang',
+                        'Timeline "'.$milestone->name.'" ('.$milestone->project->name.') ditolak Pengawas (QA/QC) '.$qaForm->rejection_count.'x berturut-turut.',
                         ['qa_form_id' => $qaForm->id, 'milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
                     );
                 }
@@ -199,7 +215,7 @@ class QaFormService
         $this->notificationService->notify(
             $milestone->project->pm,
             $type,
-            'Keputusan QA',
+            'Keputusan Pengawas (QA/QC)',
             $message,
             ['qa_form_id' => $qaForm->id, 'milestone_id' => $milestone->id, 'project_id' => $milestone->project_id],
         );

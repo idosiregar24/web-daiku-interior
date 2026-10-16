@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 
 class StoreTaskRequest extends FormRequest
 {
-    /** Route-level `role:PM` middleware already gates this action (PRD §7.1 "Task – Create/Edit" — PM has CRUD). */
+    /** Route-level `role:PM|ASISTEN_PM|QA` + ProjectPolicy::manageTargets() in the controller (Sprint 24 D6). */
     public function authorize(): bool
     {
         return true;
@@ -25,9 +25,11 @@ class StoreTaskRequest extends FormRequest
 
         return [
             // Same rules as UpdateTaskRequest: a milestone of this project
-            // that hasn't already passed QA, and an active tukang.
+            // that hasn't already passed QA, and an active tukang. Sprint 24
+            // D6: a daily target always sits in a timeline (its day inside
+            // the timeline's range — TaskService::create()).
             'milestone_id' => [
-                'nullable',
+                'required',
                 'integer',
                 function (string $attribute, mixed $value, Closure $fail) use ($project) {
                     $milestone = Milestone::find($value);
@@ -65,6 +67,7 @@ class StoreTaskRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'milestone_id.required' => 'Pilih timeline daily target ini.',
             'milestone_id.integer' => 'Timeline tidak valid.',
             'title.required' => 'Judul task wajib diisi.',
             'title.max' => 'Judul task maksimal 150 karakter.',

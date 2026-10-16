@@ -18,7 +18,13 @@ class TaskPolicy
     /** Full edit (title/description/due_date/priority/milestone/assignee/rate) — PM only, no ownership scoping (matches Project/Milestone's non-scoped PM CRUD). */
     public function update(User $user, Task $task): bool
     {
-        return $user->hasRole('PM') || $this->assists($user, $task);
+        return $user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task);
+    }
+
+    /** Sprint 24 D9 — "Geser" a target inside its timeline: whoever plans it. */
+    public function reschedule(User $user, Task $task): bool
+    {
+        return $this->update($user, $task);
     }
 
     /**
@@ -28,17 +34,23 @@ class TaskPolicy
      */
     public function delete(User $user, Task $task): bool
     {
-        return $user->hasRole('PM') || $this->assists($user, $task);
+        return $user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task);
     }
 
     /** Status/kendala/note — PM (any task) or the task's own assignee. */
     public function updateStatus(User $user, Task $task): bool
     {
-        if ($user->hasRole('PM') || $this->assists($user, $task)) {
+        if ($user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task)) {
             return true;
         }
 
-        return $user->hasRole('FIELD_STAFF') && $task->assignee_id === $user->id;
+        return $user->hasRole('FIELD_STAFF') && (int) $task->assignee_id === (int) $user->id;
+    }
+
+    /** Sprint 24 D6 — the project's Pengawas (QA/QC) plans and checks its daily targets. */
+    private function supervises(User $user, Task $task): bool
+    {
+        return (bool) $task->project?->isSupervisedBy($user);
     }
 
     /** Sprint 12 #22 — the Asisten PM of the task's project does what the PM does there. */

@@ -30,6 +30,7 @@ import {
 import { Textarea } from '@/Components/ui/textarea';
 import type { Milestone, Task, TaskPriority, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { formatDate } from '@/lib/format';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { useEffect, useMemo } from 'react';
@@ -79,8 +80,8 @@ interface TaskFormDialogProps {
     projectId?: number;
     /** Task being edited, or null/undefined for create. */
     editing?: Task | null;
-    /** May span several projects (Tasks/Index) — filtered to the task's project here. */
-    milestones: Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'>[];
+    /** May span several projects (Tasks/Index) — filtered to the task's project here. Dates (when sent) bound the target day. */
+    milestones: (Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'> & Partial<Pick<Milestone, 'start_date' | 'target_date'>>)[];
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
 }
 
@@ -140,7 +141,26 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
         return isPaid || (isDone && !DONE_EDITABLE.includes(field));
     }
 
+    const selectedMilestone = milestoneOptions.find((milestone) => String(milestone.id) === form.watch('milestone_id'));
+    const range =
+        selectedMilestone?.start_date && selectedMilestone?.target_date
+            ? { from: selectedMilestone.start_date.slice(0, 10), to: selectedMilestone.target_date.slice(0, 10) }
+            : null;
+    // Sprint 24 D6 — a new daily target always sits in a timeline (an old task without one may keep none).
+    const milestoneRequired = !editing || editing.milestone_id !== null;
+
     function onSubmit(values: FormValues) {
+        if (milestoneRequired && !values.milestone_id) {
+            form.setError('milestone_id', { message: 'Pilih timeline daily target ini.' });
+            return;
+        }
+
+        const day = format(values.due_date, 'yyyy-MM-dd');
+        if (range && (day < range.from || day > range.to) && !isLocked('due_date')) {
+            form.setError('due_date', { message: 'Tanggal target harus di dalam rentang timeline.' });
+            return;
+        }
+
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
                 if (FIELDS.includes(field)) {
@@ -175,7 +195,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Edit Task' : 'Tambah Task'}</DialogTitle>
+                    <DialogTitle>{editing ? 'Edit Daily Target' : 'Tambah Daily Target'}</DialogTitle>
                     {editing?.project && <DialogDescription>Proyek {editing.project.name}</DialogDescription>}
                 </DialogHeader>
                 <Form {...form}>
@@ -249,7 +269,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="milestone_id"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Timeline</FormLabel>
+                                        <FormLabel required={milestoneRequired}>Timeline</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
                                             onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
@@ -261,7 +281,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                <SelectItem value="none">—</SelectItem>
+                                                {!milestoneRequired && <SelectItem value="none">—</SelectItem>}
                                                 {milestoneOptions.map((milestone) => (
                                                     <SelectItem key={milestone.id} value={String(milestone.id)}>
                                                         {milestone.name}
@@ -280,10 +300,15 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 name="due_date"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel required>Jatuh Tempo</FormLabel>
+                                        <FormLabel required>Tanggal Target</FormLabel>
                                         <FormControl>
                                             <DatePicker value={field.value} onChange={field.onChange} disabled={isLocked('due_date')} />
                                         </FormControl>
+                                        {range && (
+                                            <p className="text-xs text-muted-foreground">
+                                                Timeline {formatDate(range.from)} – {formatDate(range.to)}
+                                            </p>
+                                        )}
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -318,7 +343,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                             name="rate_per_task"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Rate per Task (Rp)</FormLabel>
+                                    <FormLabel>Upah (Rp)</FormLabel>
                                     <FormControl>
                                         <MoneyInput decimals={2} disabled={isLocked('rate_per_task')} {...field} />
                                     </FormControl>

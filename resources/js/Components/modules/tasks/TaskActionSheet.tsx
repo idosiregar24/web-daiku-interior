@@ -80,19 +80,12 @@ export function TaskActionSheet({
             },
         };
 
-        if (sendsDailyForm) {
-            router.post(
-                route('daily-forms.store', { task: task.id }),
-                { status: values.status, kendala: values.kendala || null, notes: values.note || null },
-                options,
-            );
-        } else {
-            router.patch(
-                route('tasks.updateStatus', { task: task.id }),
-                { status: values.status, kendala: values.kendala || null, note: values.note || null },
-                options,
-            );
-        }
+        // Sprint 24 D7 — one endpoint: the Tukang's own update records today's activity on the server.
+        router.patch(
+            route('tasks.updateStatus', { task: task.id }),
+            { status: values.status, kendala: values.kendala || null, note: values.note || null },
+            options,
+        );
     }
 
     return (
@@ -102,7 +95,7 @@ export function TaskActionSheet({
                     <SheetTitle className="text-base">{task?.title}</SheetTitle>
                     <SheetDescription>
                         {task?.project?.name}
-                        {sendsDailyForm && ' · Simpan sekaligus mengisi form harian hari ini.'}
+                        {sendsDailyForm && ' · Simpan sekaligus melaporkan target hari ini.'}
                     </SheetDescription>
                 </SheetHeader>
 
