@@ -10,11 +10,12 @@ use App\Http\Middleware\RoleMiddleware as AppRoleMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
+use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -30,7 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->web(append: [
             HandleInertiaRequests::class,
-            AddLinkHeadersForPreloadedAssets::class,
+            // No AddLinkHeadersForPreloadedAssets: its `Link` header lists every
+            // Vite chunk (≈6 KB on Detail Proyek) and overflows nginx's default
+            // FastCGI header buffer → 502 "upstream sent too big header". The
+            // same preloads are already <link rel="modulepreload"> tags from @vite.
             // Sprint 13 — drops the user's cached "Perlu Tindakan" counts after each write.
             ForgetActionInbox::class,
             // Sprint 21 Sub 05 — after a CEO password reset, only "Buat Password Baru" opens.
@@ -68,5 +72,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        // An expired session (419) on an Inertia request would show Laravel's
+        // "Page Expired" page in Inertia's error pop-up, which stays on screen
+        // even after the next click succeeds — e.g. a client who left the offer
+        // link (penawaran/{token}) open for hours. Go back instead: the reload
+        // issues a fresh CSRF token, so simply trying again works.
+        $exceptions->respond(function (Response $response, Throwable $e, Request $request) {
+            if ($response->getStatusCode() === 419 && $request->header('X-Inertia')) {
+                // The offer link sends no Referer (no-referrer) and its session is the
+                // one that expired, so back() would land on `/` — return to the offer.
+                $target = $request->routeIs('public.quotation.*') && $request->route('token')
+                    ? redirect()->route('public.quotation.show', $request->route('token'))
+                    : back();
+
+                return $target->with('error', 'Halaman sudah terlalu lama dibuka — silakan coba lagi.');
+            }
+
+            return $response;
+        });
     })->create();

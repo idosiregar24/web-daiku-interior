@@ -11,6 +11,12 @@ use Illuminate\Foundation\Http\FormRequest;
  */
 class ApprovePublicQuotationRequest extends FormRequest
 {
+    /** Errors go back to the offer page — the link has no Referer and maybe no previous URL (see PublicQuotationController::toOffer()). */
+    protected function getRedirectUrl(): string
+    {
+        return route('public.quotation.show', $this->route('token'));
+    }
+
     public function authorize(): bool
     {
         return true;

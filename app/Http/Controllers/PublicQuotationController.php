@@ -10,9 +10,11 @@ use App\Models\QuotationShareLink;
 use App\Models\SiteSetting;
 use App\Services\QuotationService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Closure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -67,17 +69,38 @@ class PublicQuotationController extends Controller
 
     public function approve(ApprovePublicQuotationRequest $request, string $token, QuotationService $service): RedirectResponse
     {
-        $service->clientApprove($this->link($token), $request->boolean('agree'), $request->ip(), $request->userAgent());
+        $this->onOffer($token, fn () => $service->clientApprove($this->link($token), $request->boolean('agree'), $request->ip(), $request->userAgent()));
 
-        return back()->with('success', 'Terima kasih — penawaran telah Anda setujui. Marketing kami akan segera menghubungi Anda.');
+        return $this->toOffer($token)->with('success', 'Terima kasih — penawaran telah Anda setujui. Marketing kami akan segera menghubungi Anda.');
     }
 
     /** Sprint 23 K11 — "Tidak Setuju" with a mandatory reason; Marketing follows up. */
     public function reject(RejectPublicQuotationRequest $request, string $token, QuotationService $service): RedirectResponse
     {
-        $service->clientDecline($this->link($token), $request->validated('note'), $request->userAgent());
+        $this->onOffer($token, fn () => $service->clientDecline($this->link($token), $request->validated('note'), $request->userAgent()));
 
-        return back()->with('success', 'Terima kasih atas masukannya — Marketing kami akan segera menghubungi Anda untuk memperbaiki penawaran.');
+        return $this->toOffer($token)->with('success', 'Terima kasih atas masukannya — Marketing kami akan segera menghubungi Anda untuk memperbaiki penawaran.');
+    }
+
+    /**
+     * Back to the offer page itself — never back(): the page sends no Referer
+     * (no-referrer) and a fresh session has no previous URL (Inertia visits
+     * aren't recorded), so back() fell to `/` — the Blade company profile,
+     * which Inertia then showed in a pop-up that never closed.
+     */
+    /** A business-rule refusal (already approved, expired, …) is shown on the offer page too. */
+    private function onOffer(string $token, Closure $action): void
+    {
+        try {
+            $action();
+        } catch (ValidationException $exception) {
+            throw $exception->redirectTo(route('public.quotation.show', $token));
+        }
+    }
+
+    private function toOffer(string $token): RedirectResponse
+    {
+        return redirect()->route('public.quotation.show', $token);
     }
 
     private function link(string $token): QuotationShareLink

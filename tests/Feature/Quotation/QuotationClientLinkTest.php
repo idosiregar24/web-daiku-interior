@@ -291,3 +291,29 @@ test('the Sprint 12 link migration rolls back', function () {
     expect(Schema::hasTable('quotation_share_links'))->toBeTrue()
         ->and(DB::table('quotations')->count())->toBe(0);
 });
+
+// The page sends no Referer and a fresh session has no previous URL, so every answer of the
+// public actions must name the offer page — back() fell to `/`, the Blade company profile,
+// which Inertia showed in a pop-up that never closed (reported 2026-10-15).
+test('approving, declining and every refusal land back on the offer page, never on /', function () {
+    $quotation = sentOffer($this);
+    $token = $quotation->currentShareLink()->token;
+    $offer = route('public.quotation.show', $token);
+
+    $this->post(route('public.quotation.approve', $token), [])->assertRedirect($offer);
+    $this->post(route('public.quotation.reject', $token), ['note' => ''])->assertRedirect($offer);
+    $this->post(route('public.quotation.approve', $token), ['agree' => true])->assertRedirect($offer)->assertSessionHasNoErrors();
+    // A second approval (e.g. a retried click) is refused on the offer page too.
+    $this->post(route('public.quotation.approve', $token), ['agree' => true])->assertRedirect($offer)->assertSessionHasErrors('agree');
+});
+
+test('an expired session on the offer (419) returns to the offer with "coba lagi", not to an error pop-up', function () {
+    $token = sentOffer($this)->currentShareLink()->token;
+    $this->withMiddleware();
+    app()->instance('env', 'staging'); // VerifyCsrfToken skips CSRF while running unit tests
+
+    $this->withHeaders(['X-Inertia' => 'true', 'X-Requested-With' => 'XMLHttpRequest'])
+        ->post(route('public.quotation.approve', $token), ['agree' => true])
+        ->assertRedirect(route('public.quotation.show', $token))
+        ->assertSessionHas('error', 'Halaman sudah terlalu lama dibuka — silakan coba lagi.');
+});

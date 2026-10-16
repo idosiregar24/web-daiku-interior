@@ -141,6 +141,7 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
 
             <div className="space-y-4">
                 {flash?.success && <Notice tone="success">{flash.success}</Notice>}
+                {flash?.error && <Notice tone="error">{flash.error}</Notice>}
                 {state === 'approved' && (
                     <Notice tone="success">
                         Penawaran ini telah Anda setujui{quotation.approvedAt ? ` pada ${formatDateTime(quotation.approvedAt)}` : ''}. Terima kasih.
@@ -202,6 +203,8 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                         </Label>
                     </div>
                     {form.errors.agree && <p className="text-sm text-destructive">{form.errors.agree}</p>}
+                    {/* e.g. an expired session (bootstrap/app.php sends 419 back here) — just try again. */}
+                    {flash?.error && !form.errors.agree && <p className="text-sm text-destructive">{flash.error}</p>}
                     <DialogFooter>
                         <DialogClose asChild>
                             <Button type="button" variant="outline">
@@ -238,6 +241,7 @@ export default function PublicQuotationPage({ token, state, quotation }: PublicQ
                             placeholder="mis. Harga lemari terlalu tinggi, saya ingin finishing HPL."
                         />
                         {rejectForm.errors.note && <p className="text-sm text-destructive">{rejectForm.errors.note}</p>}
+                        {flash?.error && !rejectForm.errors.note && <p className="text-sm text-destructive">{flash.error}</p>}
                     </div>
                     <DialogFooter>
                         <DialogClose asChild>
