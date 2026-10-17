@@ -1,6 +1,6 @@
 import { RabReferenceList } from '@/Components/modules/quotation/RabReferenceList';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
-import { INVOICE_TYPE_LABEL, InvoicePdfButton, InvoiceProofButton, InvoiceStatusChip, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
+import { INVOICE_TYPE_LABEL, InvoicePdfButton, InvoiceProofButton, InvoiceProofDialog, InvoiceStatusChip, IssueInvoiceDialog } from '@/Components/modules/finance/InvoiceDialogs';
 import { MoreActions } from '@/Components/shared/MoreActions';
 import { Notice } from '@/Components/shared/Notice';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -36,6 +36,7 @@ import type {
 import { Head, Link, router } from '@inertiajs/react';
 import {
     Ban,
+    Banknote,
     CalendarClock,
     Calculator,
     FileClock,
@@ -155,6 +156,7 @@ export default function QuotationShow({
     const [noteOpen, setNoteOpen] = useState(false);
     const [forwardOpen, setForwardOpen] = useState(false);
     const [surveyOpen, setSurveyOpen] = useState(false);
+    const [proofOpen, setProofOpen] = useState(false);
     const [processing, setProcessing] = useState(false);
 
     // Sprint 17 Sub 03 — "Perlu Tindakan → RAB disetujui klien" links here with ?action=invoice;
@@ -189,6 +191,10 @@ export default function QuotationShow({
     const previousNotes = lastRevision ? notes.filter((note) => note.version === lastRevision.version && note.kind !== 'CEO') : [];
     const clientDecline = status === 'CLIENT_REJECTED' ? notes.filter((note) => note.version === quotation.version && note.kind === 'CLIENT').at(-1) : undefined;
     const validUntil = quotation.valid_until ? formatDate(quotation.valid_until) : null;
+    // The invoice still waiting for the client's transfer — its "Tandai Klien Sudah Bayar" goes in the header.
+    const unpaidInvoice = status === 'CLIENT_APPROVED' ? invoices.find((invoice) => invoice.status === 'DITERBITKAN') : undefined;
+    // Not billed yet, or billed but not verified by Finance.
+    const paymentPending = status === 'CLIENT_APPROVED' && (invoices.length === 0 || invoices.some((invoice) => invoice.status !== 'TERVERIFIKASI'));
 
     function post(routeName: string) {
         router.post(
@@ -262,6 +268,27 @@ export default function QuotationShow({
                     {quotation.type === 'PROYEK' ? 'Terbitkan Invoice DP' : 'Terbitkan Invoice'}
                 </Button>,
             );
+        } else if (unpaidInvoice) {
+            step = unpaidInvoice.reject_reason
+                ? `Finance mengembalikan konfirmasi pembayaran ${unpaidInvoice.number}: “${unpaidInvoice.reject_reason}” — kirim ulang bukti bayarnya.`
+                : `Invoice ${unpaidInvoice.number} sudah terbit — tandai klien sudah bayar begitu transfernya masuk.`;
+            if (canSubmitProof) {
+                primary.push(
+                    <Button key="proof" onClick={() => setProofOpen(true)}>
+                        <Banknote className="size-4" />
+                        Tandai Klien Sudah Bayar
+                    </Button>,
+                );
+            }
+        } else if (invoices.some((invoice) => invoice.status === 'MENUNGGU_VERIFIKASI')) {
+            step = 'Bukti bayar sudah dikirim — menunggu Finance memverifikasi pembayarannya.';
+        } else if (invoices.length > 0) {
+            step =
+                quotation.type === 'PROYEK'
+                    ? 'Pembayaran DP sudah diverifikasi Finance — proyek dibuka oleh PM yang menyetujui RAB ini.'
+                    : quotation.type === 'DESAIN'
+                      ? 'Pembayaran sudah diverifikasi Finance — Kepala Desain menugaskan Arsitek.'
+                      : 'Pembayaran sudah diverifikasi Finance.';
         }
         if (surveyPanel?.canSchedule) {
             step = 'Pembayaran survey sudah diverifikasi Finance — tentukan jadwal survey.';
@@ -289,6 +316,52 @@ export default function QuotationShow({
                 <MessageSquarePlus className="size-4" />
                 Tambah Catatan
             </Button>,
+        );
+    }
+
+    /** "Disetujui Klien" — the client's approval and the invoices billed from it. */
+    function clientApprovedCard(className: string) {
+        return (
+            <SectionCard title="Disetujui Klien" icon={Handshake} className={className}>
+                <p className="text-sm text-daiku-muted">
+                    {quotation.client_approved_at ? (
+                        <>
+                            Klien menyetujui versi {quotation.version} lewat link penawaran pada{' '}
+                            <span className="font-medium text-foreground">{formatDateTime(quotation.client_approved_at)}</span>
+                            {quotation.client_approved_ip && ` (IP ${quotation.client_approved_ip})`}.
+                        </>
+                    ) : (
+                        'Disetujui klien (dikonfirmasi Marketing sebelum link persetujuan tersedia).'
+                    )}{' '}
+                    {quotation.type !== 'PROYEK' &&
+                        (invoices.length > 0 ? 'Pembayarannya ditagih lewat invoice di bawah.' : 'Invoice-nya belum diterbitkan.')}
+                    {/* Sprint 17 Sub 06 (K2) — the DP is billed while the project is being opened. */}
+                    {quotation.type === 'PROYEK' &&
+                        invoices.length > 0 &&
+                        ' Invoice DP sudah terbit — saat proyek dibuka, invoice ini otomatis menjadi tagihan termin DP.'}
+                    {quotation.type === 'PROYEK' && ' Proyeknya dibuka oleh PM yang menyetujui RAB ini.'}
+                </p>
+                {invoices.length > 0 && (
+                    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
+                        {invoices.map((invoice) => (
+                            <div key={invoice.id} className="flex flex-wrap items-center gap-2 text-sm">
+                                <span className="font-medium text-daiku-dark">{invoice.number}</span>
+                                <span className="text-daiku-muted">
+                                    {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)} · jatuh tempo {formatDate(invoice.due_date)}
+                                </span>
+                                <InvoiceStatusChip invoice={invoice} />
+                                <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                                    <InvoicePdfButton invoiceId={invoice.id} />
+                                    {/* The open invoice's "Tandai Klien Sudah Bayar" sits in the page header. */}
+                                    {invoice.id !== unpaidInvoice?.id && (
+                                        <InvoiceProofButton invoice={{ ...invoice, lead: quotation.lead }} canSubmit={canSubmitProof} />
+                                    )}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </SectionCard>
         );
     }
 
@@ -357,6 +430,9 @@ export default function QuotationShow({
             />
 
             <QuotationExpiryNotice quotation={quotation} className="mb-6" />
+
+            {/* Sprint 23 — at the top while the payment is still open, so Marketing sees it first; back below once Finance verified it. */}
+            {paymentPending && clientApprovedCard('mb-6')}
 
             {status === 'CANCELLED' && (
                 <Notice tone="error" className="mb-6">
@@ -475,45 +551,7 @@ export default function QuotationShow({
                 </SectionCard>
             )}
 
-            {status === 'CLIENT_APPROVED' && (
-                <SectionCard title="Disetujui Klien" icon={Handshake} className="mt-6">
-                    <p className="text-sm text-daiku-muted">
-                        {quotation.client_approved_at ? (
-                            <>
-                                Klien menyetujui versi {quotation.version} lewat link penawaran pada{' '}
-                                <span className="font-medium text-foreground">{formatDateTime(quotation.client_approved_at)}</span>
-                                {quotation.client_approved_ip && ` (IP ${quotation.client_approved_ip})`}.
-                            </>
-                        ) : (
-                            'Disetujui klien (dikonfirmasi Marketing sebelum link persetujuan tersedia).'
-                        )}{' '}
-                        {quotation.type !== 'PROYEK' &&
-                            (invoices.length > 0 ? 'Pembayarannya ditagih lewat invoice di bawah.' : 'Invoice-nya belum diterbitkan.')}
-                        {/* Sprint 17 Sub 06 (K2) — the DP is billed while the project is being opened. */}
-                        {quotation.type === 'PROYEK' &&
-                            invoices.length > 0 &&
-                            ' Invoice DP sudah terbit — saat proyek dibuka, invoice ini otomatis menjadi tagihan termin DP.'}
-                        {quotation.type === 'PROYEK' && ' Proyeknya dibuka oleh PM yang menyetujui RAB ini.'}
-                    </p>
-                    {invoices.length > 0 && (
-                        <div className="mt-4 flex flex-col gap-2 border-t border-border pt-4">
-                            {invoices.map((invoice) => (
-                                <div key={invoice.id} className="flex flex-wrap items-center gap-2 text-sm">
-                                    <span className="font-medium text-daiku-dark">{invoice.number}</span>
-                                    <span className="text-daiku-muted">
-                                        {INVOICE_TYPE_LABEL[invoice.type]} · {formatRupiah(invoice.amount)} · jatuh tempo {formatDate(invoice.due_date)}
-                                    </span>
-                                    <InvoiceStatusChip invoice={invoice} />
-                                    <span className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                                        <InvoicePdfButton invoiceId={invoice.id} />
-                                        <InvoiceProofButton invoice={{ ...invoice, lead: quotation.lead }} canSubmit={canSubmitProof} />
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </SectionCard>
-            )}
+            {status === 'CLIENT_APPROVED' && !paymentPending && clientApprovedCard('mt-6')}
 
             {/* Sprint 19 Sub 03 — the client and, for a paid RAB Jasa Survey, its survey (actions in the header). */}
             <QuotationNextStepCard lead={quotation.lead} canOpenLead={canOpenLead} surveyPanel={surveyPanel} />
@@ -561,6 +599,9 @@ export default function QuotationShow({
                     label={issuableInvoice.label}
                     amount={issuableInvoice.amount}
                 />
+            )}
+            {canSubmitProof && unpaidInvoice && proofOpen && (
+                <InvoiceProofDialog open onOpenChange={setProofOpen} invoice={{ ...unpaidInvoice, lead: quotation.lead }} />
             )}
             {surveyPanel && (surveyPanel.canSchedule || surveyPanel.canReschedule) && (
                 <SurveyScheduleDialog open={surveyOpen} onOpenChange={setSurveyOpen} lead={quotation.lead} surveyPanel={surveyPanel} />
