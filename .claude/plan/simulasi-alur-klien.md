@@ -353,17 +353,24 @@ membuatnya **Siap Dikirim**.
   Meeting**; PM & Pengawas mendapat notifikasi.
 
 ### Langkah 22 · PM menjalankan Technical Meeting & membuat timeline
-- Tab **Timeline** → **Tambah Timeline** (nama + **tanggal mulai** + tanggal
-  selesai; tanggal mulai disarankan = hari setelah timeline sebelumnya):
+> Semua isian TM (jadwal, timeline, notulen, peserta, jasa pengawas) dan
+> rencana bahan Pengawas ada di **tab Eksekusi → kartu Technical Meeting**.
+> Langkah rinci: [`simulasi-eksekusi-proyek.md`](simulasi-eksekusi-proyek.md) Tahap 3.
+
+- Kartu TM langkah **2 · Pembagian Timeline** (atau tab **Timeline**) →
+  **Tambah Timeline** (nama + **tanggal mulai** + tanggal selesai; tanggal
+  mulai disarankan = hari setelah timeline sebelumnya):
   1. `Persiapan & Bongkar` — hari ini s.d. +7 hari
   2. `Pemasangan Interior` — +8 s.d. +30 hari  *(nama sama dengan pemicu Termin 2)*
   3. `Finishing & Serah Terima` — +31 s.d. +40 hari
 - Gantt menggambar batang mulai → selesai.
-- **Login:** qa (Pengawas) → tab **Material** → tambah bahan yang digunakan.
-- **Login:** PM → tab **Eksekusi** → kartu **Technical Meeting**: tanggal,
-  notulen, peserta (akun atau ketik nama), **Nilai Jasa Pengawas**
-  `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan TM** → setelah
-  semua syarat ✓ → **TM Selesai**. **Hasil:** tahap **Persiapan**.
+- **Login:** qa (Pengawas) → kartu TM → **Bahan yang Digunakan** (cari
+  barang, jumlah, Enter — acuan item RAB di sebelahnya).
+- **Login:** PM → kartu **Technical Meeting**: tanggal (bisa disimpan lebih
+  dulu sebagai jadwal), notulen, peserta (akun atau ketik nama), **Nilai
+  Jasa Pengawas** `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan
+  TM** → setelah semua syarat ✓ → **TM Selesai** (header halaman → pop-up
+  konfirmasi). **Hasil:** tahap **Persiapan**.
 - **Login:** qa (Pengawas) → tab **Task** → **Tambah Daily Target** (wajib
   timeline, tanggal di dalam rentang timeline, isi **Upah**):
   - Judul: `Bongkar plafon lama lantai 1` · Tukang: Field Staff Daiku Interior
@@ -386,8 +393,9 @@ membuatnya **Siap Dikirim**.
   Tidak menyentuh satu pun target hari itu → penalti otomatis. Target yang
   belum selesai **bergulir** ke hari kerja berikutnya selama masih di dalam
   timeline; lewat timeline → **Terlambat**.
-- **Pengawas** bisa **Geser Tanggal** (menu baris task) atau **Tukar Hari**
-  (tab Eksekusi → Target vs Actual), hanya di dalam rentang timeline.
+- **Pengawas** bisa menyeret target ke hari lain di tab **Task → Per Hari**,
+  **Geser Tanggal** (menu baris task) atau **Tukar Hari** (tab Eksekusi →
+  Target vs Actual), hanya di dalam rentang timeline.
 - **Jumat:** Pengawas → tab Eksekusi → **Laporan Mingguan** → PM
   **Putuskan** (setujui + nominal jasa minggu ini, atau tolak + alasan).
 - Actual activity ≥ 70% → PM mendapat notifikasi → **Setujui Berangkat ke

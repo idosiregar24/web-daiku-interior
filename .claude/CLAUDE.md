@@ -218,7 +218,10 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     (projects opened before Sprint 24 are PRODUKSI). Buka Proyek opens a
     **Gambar Kerja** (`working_drawings`, its own table — not a `designs` row;
     final at "Gambar Kerja Selesai", no client ACC) → the PM's Technical
-    Meeting (`TechnicalMeetingService`; Pengawas plans the materials) → the
+    Meeting (`TechnicalMeetingService`; everything of the TM — schedule,
+    timeline, minutes, fee — and the Pengawas's material plan, beside the
+    RAB items without prices, live in the Eksekusi tab's TM card; the
+    Pengawas may revise its plan until PRODUKSI, `reviseMaterialPlan`) → the
     Pengawas (QA/QC = `projects.supervisor_id`, `Project::isSupervisedBy()`)
     plans daily targets and asks the DP → the PM approving it is Start
     Produksi. A task is a **daily target**: always in a timeline, its day
