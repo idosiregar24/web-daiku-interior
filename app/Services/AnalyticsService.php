@@ -12,7 +12,6 @@ use App\Models\Lead;
 use App\Models\Material;
 use App\Models\Milestone;
 use App\Models\Penalty;
-use App\Models\ProgressLog;
 use App\Models\Project;
 use App\Models\RevenueTarget;
 use App\Models\StockMovement;
@@ -66,8 +65,8 @@ class AnalyticsService
 
     /**
      * "Active Projects Overview: Card ringkasan proyek berjalan + progres".
-     * Progress = PM's latest reported percentage (Progress Log); the
-     * QA-approved milestone ratio is sent alongside as the objective check.
+     * Progress = actual activity (Sprint 24 D11, Project::withActivityCounts());
+     * the QA-approved milestone ratio is sent alongside.
      */
     public function activeProjects(int $limit = 8): Collection
     {
@@ -79,11 +78,7 @@ class AnalyticsService
                 'milestones as milestones_completed_count' => fn ($q) => $q->where('status', MilestoneStatus::Completed->value),
                 'tasks as overdue_tasks_count' => fn ($q) => $q->overdue(),
             ])
-            ->addSelect(['latest_progress' => ProgressLog::select('percentage')
-                ->whereColumn('project_id', 'projects.id')
-                ->latest('log_date')
-                ->latest('id')
-                ->limit(1)])
+            ->withActivityCounts()
             ->orderBy('start_date')
             ->limit($limit)
             ->get(['id', 'name', 'pm_id', 'contract_value', 'start_date'])
@@ -92,7 +87,7 @@ class AnalyticsService
                 'name' => $project->name,
                 'pm' => $project->pm?->name,
                 'contractValue' => (float) $project->contract_value,
-                'progress' => (int) ($project->latest_progress ?? 0),
+                'progress' => Project::activityPercent((int) $project->done_tasks_count, (int) $project->tasks_count),
                 'milestonesCompleted' => $project->milestones_completed_count,
                 'milestonesTotal' => $project->milestones_count,
                 'overdueTasks' => $project->overdue_tasks_count,

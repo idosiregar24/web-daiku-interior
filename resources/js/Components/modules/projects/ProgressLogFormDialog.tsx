@@ -4,6 +4,7 @@ import {
     Dialog,
     DialogClose,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -16,7 +17,6 @@ import {
     FormLabel,
     FormMessage,
 } from '@/Components/ui/form';
-import { Input } from '@/Components/ui/input';
 import { Textarea } from '@/Components/ui/textarea';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -26,11 +26,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
 const schema = z.object({
-    percentage: z
-        .string()
-        .min(1, 'Persentase wajib diisi')
-        .refine((v) => !isNaN(Number(v)) && Number(v) >= 0 && Number(v) <= 100, 'Persentase 0-100'),
-    description: z.string().min(1, 'Deskripsi wajib diisi'),
+    description: z.string().min(1, 'Catatan progress wajib diisi'),
     // Newline-separated URLs in the textarea — simpler UX than a dynamic
     // field array for what's usually 1-3 links.
     ref_urls: z.string().optional(),
@@ -46,18 +42,19 @@ interface ProgressLogFormDialogProps {
 }
 
 /**
- * "Progress log form PM: persentase + deskripsi + URL referensi"
- * (.claude/plan/sprint-04.md Jonathan Week 7).
+ * "Catatan Progress" form PM: tanggal + catatan + URL referensi
+ * (.claude/plan/sprint-04.md Jonathan Week 7). No percentage since Sprint
+ * 24 D11 — the progress is the actual activity of the daily targets.
  */
 export function ProgressLogFormDialog({ open, onOpenChange, projectId }: ProgressLogFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
-        defaultValues: { percentage: '', description: '', ref_urls: '', log_date: new Date() },
+        defaultValues: { description: '', ref_urls: '', log_date: new Date() },
     });
 
     useEffect(() => {
         if (open) {
-            form.reset({ percentage: '', description: '', ref_urls: '', log_date: new Date() });
+            form.reset({ description: '', ref_urls: '', log_date: new Date() });
         }
     }, [open]);
 
@@ -76,7 +73,6 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
         router.post(
             route('progress-logs.store', { project: projectId }),
             {
-                percentage: Number(values.percentage),
                 description: values.description,
                 ref_urls: urls.length > 0 ? urls : null,
                 log_date: format(values.log_date, 'yyyy-MM-dd'),
@@ -89,46 +85,34 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Tambah Progress Log</DialogTitle>
+                    <DialogTitle>Tambah Catatan Progress</DialogTitle>
+                    <DialogDescription>
+                        Persentase progress dihitung otomatis dari daily target yang selesai — di sini cukup catatannya.
+                    </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="percentage"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>Persentase (%)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" min="0" max="100" {...field} autoFocus />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="log_date"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Tanggal</FormLabel>
-                                        <FormControl>
-                                            <DatePicker value={field.value} onChange={field.onChange} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                        <FormField
+                            control={form.control}
+                            name="log_date"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Tanggal</FormLabel>
+                                    <FormControl>
+                                        <DatePicker value={field.value} onChange={field.onChange} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         <FormField
                             control={form.control}
                             name="description"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel required>Deskripsi</FormLabel>
+                                    <FormLabel required>Catatan</FormLabel>
                                     <FormControl>
-                                        <Textarea {...field} rows={3} placeholder="mis. Pemasangan kusen selesai, mulai finishing cat" />
+                                        <Textarea {...field} rows={3} autoFocus placeholder="mis. Pemasangan kusen selesai, mulai finishing cat" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

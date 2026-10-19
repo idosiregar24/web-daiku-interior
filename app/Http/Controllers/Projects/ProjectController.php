@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Projects;
 
 use App\Enums\ProjectStatus;
-use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\UpdateProjectRequest;
 use App\Models\Invoice;
@@ -40,7 +39,7 @@ class ProjectController extends Controller
         $projects = Project::query()
             ->with(['pm:id,name', 'lead:id,client_name'])
             // Sprint 24 D11 — actual activity (DONE ÷ all targets) on the list.
-            ->withCount(['tasks', 'tasks as done_tasks_count' => fn ($query) => $query->where('status', TaskStatus::Done->value)])
+            ->withActivityCounts()
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
             ->visibleTo($user)

@@ -161,9 +161,23 @@ class Project extends Model
             ->toBase()
             ->first();
 
-        $total = (int) ($counts->total ?? 0);
+        return self::activityPercent((int) ($counts->done ?? 0), (int) ($counts->total ?? 0));
+    }
 
-        return $total === 0 ? 0 : (int) floor(((int) $counts->done) * 100 / $total);
+    /** actualProgress() from counts already loaded by withActivityCounts(). */
+    public static function activityPercent(int $done, int $total): int
+    {
+        return $total === 0 ? 0 : (int) floor($done * 100 / $total);
+    }
+
+    /**
+     * Sprint 24 D11 — the actual-activity counts for a list (`tasks_count`,
+     * `done_tasks_count`), so every list/dashboard shows the same progress
+     * as the project page without a query per row.
+     */
+    public function scopeWithActivityCounts(Builder $query): void
+    {
+        $query->withCount(['tasks', 'tasks as done_tasks_count' => fn (Builder $tasks) => $tasks->where('status', TaskStatus::Done->value)]);
     }
 
     /** The phase, treating a null (never on a real row — the column defaults to PRODUKSI) as PRODUKSI. */

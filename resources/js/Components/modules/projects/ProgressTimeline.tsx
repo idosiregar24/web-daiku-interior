@@ -1,5 +1,6 @@
 import type { ProgressLog } from '@/types';
 import { EmptyState } from '@/Components/shared/EmptyState';
+import { formatDate } from '@/lib/format';
 import { Link2 } from 'lucide-react';
 
 function formatDateTime(value: string) {
@@ -14,7 +15,7 @@ function formatDateTime(value: string) {
 export function ProgressTimeline({ logs }: { logs: ProgressLog[] }) {
     if (logs.length === 0) {
         return (
-            <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada progress log." />
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada catatan progress." />
         );
     }
 
@@ -32,15 +33,19 @@ export function ProgressTimeline({ logs }: { logs: ProgressLog[] }) {
                                 aria-hidden
                             />
                         )}
-                        <span className="z-10 mt-1 flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-info bg-card text-[10px] font-semibold text-info-ink">
-                            {log.percentage}
-                        </span>
+                        <span className="z-10 mt-1 size-5 shrink-0 rounded-full border-2 border-info bg-card" aria-hidden />
                         <div className="min-w-0 flex-1 rounded-xl border border-border bg-card p-3.5 shadow-xs">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                                <p className="text-sm font-medium text-daiku-dark">{log.percentage}% progress</p>
+                                <p className="text-sm font-medium text-daiku-dark">
+                                    {formatDate(log.log_date)}
+                                    {/* Logs written before Sprint 24 D11 still carry the PM's typed percentage. */}
+                                    {log.percentage !== null && (
+                                        <span className="ml-2 text-xs font-normal text-daiku-muted">(dicatat {log.percentage}%)</span>
+                                    )}
+                                </p>
                                 <p className="text-xs text-daiku-muted">{formatDateTime(log.created_at)}</p>
                             </div>
-                            <p className="mt-1 text-sm text-daiku-muted">{log.description}</p>
+                            <p className="mt-1 text-sm text-foreground">{log.description}</p>
                             <p className="mt-1 text-xs text-daiku-muted">Oleh: {log.logger?.name ?? '—'}</p>
                             {log.ref_urls && log.ref_urls.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-2">

@@ -208,9 +208,9 @@ function OverviewTab({
         { label: 'Nilai Kontrak', value: formatRupiah(project.contract_value) },
     ];
 
-    // Sprint 24 D11 — the main progress is the actual activity (DONE ÷ all
-    // targets); the newest progress log (newest-first) stays as the note.
-    const latestPercentage = project.actual_progress ?? progressLogs[0]?.percentage ?? 0;
+    // Sprint 24 D11 — the progress is the actual activity (DONE ÷ all
+    // targets); the newest Catatan Progress (newest-first) stays as the note.
+    const latestPercentage = project.actual_progress ?? 0;
 
     return (
         <div className="grid gap-6 lg:grid-cols-3">
@@ -607,20 +607,24 @@ function ProgressTab({
 
     if (!canView) {
         return (
-            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat progress log proyek ini." />
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat catatan progress proyek ini." />
         );
     }
 
     return (
         <div>
-            {canManage && (
-                <div className="mb-4 flex justify-end">
+            {/* Sprint 24 D11 — notes only; the percentage is the actual activity. */}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                    Laporan naratif PM. Progress proyek ({project.actual_progress ?? 0}%) dihitung otomatis dari daily target yang selesai.
+                </p>
+                {canManage && (
                     <Button size="sm" onClick={() => setDialogOpen(true)}>
                         <Plus className="size-4" />
-                        Tambah Progress Log
+                        Tambah Catatan
                     </Button>
-                </div>
-            )}
+                )}
+            </div>
 
             <ProgressTimeline logs={progressLogs} />
 
@@ -985,7 +989,7 @@ const PROJECT_TAB_LABEL: Record<string, string> = {
     qa: 'QA/QC',
     task: 'Task',
     overtime: 'Lembur',
-    progress: 'Progress',
+    progress: 'Catatan Progress',
     finance: 'Finance',
     material: 'Material',
 };
@@ -1317,7 +1321,7 @@ export default function ProjectShow({
                     )}
                     <TabsTrigger value="progress">
                         <Activity />
-                        Progress
+                        Catatan Progress
                     </TabsTrigger>
                     <TabsTrigger value="finance">
                         <Wallet />

@@ -17,7 +17,6 @@ class ProgressLogFactory extends Factory
         return [
             'project_id' => Project::factory(),
             'logged_by' => User::factory(),
-            'percentage' => fake()->numberBetween(0, 100),
             'description' => fake()->sentence(),
             'ref_urls' => null,
             'log_date' => now()->toDateString(),

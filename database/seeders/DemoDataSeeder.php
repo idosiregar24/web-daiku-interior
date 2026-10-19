@@ -830,13 +830,11 @@ class DemoDataSeeder extends Seeder
         $progressLogService = app(ProgressLogService::class);
 
         $progressLogService->create($project, [
-            'percentage' => 25,
             'description' => 'Kitchen set dan finishing cat dinding selesai (3D Design approved QA).',
             'log_date' => now()->subDays(4)->toDateString(),
         ], $this->pm);
 
         $progressLogService->create($project, [
-            'percentage' => 55,
             'description' => 'Produksi berjalan — QA meminta perbaikan instalasi sebelum lanjut ke tahap berikutnya.',
             'ref_urls' => ['https://drive.google.com/demo-progress-produksi'],
             'log_date' => now()->toDateString(),

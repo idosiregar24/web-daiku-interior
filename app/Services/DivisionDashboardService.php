@@ -13,7 +13,6 @@ use App\Models\AuditLog;
 use App\Models\Design;
 use App\Models\Milestone;
 use App\Models\OvertimeRequest;
-use App\Models\ProgressLog;
 use App\Models\Project;
 use App\Models\QaForm;
 use App\Models\Quotation;
@@ -504,11 +503,6 @@ class DivisionDashboardService
     public function monitoredProjects(User $viewer, ?int $pmId = null): EloquentCollection
     {
         $seesAll = $this->seesAllProjects($viewer);
-        $latestLog = fn (string $column) => ProgressLog::select($column)
-            ->whereColumn('project_id', 'projects.id')
-            ->latest('log_date')
-            ->latest('id')
-            ->limit(1);
 
         return Project::query()
             ->whereIn('status', [ProjectStatus::Active->value, ProjectStatus::OnHold->value])
@@ -524,10 +518,7 @@ class DivisionDashboardService
                 'milestones as milestones_completed_count' => fn (Builder $query) => $query->where('status', MilestoneStatus::Completed->value),
                 'tasks as open_tasks_count' => fn (Builder $query) => $query->where('status', '!=', TaskStatus::Done->value),
             ])
-            ->addSelect([
-                'latest_progress' => $latestLog('percentage'),
-                'latest_progress_date' => $latestLog('log_date'),
-            ])
+            ->withActivityCounts()
             ->orderBy('name')
             ->get();
     }
@@ -629,10 +620,12 @@ class DivisionDashboardService
                     'client' => $project->lead?->client_name,
                     'status' => $project->status,
                     'pm' => $project->pm?->name,
-                    'progress' => $project->latest_progress === null ? null : (int) $project->latest_progress,
-                    'progressDate' => $project->latest_progress_date === null
+                    // Sprint 24 D11 — actual activity; null while no daily target exists.
+                    'progress' => $project->tasks_count === 0
                         ? null
-                        : Carbon::parse($project->latest_progress_date)->toDateString(),
+                        : Project::activityPercent((int) $project->done_tasks_count, (int) $project->tasks_count),
+                    'tasksDone' => (int) $project->done_tasks_count,
+                    'tasksTotal' => (int) $project->tasks_count,
                     'milestonesCompleted' => (int) $project->milestones_completed_count,
                     'milestonesTotal' => (int) $project->milestones_count,
                     'openTasks' => (int) $project->open_tasks_count,
@@ -776,12 +769,10 @@ class DivisionDashboardService
 
         return QaForm::query()
             ->where('status', QaStatus::Pending->value)
-            ->with(['project:id,name', 'milestone:id,name,target_date,updated_at'])
-            ->addSelect(['project_progress' => ProgressLog::select('percentage')
-                ->whereColumn('project_id', 'qa_forms.project_id')
-                ->latest('log_date')
-                ->latest('id')
-                ->limit(1)])
+            ->with([
+                'project' => fn ($query) => $query->select(['id', 'name'])->withActivityCounts(),
+                'milestone:id,name,target_date,updated_at',
+            ])
             ->get()
             ->map(function (QaForm $form) use ($today) {
                 // qa_forms has no `updated_at`, so Eloquent leaves created_at a raw string.
@@ -793,7 +784,9 @@ class DivisionDashboardService
                     'id' => $form->id,
                     'projectId' => $form->project_id,
                     'projectName' => $form->project?->name ?? '—',
-                    'projectProgress' => $form->project_progress === null ? null : (int) $form->project_progress,
+                    'projectProgress' => $form->project === null || $form->project->tasks_count === 0
+                        ? null
+                        : Project::activityPercent((int) $form->project->done_tasks_count, (int) $form->project->tasks_count),
                     'milestoneName' => $form->milestone?->name ?? '—',
                     'milestoneTargetDate' => $form->milestone?->target_date?->toDateString(),
                     'round' => $form->rejection_count + 1,

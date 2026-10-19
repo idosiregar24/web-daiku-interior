@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * PRD §4.4 "Progress Log" — append-only (no `updated_at`, see the
- * migration), PM-written chronological log per project.
+ * migration), PM-written chronological log per project. Since Sprint 24
+ * D11 it is a note ("Catatan Progress"): the progress itself is
+ * Project::actualProgress(); `percentage` only survives on older rows.
  */
 class ProgressLog extends Model
 {
@@ -19,7 +21,6 @@ class ProgressLog extends Model
     protected $fillable = [
         'project_id',
         'logged_by',
-        'percentage',
         'description',
         'ref_urls',
         'log_date',

@@ -15,7 +15,6 @@ class StoreProgressLogRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'percentage' => ['required', 'integer', 'min:0', 'max:100'],
             'description' => ['required', 'string'],
             'ref_urls' => ['nullable', 'array'],
             'ref_urls.*' => ['url:http,https', 'max:2048'],
@@ -26,9 +25,7 @@ class StoreProgressLogRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'percentage.required' => 'Persentase progress wajib diisi.',
-            'percentage.max' => 'Persentase tidak boleh lebih dari 100.',
-            'description.required' => 'Deskripsi progress wajib diisi.',
+            'description.required' => 'Catatan progress wajib diisi.',
             'ref_urls.*.url' => 'URL referensi tidak valid.',
         ];
     }

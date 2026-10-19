@@ -852,13 +852,14 @@ export interface DailyTaskForm {
     submitted_at: string;
 }
 
-/** PRD 4.4 — Progress Log */
+/** PRD 4.4 — Progress Log, shown as "Catatan Progress" (Sprint 24 D11: a note; progress = actual activity). */
 export interface ProgressLog {
     id: number;
     project_id: number;
     logged_by: number;
     logger?: Pick<User, 'id' | 'name'>;
-    percentage: number;
+    /** Only on logs written before Sprint 24 D11. */
+    percentage: number | null;
     description: string;
     ref_urls: string[] | null;
     log_date: string;
@@ -2063,8 +2064,10 @@ export interface MonitorProject {
     client: string | null;
     status: ProjectStatus;
     pm: string | null;
+    /** Sprint 24 D11 — actual activity (DONE ÷ all daily targets); null without targets. */
     progress: number | null;
-    progressDate: string | null;
+    tasksDone: number;
+    tasksTotal: number;
     milestonesCompleted: number;
     milestonesTotal: number;
     openTasks: number;

@@ -74,7 +74,7 @@ function monitorFixture(): array
     OvertimeRequest::factory()->create(['project_id' => $active->id, 'status' => OvertimeStatus::PendingFinance->value]);
     OvertimeRequest::factory()->create(['project_id' => $other->id]);
 
-    ProgressLog::factory()->create(['project_id' => $active->id, 'percentage' => 40, 'log_date' => '2026-09-25']);
+    // An older log's typed percentage — ignored since Sprint 24 D11 (progress = actual activity).
     ProgressLog::factory()->create(['project_id' => $active->id, 'percentage' => 60, 'log_date' => '2026-09-29']);
 
     return compact('pmA', 'pmB', 'active', 'onHold', 'other');
@@ -119,8 +119,10 @@ test('a PM monitors only their own active/on-hold projects, lateness on active o
                 'pendingOvertime' => 1,
             ])
             ->where('projects.0.id', $active->id)
-            ->where('projects.0.progress', 60)
-            ->where('projects.0.progressDate', '2026-09-29')
+            // 1 of 6 daily targets DONE.
+            ->where('projects.0.progress', 16)
+            ->where('projects.0.tasksDone', 1)
+            ->where('projects.0.tasksTotal', 6)
             ->where('projects.0.overdueTasks', 2)
             ->where('projects.0.milestonesTotal', 5)
             ->where('projects.0.milestonesCompleted', 1)

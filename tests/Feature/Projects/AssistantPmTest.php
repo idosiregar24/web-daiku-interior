@@ -89,9 +89,9 @@ test('the Asisten PM manages milestones, tasks and progress on its project — 4
     $this->actingAs($this->assistant)->patch(route('tasks.updateStatus', $theirs), ['status' => 'ONPROGRESS'])->assertForbidden();
     $this->actingAs($this->assistant)->delete(route('tasks.destroy', $theirs))->assertForbidden();
 
-    $this->actingAs($this->assistant)->post(route('progress-logs.store', $this->project), ['percentage' => 20, 'description' => 'Rangka terpasang.'])
+    $this->actingAs($this->assistant)->post(route('progress-logs.store', $this->project), ['description' => 'Rangka terpasang.'])
         ->assertSessionHasNoErrors();
-    $this->actingAs($this->assistant)->post(route('progress-logs.store', $this->other), ['percentage' => 20, 'description' => 'x'])
+    $this->actingAs($this->assistant)->post(route('progress-logs.store', $this->other), ['description' => 'x'])
         ->assertForbidden();
 
     expect(Milestone::where('project_id', $this->project->id)->sole()->name)->toBe('Produksi Kitchen')

@@ -232,7 +232,9 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     inside their timeline, else OVER. Jasa Pengawas money only through
     `SupervisorPaymentService` (PM approves, Finance pays → PENGELUARAN
     `JASA_PENGAWAS`, never above the fee, append-only). Progress = actual
-    activity (`Project::actualProgress()`); ≥ 70 % unlocks "Berangkat ke
+    activity (`Project::actualProgress()`, lists/dashboards via
+    `Project::withActivityCounts()` — never a typed percentage; a progress
+    log is only a PM note, "Catatan Progress"); ≥ 70 % unlocks "Berangkat ke
     Lokasi"; open `site_findings` hold QA and completion. The project's
     "Eksekusi" tab is built once in `ProjectExecutionService::overview()`.
     **Pengawas = QA = QC — one person** (role `QA`, shown as "Pengawas

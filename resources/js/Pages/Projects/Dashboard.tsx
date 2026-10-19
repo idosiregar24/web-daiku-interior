@@ -69,14 +69,17 @@ const projectColumns: ColumnDef<MonitorProject>[] = [
     { accessorKey: 'pm', header: 'PM', cell: ({ row }) => row.original.pm ?? '—' },
     {
         accessorKey: 'progress',
-        header: 'Progres',
+        // Sprint 24 D11 — actual activity, same as the project list/detail.
+        header: 'Actual Activity',
         cell: ({ row }) =>
             row.original.progress === null ? (
-                <span className="text-xs text-muted-foreground">Belum ada log</span>
+                <span className="text-xs text-muted-foreground">Belum ada target</span>
             ) : (
                 <div className="min-w-36">
                     <ProgressBar value={row.original.progress} label={`Progres ${row.original.name}`} showValue />
-                    <span className="text-xs text-muted-foreground">Log {formatDate(row.original.progressDate)}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                        {row.original.tasksDone}/{row.original.tasksTotal} target selesai
+                    </span>
                 </div>
             ),
     },
@@ -336,7 +339,7 @@ export default function ProjectDashboard({
             <SectionCard
                 title="Progres Proyek"
                 icon={TrendingUp}
-                description="Progres terakhir dari Progress Log, timeline lolos QA, dan task terlambat."
+                description="Actual activity (daily target selesai), timeline lolos QA, dan task terlambat."
                 flush
             >
                 <DataTable

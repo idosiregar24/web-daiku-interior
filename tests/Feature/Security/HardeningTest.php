@@ -27,7 +27,6 @@ test('user-supplied links only accept http(s) schemes', function (string $url) {
     $project = Project::factory()->create(['pm_id' => $pm->id]);
 
     $this->actingAs($pm)->post(route('progress-logs.store', $project), [
-        'percentage' => 10,
         'description' => 'Progres',
         'log_date' => now()->toDateString(),
         'ref_urls' => [$url],
