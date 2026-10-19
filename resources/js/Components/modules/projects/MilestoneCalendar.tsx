@@ -121,6 +121,8 @@ interface MilestoneCalendarProps {
     onEdit: (milestone: Milestone) => void;
     onDelete: (milestone: Milestone) => void;
     onMarkDone: (milestone: Milestone) => void;
+    /** Sprint 26 H3e — timelines whose latest QC check was rejected ("Perlu Perbaikan"). */
+    qcRejected?: ReadonlySet<number>;
 }
 
 /**
@@ -133,7 +135,7 @@ interface MilestoneCalendarProps {
  * project (loaded once by ProjectController::show()), so there's nothing
  * to re-fetch.
  */
-export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onMarkDone }: MilestoneCalendarProps) {
+export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onMarkDone, qcRejected }: MilestoneCalendarProps) {
     const [monthDate, setMonthDate] = useState(() => defaultMonth(milestones));
     const [selectedDate, setSelectedDate] = useState<Date>(() => defaultMonth(milestones));
 
@@ -291,6 +293,7 @@ export function MilestoneCalendar({ milestones, canManage, onEdit, onDelete, onM
                                                     onEdit={onEdit}
                                                     onDelete={onDelete}
                                                     onMarkDone={onMarkDone}
+                                                    qcRejected={qcRejected}
                                                 />
                                                 ) : (
                                                     <span key={`lane-${lane}`} className="block h-4" aria-hidden />
@@ -323,6 +326,7 @@ function MilestonePhaseBar({
     onEdit,
     onDelete,
     onMarkDone,
+    qcRejected,
 }: {
     milestone: Milestone;
     isStart: boolean;
@@ -331,6 +335,7 @@ function MilestonePhaseBar({
     onEdit: (milestone: Milestone) => void;
     onDelete: (milestone: Milestone) => void;
     onMarkDone: (milestone: Milestone) => void;
+    qcRejected?: ReadonlySet<number>;
 }) {
     const [open, setOpen] = useState(false);
     const canMarkDone = canManage && ['PENDING', 'IN_PROGRESS', 'OVERDUE'].includes(milestone.status);
@@ -355,7 +360,10 @@ function MilestonePhaseBar({
             <PopoverContent className="w-64 space-y-2" align="start">
                 <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-semibold text-daiku-dark">{milestone.name}</p>
-                    <StatusChip domain="milestone" status={milestone.status} />
+                    <span className="flex shrink-0 flex-col items-end gap-1">
+                        <StatusChip domain="milestone" status={milestone.status} />
+                        {qcRejected?.has(milestone.id) && <StatusChip domain="qa" status="REJECTED" />}
+                    </span>
                 </div>
                 <p className="text-xs text-daiku-muted">
                     {milestone.start_date &&

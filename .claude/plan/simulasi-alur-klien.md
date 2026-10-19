@@ -325,7 +325,7 @@ membuatnya **Siap Dikirim**.
   mendapat notifikasi "Proyek dibuka".
 
 ### Langkah 20 · Marketing menagih DP, Finance memverifikasi
-- **Marketing:** Proyek → buka proyek → tab **Finance** → termin DP →
+- **Marketing:** Proyek → buka proyek → tab **Keuangan** → termin DP →
   **Terbitkan Invoice** → lalu **Kirim Bukti Bayar** (Keuangan → Penagihan → Invoice).
 - **Finance:** **Verifikasi Pembayaran** (seperti Langkah 12).
 - **Hasil:** termin DP **Paid**; tab **Alokasi Dana** terbuka untuk PM.
@@ -371,7 +371,7 @@ membuatnya **Siap Dikirim**.
   Jasa Pengawas** `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan
   TM** → setelah semua syarat ✓ → **TM Selesai** (header halaman → pop-up
   konfirmasi). **Hasil:** tahap **Persiapan**.
-- **Login:** qa (Pengawas) → tab **Task** → **Tambah Daily Target** (wajib
+- **Login:** qa (Pengawas) → tab **Daily Target** → **Tambah Daily Target** (wajib
   timeline, tanggal di dalam rentang timeline, isi **Upah**):
   - Judul: `Bongkar plafon lama lantai 1` · Tukang: Field Staff Daiku Interior
   - Timeline: Persiapan & Bongkar · Tanggal Target: +3 hari · Upah: 250.000
@@ -393,7 +393,7 @@ membuatnya **Siap Dikirim**.
   Tidak menyentuh satu pun target hari itu → penalti otomatis. Target yang
   belum selesai **bergulir** ke hari kerja berikutnya selama masih di dalam
   timeline; lewat timeline → **Terlambat**.
-- **Pengawas** bisa menyeret target ke hari lain di tab **Task → Per Hari**,
+- **Pengawas** bisa menyeret target ke hari lain di tab **Daily Target → Per Hari**,
   **Geser Tanggal** (menu baris task) atau **Tukar Hari** (tab Eksekusi →
   Target vs Actual), hanya di dalam rentang timeline.
 - **Jumat:** Pengawas → tab Eksekusi → **Laporan Mingguan** → PM

@@ -44,7 +44,7 @@ export function TaskDeleteDialog({ open, onOpenChange, task }: TaskDeleteDialogP
             onStart: () => setProcessing(true),
             onFinish: () => setProcessing(false),
             onSuccess: () => onOpenChange(false),
-            onError: (errors) => setError(Object.values(errors)[0] ?? 'Task gagal dihapus.'),
+            onError: (errors) => setError(Object.values(errors)[0] ?? 'Daily target gagal dihapus.'),
         });
     }
 
@@ -52,15 +52,15 @@ export function TaskDeleteDialog({ open, onOpenChange, task }: TaskDeleteDialogP
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Hapus Task</DialogTitle>
+                    <DialogTitle>Hapus Daily Target</DialogTitle>
                     <DialogDescription>
-                        Hapus task <span className="font-medium text-foreground">"{task?.title}"</span>? Tindakan ini tidak
+                        Hapus daily target <span className="font-medium text-foreground">"{task?.title}"</span>? Tindakan ini tidak
                         bisa dibatalkan.
                     </DialogDescription>
                 </DialogHeader>
                 <p className="text-sm text-daiku-muted">
-                    Hanya task yang belum punya riwayat — form harian, lembur, penalti, atau pembayaran upah — dan belum DONE
-                    yang bisa dihapus. Task lain cukup diubah.
+                    Hanya daily target yang belum punya riwayat — form harian, lembur, penalti, atau pembayaran upah — dan belum DONE
+                    yang bisa dihapus. Daily target lain cukup diubah.
                 </p>
                 {error && <Notice tone="error">{error}</Notice>}
                 <DialogFooter>

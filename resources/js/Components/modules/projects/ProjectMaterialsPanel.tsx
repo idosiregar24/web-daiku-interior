@@ -1,6 +1,7 @@
 import { MaterialRequestDialog } from '@/Components/modules/logistics/MaterialRequestDialog';
 import { PmRequestDecisionDialog } from '@/Components/modules/logistics/PmRequestDecisionDialog';
 import { type MaterialAction, ProjectMaterialActionDialog } from '@/Components/modules/projects/ProjectMaterialActionDialog';
+import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Notice } from '@/Components/shared/Notice';
 import { SearchInput } from '@/Components/shared/SearchInput';
@@ -120,6 +121,9 @@ export function ProjectMaterialsPanel({
     // Set when "Mungkin maksud Anda" sends the user back from a request to planning.
     const [pickedMaterialId, setPickedMaterialId] = useState<string | null>(null);
     const [pmDecision, setPmDecision] = useState<{ line: ProjectMaterial; decision: 'approve' | 'reject' } | null>(null);
+    // Sprint 26 H8a — the Daiku ConfirmDialog instead of the native browser prompt.
+    const [removing, setRemoving] = useState<ProjectMaterial | null>(null);
+    const [removingBusy, setRemovingBusy] = useState(false);
 
     const form = useForm<PlanValues>({
         resolver: zodResolver(planSchema),
@@ -208,9 +212,17 @@ export function ProjectMaterialsPanel({
         }
     }
 
-    function remove(line: ProjectMaterial) {
-        if (!confirm(`Hapus "${line.display_name}" dari kebutuhan proyek?`)) return;
-        router.delete(route('project-materials.destroy', { project_material: line.id }), { preserveScroll: true });
+    function remove() {
+        if (!removing) return;
+
+        router.delete(route('project-materials.destroy', { project_material: removing.id }), {
+            preserveScroll: true,
+            onStart: () => setRemovingBusy(true),
+            onFinish: () => {
+                setRemovingBusy(false);
+                setRemoving(null);
+            },
+        });
     }
 
     function actionsFor(line: ProjectMaterial) {
@@ -474,7 +486,7 @@ export function ProjectMaterialsPanel({
                                                                         </DropdownMenuItem>
                                                                     )}
                                                                     {allowed.delete && (
-                                                                        <DropdownMenuItem variant="destructive" onClick={() => remove(line)}>
+                                                                        <DropdownMenuItem variant="destructive" onClick={() => setRemoving(line)}>
                                                                             <Trash2 className="size-4" />
                                                                             Hapus
                                                                         </DropdownMenuItem>
@@ -656,6 +668,17 @@ export function ProjectMaterialsPanel({
                 vendors={vendors}
                 catalogOptions={catalogOptions}
                 categories={materialCategories}
+            />
+
+            <ConfirmDialog
+                open={removing !== null}
+                onOpenChange={(open) => !open && setRemoving(null)}
+                tone="danger"
+                title="Hapus dari kebutuhan proyek?"
+                description={`"${removing?.display_name ?? ''}" dihapus dari kebutuhan proyek ini.`}
+                confirmLabel="Ya, hapus"
+                busy={removingBusy}
+                onConfirm={remove}
             />
         </div>
     );

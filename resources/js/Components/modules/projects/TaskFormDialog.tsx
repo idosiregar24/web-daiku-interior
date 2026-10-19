@@ -44,7 +44,7 @@ const PRIORITY_OPTIONS: TaskPriority[] = ['HIGH', 'MEDIUM', 'LOW'];
 // narrowed in the option lists below — the server re-checks both.
 const schema = z.object({
     milestone_id: z.string().optional(),
-    title: z.string().trim().min(1, 'Judul task wajib diisi').max(150, 'Judul task maksimal 150 karakter'),
+    title: z.string().trim().min(1, 'Judul daily target wajib diisi').max(150, 'Judul daily target maksimal 150 karakter'),
     description: z.string().optional(),
     assignee_id: z.string().min(1, 'Tukang wajib dipilih'),
     due_date: z.date({ message: 'Tanggal jatuh tempo wajib diisi' }),
@@ -202,13 +202,13 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         {serverError && <Notice tone="error">{serverError}</Notice>}
                         {isPaid ? (
-                            <Notice tone="info">Upah task ini sudah dibayar — task terkunci dan tidak bisa diubah lagi.</Notice>
+                            <Notice tone="info">Upah daily target ini sudah dibayar — daily target terkunci dan tidak bisa diubah lagi.</Notice>
                         ) : isDone ? (
-                            <Notice tone="info">Task sudah DONE — hanya judul, deskripsi, dan rate yang masih bisa diubah.</Notice>
+                            <Notice tone="info">Daily target sudah selesai — hanya judul, deskripsi, dan rate yang masih bisa diubah.</Notice>
                         ) : (
                             editing?.status === 'OVER' && (
                                 <Notice tone="warning">
-                                    Task ini melewati deadline (OVER). Mundurkan jatuh tempo ke hari ini atau setelahnya untuk
+                                    Daily target ini melewati deadline (Terlambat). Mundurkan jatuh tempo ke hari ini atau setelahnya untuk
                                     mengembalikan statusnya ke {editing.pre_overdue_status ?? 'PENDING'}.
                                 </Notice>
                             )
@@ -218,7 +218,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                             name="title"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel required>Judul Task</FormLabel>
+                                    <FormLabel required>Judul Daily Target</FormLabel>
                                     <FormControl>
                                         <Input {...field} autoFocus disabled={isLocked('title')} placeholder="mis. Pasang kusen lantai 2" />
                                     </FormControl>

@@ -107,7 +107,7 @@ export default function QaIndex({ qaForms, filters }: QaIndexProps) {
                             qaForms.data.map((qaForm) => (
                                 <tr key={qaForm.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                     <td className="px-4 py-3 font-medium">
-                                        <ProjectLink project={qaForm.project} tab="qa" />
+                                        <ProjectLink project={qaForm.project} tab="milestone" view="qc" />
                                     </td>
                                     {/* The milestone opens its QA form — the reviewer's working page. */}
                                     <td className="px-4 py-3">

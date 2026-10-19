@@ -15,12 +15,15 @@ export function MilestoneList({
     onEdit,
     onDelete,
     onMarkDone,
+    qcRejected,
 }: {
     milestones: Milestone[];
     canManage: boolean;
     onEdit: (milestone: Milestone) => void;
     onDelete: (milestone: Milestone) => void;
     onMarkDone: (milestone: Milestone) => void;
+    /** Sprint 26 H3e — timelines whose latest QC check was rejected ("Perlu Perbaikan"). */
+    qcRejected?: ReadonlySet<number>;
 }) {
     const sorted = [...milestones].sort((a, b) => a.order - b.order);
 
@@ -41,7 +44,10 @@ export function MilestoneList({
                                     {formatDate(milestone.target_date)}
                                 </p>
                             </div>
-                            <StatusChip domain="milestone" status={milestone.status} />
+                            <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                                <StatusChip domain="milestone" status={milestone.status} />
+                                {qcRejected?.has(milestone.id) && <StatusChip domain="qa" status="REJECTED" />}
+                            </span>
                         </div>
                         {canManage && (
                             <div className="flex items-center gap-2">

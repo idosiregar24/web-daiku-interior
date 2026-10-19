@@ -84,7 +84,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
         <Dialog open={open} onOpenChange={onOpenChange}>
             <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Ubah Status Task</DialogTitle>
+                    <DialogTitle>Ubah Status</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

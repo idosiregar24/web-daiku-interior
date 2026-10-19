@@ -130,7 +130,7 @@ export default function InvoiceIndex({ mode, invoices, filters, canVerify, canSu
                 )}
                 {invoice.project && (
                     <p className="text-xs text-daiku-muted">
-                        <ProjectLink project={invoice.project} tab="documents" />
+                        <ProjectLink project={invoice.project} tab="finance" view="dokumen" />
                     </p>
                 )}
             </>

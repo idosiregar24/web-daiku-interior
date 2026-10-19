@@ -2,13 +2,13 @@ import { formatDateTime, formatRupiah } from '@/lib/format';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { EmptyState } from '@/Components/shared/EmptyState';
-import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { Notice } from '@/Components/shared/Notice';
 import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { UnderlineTabsList } from '@/Components/shared/UnderlineTabsList';
 import { MoreActions } from '@/Components/shared/MoreActions';
+import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { Button } from '@/Components/ui/button';
 import { DropdownMenuItem } from '@/Components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
@@ -22,6 +22,10 @@ import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLog
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
 import { ActivityTargetPanel } from '@/Components/modules/projects/ActivityTargetPanel';
 import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDialog';
+import { ProjectPhaseStepper } from '@/Components/modules/projects/ProjectPhaseStepper';
+import { DepartureButton } from '@/Components/modules/projects/DepartureButton';
+import { ProjectOverviewTab } from '@/Components/modules/projects/ProjectOverviewTab';
+import { terminTrigger } from '@/Components/modules/projects/projectWaiting';
 import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
@@ -38,9 +42,8 @@ import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
 import { ProjectExecutionTab } from '@/Components/modules/projects/ProjectExecutionTab';
 import { CompleteMeetingButton } from '@/Components/modules/projects/TechnicalMeetingCard';
 import { BELOW_MD, useMediaQuery } from '@/hooks/useMediaQuery';
-import { useQueryTab } from '@/hooks/useQueryTab';
+import { resolveView, type TabAliases, useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
-import { cn } from '@/lib/utils';
 import type {
     ActivityTarget,
     FinanceAllocationLine,
@@ -69,13 +72,11 @@ import type {
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
-    ChevronRight,
-    Clock,
+    ChevronDown,
+    CircleCheck,
     FileDown,
-    Hourglass,
     Flag,
     FolderKanban,
-    Info,
     LayoutDashboard,
     ListChecks,
     NotebookPen,
@@ -85,14 +86,12 @@ import {
     Plus,
     Receipt,
     FileText,
-    ShieldCheck,
     Wallet,
-    Layers,
     FilePlus2,
     Route,
     GalleryHorizontalEnd,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 
 interface ProjectShowProps {
     project: Project;
@@ -171,125 +170,71 @@ function formatDate(value: string | null) {
     return value ? new Date(value).toLocaleDateString('id-ID') : '—';
 }
 
-/** One line of the Overview's "Menunggu di proyek ini" — opens the tab where it's handled. */
-interface WaitingRow {
+/** Sprint 26 H3b — one small sub-tab of a page tab (`?view=`). */
+interface ViewOption {
     key: string;
     label: string;
-    detail: string;
-    tab: string;
-    tone: 'warning' | 'error' | 'info';
 }
 
-const WAITING_TONE: Record<WaitingRow['tone'], string> = {
-    warning: 'bg-warning/10 text-warning-ink',
-    error: 'bg-error/10 text-error-ink',
-    info: 'bg-info/10 text-info-ink',
-};
-
-function OverviewTab({
-    project,
-    progressLogs,
-    waiting,
-    onOpenTab,
-}: {
-    project: Project;
-    progressLogs: ProgressLog[];
-    waiting: WaitingRow[];
-    onOpenTab: (tab: string) => void;
-}) {
-    // Sprint 23 K15 — the people and dates set at Buka Proyek (editable in Ubah Proyek).
-    const fields: { label: string; value: string }[] = [
-        { label: 'Klien', value: project.lead?.client_name ?? '—' },
-        { label: 'Project Manager', value: project.pm?.name ?? '—' },
-        { label: 'Asisten PM', value: project.assistant_pm?.name ?? '—' },
-        {
-            label: 'Kepala Tim',
-            value: project.team_lead?.name ?? (project.team_lead_name ? `${project.team_lead_name} (luar perusahaan)` : '—'),
-        },
-        { label: 'Pengawas (QA/QC)', value: project.supervisor?.name ?? '—' },
-        { label: 'Tanggal Buka Proyek', value: formatDate(project.opened_on ?? null) },
-        { label: 'Tanggal Mulai', value: formatDate(project.start_date) },
-        { label: 'Tanggal Selesai', value: formatDate(project.end_date) },
-        { label: 'Nilai Kontrak', value: formatRupiah(project.contract_value) },
-    ];
-
-    // Sprint 24 D11 — the progress is the actual activity (DONE ÷ all
-    // targets); the newest Catatan Progress (newest-first) stays as the note.
-    const latestPercentage = project.actual_progress ?? 0;
-
+/** The sub-tab bar (only when there is more than one) around the current view's content. */
+function ViewTabs({ views, view, onView, children }: { views: ViewOption[]; view: string; onView: (view: string) => void; children: ReactNode }) {
     return (
-        <div className="grid gap-6 lg:grid-cols-3">
-            <SectionCard title="Informasi Proyek" icon={Info} className="lg:col-span-2">
-                <DetailList>
-                    {fields.map((field) => (
-                        <DetailItem key={field.label} label={field.label} valueClassName="font-medium">
-                            {field.value}
-                        </DetailItem>
+        <Tabs value={view} onValueChange={onView}>
+            {views.length > 1 && (
+                <TabsList className="max-w-full justify-start overflow-x-auto">
+                    {views.map((option) => (
+                        <TabsTrigger key={option.key} value={option.key}>
+                            {option.label}
+                        </TabsTrigger>
                     ))}
-                </DetailList>
-            </SectionCard>
-
-            <SectionCard
-                title="Menunggu di Proyek Ini"
-                description="Hal yang belum selesai diproses — klik untuk membuka tabnya."
-                icon={Hourglass}
-                flush
-                className="lg:col-span-2"
-            >
-                {waiting.length === 0 ? (
-                    <EmptyState title="Tidak ada yang menunggu." />
-                ) : (
-                    <ul className="divide-y divide-border">
-                        {waiting.map((row) => (
-                            <li key={row.key}>
-                                <button
-                                    type="button"
-                                    onClick={() => onOpenTab(row.tab)}
-                                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-daiku-yellow-light/60 sm:px-5"
-                                >
-                                    <span className={cn('rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums', WAITING_TONE[row.tone])}>
-                                        {row.label}
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">{row.detail}</span>
-                                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" />
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </SectionCard>
-
-            {/* Beside the project info; "Menunggu" goes under it. */}
-            <SectionCard title="Progress (Actual Activity)" icon={Activity} className="self-start lg:col-start-3 lg:row-start-1">
-
-                <p className="text-4xl leading-none font-semibold tracking-tight text-foreground">{latestPercentage}%</p>
-                <ProgressBar value={latestPercentage} label="Progress keseluruhan proyek" className="mt-4" />
-                {progressLogs[0] && (
-                    <p className="mt-3 text-xs text-daiku-muted">
-                        Update terakhir: {progressLogs[0].description} ({formatDate(progressLogs[0].log_date)})
-                    </p>
-                )}
-            </SectionCard>
-        </div>
+                </TabsList>
+            )}
+            <TabsContent value={view} className={views.length > 1 ? 'mt-4' : undefined}>
+                {children}
+            </TabsContent>
+        </Tabs>
     );
 }
 
+/** Sprint 26 H3e — tab "Timeline & QC": Gantt · Kalender · Pemeriksaan QC. */
 function MilestoneTab({
     project,
     milestones,
     canView,
     canManage,
+    qaForms,
+    canOpenQaForm,
+    views,
+    view,
+    onView,
 }: {
     project: Project;
     milestones: Milestone[];
     canView: boolean;
     canManage: boolean;
+    qaForms: QaForm[];
+    canOpenQaForm: boolean;
+    views: ViewOption[];
+    view: string;
+    onView: (view: string) => void;
 }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<Milestone | null>(null);
+    const [confirming, setConfirming] = useState<{ kind: 'delete' | 'done'; milestone: Milestone } | null>(null);
+    const [confirmBusy, setConfirmBusy] = useState(false);
     // Sprint 13 P2 — Gantt/calendar need width; a phone gets the plain list.
     const compact = useMediaQuery(BELOW_MD);
     const suggestedStart = useMemo(() => suggestTimelineStart(milestones, project.start_date), [milestones, project.start_date]);
+    // The latest QC check per timeline — a rejected one shows "Perlu Perbaikan" beside the timeline.
+    const qcRejected = useMemo(() => {
+        const latest = new Map<number, QaForm>();
+        for (const form of qaForms) {
+            const seen = latest.get(form.milestone_id);
+            if (!seen || form.created_at > seen.created_at) latest.set(form.milestone_id, form);
+        }
+
+        return new Set([...latest.values()].filter((form) => form.status === 'REJECTED').map((form) => form.milestone_id));
+    }, [qaForms]);
 
     if (!canView) {
         return (
@@ -307,57 +252,60 @@ function MilestoneTab({
         setDialogOpen(true);
     }
 
-    function onDelete(milestone: Milestone) {
-        if (!confirm(`Hapus timeline "${milestone.name}"?`)) return;
-        router.delete(route('milestones.destroy', { milestone: milestone.id }));
+    // Sprint 26 H8a — the Daiku ConfirmDialog instead of the native browser prompt.
+    function runConfirmed() {
+        if (!confirming) return;
+
+        const options = {
+            preserveScroll: true,
+            onStart: () => setConfirmBusy(true),
+            onFinish: () => {
+                setConfirmBusy(false);
+                setConfirming(null);
+            },
+        };
+
+        if (confirming.kind === 'delete') {
+            router.delete(route('milestones.destroy', { milestone: confirming.milestone.id }), options);
+        } else {
+            router.post(route('milestones.markDone', { milestone: confirming.milestone.id }), {}, options);
+        }
     }
 
-    function onMarkDone(milestone: Milestone) {
-        if (!confirm(`Tandai timeline "${milestone.name}" selesai? Pengawas (QA/QC) proyek akan diminta memeriksanya.`)) return;
-        router.post(route('milestones.markDone', { milestone: milestone.id }));
-    }
+    const onDelete = (milestone: Milestone) => setConfirming({ kind: 'delete', milestone });
+    const onMarkDone = (milestone: Milestone) => setConfirming({ kind: 'done', milestone });
+
+    const timelineProps = { milestones, canManage, onEdit: openEdit, onDelete, onMarkDone, qcRejected };
 
     return (
         <div>
-            {canManage && (
-                <div className="mb-4 flex justify-end">
-                    <Button size="sm" onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Tambah Timeline
-                    </Button>
-                </div>
-            )}
+            <ViewTabs views={views} view={view} onView={onView}>
+                {view === 'qc' ? (
+                    <ProjectQaTab qaForms={qaForms} canOpenForm={canOpenQaForm} />
+                ) : (
+                    <>
+                        {canManage && (
+                            <div className="mb-4 flex justify-end">
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" />
+                                    Tambah Timeline
+                                </Button>
+                            </div>
+                        )}
 
-            {milestones.length === 0 ? (
-                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada timeline." />
-            ) : compact ? (
-                <MilestoneList milestones={milestones} canManage={canManage} onEdit={openEdit} onDelete={onDelete} onMarkDone={onMarkDone} />
-            ) : (
-                <Tabs defaultValue="gantt">
-                    <TabsList>
-                        <TabsTrigger value="gantt">Gantt</TabsTrigger>
-                        <TabsTrigger value="calendar">Kalender</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="gantt" className="mt-4">
-                        <MilestoneGanttCalendar
-                            milestones={milestones}
-                            canManage={canManage}
-                            onEdit={openEdit}
-                            onDelete={onDelete}
-                            onMarkDone={onMarkDone}
-                        />
-                    </TabsContent>
-                    <TabsContent value="calendar" className="mt-4">
-                        <MilestoneCalendar
-                            milestones={milestones}
-                            canManage={canManage}
-                            onEdit={openEdit}
-                            onDelete={onDelete}
-                            onMarkDone={onMarkDone}
-                        />
-                    </TabsContent>
-                </Tabs>
-            )}
+                        {milestones.length === 0 ? (
+                            <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada timeline." />
+                        ) : compact ? (
+                            // Sprint 13 P2 — Gantt/calendar need width; a phone gets the plain list.
+                            <MilestoneList {...timelineProps} />
+                        ) : view === 'kalender' ? (
+                            <MilestoneCalendar {...timelineProps} />
+                        ) : (
+                            <MilestoneGanttCalendar {...timelineProps} />
+                        )}
+                    </>
+                )}
+            </ViewTabs>
 
             {canManage && (
                 <MilestoneFormDialog
@@ -368,6 +316,26 @@ function MilestoneTab({
                     suggestedStart={suggestedStart}
                 />
             )}
+
+            <ConfirmDialog
+                open={confirming !== null}
+                onOpenChange={(open) => !open && setConfirming(null)}
+                busy={confirmBusy}
+                onConfirm={runConfirmed}
+                {...(confirming?.kind === 'delete'
+                    ? {
+                          tone: 'danger' as const,
+                          title: 'Hapus timeline?',
+                          description: `"${confirming.milestone.name}" dihapus dari proyek ini.`,
+                          confirmLabel: 'Ya, hapus',
+                      }
+                    : {
+                          icon: CircleCheck,
+                          title: 'Tandai timeline selesai?',
+                          description: `"${confirming?.milestone.name ?? ''}" — Pengawas (QA/QC) proyek akan diminta memeriksanya.`,
+                          confirmLabel: 'Ya, tandai selesai',
+                      })}
+            />
         </div>
     );
 }
@@ -395,19 +363,44 @@ function TaskAssigneeTable({
 }) {
     const doneCount = tasks.filter((t) => t.status === 'DONE').length;
 
+    // Sprint 26 H8b — the status chip itself opens "Ubah Status" (was a separate button).
+    function statusOf(task: Task) {
+        const chip = <StatusChip domain="task" status={task.status} />;
+
+        return (
+            <div className="flex flex-wrap gap-1">
+                {canManage ? (
+                    <button
+                        type="button"
+                        onClick={() => onStatusClick(task)}
+                        aria-label={`Ubah status ${task.title}`}
+                        title="Ubah status"
+                        className="inline-flex items-center gap-0.5 rounded-md transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    >
+                        {chip}
+                        <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
+                    </button>
+                ) : (
+                    chip
+                )}
+                {task.status === 'DONE' && task.is_wage_paid && <StatusChip status="PAID" label="Upah dibayar" />}
+            </div>
+        );
+    }
+
     return (
         <TableCard>
             <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
-                <p className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
-                    <span className="flex size-7 items-center justify-center rounded-full bg-daiku-yellow-light text-xs font-semibold text-daiku-yellow-dark">
+                <p className="flex min-w-0 items-center gap-2.5 text-sm font-semibold text-foreground">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-daiku-yellow-light text-xs font-semibold text-daiku-yellow-dark">
                         {assigneeName.slice(0, 1).toUpperCase()}
                     </span>
-                    {assigneeName}
+                    <span className="truncate">{assigneeName}</span>
                 </p>
-                <div className="flex w-40 items-center gap-2">
+                <div className="flex w-32 shrink-0 items-center gap-2 sm:w-40">
                     <ProgressBar
                         value={tasks.length ? Math.round((doneCount / tasks.length) * 100) : 0}
-                        label={`Task selesai ${assigneeName}`}
+                        label={`Daily target selesai ${assigneeName}`}
                         tone="success"
                         className="flex-1"
                     />
@@ -416,7 +409,24 @@ function TaskAssigneeTable({
                     </p>
                 </div>
             </div>
-            <table className="w-full text-sm">
+            {/* Sprint 26 H8c — one card per daily target below md, the table above. */}
+            <ul className="divide-y divide-border md:hidden">
+                {tasks.map((task) => (
+                    <li key={task.id} className="flex items-start gap-3 px-4 py-3 text-sm">
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                            <p className="font-medium text-foreground">{task.title}</p>
+                            <p className="text-xs text-daiku-muted">
+                                {task.milestone?.name ?? '—'} · {task.priority} · jatuh tempo {formatDate(task.due_date)}
+                            </p>
+                            {statusOf(task)}
+                        </div>
+                        {canEdit && (
+                            <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} onReschedule={onRescheduleClick} />
+                        )}
+                    </li>
+                ))}
+            </ul>
+            <table className="hidden w-full text-sm md:table">
                 <thead className={TABLE_HEAD_CLASS}>
                     <tr>
                         <th className="px-4 py-2.5 text-left font-semibold">Judul</th>
@@ -424,7 +434,7 @@ function TaskAssigneeTable({
                         <th className="px-4 py-2.5 text-left font-semibold">Status</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Prioritas</th>
                         <th className="px-4 py-2.5 text-left font-semibold">Jatuh Tempo</th>
-                        <th className="w-44 px-4 py-2.5" />
+                        <th className="w-12 px-4 py-2.5" />
                     </tr>
                 </thead>
                 <tbody>
@@ -432,25 +442,13 @@ function TaskAssigneeTable({
                         <tr key={task.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                             <td className="px-4 py-3 font-medium">{task.title}</td>
                             <td className="px-4 py-3 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
-                            <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-1">
-                                    <StatusChip domain="task" status={task.status} />
-                                    {task.status === 'DONE' && task.is_wage_paid && (
-                                        <StatusChip status="PAID" label="Upah dibayar" />
-                                    )}
-                                </div>
-                            </td>
+                            <td className="px-4 py-3">{statusOf(task)}</td>
                             <td className="px-4 py-3 text-daiku-muted">{task.priority}</td>
                             <td className="px-4 py-3 text-daiku-muted">{formatDate(task.due_date)}</td>
                             <td className="px-4 py-3">
-                                {canManage && (
-                                    <div className="flex items-center justify-end gap-1">
-                                        <Button variant="outline" size="sm" onClick={() => onStatusClick(task)}>
-                                            Ubah Status Task
-                                        </Button>
-                                        {canEdit && (
-                                            <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} onReschedule={onRescheduleClick} />
-                                        )}
+                                {canEdit && (
+                                    <div className="flex justify-end">
+                                        <TaskRowMenu task={task} onEdit={onEditClick} onDelete={onDeleteClick} onReschedule={onRescheduleClick} />
                                     </div>
                                 )}
                             </td>
@@ -463,10 +461,13 @@ function TaskAssigneeTable({
 }
 
 /**
- * "update agar terpisah pisah tabelnya per orangan" — tasks grouped into
- * one table per assignee instead of a single flat table, so a PM
- * reviewing a specific tukang's workload doesn't have to scan/filter a
- * mixed list. Unassigned tasks (assignee_id null) get their own bucket.
+ * Sprint 26 H3f — tab "Daily Target": the targets (Per Hari · Per Tukang ·
+ * Board), the project-wide Activity Target, and the overtime requests.
+ *
+ * "update agar terpisah pisah tabelnya per orangan" — Per Tukang is one
+ * table per assignee instead of a single flat table, so a PM reviewing a
+ * specific tukang's workload doesn't have to scan/filter a mixed list.
+ * Unassigned tasks (assignee_id null) get their own bucket.
  */
 function TaskTab({
     project,
@@ -475,6 +476,15 @@ function TaskTab({
     canManage,
     isClosed,
     fieldStaff,
+    views,
+    view,
+    onView,
+    activityTarget,
+    progressLogs,
+    canViewProgressLogs,
+    canManageProgressLogs,
+    overtimeRequests,
+    canOpenOvertimeList,
 }: {
     project: Project;
     milestones: Milestone[];
@@ -483,6 +493,15 @@ function TaskTab({
     /** COMPLETED/CANCELLED — the task plan is final (TaskService refuses create/edit/delete). */
     isClosed: boolean;
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+    views: ViewOption[];
+    view: string;
+    onView: (view: string) => void;
+    activityTarget: ActivityTarget | null;
+    progressLogs: ProgressLog[];
+    canViewProgressLogs: boolean;
+    canManageProgressLogs: boolean;
+    overtimeRequests: OvertimeRequest[];
+    canOpenOvertimeList: boolean;
 }) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -529,56 +548,61 @@ function TaskTab({
         return [...byAssignee.values()].sort((a, b) => a.name.localeCompare(b.name));
     }, [tasks]);
 
+    const isTargetView = view === 'hari' || view === 'tukang' || view === 'board';
+
     return (
         <div>
-            {canEdit && (
-                <div className="mb-4 flex justify-end">
-                    <Button size="sm" onClick={openCreate}>
-                        <Plus className="size-4" />
-                        Tambah Daily Target
-                    </Button>
-                </div>
-            )}
+            <ViewTabs views={views} view={view} onView={onView}>
+                {view === 'activity-target' ? (
+                    <ActivityTargetTab
+                        project={project}
+                        activityTarget={activityTarget}
+                        progressLogs={progressLogs}
+                        canView={canViewProgressLogs}
+                        canManage={canManageProgressLogs}
+                    />
+                ) : view === 'lembur' ? (
+                    <ProjectOvertimeTab requests={overtimeRequests} canOpenList={canOpenOvertimeList} />
+                ) : (
+                    <>
+                        {canEdit && (
+                            <div className="mb-4 flex justify-end">
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" />
+                                    Tambah Daily Target
+                                </Button>
+                            </div>
+                        )}
 
-            {groups.length === 0 ? (
-                <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada task." />
-            ) : (
-                <Tabs defaultValue="assignee">
-                    <TabsList>
-                        <TabsTrigger value="assignee">Per Tukang</TabsTrigger>
-                        <TabsTrigger value="day">Per Hari</TabsTrigger>
-                        <TabsTrigger value="board">Board</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="assignee" className="mt-4 space-y-4">
-                        {groups.map((group) => (
-                            <TaskAssigneeTable
-                                key={group.name}
-                                assigneeName={group.name}
-                                tasks={group.tasks}
-                                canManage={canManage}
-                                canEdit={canEdit}
-                                onRescheduleClick={setReschedulingTask}
-                                onStatusClick={openStatus}
-                                onEditClick={openEdit}
-                                onDeleteClick={openDelete}
-                            />
-                        ))}
-                    </TabsContent>
-                    {/* Sprint 24 D9 — drag a daily target to another day (inside its timeline). */}
-                    <TabsContent value="day" className="mt-4">
-                        <TaskWeekBoard tasks={tasks} milestones={milestones} canMove={canEdit} />
-                    </TabsContent>
-                    <TabsContent value="board" className="mt-4">
-                        <TaskKanbanBoard
-                            tasks={tasks}
-                            milestones={milestones}
-                            onCardClick={canManage ? openStatus : undefined}
-                        />
-                    </TabsContent>
-                </Tabs>
-            )}
+                        {groups.length === 0 ? (
+                            <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada daily target — dibuat Pengawas setelah TM." />
+                        ) : view === 'tukang' ? (
+                            <div className="space-y-4">
+                                {groups.map((group) => (
+                                    <TaskAssigneeTable
+                                        key={group.name}
+                                        assigneeName={group.name}
+                                        tasks={group.tasks}
+                                        canManage={canManage}
+                                        canEdit={canEdit}
+                                        onRescheduleClick={setReschedulingTask}
+                                        onStatusClick={openStatus}
+                                        onEditClick={openEdit}
+                                        onDeleteClick={openDelete}
+                                    />
+                                ))}
+                            </div>
+                        ) : view === 'board' ? (
+                            <TaskKanbanBoard tasks={tasks} milestones={milestones} onCardClick={canManage ? openStatus : undefined} />
+                        ) : (
+                            // Sprint 24 D9 — drag a daily target to another day (inside its timeline).
+                            <TaskWeekBoard tasks={tasks} milestones={milestones} canMove={canEdit} />
+                        )}
+                    </>
+                )}
+            </ViewTabs>
 
-            {canEdit && (
+            {canEdit && isTargetView && (
                 <>
                     <TaskFormDialog
                         open={formOpen}
@@ -592,7 +616,7 @@ function TaskTab({
                     <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} />
                 </>
             )}
-            <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
+            {isTargetView && <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />}
         </div>
     );
 }
@@ -650,47 +674,27 @@ function ActivityTargetTab({
     );
 }
 
-/** Sprint 12 #12 — when a scheme termin falls due (App\Enums\PaymentTermTrigger). */
-function terminTrigger(termin: Termin): string {
-    switch (termin.trigger) {
-        case 'DI_MUKA':
-            return 'Di muka';
-        case 'TANGGAL':
-            return `Tanggal ${formatDate(termin.scheduled_date)}`;
-        case 'MILESTONE':
-            return `Timeline: ${termin.milestone_name ?? termin.milestone?.name ?? '—'}`;
-        case 'PROYEK_SELESAI':
-            return 'Proyek selesai';
-        default:
-            // Pre-Sprint-12 manual termin — always a Saturday (PRD §6.4).
-            return `${termin.milestone?.name ? `${termin.milestone.name} · ` : ''}Sabtu ${formatDate(termin.scheduled_date)}`;
-    }
-}
-
+/** Sprint 26 H3g — Keuangan › Termin & Invoice (allocation and supplier debts are their own views). */
 function FinanceTab({
     project,
     termins,
     canView,
-    canViewSummary,
     canIssueInvoices,
     canMarkPaid,
     canSubmitProof,
-    allocationBreakdown,
-    supplierDebts,
 }: {
     project: Project;
     termins: Termin[];
     canView: boolean;
-    /** Allocation / supplier debts — never Marketing (Sprint 12 #30). */
-    canViewSummary: boolean;
     /** Marketing — "Terbitkan Invoice" per termin (Sprint 12 #20). */
     canIssueInvoices: boolean;
     canMarkPaid: boolean;
     canSubmitProof: boolean;
-    allocationBreakdown: FinanceAllocationLine[];
-    supplierDebts: SupplierDebt[];
 }) {
     const [invoicing, setInvoicing] = useState<Termin | null>(null);
+    // Sprint 26 H8a — the Daiku ConfirmDialog instead of the native browser prompt.
+    const [markingPaid, setMarkingPaid] = useState<Termin | null>(null);
+    const [markPaidBusy, setMarkPaidBusy] = useState(false);
 
     if (!canView) {
         return (
@@ -698,20 +702,25 @@ function FinanceTab({
         );
     }
 
-    function onMarkPaid(termin: Termin) {
-        if (!confirm(`Tandai termin #${termin.termin_number} sudah dibayar?`)) return;
-        router.post(route('finance.termins.markPaid', { termin: termin.id }));
+    function markPaid() {
+        if (!markingPaid) return;
+
+        router.post(
+            route('finance.termins.markPaid', { termin: markingPaid.id }),
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setMarkPaidBusy(true),
+                onFinish: () => {
+                    setMarkPaidBusy(false);
+                    setMarkingPaid(null);
+                },
+            },
+        );
     }
 
     return (
         <div className="space-y-6">
-            {canViewSummary && (
-                <div className="grid gap-6 lg:grid-cols-2">
-                    <AllocationCard project={project} lines={allocationBreakdown} />
-                    <SupplierDebtCard debts={supplierDebts} />
-                </div>
-            )}
-
             <div>
                 <div className="mb-3 flex items-center justify-between gap-4">
                     <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -791,7 +800,7 @@ function FinanceTab({
                                                     </Button>
                                                 )}
                                                 {canMarkPaid && !termin.invoice_id && termin.status !== 'PAID' && termin.bank_account_id !== null && (
-                                                    <Button variant="outline" size="sm" onClick={() => onMarkPaid(termin)}>
+                                                    <Button variant="outline" size="sm" onClick={() => setMarkingPaid(termin)}>
                                                         Konfirmasi Pembayaran
                                                     </Button>
                                                 )}
@@ -814,6 +823,17 @@ function FinanceTab({
                     amount={invoicing.sisa_piutang}
                 />
             )}
+
+            <ConfirmDialog
+                open={markingPaid !== null}
+                onOpenChange={(open) => !open && setMarkingPaid(null)}
+                icon={Wallet}
+                title={`Tandai termin #${markingPaid?.termin_number ?? ''} sudah dibayar?`}
+                description={markingPaid ? `${formatRupiah(markingPaid.sisa_piutang ?? markingPaid.amount)} dicatat sebagai pemasukan proyek ini.` : ''}
+                confirmLabel="Ya, sudah dibayar"
+                busy={markPaidBusy}
+                onConfirm={markPaid}
+            />
         </div>
     );
 }
@@ -933,9 +953,9 @@ function AllocationCard({ project, lines }: { project: Project; lines: FinanceAl
 
     return (
         <SectionCard
-            title="Alokasi Anggaran"
+            title="Pos Anggaran Standar"
             icon={PieChart}
-            description={`Dari nilai kontrak ${formatRupiah(project.contract_value)}.`}
+            description={`Persentase baku dari nilai kontrak ${formatRupiah(project.contract_value)} — acuan untuk Alokasi Dana.`}
         >
             {lines.length === 0 ? (
                 <p className="text-sm text-daiku-muted">Belum ada konfigurasi alokasi aktif.</p>
@@ -994,20 +1014,35 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
     );
 }
 
-/** Top-level tab → breadcrumb label. */
+/** Top-level tab → breadcrumb label (Timeline gets "& QC" only for viewers of the QC view). */
 const PROJECT_TAB_LABEL: Record<string, string> = {
-    budget: 'Alokasi Dana',
-    documents: 'Dokumen',
-    overview: 'Overview',
+    overview: 'Ringkasan',
     execution: 'Eksekusi',
     milestone: 'Timeline',
-    qa: 'QA/QC',
-    task: 'Task',
-    overtime: 'Lembur',
-    progress: 'Activity Target',
-    finance: 'Finance',
+    task: 'Daily Target',
     material: 'Material',
+    finance: 'Keuangan',
 };
+
+/**
+ * Sprint 26 H3c — the 11 tabs before Sprint 26 are 6 now; their old keys
+ * (Perlu Tindakan, notifications, cross-project lists, bookmarks) still
+ * open the same content: `?tab=qa` → Timeline & QC › Pemeriksaan QC.
+ */
+const PROJECT_TAB_ALIASES: TabAliases = {
+    qa: ['milestone', 'qc'],
+    progress: ['task', 'activity-target'],
+    overtime: ['task', 'lembur'],
+    budget: ['finance', 'alokasi'],
+    documents: ['finance', 'dokumen'],
+};
+
+/** Where a link inside the page points: a tab, optionally a view in it and a card id. */
+interface TabTarget {
+    tab: string;
+    view?: string;
+    anchor?: string;
+}
 
 const SUPPLIER_DEBT_LABEL: Record<NonNullable<SupplierDebt['status']>, string> = {
     BERJALAN: 'Berjalan',
@@ -1019,9 +1054,15 @@ const SUPPLIER_DEBT_LABEL: Record<NonNullable<SupplierDebt['status']>, string> =
  * Sprint 23 K4b — the one line under the title: what happens next on this
  * project and whose turn it is. Nothing once it's closed.
  */
-function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[]): string | undefined {
+interface ProjectStep {
+    text: string;
+    /** Sprint 26 H1e — where this step is done; a tab this viewer doesn't get is dropped. */
+    target?: TabTarget;
+}
+
+function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[]): ProjectStep | undefined {
     if (project.status === 'ON_HOLD') {
-        return 'Proyek ditahan — PM mengaktifkannya kembali lewat Ubah Proyek.';
+        return { text: 'Proyek ditahan — PM mengaktifkannya kembali lewat Ubah Proyek.' };
     }
 
     if (project.status !== 'ACTIVE') {
@@ -1029,27 +1070,27 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
     }
 
     if (!project.team_lead_id && !project.team_lead_name) {
-        return 'Lengkapi Kepala Tim proyek ini lewat Ubah Proyek · PM.';
+        return { text: 'Lengkapi Kepala Tim proyek ini lewat Ubah Proyek · PM.' };
     }
 
     // Sprint 24 D1 — before production the phase says what comes next.
     switch (project.phase) {
         case 'GAMBAR_KERJA':
-            return 'Gambar kerja sedang disiapkan tim desain · Kepala Desain / Arsitek.';
+            return { text: 'Gambar kerja sedang disiapkan tim desain · Kepala Desain / Arsitek.', target: { tab: 'execution', anchor: 'gambar-kerja' } };
         case 'TM':
-            return 'Jadwalkan Technical Meeting, susun Timeline & jasa pengawas, lalu TM Selesai · PM.';
+            return { text: 'Jadwalkan Technical Meeting, susun Timeline & jasa pengawas, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
         case 'PERSIAPAN':
-            return 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.';
+            return { text: 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'dp' } };
     }
 
     if (milestones.length === 0) {
-        return 'Susun Timeline proyek (tanggal mulai & selesai tiap tahap) · PM.';
+        return { text: 'Susun Timeline proyek (tanggal mulai & selesai tiap tahap) · PM.', target: { tab: 'milestone' } };
     }
 
     const rejected = qaForms.filter((form) => form.status === 'REJECTED').length;
 
     if (rejected > 0) {
-        return `${rejected} timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi · PM.`;
+        return { text: `${rejected} timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi · PM.`, target: { tab: 'milestone', view: 'qc' } };
     }
 
     const waitingQa = milestones.filter((milestone) => milestone.status === 'QA_WAITING').length;
@@ -1058,10 +1099,22 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         .find((milestone) => milestone.status !== 'COMPLETED' && milestone.status !== 'QA_WAITING');
 
     if (next) {
-        return `Timeline berjalan: ${next.name} — selesai ${formatDate(next.target_date)}${next.status === 'OVERDUE' ? ' (terlambat)' : ''}.`;
+        return {
+            text: `Timeline berjalan: ${next.name} — selesai ${formatDate(next.target_date)}${next.status === 'OVERDUE' ? ' (terlambat)' : ''}.`,
+            target: { tab: 'milestone' },
+        };
     }
 
-    return waitingQa > 0 ? `${waitingQa} timeline menunggu pemeriksaan · Pengawas (QA/QC).` : undefined;
+    return waitingQa > 0 ? { text: `${waitingQa} timeline menunggu pemeriksaan · Pengawas (QA/QC).`, target: { tab: 'milestone', view: 'qc' } } : undefined;
+}
+
+/** Scrolls to a card once the tab that holds it has rendered. */
+function scrollToAnchor(anchor?: string) {
+    if (!anchor) return;
+
+    requestAnimationFrame(() =>
+        requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })),
+    );
 }
 
 /** Why a non-ACTIVE project looks the way it does — status + (from the audit trail) who/why. */
@@ -1144,87 +1197,79 @@ export default function ProjectShow({
     units,
     materialCategories,
 }: ProjectShowProps) {
+    // Sprint 26 H3 — six tabs; Timeline, Daily Target and Keuangan hold
+    // small views (`?view=`). A view is listed only when its data reached
+    // this viewer (the controller filters the props — nothing new is sent).
+    const compact = useMediaQuery(BELOW_MD);
+    const tabViews: Record<string, ViewOption[]> = {
+        milestone: [
+            { key: 'timeline', label: compact ? 'Timeline' : 'Gantt' },
+            ...(compact ? [] : [{ key: 'kalender', label: 'Kalender' }]),
+            ...(canViewQa ? [{ key: 'qc', label: 'Pemeriksaan QC' }] : []),
+        ],
+        task: [
+            ...(canViewTasks
+                ? [
+                      { key: 'hari', label: 'Per Hari' },
+                      { key: 'tukang', label: 'Per Tukang' },
+                      { key: 'board', label: 'Board' },
+                  ]
+                : []),
+            ...(canViewProgressLogs ? [{ key: 'activity-target', label: 'Activity Target' }] : []),
+            ...(canViewOvertime ? [{ key: 'lembur', label: 'Lembur' }] : []),
+        ],
+        finance: [
+            ...(canViewTermins ? [{ key: 'termin', label: 'Termin & Invoice' }] : []),
+            ...(budget || canViewFinanceSummary ? [{ key: 'alokasi', label: 'Anggaran' }] : []),
+            ...(canViewFinanceSummary ? [{ key: 'hutang', label: 'Hutang Supplier' }] : []),
+            ...(documents ? [{ key: 'dokumen', label: 'Dokumen' }] : []),
+        ],
+    };
     // Sprint 13 #3 — the tab lives in `?tab=` (links from Perlu Tindakan
     // and the cross-project lists); a tab this role doesn't get falls back
     // to the overview.
-    const [tab, setTab] = useQueryTab(
-        {
-            execution: Boolean(execution),
-            milestone: true,
-            qa: canViewQa,
-            task: canViewTasks,
-            overtime: canViewOvertime,
-            progress: true,
-            finance: true,
-            budget: Boolean(budget),
-            documents: Boolean(documents),
-            material: canViewMaterials,
-        },
-        'overview',
-    );
-    const waiting = useMemo(() => {
-        const rows: WaitingRow[] = [];
-        const qaPending = qaForms.filter((form) => form.status === 'PENDING').length;
-        const qaRejected = qaForms.filter((form) => form.status === 'REJECTED').length;
-        const overtimeWaiting = overtimeRequests.filter((request) => request.status === 'PENDING' || request.status === 'PENDING_FINANCE').length;
-        const requestsWaiting = projectMaterials.filter((line) => line.request_status === 'MENUNGGU_PM' || line.request_status === 'DIAJUKAN').length;
-        const nextTermin = termins.find((termin) => termin.status !== 'PAID');
-        // Sprint 24 — the execution flow's open decisions.
-        const paymentsWaiting = execution?.payments.filter((payment) => payment.status === 'DIAJUKAN').length ?? 0;
-        const reportsWaiting = execution?.weeklyReports.filter((report) => report.status === 'DIAJUKAN').length ?? 0;
-        const findingsOpen = execution?.findings.filter((finding) => finding.status === 'TERBUKA').length ?? 0;
+    const availableTabs: Record<string, boolean> = {
+        overview: true,
+        execution: Boolean(execution),
+        milestone: true,
+        task: tabViews.task.length > 0,
+        material: canViewMaterials,
+        finance: tabViews.finance.length > 0,
+    };
+    const [tab, setTab, requestedView, setView] = useQueryTab(availableTabs, 'overview', PROJECT_TAB_ALIASES);
+    const views = tabViews[tab] ?? [];
+    const view = resolveView(requestedView, views.map((option) => option.key));
+    const viewLabel = views.length > 1 && view !== views[0].key ? views.find((option) => option.key === view)?.label : undefined;
+    const tabLabel = tab === 'milestone' && canViewQa ? 'Timeline & QC' : PROJECT_TAB_LABEL[tab];
 
-        if (paymentsWaiting + reportsWaiting > 0) {
-            rows.push({
-                key: 'execution',
-                label: `${paymentsWaiting + reportsWaiting} pengawas`,
-                detail: 'Pengajuan jasa pengawas / laporan mingguan menunggu PM',
-                tab: 'execution',
-                tone: 'warning',
-            });
-        }
-        if (findingsOpen > 0) {
-            rows.push({ key: 'findings', label: `${findingsOpen} temuan`, detail: 'Temuan finishing di lokasi belum selesai', tab: 'execution', tone: 'error' });
-        }
+    /** Opens a tab (an old key is resolved through the aliases), then scrolls to its card. */
+    function openTarget(target: TabTarget) {
+        const alias = PROJECT_TAB_ALIASES[target.tab];
+        const next = alias ? alias[0] : target.tab;
 
-        if (qaRejected > 0) {
-            rows.push({ key: 'qa-rejected', label: `${qaRejected} QA`, detail: 'Timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi', tab: 'qa', tone: 'error' });
-        }
-        if (qaPending > 0) {
-            rows.push({ key: 'qa-pending', label: `${qaPending} QA`, detail: 'Timeline menunggu pemeriksaan Pengawas (QA/QC)', tab: 'qa', tone: 'warning' });
-        }
-        if (overtimeWaiting > 0) {
-            rows.push({ key: 'overtime', label: `${overtimeWaiting} lembur`, detail: 'Pengajuan lembur menunggu keputusan PM / Finance', tab: 'overtime', tone: 'warning' });
-        }
-        if (requestsWaiting > 0) {
-            rows.push({ key: 'material', label: `${requestsWaiting} barang`, detail: 'Pengajuan barang menunggu PM / Logistik', tab: 'material', tone: 'warning' });
-        }
-        if (nextTermin) {
-            rows.push({
-                key: 'termin',
-                label: `Termin ${nextTermin.termin_number}`,
-                detail: `Termin berikutnya ${formatRupiah(nextTermin.sisa_piutang ?? nextTermin.amount)} · ${terminTrigger(nextTermin)}${nextTermin.status === 'OVERDUE' ? ' · lewat jadwal' : ''}`,
-                tab: 'finance',
-                tone: nextTermin.status === 'OVERDUE' ? 'error' : 'info',
-            });
-        }
+        if (!availableTabs[next]) return;
 
-        return rows;
-    }, [qaForms, overtimeRequests, projectMaterials, termins, execution]);
+        setTab(next, target.view ?? alias?.[1]);
+        scrollToAnchor(target.anchor);
+    }
+
+    const canOpenTarget = (target: TabTarget) => Boolean(availableTabs[PROJECT_TAB_ALIASES[target.tab]?.[0] ?? target.tab]);
     const [editOpen, setEditOpen] = useState(false);
     const isClosed = project.status === 'COMPLETED' || project.status === 'CANCELLED';
     // Sprint 20 Sub 04 — a finished project can become a portfolio draft
     // (settings.portfolio.* is role:CEO|MARKETING; SUPERADMIN passes every gate).
-    const heldRoles = usePage<PageProps>().props.auth.user.roles ?? [];
+    const authUser = usePage<PageProps>().props.auth.user;
+    const heldRoles = authUser.roles ?? [];
     const canMakePortfolio =
         project.status === 'COMPLETED' && heldRoles.some((role) => role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN');
     const [makingPortfolio, setMakingPortfolio] = useState(false);
     const [requestingAddendum, setRequestingAddendum] = useState(false);
     const step = projectStep(project, milestones, qaForms);
+    const stepTarget = step?.target && canOpenTarget(step.target) ? step.target : undefined;
 
     return (
         <AppLayout
-            breadcrumbs={[{ label: project.name }, { label: PROJECT_TAB_LABEL[tab] }]}
+            breadcrumbs={[{ label: project.name }, { label: tabLabel }, ...(viewLabel ? [{ label: viewLabel }] : [])]}
         >
             <Head title={project.name} />
 
@@ -1232,11 +1277,24 @@ export default function ProjectShow({
                 title={project.name}
                 icon={FolderKanban}
                 description={project.lead?.client_name ? `Klien: ${project.lead.client_name}` : undefined}
-                step={step}
+                step={
+                    step &&
+                    (stepTarget ? (
+                        <button
+                            type="button"
+                            onClick={() => openTarget(stepTarget)}
+                            className="text-left underline decoration-daiku-yellow decoration-2 underline-offset-2 hover:decoration-daiku-yellow-dark"
+                        >
+                            {step.text}
+                        </button>
+                    ) : (
+                        step.text
+                    ))
+                }
                 actions={
                     <>
+                        {/* Sprint 26 H1d — the phase lives in ProjectPhaseStepper below. */}
                         <StatusChip domain="project" status={project.status} />
-                        {project.status === 'ACTIVE' && project.phase && <StatusChip domain="projectPhase" status={project.phase} />}
                         {canMakePortfolio && (
                             <Button
                                 variant="outline"
@@ -1264,6 +1322,8 @@ export default function ProjectShow({
                         {execution?.can.completeMeeting && (
                             <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved />
                         )}
+                        {/* Sprint 26 H4c — once actual activity reaches the threshold (also on the Eksekusi card). */}
+                        {execution && execution.progress >= execution.threshold && <DepartureButton project={project} execution={execution} />}
                         {/* Sprint 23 K4b — was on the Dokumen tab's RAB Tambahan card. */}
                         {canRequestAddendum && (
                             <MoreActions>
@@ -1276,6 +1336,8 @@ export default function ProjectShow({
                     </>
                 }
             />
+
+            <ProjectPhaseStepper project={project} execution={execution} />
 
             {canRequestAddendum && (
                 <RequestAddendumDialog
@@ -1301,11 +1363,11 @@ export default function ProjectShow({
                 />
             )}
 
-            <Tabs value={tab} onValueChange={setTab}>
+            <Tabs value={tab} onValueChange={(next) => setTab(next)}>
                 <UnderlineTabsList>
                     <TabsTrigger value="overview">
                         <LayoutDashboard />
-                        Overview
+                        Ringkasan
                     </TabsTrigger>
                     {execution && (
                         <TabsTrigger value="execution">
@@ -1315,44 +1377,12 @@ export default function ProjectShow({
                     )}
                     <TabsTrigger value="milestone">
                         <Flag />
-                        Timeline
+                        {canViewQa ? 'Timeline & QC' : 'Timeline'}
                     </TabsTrigger>
-                    {canViewQa && (
-                        <TabsTrigger value="qa">
-                            <ShieldCheck />
-                            QA/QC
-                        </TabsTrigger>
-                    )}
-                    {canViewTasks && (
+                    {availableTabs.task && (
                         <TabsTrigger value="task">
                             <ListChecks />
-                            Task
-                        </TabsTrigger>
-                    )}
-                    {canViewOvertime && (
-                        <TabsTrigger value="overtime">
-                            <Clock />
-                            Lembur
-                        </TabsTrigger>
-                    )}
-                    <TabsTrigger value="progress">
-                        <Activity />
-                        Activity Target
-                    </TabsTrigger>
-                    <TabsTrigger value="finance">
-                        <Wallet />
-                        Finance
-                    </TabsTrigger>
-                    {budget && (
-                        <TabsTrigger value="budget">
-                            <Layers />
-                            Alokasi Dana
-                        </TabsTrigger>
-                    )}
-                    {documents && (
-                        <TabsTrigger value="documents">
-                            <FileText />
-                            Dokumen
+                            Daily Target
                         </TabsTrigger>
                     )}
                     {canViewMaterials && (
@@ -1361,9 +1391,32 @@ export default function ProjectShow({
                             Material
                         </TabsTrigger>
                     )}
+                    {availableTabs.finance && (
+                        <TabsTrigger value="finance">
+                            <Wallet />
+                            Keuangan
+                        </TabsTrigger>
+                    )}
                 </UnderlineTabsList>
                 <TabsContent value="overview" className="mt-6">
-                    <OverviewTab project={project} progressLogs={progressLogs} waiting={waiting} onOpenTab={setTab} />
+                    <ProjectOverviewTab
+                        project={project}
+                        execution={execution}
+                        activityTarget={activityTarget}
+                        progressLogs={progressLogs}
+                        qaForms={qaForms}
+                        overtimeRequests={overtimeRequests}
+                        projectMaterials={projectMaterials}
+                        termins={termins}
+                        canManageMilestones={canManageMilestones}
+                        canIssueTerminInvoices={canIssueTerminInvoices}
+                        canMarkTerminPaid={canMarkTerminPaid}
+                        canOpenQaForm={canOpenQaForm}
+                        materialPermissions={materialPermissions}
+                        currentUserId={authUser.id}
+                        onOpen={openTarget}
+                        canOpen={canOpenTarget}
+                    />
                 </TabsContent>
                 {execution && (
                     <TabsContent value="execution" className="mt-6">
@@ -1374,7 +1427,7 @@ export default function ProjectShow({
                             fieldStaff={fieldStaff}
                             canManageMilestones={canManageMilestones}
                             materialOptions={materialOptions}
-                            onOpenActivityTarget={activityTarget ? () => setTab('progress') : undefined}
+                            onOpenActivityTarget={activityTarget ? () => openTarget({ tab: 'task', view: 'activity-target' }) : undefined}
                         />
                     </TabsContent>
                 )}
@@ -1384,64 +1437,32 @@ export default function ProjectShow({
                         milestones={milestones}
                         canView={canViewMilestones}
                         canManage={canManageMilestones && !isClosed}
+                        qaForms={canViewQa ? qaForms : []}
+                        canOpenQaForm={canOpenQaForm}
+                        views={tabViews.milestone}
+                        view={tab === 'milestone' ? view : 'timeline'}
+                        onView={setView}
                     />
                 </TabsContent>
-                {canViewQa && (
-                    <TabsContent value="qa" className="mt-6">
-                        <ProjectQaTab qaForms={qaForms} canOpenForm={canOpenQaForm} />
-                    </TabsContent>
-                )}
-                {canViewOvertime && (
-                    <TabsContent value="overtime" className="mt-6">
-                        <ProjectOvertimeTab requests={overtimeRequests} canOpenList={canOpenOvertimeList} />
-                    </TabsContent>
-                )}
-                <TabsContent value="task" className="mt-6">
-                    <TaskTab
-                        project={project}
-                        milestones={milestones}
-                        tasks={tasks}
-                        canManage={canManageTasks}
-                        isClosed={isClosed}
-                        fieldStaff={fieldStaff}
-                    />
-                </TabsContent>
-                <TabsContent value="progress" className="mt-6">
-                    <ActivityTargetTab
-                        project={project}
-                        activityTarget={activityTarget}
-                        progressLogs={progressLogs}
-                        canView={canViewProgressLogs}
-                        canManage={canManageProgressLogs}
-                    />
-                </TabsContent>
-                <TabsContent value="finance" className="mt-6">
-                    <FinanceTab
-                        project={project}
-                        termins={termins}
-                        canView={canViewTermins}
-                        canViewSummary={canViewFinanceSummary}
-                        canIssueInvoices={canIssueTerminInvoices}
-                        canMarkPaid={canMarkTerminPaid}
-                        canSubmitProof={canSubmitInvoiceProof}
-                        allocationBreakdown={allocationBreakdown}
-                        supplierDebts={supplierDebts}
-                    />
-                </TabsContent>
-                {budget && (
-                    <TabsContent value="budget" className="mt-6">
-                        <BudgetAllocationTab
-                            projectId={project.id}
-                            budget={budget}
-                            canManage={canManageBudget}
-                            canDecideOverrun={canDecideOverrun}
-                            vendors={budgetVendors}
+                {availableTabs.task && (
+                    <TabsContent value="task" className="mt-6">
+                        <TaskTab
+                            project={project}
+                            milestones={milestones}
+                            tasks={tasks}
+                            canManage={canManageTasks}
+                            isClosed={isClosed}
+                            fieldStaff={fieldStaff}
+                            views={tabViews.task}
+                            view={tab === 'task' ? view : tabViews.task[0].key}
+                            onView={setView}
+                            activityTarget={activityTarget}
+                            progressLogs={progressLogs}
+                            canViewProgressLogs={canViewProgressLogs}
+                            canManageProgressLogs={canManageProgressLogs}
+                            overtimeRequests={overtimeRequests}
+                            canOpenOvertimeList={canOpenOvertimeList}
                         />
-                    </TabsContent>
-                )}
-                {documents && (
-                    <TabsContent value="documents" className="mt-6">
-                        <DocumentsTab documents={documents} canSubmitProof={canSubmitInvoiceProof} />
                     </TabsContent>
                 )}
                 {canViewMaterials && (
@@ -1457,6 +1478,39 @@ export default function ProjectShow({
                             units={units}
                             materialCategories={materialCategories}
                         />
+                    </TabsContent>
+                )}
+                {availableTabs.finance && (
+                    <TabsContent value="finance" className="mt-6">
+                        <ViewTabs views={tabViews.finance} view={tab === 'finance' ? view : tabViews.finance[0].key} onView={setView}>
+                            {view === 'alokasi' ? (
+                                <div className="space-y-6">
+                                    {canViewFinanceSummary && <AllocationCard project={project} lines={allocationBreakdown} />}
+                                    {budget && (
+                                        <BudgetAllocationTab
+                                            projectId={project.id}
+                                            budget={budget}
+                                            canManage={canManageBudget}
+                                            canDecideOverrun={canDecideOverrun}
+                                            vendors={budgetVendors}
+                                        />
+                                    )}
+                                </div>
+                            ) : view === 'hutang' ? (
+                                <SupplierDebtCard debts={supplierDebts} />
+                            ) : view === 'dokumen' ? (
+                                <DocumentsTab documents={documents} canSubmitProof={canSubmitInvoiceProof} />
+                            ) : (
+                                <FinanceTab
+                                    project={project}
+                                    termins={termins}
+                                    canView={canViewTermins}
+                                    canIssueInvoices={canIssueTerminInvoices}
+                                    canMarkPaid={canMarkTerminPaid}
+                                    canSubmitProof={canSubmitInvoiceProof}
+                                />
+                            )}
+                        </ViewTabs>
                     </TabsContent>
                 )}
             </Tabs>

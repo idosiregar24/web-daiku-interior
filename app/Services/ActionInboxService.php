@@ -341,7 +341,7 @@ class ActionInboxService
                 'title' => $overrun->post?->project?->name ?? 'Proyek',
                 'subtitle' => "{$overrun->post?->name} · lebih {$this->rupiah($overrun->amount_over)}",
                 'at' => $overrun->created_at,
-                'href' => route('projects.show', ['project' => $overrun->post?->project_id, 'tab' => 'budget']),
+                'href' => route('projects.show', ['project' => $overrun->post?->project_id, 'tab' => 'finance', 'view' => 'alokasi']),
             ],
         );
     }
@@ -418,7 +418,7 @@ class ActionInboxService
                 'title' => $form->project?->name ?? 'Proyek',
                 'subtitle' => $form->milestone?->name,
                 'at' => $form->reviewed_at,
-                'href' => route('projects.show', ['project' => $form->project_id, 'tab' => 'qa']),
+                'href' => route('projects.show', ['project' => $form->project_id, 'tab' => 'milestone', 'view' => 'qc']),
             ],
         );
     }
@@ -586,7 +586,7 @@ class ActionInboxService
                 'title' => $termin->project?->name ?? 'Proyek',
                 'subtitle' => "Termin {$termin->termin_number} · {$this->rupiah($termin->amount)}",
                 'at' => $termin->invoice_reminded_at,
-                'href' => route('projects.show', ['project' => $termin->project_id, 'tab' => 'finance']),
+                'href' => route('projects.show', ['project' => $termin->project_id, 'tab' => 'finance', 'view' => 'termin']),
             ],
         );
     }

@@ -423,7 +423,7 @@ export default function OvertimeIndex({
                                                 {isFieldStaff ? (overtime.project?.name ?? '—') : (overtime.staff?.name ?? '—')}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {!isFieldStaff && <ProjectLink project={overtime.project} tab="overtime" />}
+                                                {!isFieldStaff && <ProjectLink project={overtime.project} tab="task" view="lembur" />}
                                                 {!isFieldStaff && ' · '}
                                                 {new Date(overtime.work_date).toLocaleDateString('id-ID')} · {overtime.hours} jam
                                             </p>
@@ -462,7 +462,7 @@ export default function OvertimeIndex({
                                 <tr key={overtime.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                     {!isFieldStaff && <td className="px-4 py-3 font-medium">{overtime.staff?.name ?? '—'}</td>}
                                     <td className="px-4 py-3 text-daiku-muted">
-                                        <ProjectLink project={overtime.project} tab="overtime" />
+                                        <ProjectLink project={overtime.project} tab="task" view="lembur" />
                                     </td>
                                     <td className="px-4 py-3 text-daiku-muted">
                                         {new Date(overtime.work_date).toLocaleDateString('id-ID')}

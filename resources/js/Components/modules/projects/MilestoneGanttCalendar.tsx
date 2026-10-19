@@ -47,6 +47,8 @@ interface MilestoneGanttCalendarProps {
     onEdit: (milestone: Milestone) => void;
     onDelete: (milestone: Milestone) => void;
     onMarkDone: (milestone: Milestone) => void;
+    /** Sprint 26 H3e — timelines whose latest QC check was rejected ("Perlu Perbaikan"). */
+    qcRejected?: ReadonlySet<number>;
 }
 
 /**
@@ -69,6 +71,7 @@ export function MilestoneGanttCalendar({
     onEdit,
     onDelete,
     onMarkDone,
+    qcRejected,
 }: MilestoneGanttCalendarProps) {
     const sorted = [...milestones].sort((a, b) => a.order - b.order);
     const phases = sorted.map((milestone, index) => {
@@ -178,6 +181,7 @@ export function MilestoneGanttCalendar({
                                         </div>
                                         <div className="flex shrink-0 items-center gap-1">
                                             <StatusChip domain="milestone" status={milestone.status} />
+                                            {qcRejected?.has(milestone.id) && <StatusChip domain="qa" status="REJECTED" />}
                                             {canMarkDone && (
                                                 <Button
                                                     variant="outline"

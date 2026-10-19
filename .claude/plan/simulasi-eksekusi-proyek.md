@@ -101,7 +101,7 @@ Marketing/Finance: invoice pelunasan · Pengawas: Ajukan Pelunasan jasa → PM �
   notifikasi.
 
 ### Langkah 2 · (opsional) Tagihan DP
-- **Marketing:** proyek → tab **Finance** → termin DP → **Terbitkan Invoice**
+- **Marketing:** proyek → tab **Keuangan** → termin DP → **Terbitkan Invoice**
   → **Tandai Klien Sudah Bayar**.
 - **Finance:** **Verifikasi Pembayaran**.
 - **Hasil:** termin DP **Paid**; tab **Alokasi Dana** terbuka untuk PM.
@@ -177,7 +177,7 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
 ## Tahap 4 — Persiapan & DP Pengawas
 
 ### Langkah 8b · Pengawas membuat daily target
-- **Login:** `qa` → proyek → tab **Task** → **Tambah Daily Target**
+- **Login:** `qa` → proyek → tab **Daily Target** → **Tambah Daily Target**
   (wajib timeline, tanggal di dalam rentang timeline, isi **Upah**).
   Tukang = Field Staff Daiku Interior:
 
@@ -224,7 +224,7 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
   ringkasan (dan di tab Ringkasan / daftar proyek).
 
 ### Langkah 13 · Pengawas menggeser jadwal
-- **Login:** `qa` → tab **Task** → **Per Hari** (kolom Senin–Minggu, ‹ ›
+- **Login:** `qa` → tab **Daily Target** → **Per Hari** (kolom Senin–Minggu, ‹ ›
   pindah minggu) → **seret kartu** ke hari lain (di HP: ketuk kartu →
   **Pindah ke sini**). Hari di luar timeline target itu pudar ("Di luar
   timeline") dan tidak bisa dituju; target **Done** terkunci 🔒.

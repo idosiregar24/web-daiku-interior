@@ -6,20 +6,37 @@ import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { TABLE_HEAD_CLASS, TableCard } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/Components/ui/collapsible';
 import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { statusWithHolder, waitingOn } from '@/lib/waitingOn';
-import type { Milestone, Project, ProjectExecution, User } from '@/types';
+import { domainStatusLabel } from '@/lib/waitingOn';
+import type { Milestone, Project, ProjectExecution, ProjectPhase, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
-import { Activity, ArrowLeftRight, Check, ChevronLeft, ChevronRight, DraftingCompass, ExternalLink, MapPin, Route } from 'lucide-react';
-import { useState } from 'react';
+import {
+    Activity,
+    ArrowLeftRight,
+    CheckCircle2,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    Circle,
+    DraftingCompass,
+    ExternalLink,
+    History,
+    MapPin,
+    Package,
+    Pause,
+    XCircle,
+} from 'lucide-react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { DepartureButton } from './DepartureButton';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
@@ -28,10 +45,112 @@ import { WeeklyReportsCard } from './WeeklyReportsCard';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric' });
 
+const PHASE_ORDER: ProjectPhase[] = ['GAMBAR_KERJA', 'TM', 'PERSIAPAN', 'PRODUKSI', 'PEMASANGAN'];
+
+type ExecutionCard = 'workingDrawing' | 'meeting' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
+
 /**
- * Sprint 24 — the project's "Eksekusi" tab: where the project is in the
- * flow (Gambar Kerja → TM → Persiapan → Produksi → Pemasangan) and whose
- * turn it is, then one card per step. Everything comes from
+ * Sprint 26 H2a — the one place that says which cards a phase works with.
+ * A card used by several phases (laporan mingguan, jasa pengawas) belongs
+ * to the latest phase the project has reached that lists it, so it renders
+ * once — with the running phase, or in that phase's history row.
+ */
+const PHASE_CARDS: Record<ProjectPhase, ExecutionCard[]> = {
+    GAMBAR_KERJA: ['workingDrawing'],
+    TM: ['meeting'],
+    // Sprint 26 — the Pengawas plans daily targets in Persiapan, so Target vs Actual (Tukar Hari) shows from here.
+    PERSIAPAN: ['fee', 'materialPlan', 'targetVsActual'],
+    PRODUKSI: ['targetVsActual', 'departure', 'weekly', 'fee'],
+    PEMASANGAN: ['findings', 'weekly', 'fee'],
+};
+
+/** H2f / Sub 03 — card ids used by the header's step link, Perlu Tindakan and notifications. */
+const CARD_ANCHORS: Record<ExecutionCard, string[]> = {
+    workingDrawing: ['gambar-kerja'],
+    // `#tm-bahan` is rendered by the TM card itself, and only while TM is the running phase.
+    meeting: ['tm'],
+    materialPlan: ['tm-bahan'],
+    fee: ['dp'],
+    targetVsActual: ['target-vs-actual'],
+    departure: ['berangkat'],
+    weekly: ['laporan-mingguan'],
+    findings: ['temuan'],
+};
+
+/** H2c — what the next phase is about ("Berikutnya: …"). */
+function nextStepText(next: ProjectPhase | null, threshold: number): string {
+    switch (next) {
+        case 'TM':
+            return 'PM memimpin Technical Meeting: timeline, jasa pengawas, tanggal selesai — Pengawas merencanakan bahan.';
+        case 'PERSIAPAN':
+            return 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas.';
+        case 'PRODUKSI':
+            return 'DP pengawas disetujui PM = Start Produksi; tukang mengerjakan daily target.';
+        case 'PEMASANGAN':
+            return `PM menyetujui berangkat ke lokasi setelah actual activity mencapai ${threshold}%.`;
+        default:
+            return 'Proyek selesai setelah semua timeline lolos QC dan temuan lokasi ditutup.';
+    }
+}
+
+function phaseLabel(phase: ProjectPhase): string {
+    return domainStatusLabel('projectPhase', phase) ?? phase;
+}
+
+/** H2b — the one-line summary of a finished phase, from data the tab already has. */
+function phaseDoneSummary(phase: ProjectPhase, execution: ProjectExecution, milestones: Milestone[]): string {
+    const { workingDrawing: drawing, meeting, departure } = execution;
+
+    switch (phase) {
+        case 'GAMBAR_KERJA':
+            if (!drawing) return 'Gambar Kerja — tidak ada (proyek dibuka sebelum alur baru)';
+            return ['Gambar Kerja selesai' + (drawing.completed_at ? ` ${formatDate(drawing.completed_at)}` : ''), drawing.completer]
+                .filter(Boolean)
+                .join(' · ');
+        case 'TM':
+            if (!meeting) return 'Technical Meeting — tidak tercatat';
+            return [
+                'TM selesai' + (meeting.completed_at ? ` ${formatDate(meeting.completed_at)}` : ''),
+                `${meeting.attendees.length} peserta`,
+                `${milestones.length} timeline`,
+            ].join(' · ');
+        case 'PERSIAPAN': {
+            const dp = execution.payments.find((payment) => payment.kind === 'DP' && (payment.status === 'DISETUJUI_PM' || payment.status === 'DIBAYAR'));
+            return dp?.decided_at ? `Persiapan selesai · DP pengawas disetujui ${formatDate(dp.decided_at)}` : 'Persiapan selesai';
+        }
+        case 'PRODUKSI':
+            return departure
+                ? ['Produksi selesai · berangkat ke lokasi disetujui ' + formatDateTime(departure.approved_at), departure.approver].filter(Boolean).join(' · ')
+                : 'Produksi selesai';
+        case 'PEMASANGAN':
+            return `Pemasangan selesai · ${execution.findings.length} temuan lokasi`;
+    }
+}
+
+/** Consumed per URL, so switching tabs back to Eksekusi doesn't jump to the hash again. */
+let consumedHashHref: string | null = null;
+
+function pendingHash(): string | null {
+    if (typeof window === 'undefined') return null;
+    const id = window.location.hash.slice(1);
+
+    return id && consumedHashHref !== window.location.href ? id : null;
+}
+
+function consumeHash() {
+    consumedHashHref = window.location.href;
+}
+
+function scrollToId(id: string) {
+    requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: 'start' })));
+}
+
+/**
+ * Sprint 24 — the project's "Eksekusi" tab. Sprint 26 H2: only the running
+ * phase's cards (PHASE_CARDS); finished phases fold into one line each at
+ * the top (click → the card as it is), the next phase is one muted line,
+ * later ones aren't rendered. A COMPLETED / ON_HOLD / CANCELLED project
+ * shows every reached phase folded (history). Everything comes from
  * ProjectExecutionService::overview(); the buttons are the ones its `can`
  * allows (the routes check again).
  */
@@ -53,34 +172,136 @@ export function ProjectExecutionTab({
     /** Sprint 25 — opens the project-wide "Activity Target" tab (when this viewer reads it). */
     onOpenActivityTarget?: () => void;
 }) {
-    const current = execution.phases.find((phase) => phase.state === 'current');
-    const holder = project.status === 'ACTIVE' ? waitingOn('projectPhase', execution.phase) : null;
+    const active = project.status === 'ACTIVE';
+    const currentIndex = Math.max(0, PHASE_ORDER.indexOf(execution.phase));
+    const reached = PHASE_ORDER.slice(0, currentIndex + 1);
+    const next = active ? (PHASE_ORDER[currentIndex + 1] ?? null) : null;
+
+    // H2d — a card shared by several phases lives in the latest reached one.
+    const owner = new Map<ExecutionCard, ProjectPhase>();
+    reached.forEach((phase) => PHASE_CARDS[phase].forEach((card) => owner.set(card, phase)));
+
+    function relevant(card: ExecutionCard): boolean {
+        switch (card) {
+            // The server sends the TM plan only during TM; at PERSIAPAN the card points to the Material tab.
+            case 'materialPlan':
+                return active && execution.phase === 'PERSIAPAN';
+            // Once approved, the PRODUKSI history line says when and by whom.
+            case 'departure':
+                return execution.phase === 'PRODUKSI';
+            default:
+                return true;
+        }
+    }
+
+    function cardsOf(phase: ProjectPhase): ExecutionCard[] {
+        return PHASE_CARDS[phase].filter((card) => owner.get(card) === phase && relevant(card));
+    }
+
+    /** History rows only fold cards that have something to show (H2e). */
+    function hasData(card: ExecutionCard): boolean {
+        switch (card) {
+            case 'workingDrawing':
+                return execution.workingDrawing !== null;
+            case 'meeting':
+                return execution.meeting !== null;
+            case 'fee':
+                return execution.fee !== null || execution.dpRequirements.length > 0;
+            case 'targetVsActual':
+                return execution.targetVsActual !== null;
+            case 'weekly':
+                return execution.currentWeek !== null || execution.weeklyReports.length > 0;
+            case 'findings':
+                return execution.can.recordFinding || execution.findings.length > 0;
+            default:
+                return true;
+        }
+    }
+
+    /** A folded card that still waits on this viewer opens by itself — folding never hides a pending action. */
+    function waitsOnViewer(card: ExecutionCard): boolean {
+        const { can, fee } = execution;
+
+        switch (card) {
+            case 'fee':
+                return (can.requestSettlement && fee !== null && fee.remaining > 0) || (can.decide && execution.payments.some((row) => row.status === 'DIAJUKAN'));
+            case 'weekly':
+                return can.decide && execution.weeklyReports.some((row) => row.status === 'DIAJUKAN');
+            case 'findings':
+                return can.resolveFinding && execution.findings.some((row) => row.status === 'TERBUKA');
+            default:
+                return false;
+        }
+    }
+
+    function renderCard(card: ExecutionCard): ReactNode {
+        let body: ReactNode;
+
+        switch (card) {
+            case 'workingDrawing':
+                body = <WorkingDrawingCard execution={execution} />;
+                break;
+            case 'meeting':
+                body = (
+                    <TechnicalMeetingCard
+                        project={project}
+                        execution={execution}
+                        milestones={milestones}
+                        canManageTimeline={canManageMilestones}
+                        materialOptions={materialOptions}
+                    />
+                );
+                break;
+            case 'materialPlan':
+                body = <MaterialPlanCard project={project} execution={execution} />;
+                break;
+            case 'fee':
+                body = <SupervisorFeeCard projectId={project.id} execution={execution} />;
+                break;
+            case 'targetVsActual':
+                body = execution.targetVsActual && (
+                    <TargetVsActualCard project={project} execution={execution} fieldStaff={fieldStaff} onOpenActivityTarget={onOpenActivityTarget} />
+                );
+                break;
+            case 'departure':
+                body = <DepartureCard project={project} execution={execution} />;
+                break;
+            case 'weekly':
+                body = <WeeklyReportsCard projectId={project.id} execution={execution} />;
+                break;
+            case 'findings':
+                body = <SiteFindingsCard projectId={project.id} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />;
+                break;
+        }
+
+        // Sprint 26 H1e — ids are the targets of the header's step link (`projectStep()`).
+        return (
+            <div key={card} id={CARD_ANCHORS[card][0]} className="scroll-mt-24 empty:hidden">
+                {body}
+            </div>
+        );
+    }
+
+    // Projects opened before Sprint 24 skipped phases 1–3 (no drawing, no TM) — one note instead of three rows.
+    const skippedOldFlow = execution.isLegacy || (execution.workingDrawing === null && execution.meeting === null && currentIndex >= 3);
+    const historyPhases = (active ? reached.slice(0, -1) : reached).filter((phase) => !(skippedOldFlow && PHASE_ORDER.indexOf(phase) < 3));
+
+    // A target in the running phase's cards (e.g. `?tab=execution#tm-bahan` on load): history rows
+    // run their effects first and consume the hash when it is theirs.
+    useEffect(() => {
+        const id = pendingHash();
+
+        if (id && document.getElementById(id)) {
+            consumeHash();
+            scrollToId(id);
+        }
+    }, []);
 
     return (
         <div className="space-y-6">
-            <SectionCard title="Tahap Eksekusi" description={current ? statusWithHolder(current.label, holder) : undefined} icon={Route}>
-                <ol className="grid gap-2 sm:grid-cols-5">
-                    {execution.phases.map((phase, index) => (
-                        <li
-                            key={phase.value}
-                            className={cn(
-                                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1',
-                                phase.state === 'current' && 'bg-daiku-yellow-light font-medium text-foreground ring-daiku-yellow',
-                                phase.state === 'done' && 'bg-success/10 text-success-ink ring-success/30',
-                                phase.state === 'upcoming' && 'bg-background text-muted-foreground ring-border',
-                            )}
-                        >
-                            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-background text-xs ring-1 ring-current">
-                                {phase.state === 'done' ? <Check className="size-3" /> : index + 1}
-                            </span>
-                            {phase.label}
-                        </li>
-                    ))}
-                </ol>
-                {execution.isLegacy && (
-                    <p className="mt-3 text-xs text-muted-foreground">Proyek ini dibuka sebelum alur eksekusi baru — langsung di tahap Produksi.</p>
-                )}
-            </SectionCard>
+            {skippedOldFlow && (
+                <p className="text-xs text-muted-foreground">Proyek ini dibuka sebelum alur eksekusi baru — Gambar Kerja, TM & Persiapan dilewati, dimulai dari tahap Produksi.</p>
+            )}
 
             {execution.deadline.warning && (
                 <Notice tone={execution.deadline.days_left !== null && execution.deadline.days_left < 0 ? 'error' : 'warning'}>
@@ -92,23 +313,128 @@ export function ProjectExecutionTab({
                 </Notice>
             )}
 
-            <div className="grid gap-6 lg:grid-cols-2">
-                <WorkingDrawingCard execution={execution} />
-                <ProgressCard project={project} execution={execution} />
-            </div>
+            {historyPhases.length > 0 && (
+                <SectionCard
+                    title={active ? 'Tahap Sebelumnya' : 'Riwayat Eksekusi'}
+                    description={
+                        active
+                            ? 'Ketuk satu tahap untuk melihat rinciannya.'
+                            : `Proyek ${project.status === 'COMPLETED' ? 'selesai' : project.status === 'ON_HOLD' ? 'ditahan' : 'dibatalkan'} — tiap tahap dilipat sebagai riwayat.`
+                    }
+                    icon={History}
+                    flush
+                >
+                    <ul className="divide-y divide-border">
+                        {historyPhases.map((phase) => {
+                            const cards = cardsOf(phase).filter(hasData);
+                            const isCurrent = phase === execution.phase;
+                            const state = !isCurrent || project.status === 'COMPLETED' ? 'done' : project.status === 'ON_HOLD' ? 'hold' : 'stopped';
+                            const summary =
+                                state === 'done'
+                                    ? phaseDoneSummary(phase, execution, milestones)
+                                    : `${phaseLabel(phase)} — ${state === 'hold' ? 'ditahan' : 'dibatalkan'}`;
 
-            <TechnicalMeetingCard
-                project={project}
-                execution={execution}
-                milestones={milestones}
-                canManageTimeline={canManageMilestones}
-                materialOptions={materialOptions}
-            />
-            <SupervisorFeeCard projectId={project.id} execution={execution} />
-            {execution.targetVsActual && <TargetVsActualCard project={project} execution={execution} fieldStaff={fieldStaff} onOpenActivityTarget={onOpenActivityTarget} />}
-            <WeeklyReportsCard projectId={project.id} execution={execution} />
-            <SiteFindingsCard projectId={project.id} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />
+                            return (
+                                <PhaseHistoryRow
+                                    key={phase}
+                                    state={state}
+                                    summary={summary}
+                                    anchors={cards.flatMap((card) => CARD_ANCHORS[card])}
+                                    defaultOpen={cards.some(waitsOnViewer)}
+                                >
+                                    {cards.map(renderCard)}
+                                </PhaseHistoryRow>
+                            );
+                        })}
+                    </ul>
+                </SectionCard>
+            )}
+
+            {active && cardsOf(execution.phase).map(renderCard)}
+
+            {active && (
+                <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">Berikutnya: {next ? phaseLabel(next) : 'Selesai'}</span> — {nextStepText(next, execution.threshold)}
+                </p>
+            )}
         </div>
+    );
+}
+
+/** H2b — one folded phase: a single line; with cards, a click opens them as they are. */
+function PhaseHistoryRow({
+    state,
+    summary,
+    anchors,
+    defaultOpen,
+    children,
+}: {
+    state: 'done' | 'hold' | 'stopped';
+    summary: string;
+    /** Card ids inside — a matching `#hash` opens the row and scrolls to the card. */
+    anchors: string[];
+    defaultOpen: boolean;
+    children: ReactNode;
+}) {
+    const [open, setOpen] = useState(defaultOpen);
+    const scrollTarget = useRef<string | null>(null);
+    const anchorKey = anchors.join(' ');
+    const expandable = anchors.length > 0;
+
+    useEffect(() => {
+        function openFromHash() {
+            const id = pendingHash();
+
+            if (id && anchorKey.split(' ').includes(id)) {
+                consumeHash();
+                scrollTarget.current = id;
+                setOpen(true);
+            }
+        }
+
+        openFromHash();
+        window.addEventListener('hashchange', openFromHash);
+
+        return () => window.removeEventListener('hashchange', openFromHash);
+    }, [anchorKey]);
+
+    useEffect(() => {
+        if (open && scrollTarget.current) {
+            scrollToId(scrollTarget.current);
+            scrollTarget.current = null;
+        }
+    }, [open]);
+
+    const Icon = state === 'done' ? CheckCircle2 : state === 'hold' ? Pause : XCircle;
+    const line = (
+        <>
+            <Icon
+                className={cn('size-4 shrink-0', state === 'done' ? 'text-success-ink' : state === 'hold' ? 'text-warning-ink' : 'text-muted-foreground')}
+                aria-hidden
+            />
+            <span className="min-w-0 flex-1 text-foreground">{summary}</span>
+        </>
+    );
+
+    if (!expandable) {
+        return <li className="flex items-center gap-3 px-4 py-3 text-sm sm:px-5">{line}</li>;
+    }
+
+    return (
+        <li>
+            <Collapsible open={open} onOpenChange={setOpen}>
+                <CollapsibleTrigger asChild>
+                    <button
+                        type="button"
+                        className="group flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-daiku-gray/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:px-5"
+                    >
+                        {line}
+                        <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden />
+                    </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 border-t border-border bg-daiku-gray/40 p-3 sm:p-4">{children}</CollapsibleContent>
+            </Collapsible>
+        </li>
     );
 }
 
@@ -153,35 +479,58 @@ function WorkingDrawingCard({ execution }: { execution: ProjectExecution }) {
     );
 }
 
-function ProgressCard({ project, execution }: { project: Project; execution: ProjectExecution }) {
-    const [busy, setBusy] = useState(false);
-    const reached = execution.progress >= execution.threshold;
+/**
+ * Sprint 26 H2a/H2f — PERSIAPAN's view of the TM material plan. The plan
+ * itself is only sent during TM; from here the Pengawas revises it until
+ * Start Produksi on the Material tab (`reviseMaterialPlan`).
+ */
+function MaterialPlanCard({ project, execution }: { project: Project; execution: ProjectExecution }) {
+    const supervises = execution.can.requestDp;
 
     return (
-        <SectionCard title="Actual Activity" description="Target selesai ÷ semua target proyek." icon={Activity}>
-            <p className="text-4xl leading-none font-semibold tracking-tight text-foreground">{execution.progress}%</p>
-            <ProgressBar value={execution.progress} tone={reached ? 'success' : 'default'} label="Actual activity proyek" className="mt-4" />
-            <p className="mt-2 text-xs text-muted-foreground">Berangkat ke lokasi terbuka mulai {execution.threshold}%.</p>
-            {execution.departure ? (
+        <SectionCard title="Rencana Bahan" description="Disusun Pengawas saat Technical Meeting." icon={Package}>
+            <p className="text-sm text-muted-foreground">
+                {supervises
+                    ? 'Rencana bahan masih bisa Anda ubah sampai Start Produksi — tambah, ubah jumlah atau hapus baris di tab Material.'
+                    : 'Pengawas masih bisa merevisi rencana bahan sampai Start Produksi.'}
+            </p>
+            <Button variant={supervises ? 'outline' : 'link'} size="sm" className={cn('mt-3', !supervises && 'h-auto px-0')} asChild>
+                <Link href={route('projects.show', { project: project.id, tab: 'material' })}>
+                    <ExternalLink className="size-3.5" />
+                    Buka tab Material
+                </Link>
+            </Button>
+        </SectionCard>
+    );
+}
+
+/** Sprint 26 H4c — the PRODUKSI → PEMASANGAN step (replaces the old "Actual Activity" card). */
+function DepartureCard({ project, execution }: { project: Project; execution: ProjectExecution }) {
+    const { progress, threshold, departure, can } = execution;
+    const reached = progress >= threshold;
+
+    return (
+        <SectionCard title="Berangkat ke Lokasi" description="Disetujui PM — proyek pindah ke tahap Pemasangan." icon={MapPin}>
+            <p className="flex items-center gap-2 text-sm">
+                {reached ? <CheckCircle2 className="size-4 shrink-0 text-success-ink" aria-hidden /> : <Circle className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
+                <span className={reached ? 'text-foreground' : 'text-muted-foreground'}>
+                    Actual activity ≥ {threshold}% — sekarang <span className="font-medium text-foreground tabular-nums">{progress}%</span>
+                </span>
+            </p>
+            <ProgressBar value={progress} tone={reached ? 'success' : 'default'} label="Actual activity proyek" className="mt-3" />
+            {departure ? (
                 <p className="mt-3 text-sm text-success-ink">
-                    Berangkat ke lokasi disetujui {formatDateTime(execution.departure.approved_at)} · {execution.departure.approver}
+                    Berangkat ke lokasi disetujui {formatDateTime(departure.approved_at)}
+                    {departure.approver && ` · ${departure.approver}`}
                 </p>
+            ) : can.approveDeparture ? (
+                <>
+                    <DepartureButton project={project} execution={execution} className="mt-4 w-full sm:w-auto" />
+                    {!reached && <p className="mt-2 text-xs text-muted-foreground">Terkunci sampai actual activity {threshold}%.</p>}
+                </>
             ) : (
-                execution.can.approveDeparture && (
-                    <Button
-                        className="mt-4 w-full sm:w-auto"
-                        disabled={!reached || busy}
-                        onClick={() =>
-                            router.post(route('projects.departure.approve', { project: project.id }), {}, {
-                                preserveScroll: true,
-                                onStart: () => setBusy(true),
-                                onFinish: () => setBusy(false),
-                            })
-                        }
-                    >
-                        <MapPin className="size-4" />
-                        Setujui Berangkat ke Lokasi
-                    </Button>
+                project.status === 'ACTIVE' && (
+                    <p className="mt-3 text-xs text-muted-foreground">{reached ? 'Menunggu persetujuan PM.' : `Terbuka mulai ${threshold}% · PM.`}</p>
                 )
             )}
         </SectionCard>

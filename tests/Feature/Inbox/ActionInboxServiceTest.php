@@ -128,7 +128,7 @@ test('an Asisten PM only sees the projects assigned to them', function () {
 
     expect(inboxGroup($assistant, 'material-pm')['count'])->toBe(1)
         ->and(inboxGroup($assistant, 'qa-rejected')['count'])->toBe(1)
-        ->and(inboxGroup($assistant, 'qa-rejected')['items'][0]['href'])->toContain('tab=qa')
+        ->and(inboxGroup($assistant, 'qa-rejected')['items'][0]['href'])->toContain('tab=milestone&view=qc')
         // Overtime is decided by the PM alone (pmApprove is `role:PM`).
         ->and(inboxGroup($assistant, 'overtime-pm'))->toBeNull();
 });

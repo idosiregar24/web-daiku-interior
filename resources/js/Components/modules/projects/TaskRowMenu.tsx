@@ -30,14 +30,14 @@ export function TaskRowMenu({ task, onEdit, onDelete, onReschedule }: TaskRowMen
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon-sm" aria-label={`Aksi untuk task ${task.title}`}>
+                <Button variant="ghost" size="icon-sm" aria-label={`Aksi untuk daily target ${task.title}`}>
                     <MoreHorizontal className="size-4" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-auto min-w-44">
                 <DropdownMenuItem disabled={isPaid} onSelect={() => onEdit(task)}>
                     <Pencil />
-                    {isPaid ? 'Terkunci (upah dibayar)' : 'Edit Task'}
+                    {isPaid ? 'Terkunci (upah dibayar)' : 'Ubah Daily Target'}
                 </DropdownMenuItem>
                 {!isDone && onReschedule && task.milestone_id !== null && (
                     <DropdownMenuItem onSelect={() => onReschedule(task)}>
@@ -48,7 +48,7 @@ export function TaskRowMenu({ task, onEdit, onDelete, onReschedule }: TaskRowMen
                 {!isDone && (
                     <DropdownMenuItem variant="destructive" onSelect={() => onDelete(task)}>
                         <Trash2 />
-                        Hapus Task
+                        Hapus Daily Target
                     </DropdownMenuItem>
                 )}
             </DropdownMenuContent>
