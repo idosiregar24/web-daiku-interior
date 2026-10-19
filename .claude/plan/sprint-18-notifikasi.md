@@ -389,6 +389,7 @@ Semua keputusan terjawab (K1 Reverb, K2 Web Push, K3 P1–P4; K4 tidak dipakai, 
 > | PM / Asisten PM ditunjuk / diganti | Orang yang ditunjuk / diganti | `project_pm_*` / `project_assistant_*` | 2 / 4 |
 > | RAB Tambahan disetujui | PM, Asisten PM, Marketing, Finance | `project_addendum_added` | 3 |
 > | Sprint 24 · Gambar kerja baru (Buka Proyek) / ditugaskan / selesai | Kepala Desain / arsitek / PM, Asisten PM, Pengawas | `working_drawing_to_assign` / `_assigned` / `_completed` | 2 |
+> | Sprint 24 · TM dijadwalkan / jadwal diubah (tanggal TM disimpan PM) | Pengawas, peserta TM yang punya akun | `technical_meeting_scheduled` | 2 |
 > | Sprint 24 · TM selesai | Pengawas, Asisten PM | `technical_meeting_completed` | 2 |
 > | Sprint 24 · Jasa pengawas diajukan (DP / pelunasan) | PM proyek | `supervisor_payment_requested` | 2 |
 > | Sprint 24 · Jasa pengawas disetujui/ditolak PM; dibayar | Pengawas | `supervisor_payment_decided` / `supervisor_payment_paid` | 3 |

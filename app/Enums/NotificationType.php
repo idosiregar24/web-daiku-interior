@@ -94,6 +94,7 @@ enum NotificationType: string
     case WorkingDrawingToAssign = 'working_drawing_to_assign';
     case WorkingDrawingAssigned = 'working_drawing_assigned';
     case WorkingDrawingCompleted = 'working_drawing_completed';
+    case TechnicalMeetingScheduled = 'technical_meeting_scheduled';
     case TechnicalMeetingCompleted = 'technical_meeting_completed';
     case SupervisorPaymentRequested = 'supervisor_payment_requested';
     case SupervisorPaymentDecided = 'supervisor_payment_decided';
@@ -214,6 +215,7 @@ enum NotificationType: string
             self::WorkingDrawingToAssign,
             self::WorkingDrawingAssigned,
             self::WorkingDrawingCompleted,
+            self::TechnicalMeetingScheduled,
             self::TechnicalMeetingCompleted,
             self::SupervisorPaymentRequested,
             self::SupervisorPaymentToPay,
@@ -373,6 +375,7 @@ enum NotificationType: string
             self::BudgetOverrunRequested,
             self::BudgetOverrunApproved,
             self::BudgetOverrunRejected,
+            self::TechnicalMeetingScheduled,
             self::TechnicalMeetingCompleted,
             self::SupervisorPaymentRequested,
             self::SupervisorPaymentDecided,

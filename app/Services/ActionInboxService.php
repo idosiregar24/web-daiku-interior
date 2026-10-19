@@ -204,6 +204,7 @@ class ActionInboxService
 
         if ($user->hasRole('QA')) {
             $groups[] = $this->pendingQa($user);
+            $groups[] = $this->meetingsForSupervisor($user);
             $groups[] = $this->executionForSupervisor($user);
         }
 
@@ -763,6 +764,39 @@ class ActionInboxService
                 },
                 'at' => $project->phase_changed_at,
                 'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
+            ],
+        );
+    }
+
+    /**
+     * The Pengawas at the Technical Meeting: when it is (the PM sets the
+     * date) and how far the "bahan yang digunakan" plan is — straight to
+     * the planner in the TM card.
+     */
+    private function meetingsForSupervisor(User $user): ?array
+    {
+        return $this->group(
+            'tm-supervisor', 'Technical Meeting · giliran Pengawas', 'Lihat jadwal TM dan rencanakan bahan yang digunakan.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->where('supervisor_id', $user->id)
+                ->where('phase', ProjectPhase::Tm->value)
+                ->with('technicalMeeting:id,project_id,meeting_date')
+                ->withCount(['projectMaterials as planned_materials_count' => fn (Builder $line) => $line
+                    ->where(fn (Builder $q) => $q->whereNull('request_status')->orWhere('request_status', MaterialRequestStatus::Disetujui->value))])
+                ->oldest('phase_changed_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => collect([
+                    ($date = $project->technicalMeeting?->meeting_date)
+                        ? 'TM '.$date->locale('id')->translatedFormat('D, j M Y')
+                        : 'Jadwal TM belum ditentukan PM',
+                    $project->planned_materials_count > 0 ? "{$project->planned_materials_count} bahan direncanakan" : 'Bahan belum direncanakan',
+                ])->implode(' · '),
+                'at' => $project->phase_changed_at,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']).'#tm-bahan',
             ],
         );
     }

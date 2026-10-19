@@ -9,6 +9,8 @@ use Illuminate\Validation\Rule;
 /**
  * Sprint 24 D3/D4/E1/E2 — the TM form: date, minutes, attendees (a user or
  * a typed name), Jasa Pengawas total + DP %, the project's Tanggal Selesai.
+ * The fee may stay empty while none is set yet — the PM can save the TM's
+ * date (its schedule) first; "TM Selesai" still needs it.
  * Route `role:PM|ASISTEN_PM` + ProjectPolicy::runMeeting(); the phase rule
  * is TechnicalMeetingService::save()'s.
  */
@@ -30,7 +32,7 @@ class SaveTechnicalMeetingRequest extends FormRequest
             'attendees' => ['nullable', 'array', 'max:50'],
             'attendees.*.user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'attendees.*.name' => ['nullable', 'string', 'max:120', 'required_without:attendees.*.user_id'],
-            'fee_total' => ['required', 'numeric', 'min:0', 'max:9999999999999.99'],
+            'fee_total' => [Rule::requiredIf(fn () => $project->supervisorFee()->exists()), 'nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
             'dp_percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'end_date' => ['nullable', 'date', ...($project->start_date ? ['after_or_equal:'.$project->start_date->toDateString()] : [])],
         ];

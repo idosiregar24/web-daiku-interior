@@ -44,6 +44,7 @@ class TechnicalMeetingService
 
             $meeting = TechnicalMeeting::firstOrNew(['project_id' => $project->id]);
             $before = $meeting->exists ? $this->snapshot($meeting, $project) : null;
+            $previousDate = $meeting->meeting_date?->toDateString();
 
             $meeting->fill([
                 'meeting_date' => $data['meeting_date'],
@@ -60,12 +61,15 @@ class TechnicalMeetingService
                 ->unique(fn (array $row) => $row['user_id'] ? "u{$row['user_id']}" : 'n'.mb_strtolower($row['name']))
                 ->each(fn (array $row) => $meeting->attendees()->create($row));
 
-            SupervisorFee::updateOrCreate(['project_id' => $project->id], [
-                'supervisor_id' => $project->supervisor_id,
-                'total_amount' => round((float) $data['fee_total'], 2),
-                'dp_percent' => round((float) $data['dp_percent'], 2),
-                'set_by' => $actor->id,
-            ]);
+            // Empty only while no fee exists yet (SaveTechnicalMeetingRequest) — the TM's schedule saved first.
+            if (filled($data['fee_total'] ?? null)) {
+                SupervisorFee::updateOrCreate(['project_id' => $project->id], [
+                    'supervisor_id' => $project->supervisor_id,
+                    'total_amount' => round((float) $data['fee_total'], 2),
+                    'dp_percent' => round((float) $data['dp_percent'], 2),
+                    'set_by' => $actor->id,
+                ]);
+            }
 
             if (array_key_exists('end_date', $data)) {
                 $project->update(['end_date' => filled($data['end_date']) ? $data['end_date'] : null]);
@@ -73,6 +77,10 @@ class TechnicalMeetingService
 
             $meeting->load('attendees.user:id,name');
             $this->auditLogService->record('technical_meeting.saved', $project, $before, $this->snapshot($meeting, $project->fresh()), $actor);
+
+            if ($meeting->meeting_date->toDateString() !== $previousDate) {
+                $this->notifySchedule($project, $meeting, $previousDate !== null, $actor);
+            }
 
             return $meeting;
         });
@@ -125,6 +133,27 @@ class TechnicalMeetingService
 
             return $project;
         });
+    }
+
+    /**
+     * The TM got a date (or a new one): the Pengawas — who plans the
+     * materials before it — and the attendees with an account hear it.
+     */
+    private function notifySchedule(Project $project, TechnicalMeeting $meeting, bool $moved, User $actor): void
+    {
+        $date = $meeting->meeting_date->locale('id')->translatedFormat('l, j F Y');
+        $recipients = $meeting->attendees->pluck('user')
+            ->push($project->supervisor)
+            ->filter(fn (?User $user) => $user && $user->id !== $actor->id)
+            ->unique('id');
+
+        $this->notificationService->notifyMany(
+            $recipients,
+            NotificationType::TechnicalMeetingScheduled,
+            $moved ? 'Jadwal TM Diubah' : 'Jadwal Technical Meeting',
+            "Technical Meeting proyek \"{$project->name}\" ".($moved ? 'dipindah ke' : 'dijadwalkan')." {$date}. Pengawas: rencanakan bahan yang digunakan sebelum TM.",
+            ['project_id' => $project->id],
+        );
     }
 
     /** Material lines that count as "bahan yang digunakan": planned from the catalog or approved requests. */

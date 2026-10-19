@@ -99,6 +99,7 @@ class NotificationTarget
             // project's "Eksekusi" tab.
             NotificationType::SupervisorPaymentToPay => route('finance.supervisor-payments.index'),
             NotificationType::WorkingDrawingCompleted,
+            NotificationType::TechnicalMeetingScheduled,
             NotificationType::TechnicalMeetingCompleted,
             NotificationType::SupervisorPaymentRequested,
             NotificationType::SupervisorPaymentDecided,
