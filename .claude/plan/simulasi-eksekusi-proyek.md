@@ -219,6 +219,9 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
   jam batas → penalti otomatis.
 - Ulangi untuk target lain (ubah tanggal target lewat Langkah 13 bila perlu
   supaya bisa dikerjakan hari ini).
+- **Cek (Sprint 25):** `pm` / `ceo` → tab **Activity Target** — kolom Actual
+  hari ini bertambah, Actual Kumulatif minggu ini = Progress Proyek di
+  ringkasan (dan di tab Ringkasan / daftar proyek).
 
 ### Langkah 13 · Pengawas menggeser jadwal
 - **Login:** `qa` → tab **Task** → **Per Hari** (kolom Senin–Minggu, ‹ ›
@@ -242,7 +245,8 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
 ## Tahap 6 — Berangkat ke Lokasi
 
 ### Langkah 15 · Progres ≥ 70%
-- Selesaikan minimal 3 dari 4 target (75%) lewat Langkah 12.
+- Selesaikan minimal 3 dari 4 target (75%) lewat Langkah 12. Angkanya
+  terlihat di tab **Activity Target** (Progress Proyek vs Target s.d. Hari Ini).
 - **Hasil:** PM mendapat notifikasi sekali "siap berangkat ke lokasi";
   muncul di **Perlu Tindakan**.
 

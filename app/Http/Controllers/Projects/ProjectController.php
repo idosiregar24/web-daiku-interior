@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\Vendor;
 use App\Policies\ProjectPolicy;
 use App\Services\FinanceAllocationService;
+use App\Services\ProductionService;
 use App\Services\ProjectBudgetService;
 use App\Services\ProjectExecutionService;
 use App\Services\ProjectService;
@@ -79,6 +80,7 @@ class ProjectController extends Controller
         ProjectService $projectService,
         ProjectBudgetService $budgetService,
         ProjectExecutionService $executionService,
+        ProductionService $productionService,
     ): Response {
         $this->authorize('view', $project);
 
@@ -188,6 +190,8 @@ class ProjectController extends Controller
                 ? $project->progressLogs()->with('logger:id,name')->get()
                 : [],
             'canViewProgressLogs' => $canViewProgressLogs,
+            // Sprint 25 — tab "Activity Target": daily target vs actual, numbers only.
+            'activityTarget' => $canViewProgressLogs ? $productionService->activityTarget($project) : null,
             'qaForms' => $canViewQa
                 ? $project->qaForms()
                     ->with(['milestone:id,name,order,status', 'reviewer:id,name'])

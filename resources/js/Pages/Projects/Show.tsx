@@ -20,6 +20,7 @@ import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneG
 import { MilestoneList } from '@/Components/modules/projects/MilestoneList';
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
+import { ActivityTargetPanel } from '@/Components/modules/projects/ActivityTargetPanel';
 import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDialog';
 import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
@@ -41,6 +42,7 @@ import { useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
 import { cn } from '@/lib/utils';
 import type {
+    ActivityTarget,
     FinanceAllocationLine,
     Invoice,
     Material,
@@ -76,6 +78,7 @@ import {
     Info,
     LayoutDashboard,
     ListChecks,
+    NotebookPen,
     Package,
     PenLine,
     PieChart,
@@ -116,6 +119,8 @@ interface ProjectShowProps {
     progressLogs: ProgressLog[];
     canViewProgressLogs: boolean;
     canManageProgressLogs: boolean;
+    /** Sprint 25 — tab "Activity Target" (null when the tab is not readable). */
+    activityTarget: ActivityTarget | null;
     /** Sprint 13 #3 — Tab QA: the timelines' QA forms (CEO/PM/Asisten PM/QA). */
     qaForms: QaForm[];
     canViewQa: boolean;
@@ -592,13 +597,19 @@ function TaskTab({
     );
 }
 
-function ProgressTab({
+/**
+ * Sprint 25 — tab "Activity Target" (key `progress`): daily target vs
+ * actual for the whole project, then the PM's Catatan Progress below.
+ */
+function ActivityTargetTab({
     project,
+    activityTarget,
     progressLogs,
     canView,
     canManage,
 }: {
     project: Project;
+    activityTarget: ActivityTarget | null;
     progressLogs: ProgressLog[];
     canView: boolean;
     canManage: boolean;
@@ -607,26 +618,30 @@ function ProgressTab({
 
     if (!canView) {
         return (
-            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat catatan progress proyek ini." />
+            <EmptyState className="rounded-xl border border-dashed border-border" title="Anda tidak punya akses untuk melihat activity target proyek ini." />
         );
     }
 
     return (
-        <div>
-            {/* Sprint 24 D11 — notes only; the percentage is the actual activity. */}
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
-                    Laporan naratif PM. Progress proyek ({project.actual_progress ?? 0}%) dihitung otomatis dari daily target yang selesai.
-                </p>
-                {canManage && (
-                    <Button size="sm" onClick={() => setDialogOpen(true)}>
-                        <Plus className="size-4" />
-                        Tambah Catatan
-                    </Button>
-                )}
-            </div>
+        <div className="space-y-6">
+            {activityTarget && <ActivityTargetPanel data={activityTarget} />}
 
-            <ProgressTimeline logs={progressLogs} />
+            {/* Sprint 24 D11 — notes only; the percentage is the actual activity above. */}
+            <SectionCard
+                title="Catatan Progress"
+                description="Laporan naratif PM — persentase progress dihitung otomatis dari daily target yang selesai."
+                icon={NotebookPen}
+                action={
+                    canManage && (
+                        <Button size="sm" onClick={() => setDialogOpen(true)}>
+                            <Plus className="size-4" />
+                            Tambah Catatan
+                        </Button>
+                    )
+                }
+            >
+                <ProgressTimeline logs={progressLogs} />
+            </SectionCard>
 
             {canManage && (
                 <ProgressLogFormDialog open={dialogOpen} onOpenChange={setDialogOpen} projectId={project.id} />
@@ -989,7 +1004,7 @@ const PROJECT_TAB_LABEL: Record<string, string> = {
     qa: 'QA/QC',
     task: 'Task',
     overtime: 'Lembur',
-    progress: 'Catatan Progress',
+    progress: 'Activity Target',
     finance: 'Finance',
     material: 'Material',
 };
@@ -1099,6 +1114,7 @@ export default function ProjectShow({
     progressLogs,
     canViewProgressLogs,
     canManageProgressLogs,
+    activityTarget,
     qaForms,
     canViewQa,
     canOpenQaForm,
@@ -1321,7 +1337,7 @@ export default function ProjectShow({
                     )}
                     <TabsTrigger value="progress">
                         <Activity />
-                        Catatan Progress
+                        Activity Target
                     </TabsTrigger>
                     <TabsTrigger value="finance">
                         <Wallet />
@@ -1358,6 +1374,7 @@ export default function ProjectShow({
                             fieldStaff={fieldStaff}
                             canManageMilestones={canManageMilestones}
                             materialOptions={materialOptions}
+                            onOpenActivityTarget={activityTarget ? () => setTab('progress') : undefined}
                         />
                     </TabsContent>
                 )}
@@ -1390,8 +1407,9 @@ export default function ProjectShow({
                     />
                 </TabsContent>
                 <TabsContent value="progress" className="mt-6">
-                    <ProgressTab
+                    <ActivityTargetTab
                         project={project}
+                        activityTarget={activityTarget}
                         progressLogs={progressLogs}
                         canView={canViewProgressLogs}
                         canManage={canManageProgressLogs}

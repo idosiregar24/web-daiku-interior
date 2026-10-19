@@ -866,6 +866,41 @@ export interface ProgressLog {
     created_at: string;
 }
 
+/** Sprint 25 — one row of the "Activity Target" table; `actual`/`cum_actual` are null for days still ahead. */
+export interface ActivityTargetDay {
+    date: string;
+    target: number;
+    actual: number | null;
+    rolled: number;
+    /** % of all the project's targets planned up to this day. */
+    cum_target: number;
+    /** % of all the project's targets finished up to this day. */
+    cum_actual: number | null;
+}
+
+export interface ActivityTargetWeek extends Omit<ActivityTargetDay, 'date'> {
+    start: string;
+    end: string;
+    days: ActivityTargetDay[];
+}
+
+/** Sprint 25 — ProductionService::activityTarget(): daily target vs actual for the whole project, numbers only. */
+export interface ActivityTarget {
+    today: string;
+    summary: {
+        total: number;
+        done: number;
+        /** = Project::actualProgress() */
+        progress: number;
+        planned_to_date: number;
+        target_to_date: number;
+        /** progress − target_to_date, in points */
+        gap: number;
+        rolled: number;
+    };
+    weeks: ActivityTargetWeek[];
+}
+
 /** PRD 4.6 — QA */
 export type QAStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 

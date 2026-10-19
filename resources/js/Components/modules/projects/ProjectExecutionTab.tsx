@@ -42,6 +42,7 @@ export function ProjectExecutionTab({
     fieldStaff,
     canManageMilestones,
     materialOptions,
+    onOpenActivityTarget,
 }: {
     project: Project;
     execution: ProjectExecution;
@@ -49,6 +50,8 @@ export function ProjectExecutionTab({
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     canManageMilestones: boolean;
     materialOptions: MaterialOption[];
+    /** Sprint 25 — opens the project-wide "Activity Target" tab (when this viewer reads it). */
+    onOpenActivityTarget?: () => void;
 }) {
     const current = execution.phases.find((phase) => phase.state === 'current');
     const holder = project.status === 'ACTIVE' ? waitingOn('projectPhase', execution.phase) : null;
@@ -102,7 +105,7 @@ export function ProjectExecutionTab({
                 materialOptions={materialOptions}
             />
             <SupervisorFeeCard projectId={project.id} execution={execution} />
-            {execution.targetVsActual && <TargetVsActualCard project={project} execution={execution} fieldStaff={fieldStaff} />}
+            {execution.targetVsActual && <TargetVsActualCard project={project} execution={execution} fieldStaff={fieldStaff} onOpenActivityTarget={onOpenActivityTarget} />}
             <WeeklyReportsCard projectId={project.id} execution={execution} />
             <SiteFindingsCard projectId={project.id} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />
         </div>
@@ -193,7 +196,17 @@ function shiftWeek(weekStart: string, days: number): string {
 }
 
 /** D6/D7 — per Tukang per day: target (first planned) vs actual (finished), rolled ones marked. */
-function TargetVsActualCard({ project, execution, fieldStaff }: { project: Project; execution: ProjectExecution; fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[] }) {
+function TargetVsActualCard({
+    project,
+    execution,
+    fieldStaff,
+    onOpenActivityTarget,
+}: {
+    project: Project;
+    execution: ProjectExecution;
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+    onOpenActivityTarget?: () => void;
+}) {
     const data = execution.targetVsActual!;
     const [swapping, setSwapping] = useState(false);
 
@@ -207,6 +220,14 @@ function TargetVsActualCard({ project, execution, fieldStaff }: { project: Proje
             description={`Minggu mulai ${formatDate(data.week_start)} — angka: selesai / target hari itu (↻ = bergulir ke hari berikutnya).`}
             icon={Activity}
             flush
+            footer={
+                onOpenActivityTarget && (
+                    <Button variant="link" size="sm" className="h-auto px-0" onClick={onOpenActivityTarget}>
+                        Lihat seluruh proyek (Activity Target)
+                        <ChevronRight className="size-4" />
+                    </Button>
+                )
+            }
             action={
                 <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon-sm" aria-label="Minggu sebelumnya" onClick={() => goTo(shiftWeek(data.week_start, -7))}>

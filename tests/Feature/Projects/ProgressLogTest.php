@@ -49,15 +49,15 @@ test('roles other than PM cannot add a progress note', function (string $role) {
     ])->assertForbidden();
 })->with(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF']);
 
-test('progress note is blocked while a milestone is QA_WAITING', function () {
+test('a progress note is allowed while a timeline waits for QA (Sprint 25 Q5)', function () {
     $pm = User::factory()->create();
     $pm->assignRole('PM');
     $project = Project::factory()->create(['pm_id' => $pm->id]);
     Milestone::factory()->create(['project_id' => $project->id, 'status' => MilestoneStatus::QaWaiting->value]);
 
     $this->actingAs($pm)->post(route('progress-logs.store', ['project' => $project->id]), [
-        'description' => 'Test',
-    ])->assertSessionHasErrors('description');
+        'description' => 'Menunggu pemeriksaan Pengawas.',
+    ])->assertSessionHasNoErrors();
 
-    expect(ProgressLog::where('project_id', $project->id)->exists())->toBeFalse();
+    expect(ProgressLog::where('project_id', $project->id)->exists())->toBeTrue();
 });

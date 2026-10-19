@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\NotificationType;
 use App\Enums\ProjectPhase;
+use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
 use App\Models\Project;
 use App\Models\Task;
@@ -11,6 +12,7 @@ use App\Models\TaskScheduleChange;
 use App\Models\User;
 use App\Support\DailyFormSchedule;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -161,45 +163,27 @@ class ProductionService
             }
         }
 
-        $tasks = Task::query()
-            ->where('project_id', $project->id)
-            ->with('assignee:id,name')
-            ->get(['id', 'assignee_id', 'planned_date', 'due_date', 'status', 'completed_at']);
-        $rolled = TaskScheduleChange::query()
-            ->whereIn('task_id', $tasks->pluck('id'))
-            ->where('kind', TaskScheduleChange::ROLLOVER)
-            ->whereDate('from_date', '>=', $from->toDateString())
-            ->whereDate('from_date', '<=', $to->toDateString())
-            ->get(['task_id', 'from_date']);
-        $assigneeOf = $tasks->pluck('assignee_id', 'id');
+        ['targets' => $targets, 'rolled' => $rolled] = $this->activityFacts($project, withStaff: true);
 
         $rows = [];
         $blank = fn () => array_fill_keys($days, ['target' => 0, 'actual' => 0, 'rolled' => 0]);
 
-        foreach ($tasks as $task) {
-            $staffId = (int) $task->assignee_id;
-            $rows[$staffId] ??= ['staff_id' => $staffId, 'name' => $task->assignee?->name ?? 'Tukang', 'cells' => $blank()];
-            $planned = ($task->planned_date ?? $task->due_date)?->toDateString();
+        foreach ($targets as $target) {
+            $staffId = $target['staff_id'];
+            $rows[$staffId] ??= ['staff_id' => $staffId, 'name' => $target['staff_name'] ?? 'Tukang', 'cells' => $blank()];
 
-            if ($planned && isset($rows[$staffId]['cells'][$planned])) {
-                $rows[$staffId]['cells'][$planned]['target']++;
+            if ($target['target_on'] && isset($rows[$staffId]['cells'][$target['target_on']])) {
+                $rows[$staffId]['cells'][$target['target_on']]['target']++;
             }
 
-            $done = $task->status === TaskStatus::Done && $task->completed_at
-                ? $task->completed_at->copy()->timezone(DailyFormSchedule::TIMEZONE)->toDateString()
-                : null;
-
-            if ($done && isset($rows[$staffId]['cells'][$done])) {
-                $rows[$staffId]['cells'][$done]['actual']++;
+            if ($target['done_on'] && isset($rows[$staffId]['cells'][$target['done_on']])) {
+                $rows[$staffId]['cells'][$target['done_on']]['actual']++;
             }
         }
 
         foreach ($rolled as $change) {
-            $staffId = (int) ($assigneeOf[$change->task_id] ?? 0);
-            $day = $change->from_date->toDateString();
-
-            if (isset($rows[$staffId]['cells'][$day])) {
-                $rows[$staffId]['cells'][$day]['rolled']++;
+            if (isset($rows[$change['staff_id']]['cells'][$change['day']])) {
+                $rows[$change['staff_id']]['cells'][$change['day']]['rolled']++;
             }
         }
 
@@ -214,5 +198,156 @@ class ProductionService
             ->all();
 
         return ['days' => $days, 'rows' => $rows];
+    }
+
+    /**
+     * Sprint 25 — "Activity Target": the whole project, one row per working
+     * day (grouped per week): daily targets planned that day vs targets
+     * finished that day, plus both cumulated over every target the project
+     * has now — so the last actual figure is Project::actualProgress().
+     * Numbers only: no task title, no Tukang name (PRD §4.6).
+     *
+     * @return array{today: string, summary: array{total: int, done: int, progress: int, planned_to_date: int, target_to_date: int, gap: int, rolled: int}, weeks: list<array<string, mixed>>}
+     */
+    public function activityTarget(Project $project): array
+    {
+        ['targets' => $targets, 'rolled' => $rolled] = $this->activityFacts($project);
+        $today = DailyFormSchedule::now()->toDateString();
+        $total = $targets->count();
+
+        // Targets without a day (or finished without a time) count from the start.
+        $baseTarget = $targets->whereNull('target_on')->count();
+        $baseActual = $targets->where('done', true)->whereNull('done_on')->count();
+
+        $perDay = [];
+        $bump = function (string $day, string $key) use (&$perDay): void {
+            $perDay[$day] ??= ['target' => 0, 'actual' => 0, 'rolled' => 0];
+            $perDay[$day][$key]++;
+        };
+        $targets->whereNotNull('target_on')->each(fn (array $target) => $bump($target['target_on'], 'target'));
+        $targets->whereNotNull('done_on')->each(fn (array $target) => $bump($target['done_on'], 'actual'));
+        $rolled->each(fn (array $change) => $bump($change['day'], 'rolled'));
+
+        $done = $targets->where('done', true)->count();
+        $plannedToDate = $baseTarget + collect($perDay)->filter(fn ($cell, string $day) => $day <= $today)->sum('target');
+        $progress = Project::activityPercent($done, $total);
+        $targetToDate = Project::activityPercent($plannedToDate, $total);
+
+        $summary = [
+            'total' => $total,
+            'done' => $done,
+            'progress' => $progress,
+            'planned_to_date' => $plannedToDate,
+            'target_to_date' => $targetToDate,
+            'gap' => $progress - $targetToDate,
+            'rolled' => $rolled->count(),
+        ];
+
+        if ($perDay === []) {
+            return ['today' => $today, 'summary' => $summary, 'weeks' => []];
+        }
+
+        $first = min(array_keys($perDay));
+        $last = max(array_keys($perDay));
+        // A running project keeps "today" on the table even on a day without targets.
+        if ($project->status === ProjectStatus::Active && $today > $last) {
+            $last = $today;
+        }
+
+        $weeks = [];
+        $cumTarget = $baseTarget;
+        $cumActual = $baseActual;
+
+        for ($day = Carbon::parse($first); $day->toDateString() <= $last; $day->addDay()) {
+            $date = $day->toDateString();
+            $cell = $perDay[$date] ?? null;
+
+            // Off days appear only when something happened on them.
+            if ($cell === null && ! DailyFormSchedule::isWorkDay($day)) {
+                continue;
+            }
+
+            $cell ??= ['target' => 0, 'actual' => 0, 'rolled' => 0];
+            $past = $date <= $today;
+            $cumTarget += $cell['target'];
+            $cumActual += $cell['actual'];
+
+            $weekStart = $day->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+            $weeks[$weekStart] ??= [
+                'start' => $weekStart,
+                'end' => $day->copy()->endOfWeek(Carbon::SUNDAY)->toDateString(),
+                'target' => 0,
+                'actual' => $weekStart <= $today ? 0 : null,
+                'rolled' => 0,
+                'cum_target' => 0,
+                'cum_actual' => null,
+                'days' => [],
+            ];
+
+            $row = [
+                'date' => $date,
+                'target' => $cell['target'],
+                'actual' => $past ? $cell['actual'] : null,
+                'rolled' => $cell['rolled'],
+                'cum_target' => Project::activityPercent($cumTarget, $total),
+                'cum_actual' => $past ? Project::activityPercent($cumActual, $total) : null,
+            ];
+
+            $week = &$weeks[$weekStart];
+            $week['days'][] = $row;
+            $week['target'] += $row['target'];
+            $week['rolled'] += $row['rolled'];
+            $week['cum_target'] = $row['cum_target'];
+            if ($past) {
+                $week['actual'] += $row['actual'];
+                $week['cum_actual'] = $row['cum_actual'];
+            }
+            unset($week);
+        }
+
+        return ['today' => $today, 'summary' => $summary, 'weeks' => array_values($weeks)];
+    }
+
+    /**
+     * D6/D7 — the one reading of a project's daily targets behind both
+     * Target-vs-Actual views: a target's day is the day it was first
+     * planned (`planned_date`, which never rolls), it counts as actual on
+     * the day it was finished (WIB), and it "rolled" on every day it moved
+     * away from unfinished.
+     *
+     * @return array{targets: Collection<int, array{staff_id: int, staff_name: ?string, target_on: ?string, done: bool, done_on: ?string}>, rolled: Collection<int, array{staff_id: int, day: string}>}
+     */
+    private function activityFacts(Project $project, bool $withStaff = false): array
+    {
+        $tasks = Task::query()
+            ->where('project_id', $project->id)
+            ->when($withStaff, fn ($query) => $query->with('assignee:id,name'))
+            ->get(['id', 'assignee_id', 'planned_date', 'due_date', 'status', 'completed_at']);
+        $assigneeOf = $tasks->pluck('assignee_id', 'id');
+
+        $targets = $tasks->map(function (Task $task) use ($withStaff) {
+            $done = $task->status === TaskStatus::Done;
+
+            return [
+                'staff_id' => (int) $task->assignee_id,
+                'staff_name' => $withStaff ? $task->assignee?->name : null,
+                'target_on' => ($task->planned_date ?? $task->due_date)?->toDateString(),
+                'done' => $done,
+                'done_on' => $done && $task->completed_at
+                    ? $task->completed_at->copy()->timezone(DailyFormSchedule::TIMEZONE)->toDateString()
+                    : null,
+            ];
+        });
+
+        $rolled = TaskScheduleChange::query()
+            ->whereIn('task_id', $tasks->pluck('id'))
+            ->where('kind', TaskScheduleChange::ROLLOVER)
+            ->get(['task_id', 'from_date'])
+            ->map(fn (TaskScheduleChange $change) => [
+                'staff_id' => (int) ($assigneeOf[$change->task_id] ?? 0),
+                'day' => $change->from_date->toDateString(),
+            ]);
+
+        return ['targets' => $targets, 'rolled' => $rolled];
     }
 }

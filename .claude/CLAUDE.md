@@ -234,7 +234,10 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     `JASA_PENGAWAS`, never above the fee, append-only). Progress = actual
     activity (`Project::actualProgress()`, lists/dashboards via
     `Project::withActivityCounts()` — never a typed percentage; a progress
-    log is only a PM note, "Catatan Progress"); ≥ 70 % unlocks "Berangkat ke
+    log is only a PM note, "Catatan Progress"; daily target vs actual for
+    the whole project is the "Activity Target" tab, built once in
+    `ProductionService::activityTarget()` — numbers only, same definitions
+    as `targetVsActual()`); ≥ 70 % unlocks "Berangkat ke
     Lokasi"; open `site_findings` hold QA and completion. The project's
     "Eksekusi" tab is built once in `ProjectExecutionService::overview()`.
     **Pengawas = QA = QC — one person** (role `QA`, shown as "Pengawas
