@@ -24,6 +24,7 @@ use App\Models\ProjectOpening;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\QuotationApproval;
+use App\Models\QuotationItem;
 use App\Models\SiteFinding;
 use App\Models\SupervisorFee;
 use App\Models\SupervisorPayment;
@@ -239,11 +240,109 @@ test('TM: the PM records it, the Pengawas plans materials, "TM Selesai" needs ev
     $this->actingAs($this->qa)->post(route('projects.materials.store', $project), ['material_id' => $material->id, 'source' => 'GUDANG', 'qty_planned' => 3])->assertSessionHasNoErrors();
     $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [...$payload, 'end_date' => '2026-10-31'])->assertSessionHasNoErrors();
 
+    // The PM's TM card lists the Pengawas's materials (read-only).
+    $this->actingAs($this->pm)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
+        ->where('execution.meetingMaterials.0.name', $material->name)
+        ->count('execution.meetingMaterials', 1));
+
     $this->actingAs($this->pm)->post(route('projects.technical-meeting.complete', $project))->assertSessionHasNoErrors();
 
     expect($project->fresh()->phase)->toBe(ProjectPhase::Persiapan)
         ->and($project->fresh()->end_date->toDateString())->toBe('2026-10-31')
         ->and(notified($this->qa, 'technical_meeting_completed'))->toBe(1);
+});
+
+test('TM: the RAB items sit beside the materials — only the PM and the project Pengawas, never prices', function () {
+    $project = execProject($this, ProjectPhase::Tm);
+    $quotation = Quotation::factory()->create();
+    QuotationItem::factory()->create(['quotation_id' => $quotation->id, 'description' => 'Kitchen Set Atas', 'qty' => 2.5]);
+    $project->update(['quotation_id' => $quotation->id]);
+
+    foreach ([$this->pm, $this->qa] as $viewer) {
+        $this->actingAs($viewer)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
+            ->where('execution.meetingRab.0.items.0.description', 'Kitchen Set Atas')
+            ->where('execution.meetingRab.0.items.0.volume', fn ($volume) => str_starts_with($volume, '2,5'))
+            ->missing('execution.meetingRab.0.items.0.unit_price')
+            ->missing('execution.meetingRab.0.items.0.total_price'));
+    }
+
+    foreach ([$this->otherQa, $this->finance] as $viewer) {
+        $this->actingAs($viewer)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page->count('execution.meetingRab', 0));
+    }
+});
+
+test('TM schedule: the PM saves the date before the fee, the Pengawas and attendees hear it (again when moved)', function () {
+    $project = execProject($this, ProjectPhase::Tm);
+    $schedule = ['meeting_date' => '2026-10-20', 'attendees' => [['user_id' => $this->logistics->id]], 'fee_total' => '', 'dp_percent' => 10];
+
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), $schedule)->assertSessionHasNoErrors();
+
+    expect(TechnicalMeeting::where('project_id', $project->id)->value('meeting_date')->toDateString())->toBe('2026-10-20')
+        ->and(SupervisorFee::where('project_id', $project->id)->exists())->toBeFalse()
+        ->and(notified($this->qa, 'technical_meeting_scheduled'))->toBe(1)
+        ->and(notified($this->logistics, 'technical_meeting_scheduled'))->toBe(1)
+        ->and(notified($this->pm, 'technical_meeting_scheduled'))->toBe(0);
+
+    // Same date again → no repeat; a new date → "Jadwal TM Diubah".
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [...$schedule, 'fee_total' => 5_000_000])->assertSessionHasNoErrors();
+    expect(notified($this->qa, 'technical_meeting_scheduled'))->toBe(1);
+
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [...$schedule, 'meeting_date' => '2026-10-21', 'fee_total' => 5_000_000])->assertSessionHasNoErrors();
+    expect(notified($this->qa, 'technical_meeting_scheduled'))->toBe(2);
+
+    // Once a fee exists it can't be emptied.
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), $schedule)->assertSessionHasErrors('fee_total');
+});
+
+test('Perlu Tindakan: the Pengawas sees the TM date and the material plan of their projects at TM', function () {
+    $project = execProject($this, ProjectPhase::Tm);
+
+    $group = fn (User $user) => collect(app(ActionInboxService::class)->for($user, true))->firstWhere('key', 'tm-supervisor');
+
+    expect($group($this->qa)['items'][0]['subtitle'])->toBe('Jadwal TM belum ditentukan PM · Bahan belum direncanakan')
+        ->and($group($this->qa)['items'][0]['href'])->toEndWith('tab=execution#tm-bahan')
+        ->and($group($this->otherQa))->toBeNull();
+
+    TechnicalMeeting::create(['project_id' => $project->id, 'meeting_date' => '2026-10-20']);
+    $this->actingAs($this->qa)->post(route('projects.materials.store', $project), ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 4]);
+
+    expect($group($this->qa)['items'][0]['subtitle'])->toBe('TM Sel, 20 Okt 2026 · 1 bahan direncanakan');
+
+    $project->update(['phase' => ProjectPhase::Persiapan->value]);
+    expect($group($this->qa))->toBeNull();
+});
+
+test('the Pengawas revises their material plan until production starts; nobody else, never a request line', function () {
+    $project = execProject($this, ProjectPhase::Tm);
+    $this->actingAs($this->qa)->post(route('projects.materials.store', $project), ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 4])->assertSessionHasNoErrors();
+    $line = $project->projectMaterials()->sole();
+
+    $this->actingAs($this->qa)->get(route('projects.show', $project))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.can.planMaterials', true)
+        ->where('execution.can.updateMaterials', true)
+        ->where('execution.can.removeMaterials', true)
+        ->where('execution.meetingMaterials.0.editable', true));
+
+    $this->actingAs($this->otherQa)->put(route('project-materials.update', $line), ['qty_planned' => 9])->assertForbidden();
+    $this->actingAs($this->otherQa)->delete(route('project-materials.destroy', $line))->assertForbidden();
+    $this->actingAs($this->qa)->put(route('project-materials.update', $line), ['qty_planned' => 6.5])->assertSessionHasNoErrors();
+    expect((float) $line->fresh()->qty_planned)->toBe(6.5);
+
+    // The PM edits too, but only the Pengawas / Logistics remove.
+    $this->actingAs($this->pm)->put(route('project-materials.update', $line), ['qty_planned' => 7])->assertSessionHasNoErrors();
+    $this->actingAs($this->pm)->delete(route('project-materials.destroy', $line))->assertForbidden();
+
+    // A Tukang's request keeps its own flow.
+    $request = $project->projectMaterials()->create(['source' => 'CUSTOM', 'custom_name' => 'Lem khusus', 'unit_id' => $line->unit_id, 'qty_planned' => 1, 'request_status' => 'MENUNGGU_PM', 'request_channel' => 'TUKANG']);
+    $this->actingAs($this->qa)->delete(route('project-materials.destroy', $request))->assertForbidden();
+
+    $this->actingAs($this->qa)->delete(route('project-materials.destroy', $line))->assertSessionHasNoErrors();
+    expect($line->fresh())->toBeNull();
+
+    // From production on, Logistics is ordering — the Pengawas no longer revises.
+    $this->actingAs($this->qa)->post(route('projects.materials.store', $project), ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 2]);
+    $project->update(['phase' => ProjectPhase::Produksi->value]);
+    $this->actingAs($this->qa)->put(route('project-materials.update', $project->projectMaterials()->whereNull('request_channel')->sole()), ['qty_planned' => 3])->assertForbidden();
 });
 
 test('the TM form is refused outside the TM phase', function () {

@@ -47,13 +47,29 @@ interface MilestoneFormDialogProps {
     editing: Milestone | null;
     /** Suggested start for a new timeline — the day after the last one ends (or the project's start). */
     suggestedStart?: Date;
+    /** Keep the host page's state (e.g. an unsaved TM form next to it) when the timeline saves. */
+    preserveState?: boolean;
+}
+
+/** Sprint 23 K17 — a new timeline starts the day after the last one ends (or at the project's start). */
+export function suggestTimelineStart(milestones: Milestone[], projectStart: string | null | undefined): Date {
+    const last = [...milestones].sort((a, b) => a.order - b.order || a.target_date.localeCompare(b.target_date)).pop();
+
+    if (last) {
+        const next = new Date(last.target_date);
+        next.setDate(next.getDate() + 1);
+
+        return next;
+    }
+
+    return projectStart ? new Date(projectStart) : new Date();
 }
 
 /**
  * Add/edit modal for a project's Timeline (a milestone in code — Sprint 23
  * K16) — PRD §7.1 "Milestone" row (PM CRUD). K17: start and end date.
  */
-export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, suggestedStart }: MilestoneFormDialogProps) {
+export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, suggestedStart, preserveState = false }: MilestoneFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { name: '', start_date: undefined, target_date: undefined },
@@ -76,6 +92,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, su
             });
         };
         const onSuccess = () => onOpenChange(false);
+        const options = { onError, onSuccess, preserveState, preserveScroll: preserveState };
         const payload = {
             name: values.name,
             start_date: format(values.start_date, 'yyyy-MM-dd'),
@@ -84,9 +101,9 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, su
 
         if (editing) {
             // UpdateMilestoneRequest requires `status`; this form doesn't change it, so send it back as-is.
-            router.put(route('milestones.update', { milestone: editing.id }), { ...payload, status: editing.status }, { onError, onSuccess });
+            router.put(route('milestones.update', { milestone: editing.id }), { ...payload, status: editing.status }, options);
         } else {
-            router.post(route('milestones.store', { project: projectId }), payload, { onError, onSuccess });
+            router.post(route('milestones.store', { project: projectId }), payload, options);
         }
     }
 

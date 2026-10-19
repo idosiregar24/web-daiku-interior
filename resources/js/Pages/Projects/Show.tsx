@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/Components/ui/tabs';
 import { BudgetAllocationTab } from '@/Components/modules/projects/BudgetAllocationTab';
 import { RequestAddendumDialog } from '@/Components/modules/projects/RequestAddendumDialog';
 import { MilestoneCalendar } from '@/Components/modules/projects/MilestoneCalendar';
-import { MilestoneFormDialog } from '@/Components/modules/projects/MilestoneFormDialog';
+import { MilestoneFormDialog, suggestTimelineStart } from '@/Components/modules/projects/MilestoneFormDialog';
 import { MilestoneGanttCalendar } from '@/Components/modules/projects/MilestoneGanttCalendar';
 import { MilestoneList } from '@/Components/modules/projects/MilestoneList';
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
@@ -24,6 +24,7 @@ import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDial
 import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
+import { TaskWeekBoard } from '@/Components/modules/projects/TaskWeekBoard';
 import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { RescheduleTaskDialog } from '@/Components/modules/projects/RescheduleTaskDialog';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
@@ -34,6 +35,7 @@ import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
 
 // Sprint 24 — the execution flow tab. Imported statically: a lazy() chunk shared with this page made Vite drop the page's manifest entry.
 import { ProjectExecutionTab } from '@/Components/modules/projects/ProjectExecutionTab';
+import { CompleteMeetingButton } from '@/Components/modules/projects/TechnicalMeetingCard';
 import { BELOW_MD, useMediaQuery } from '@/hooks/useMediaQuery';
 import { useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
@@ -282,19 +284,7 @@ function MilestoneTab({
     const [editing, setEditing] = useState<Milestone | null>(null);
     // Sprint 13 P2 — Gantt/calendar need width; a phone gets the plain list.
     const compact = useMediaQuery(BELOW_MD);
-    // Sprint 23 K17 — a new timeline starts the day after the last one ends (or at the project's start).
-    const suggestedStart = useMemo(() => {
-        const last = [...milestones].sort((a, b) => a.order - b.order || a.target_date.localeCompare(b.target_date)).pop();
-
-        if (last) {
-            const next = new Date(last.target_date);
-            next.setDate(next.getDate() + 1);
-
-            return next;
-        }
-
-        return project.start_date ? new Date(project.start_date) : new Date();
-    }, [milestones, project.start_date]);
+    const suggestedStart = useMemo(() => suggestTimelineStart(milestones, project.start_date), [milestones, project.start_date]);
 
     if (!canView) {
         return (
@@ -551,6 +541,7 @@ function TaskTab({
                 <Tabs defaultValue="assignee">
                     <TabsList>
                         <TabsTrigger value="assignee">Per Tukang</TabsTrigger>
+                        <TabsTrigger value="day">Per Hari</TabsTrigger>
                         <TabsTrigger value="board">Board</TabsTrigger>
                     </TabsList>
                     <TabsContent value="assignee" className="mt-4 space-y-4">
@@ -567,6 +558,10 @@ function TaskTab({
                                 onDeleteClick={openDelete}
                             />
                         ))}
+                    </TabsContent>
+                    {/* Sprint 24 D9 — drag a daily target to another day (inside its timeline). */}
+                    <TabsContent value="day" className="mt-4">
+                        <TaskWeekBoard tasks={tasks} milestones={milestones} canMove={canEdit} />
                     </TabsContent>
                     <TabsContent value="board" className="mt-4">
                         <TaskKanbanBoard
@@ -1245,6 +1240,10 @@ export default function ProjectShow({
                                 Ubah Proyek
                             </Button>
                         )}
+                        {/* Sprint 24 — the TM's closing step, for the project's PM / Asisten PM. */}
+                        {execution?.can.completeMeeting && (
+                            <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved />
+                        )}
                         {/* Sprint 23 K4b — was on the Dokumen tab's RAB Tambahan card. */}
                         {canRequestAddendum && (
                             <MoreActions>
@@ -1348,7 +1347,14 @@ export default function ProjectShow({
                 </TabsContent>
                 {execution && (
                     <TabsContent value="execution" className="mt-6">
-                        <ProjectExecutionTab project={project} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />
+                        <ProjectExecutionTab
+                            project={project}
+                            execution={execution}
+                            milestones={milestones}
+                            fieldStaff={fieldStaff}
+                            canManageMilestones={canManageMilestones}
+                            materialOptions={materialOptions}
+                        />
                     </TabsContent>
                 )}
                 <TabsContent value="milestone" className="mt-6">

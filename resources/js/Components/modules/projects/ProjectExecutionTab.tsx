@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
+import type { MaterialOption } from './TmMaterialPlanner';
 import { WeeklyReportsCard } from './WeeklyReportsCard';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric' });
@@ -39,11 +40,15 @@ export function ProjectExecutionTab({
     execution,
     milestones,
     fieldStaff,
+    canManageMilestones,
+    materialOptions,
 }: {
     project: Project;
     execution: ProjectExecution;
     milestones: Milestone[];
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+    canManageMilestones: boolean;
+    materialOptions: MaterialOption[];
 }) {
     const current = execution.phases.find((phase) => phase.state === 'current');
     const holder = project.status === 'ACTIVE' ? waitingOn('projectPhase', execution.phase) : null;
@@ -89,7 +94,13 @@ export function ProjectExecutionTab({
                 <ProgressCard project={project} execution={execution} />
             </div>
 
-            <TechnicalMeetingCard projectId={project.id} execution={execution} />
+            <TechnicalMeetingCard
+                project={project}
+                execution={execution}
+                milestones={milestones}
+                canManageTimeline={canManageMilestones}
+                materialOptions={materialOptions}
+            />
             <SupervisorFeeCard projectId={project.id} execution={execution} />
             {execution.targetVsActual && <TargetVsActualCard project={project} execution={execution} fieldStaff={fieldStaff} />}
             <WeeklyReportsCard projectId={project.id} execution={execution} />

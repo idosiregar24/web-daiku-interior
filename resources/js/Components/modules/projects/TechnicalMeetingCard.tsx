@@ -1,33 +1,51 @@
+import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { MoneyInput } from '@/Components/shared/MoneyInput';
+import { Notice } from '@/Components/shared/Notice';
 import { SectionCard } from '@/Components/shared/SectionCard';
+import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
-import type { ProjectExecution } from '@/types';
+import { cn } from '@/lib/utils';
+import type { Milestone, Project, ProjectExecution } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { router } from '@inertiajs/react';
-import { CheckCircle2, Circle, Plus, Users, X } from 'lucide-react';
-import { useState } from 'react';
+import { Link, router } from '@inertiajs/react';
+import { differenceInCalendarDays } from 'date-fns';
+import { Check, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { MilestoneFormDialog, suggestTimelineStart } from './MilestoneFormDialog';
+import { type MaterialOption, TmMaterialPlanner } from './TmMaterialPlanner';
 
 // Mirrors SaveTechnicalMeetingRequest.
 const schema = z.object({
     meeting_date: z.string().min(1, 'Tanggal TM wajib diisi.'),
     notes: z.string().max(10000, 'Notulen terlalu panjang.').optional(),
     attendees: z
-        .array(z.object({ user_id: z.string().optional(), name: z.string().max(120).optional() }))
+        .array(
+            z.object({
+                user_id: z.string().optional(),
+                name: z.string().max(120).optional(),
+            }),
+        )
         .max(50, 'Maksimal 50 peserta.'),
-    fee_total: z.string().min(1, 'Nilai jasa pengawas wajib diisi.'),
-    dp_percent: z.string().min(1, 'DP % wajib diisi.').refine((value) => Number(value) >= 0 && Number(value) <= 100, 'DP antara 0–100%.'),
+    // Optional until a fee exists — the PM may save the TM's date (its schedule) first.
+    fee_total: z.string().optional(),
+    dp_percent: z
+        .string()
+        .min(1, 'DP % wajib diisi.')
+        .refine((value) => Number(value) >= 0 && Number(value) <= 100, 'DP antara 0–100%.'),
     end_date: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
+
+type RequirementKey = ProjectExecution['meetingRequirements'][number]['key'];
 
 /** A ✓ / ○ checklist line (TM Selesai, syarat DP). */
 export function RequirementList({ items }: { items: { key: string; label: string; done: boolean }[] }) {
@@ -43,83 +61,241 @@ export function RequirementList({ items }: { items: { key: string; label: string
     );
 }
 
+interface TechnicalMeetingCardProps {
+    project: Project;
+    execution: ProjectExecution;
+    milestones: Milestone[];
+    /** May add/edit/delete timelines (Show's canManageMilestones). */
+    canManageTimeline: boolean;
+    /** The catalog for the material planner (Show's materialOptions — empty without planMaterials). */
+    materialOptions: MaterialOption[];
+}
+
 /**
- * Sprint 24 D3 — the Technical Meeting: the PM (or Asisten PM) records date,
- * minutes, attendees (an account or a typed name), the Jasa Pengawas and
- * the project's Tanggal Selesai; the Timeline is on its own tab and the
- * materials are the Pengawas's (Material tab). "TM Selesai" once the
- * checklist is complete.
+ * Sprint 24 D3 — the Technical Meeting. For the PM (or Asisten PM) it is
+ * one guided card holding everything that is theirs to do before "TM
+ * Selesai": the meeting (date, minutes, attendees), the Timeline split
+ * (added/edited right here — same MilestoneFormDialog as the Timeline
+ * tab), the Jasa Pengawas and the project's Tanggal Selesai. The materials
+ * are the Pengawas's: planned right here (TmMaterialPlanner) next to the
+ * RAB items, in the PM's card and in the Pengawas's read-only one.
  */
-export function TechnicalMeetingCard({ projectId, execution }: { projectId: number; execution: ProjectExecution }) {
+export function TechnicalMeetingCard({ project, execution, milestones, canManageTimeline, materialOptions }: TechnicalMeetingCardProps) {
     const { meeting, fee, can } = execution;
-    const editable = can.saveMeeting;
 
-    if (!editable) {
-        if (!meeting) {
-            return (
-                <SectionCard title="Technical Meeting" icon={Users}>
-                    <p className="text-sm text-muted-foreground">
-                        {execution.phase === 'GAMBAR_KERJA' ? 'Dimulai setelah gambar kerja selesai.' : 'Belum dicatat · PM.'}
-                    </p>
-                    {execution.meetingRequirements.length > 0 && (
-                        <div className="mt-4">
-                            <RequirementList items={execution.meetingRequirements} />
-                        </div>
-                    )}
-                </SectionCard>
-            );
-        }
+    if (can.saveMeeting) {
+        return (
+            <TechnicalMeetingForm
+                project={project}
+                execution={execution}
+                milestones={milestones}
+                canManageTimeline={canManageTimeline}
+                materialOptions={materialOptions}
+            />
+        );
+    }
 
+    if (!meeting) {
         return (
             <SectionCard title="Technical Meeting" icon={Users}>
-                <DetailList>
-                    <DetailItem label="Tanggal TM">{formatDate(meeting.meeting_date)}</DetailItem>
-                    <DetailItem label="Peserta">{meeting.attendees.map((row) => row.label).join(', ') || '—'}</DetailItem>
-                    {fee && (
-                        <DetailItem label="Jasa Pengawas">
-                            {formatRupiah(fee.total_amount)} · DP {fee.dp_percent}% ({formatRupiah(fee.dp_amount)})
-                        </DetailItem>
-                    )}
-                    <DetailItem label="Selesai">{meeting.completed_at ? `${formatDateTime(meeting.completed_at)} · ${meeting.completer ?? ''}` : 'Belum'}</DetailItem>
-                </DetailList>
-                {meeting.notes && <p className="mt-4 text-sm whitespace-pre-line text-foreground">{meeting.notes}</p>}
+                <p className="text-sm text-muted-foreground">
+                    {execution.phase === 'GAMBAR_KERJA' ? 'Dimulai setelah gambar kerja selesai.' : 'Jadwal TM belum ditentukan · PM.'}
+                </p>
                 {execution.meetingRequirements.length > 0 && (
                     <div className="mt-4">
                         <RequirementList items={execution.meetingRequirements} />
                     </div>
                 )}
+                <ReadOnlyMaterials project={project} execution={execution} materialOptions={materialOptions} />
             </SectionCard>
         );
     }
 
-    return <TechnicalMeetingForm projectId={projectId} execution={execution} />;
+    return (
+        <SectionCard title="Technical Meeting" icon={Users}>
+            <DetailList>
+                <DetailItem label="Tanggal TM">{formatDate(meeting.meeting_date)}</DetailItem>
+                <DetailItem label="Peserta">{meeting.attendees.map((row) => row.label).join(', ') || '—'}</DetailItem>
+                {fee && (
+                    <DetailItem label="Jasa Pengawas">
+                        {formatRupiah(fee.total_amount)} · DP {fee.dp_percent}% ({formatRupiah(fee.dp_amount)})
+                    </DetailItem>
+                )}
+                <DetailItem label="Selesai">
+                    {meeting.completed_at ? `${formatDateTime(meeting.completed_at)} · ${meeting.completer ?? ''}` : 'Belum'}
+                </DetailItem>
+            </DetailList>
+            {meeting.notes && <p className="mt-4 text-sm whitespace-pre-line text-foreground">{meeting.notes}</p>}
+            {execution.meetingRequirements.length > 0 && (
+                <div className="mt-4">
+                    <RequirementList items={execution.meetingRequirements} />
+                </div>
+            )}
+            <ReadOnlyMaterials project={project} execution={execution} materialOptions={materialOptions} />
+        </SectionCard>
+    );
 }
 
-function TechnicalMeetingForm({ projectId, execution }: { projectId: number; execution: ProjectExecution }) {
+/**
+ * "TM Selesai" — in the page header (the detail page's actions, Sprint 23
+ * K4b) and under the TM card's checklist. Locked, with the reason on hover,
+ * until every requirement is met; the server checks them again.
+ */
+export function CompleteMeetingButton({
+    projectId,
+    requirements,
+    blocked,
+    warnUnsaved = false,
+    className,
+}: {
+    projectId: number;
+    requirements: ProjectExecution['meetingRequirements'];
+    /** Why it can't be pressed yet, besides missing requirements (e.g. unsaved TM form). */
+    blocked?: string;
+    /** Pressed away from the TM card (page header) — remind that its unsaved edits don't come along. */
+    warnUnsaved?: boolean;
+    className?: string;
+}) {
+    const [confirming, setConfirming] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const missing = requirements.filter((row) => !row.done);
+    const reason = blocked ?? (missing.length > 0 ? `Belum lengkap: ${missing.map((row) => row.label).join(', ')}.` : undefined);
+
+    function complete() {
+        router.post(route('projects.technical-meeting.complete', { project: projectId }), {}, {
+            preserveScroll: true,
+            onStart: () => setBusy(true),
+            onFinish: () => {
+                setBusy(false);
+                setConfirming(false);
+            },
+        });
+    }
+
+    return (
+        // A disabled button shows no tooltip — the wrapper carries it.
+        <span title={reason} className={cn('inline-flex', className)}>
+            <Button className="w-full" disabled={reason !== undefined || busy} onClick={() => setConfirming(true)}>
+                <CheckCircle2 className="size-4" />
+                TM Selesai
+                {missing.length > 0 && (
+                    <span className="tabular-nums opacity-80">
+                        {requirements.length - missing.length}/{requirements.length}
+                    </span>
+                )}
+            </Button>
+            <ConfirmDialog
+                open={confirming}
+                onOpenChange={setConfirming}
+                icon={ClipboardCheck}
+                title="Selesaikan Technical Meeting?"
+                description="Proyek pindah ke tahap Persiapan. Pengawas diberi tahu untuk melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas."
+                confirmLabel="Ya, TM Selesai"
+                busy={busy}
+                onConfirm={complete}
+            >
+                <p className="flex items-center gap-1.5 rounded-lg bg-success/10 px-3 py-1.5 text-xs font-medium text-success-ink">
+                    <CheckCircle2 className="size-3.5" />
+                    {requirements.length} syarat lengkap
+                </p>
+                {warnUnsaved && <p className="text-xs text-muted-foreground">Isian kartu TM yang belum disimpan tidak ikut.</p>}
+            </ConfirmDialog>
+        </span>
+    );
+}
+
+/** One numbered step of the TM card: ✓ once the server says its requirements are met. */
+function TmStep({
+    number,
+    title,
+    holder,
+    done,
+    description,
+    children,
+}: {
+    number: number;
+    title: string;
+    holder: string;
+    done: boolean;
+    description?: string;
+    children: ReactNode;
+}) {
+    return (
+        <section className="border-t border-border pt-5 first:border-t-0 first:pt-0">
+            <div className="mb-4 flex items-start gap-3">
+                <span
+                    className={cn(
+                        'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold',
+                        done ? 'bg-success/10 text-success-ink' : 'bg-daiku-yellow-light text-foreground',
+                    )}
+                >
+                    {done ? <Check className="size-3.5" /> : number}
+                </span>
+                <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground">
+                        {title} <span className="font-normal text-muted-foreground">· {holder}</span>
+                    </h3>
+                    {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+                </div>
+            </div>
+            <div className="sm:pl-9">{children}</div>
+        </section>
+    );
+}
+
+function TechnicalMeetingForm({ project, execution, milestones, canManageTimeline, materialOptions }: TechnicalMeetingCardProps) {
     const { meeting, fee } = execution;
-    const [completing, setCompleting] = useState(false);
+    const [timelineOpen, setTimelineOpen] = useState(false);
+    const [editingTimeline, setEditingTimeline] = useState<Milestone | null>(null);
+    const [deletingTimeline, setDeletingTimeline] = useState<Milestone | null>(null);
+    const [removingTimeline, setRemovingTimeline] = useState(false);
+    const defaultEndDate = execution.defaultEndDate?.slice(0, 10) ?? '';
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: {
             meeting_date: meeting?.meeting_date ?? new Date().toISOString().slice(0, 10),
             notes: meeting?.notes ?? '',
             attendees: meeting?.attendees.length
-                ? meeting.attendees.map((row) => ({ user_id: row.user_id ? String(row.user_id) : '', name: row.name ?? '' }))
+                ? meeting.attendees.map((row) => ({
+                      user_id: row.user_id ? String(row.user_id) : '',
+                      name: row.name ?? '',
+                  }))
                 : [{ user_id: '', name: '' }],
             fee_total: fee ? String(fee.total_amount) : '',
             dp_percent: fee ? String(fee.dp_percent) : '10',
-            end_date: execution.defaultEndDate?.slice(0, 10) ?? '',
+            end_date: defaultEndDate,
         },
     });
-    const attendees = useFieldArray({ control: form.control, name: 'attendees' });
-    const done = execution.meetingRequirements.every((row) => row.done);
+    const attendees = useFieldArray({
+        control: form.control,
+        name: 'attendees',
+    });
+
+    // A timeline saved here keeps this form's state (preserveState) — follow
+    // the suggested Tanggal Selesai (last timeline's end) until the PM types one.
+    useEffect(() => {
+        if (!form.getFieldState('end_date').isDirty) {
+            form.resetField('end_date', { defaultValue: defaultEndDate });
+        }
+    }, [defaultEndDate]);
+
+    const requirements = execution.meetingRequirements;
+    const isDone = (...keys: RequirementKey[]) => keys.every((key) => requirements.find((row) => row.key === key)?.done ?? false);
+    const doneCount = requirements.filter((row) => row.done).length;
+    const allDone = requirements.length > 0 && doneCount === requirements.length;
+    const dirty = form.formState.isDirty;
+
+    const feeTotal = Number(form.watch('fee_total') || 0);
+    const dpPercent = Number(form.watch('dp_percent') || 0);
+    const sortedTimelines = useMemo(() => [...milestones].sort((a, b) => a.order - b.order), [milestones]);
+    const suggestedStart = useMemo(() => suggestTimelineStart(milestones, project.start_date), [milestones, project.start_date]);
 
     function onSubmit(values: FormValues) {
         router.put(
-            route('projects.technical-meeting.save', { project: projectId }),
+            route('projects.technical-meeting.save', { project: project.id }),
             {
                 ...values,
-                fee_total: Number(values.fee_total),
+                fee_total: values.fee_total ? Number(values.fee_total) : null,
                 dp_percent: Number(values.dp_percent),
                 end_date: values.end_date || null,
                 attendees: values.attendees
@@ -136,153 +312,457 @@ function TechnicalMeetingForm({ projectId, execution }: { projectId: number; exe
         );
     }
 
-    function complete() {
-        router.post(route('projects.technical-meeting.complete', { project: projectId }), {}, {
+
+    function openTimeline(milestone: Milestone | null) {
+        setEditingTimeline(milestone);
+        setTimelineOpen(true);
+    }
+
+    function deleteTimeline() {
+        if (!deletingTimeline) return;
+
+        router.delete(route('milestones.destroy', { milestone: deletingTimeline.id }), {
+            preserveState: true,
             preserveScroll: true,
-            onStart: () => setCompleting(true),
-            onFinish: () => setCompleting(false),
+            onStart: () => setRemovingTimeline(true),
+            onFinish: () => {
+                setRemovingTimeline(false);
+                setDeletingTimeline(null);
+            },
         });
     }
 
     return (
         <SectionCard
             title="Technical Meeting"
-            description="Isi notulen, peserta, jasa pengawas & tanggal selesai. Timeline diisi di tab Timeline, bahan oleh Pengawas di tab Material."
+            description="Semua isian PM untuk TM ada di kartu ini. Lengkapi tiap langkah, lalu tekan TM Selesai."
             icon={Users}
+            action={
+                <span className={cn('text-xs font-medium tabular-nums', allDone ? 'text-success-ink' : 'text-muted-foreground')}>
+                    {doneCount}/{requirements.length} syarat
+                </span>
+            }
         >
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <FormField
-                            control={form.control}
-                            name="meeting_date"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel required>Tanggal TM</FormLabel>
-                                    <FormControl>
-                                        <Input type="date" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="end_date"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Tanggal Selesai Proyek</FormLabel>
-                                    <FormControl>
-                                        <Input type="date" {...field} />
-                                    </FormControl>
-                                    <p className="text-xs text-muted-foreground">Wajib sebelum TM Selesai — dasar pengingat H-30%.</p>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
-
-                    <FormField
-                        control={form.control}
-                        name="notes"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Notulen</FormLabel>
-                                <FormControl>
-                                    <Textarea {...field} rows={5} placeholder="Hasil rapat: urutan kerja, bahan, catatan tiap divisi…" />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-
-                    <div className="space-y-2">
-                        <FormLabel>Peserta</FormLabel>
-                        {attendees.fields.map((row, index) => (
-                            <div key={row.id} className="flex flex-col gap-2 sm:flex-row">
-                                <FormField
-                                    control={form.control}
-                                    name={`attendees.${index}.user_id`}
-                                    render={({ field }) => (
-                                        <Select value={field.value || 'none'} onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}>
-                                            <SelectTrigger className="sm:w-56" aria-label="Pilih peserta">
-                                                <SelectValue placeholder="Pilih akun" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">— Ketik nama —</SelectItem>
-                                                {execution.attendeeOptions.map((user) => (
-                                                    <SelectItem key={user.id} value={String(user.id)}>
-                                                        {user.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                                {!form.watch(`attendees.${index}.user_id`) && (
-                                    <FormField
-                                        control={form.control}
-                                        name={`attendees.${index}.name`}
-                                        render={({ field }) => <Input {...field} placeholder="Nama (orang luar / vendor)" maxLength={120} className="flex-1" />}
-                                    />
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+                    <TmStep
+                        number={1}
+                        title="Jadwal & Rapat"
+                        holder="PM"
+                        done={isDone('notes', 'attendees')}
+                        description="Simpan tanggal TM lebih dulu untuk menjadwalkannya — Pengawas & peserta diberi tahu. Notulen dan peserta dilengkapi saat rapat."
+                    >
+                        <div className="space-y-4">
+                            <FormField
+                                control={form.control}
+                                name="meeting_date"
+                                render={({ field }) => (
+                                    <FormItem className="sm:max-w-56">
+                                        <FormLabel required>Tanggal TM</FormLabel>
+                                        <FormControl>
+                                            <Input type="date" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
                                 )}
-                                <Button type="button" variant="ghost" size="icon" aria-label="Hapus peserta" onClick={() => attendees.remove(index)}>
-                                    <X className="size-4" />
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="notes"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Notulen</FormLabel>
+                                        <FormControl>
+                                            <Textarea
+                                                {...field}
+                                                rows={12}
+                                                className="min-h-64"
+                                                placeholder="Hasil rapat: urutan kerja, bahan, catatan tiap divisi…"
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div className="space-y-2">
+                                <FormLabel>Peserta</FormLabel>
+                                {/* Side by side (grid) so a long list doesn't run far down the card. */}
+                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                    {attendees.fields.map((row, index) => (
+                                        <div key={row.id} className="flex items-start gap-1">
+                                            <div className="flex min-w-0 flex-1 flex-col gap-2">
+                                                <FormField
+                                                    control={form.control}
+                                                    name={`attendees.${index}.user_id`}
+                                                    render={({ field }) => (
+                                                        <Select
+                                                            value={field.value || 'none'}
+                                                            onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                                                        >
+                                                            <SelectTrigger className="w-full" aria-label="Pilih peserta">
+                                                                <SelectValue placeholder="Pilih akun" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">— Ketik nama —</SelectItem>
+                                                                {execution.attendeeOptions.map((user) => (
+                                                                    <SelectItem key={user.id} value={String(user.id)}>
+                                                                        {user.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    )}
+                                                />
+                                                {!form.watch(`attendees.${index}.user_id`) && (
+                                                    <FormField
+                                                        control={form.control}
+                                                        name={`attendees.${index}.name`}
+                                                        render={({ field }) => (
+                                                            <Input {...field} placeholder="Nama (orang luar / vendor)" maxLength={120} />
+                                                        )}
+                                                    />
+                                                )}
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="Hapus peserta"
+                                                onClick={() => attendees.remove(index)}
+                                            >
+                                                <X className="size-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        attendees.append({
+                                            user_id: '',
+                                            name: '',
+                                        })
+                                    }
+                                >
+                                    <Plus className="size-4" />
+                                    Tambah peserta
                                 </Button>
+                                {form.formState.errors.attendees?.message && (
+                                    <p className="text-sm text-error-ink">{form.formState.errors.attendees.message}</p>
+                                )}
                             </div>
-                        ))}
-                        <Button type="button" variant="outline" size="sm" onClick={() => attendees.append({ user_id: '', name: '' })}>
-                            <Plus className="size-4" />
-                            Tambah peserta
-                        </Button>
-                        {form.formState.errors.attendees?.message && <p className="text-sm text-error-ink">{form.formState.errors.attendees.message}</p>}
-                    </div>
+                        </div>
+                    </TmStep>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <FormField
-                            control={form.control}
-                            name="fee_total"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel required>Nilai Jasa Pengawas</FormLabel>
-                                    <FormControl>
-                                        <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
+                    <TmStep
+                        number={2}
+                        title="Pembagian Timeline"
+                        holder="PM"
+                        done={isDone('timeline')}
+                        description="Bagi pekerjaan per tahap dengan tanggal mulai–selesai. Tersimpan langsung — daily target Pengawas nanti harus berada di dalam rentang ini."
+                    >
+                        <TimelinePlanner
+                            timelines={sortedTimelines}
+                            canManage={canManageTimeline}
+                            onAdd={() => openTimeline(null)}
+                            onEdit={openTimeline}
+                            onDelete={setDeletingTimeline}
                         />
-                        <FormField
-                            control={form.control}
-                            name="dp_percent"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel required>DP Pengawas (%)</FormLabel>
-                                    <FormControl>
-                                        <Input type="number" min={0} max={100} step="0.5" inputMode="decimal" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                    </div>
+                    </TmStep>
 
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <Button type="submit" variant="outline" disabled={form.formState.isSubmitting}>
+                    <TmStep
+                        number={3}
+                        title="Jasa Pengawas & Tanggal Selesai"
+                        holder="PM"
+                        done={isDone('fee', 'end_date')}
+                        description="DP pengawas diajukan Pengawas setelah TM; Tanggal Selesai jadi dasar pengingat H-30%."
+                    >
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <FormField
+                                control={form.control}
+                                name="fee_total"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel required={fee !== null}>Nilai Jasa Pengawas</FormLabel>
+                                        <FormControl>
+                                            <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="dp_percent"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel required>DP Pengawas (%)</FormLabel>
+                                        <FormControl>
+                                            <Input type="number" min={0} max={100} step="0.5" inputMode="decimal" {...field} />
+                                        </FormControl>
+                                        {feeTotal > 0 && (
+                                            <p className="text-xs text-muted-foreground">= {formatRupiah((feeTotal * dpPercent) / 100)}</p>
+                                        )}
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={form.control}
+                                name="end_date"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Tanggal Selesai Proyek</FormLabel>
+                                        <FormControl>
+                                            <Input type="date" {...field} />
+                                        </FormControl>
+                                        <p className="text-xs text-muted-foreground">Usulan: selesai timeline terakhir.</p>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+                    </TmStep>
+
+                    <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        {dirty && <p className="text-xs text-warning-ink sm:mr-auto">Ada perubahan langkah 1 / 3 yang belum disimpan.</p>}
+                        <Button type="submit" variant={dirty ? 'default' : 'outline'} disabled={form.formState.isSubmitting}>
                             Simpan TM
                         </Button>
                     </div>
                 </form>
             </Form>
 
+            <div id="tm-bahan" className="mt-5 scroll-mt-24 border-t border-border pt-5">
+                <TmStep
+                    number={4}
+                    title="Bahan yang Digunakan"
+                    holder="Pengawas"
+                    done={isDone('materials')}
+                    description={`Diisi ${project.supervisor?.name ?? 'Pengawas proyek'} — cari barang, isi jumlah, Enter.`}
+                >
+                    <MaterialsPlanning project={project} execution={execution} materialOptions={materialOptions} />
+                </TmStep>
+            </div>
+
             <div className="mt-6 rounded-lg bg-daiku-gray/60 p-4">
                 <p className="mb-3 text-sm font-medium text-foreground">Syarat TM Selesai</p>
-                <RequirementList items={execution.meetingRequirements} />
-                <Button className="mt-4 w-full sm:w-auto" disabled={!done || completing} onClick={complete}>
-                    TM Selesai
-                </Button>
-                {!done && <p className="mt-2 text-xs text-muted-foreground">Lengkapi semua syarat di atas (simpan TM dulu).</p>}
+                <RequirementList items={requirements} />
+                <CompleteMeetingButton
+                    projectId={project.id}
+                    requirements={requirements}
+                    blocked={dirty ? 'Simpan TM dulu — ada perubahan yang belum disimpan.' : undefined}
+                    className="mt-4 w-full sm:w-auto"
+                />
+                {dirty ? (
+                    <p className="mt-2 text-xs text-muted-foreground">Simpan TM dulu — ada perubahan yang belum disimpan.</p>
+                ) : (
+                    !allDone && <p className="mt-2 text-xs text-muted-foreground">Lengkapi semua syarat di atas.</p>
+                )}
             </div>
+
+            {canManageTimeline && (
+                <MilestoneFormDialog
+                    open={timelineOpen}
+                    onOpenChange={setTimelineOpen}
+                    projectId={project.id}
+                    editing={editingTimeline}
+                    suggestedStart={suggestedStart}
+                    preserveState
+                />
+            )}
+            <ConfirmDialog
+                open={deletingTimeline !== null}
+                onOpenChange={(open) => !open && setDeletingTimeline(null)}
+                tone="danger"
+                title="Hapus timeline?"
+                description={`"${deletingTimeline?.name ?? ''}" dihapus dari proyek ini.`}
+                confirmLabel="Ya, hapus"
+                busy={removingTimeline}
+                onConfirm={deleteTimeline}
+            />
         </SectionCard>
+    );
+}
+
+function dayCount(start: string | null, end: string): number | null {
+    return start ? differenceInCalendarDays(new Date(`${end}T00:00:00`), new Date(`${start}T00:00:00`)) + 1 : null;
+}
+
+/** Step 2 — the project's Timelines as a compact, editable list (the Gantt stays on the Timeline tab). */
+function TimelinePlanner({
+    timelines,
+    canManage,
+    onAdd,
+    onEdit,
+    onDelete,
+}: {
+    timelines: Milestone[];
+    canManage: boolean;
+    onAdd: () => void;
+    onEdit: (milestone: Milestone) => void;
+    onDelete: (milestone: Milestone) => void;
+}) {
+    const first = timelines.find((row) => row.start_date)?.start_date ?? null;
+    const last = timelines.reduce<string | null>((max, row) => (!max || row.target_date > max ? row.target_date : max), null);
+    const span = last ? dayCount(first, last) : null;
+
+    return (
+        <div className="space-y-3">
+            {timelines.length === 0 ? (
+                <Notice tone="info">Belum ada timeline — mis. "Produksi Kabinet", lalu "Pemasangan & Finishing".</Notice>
+            ) : (
+                <ol className="divide-y divide-border rounded-lg ring-1 ring-border">
+                    {timelines.map((row, index) => {
+                        const days = dayCount(row.start_date, row.target_date);
+
+                        return (
+                            <li key={row.id} className="flex items-center gap-3 px-3 py-2.5">
+                                <div className="min-w-0 flex-1">
+                                    <p className="truncate text-sm font-medium text-foreground">
+                                        {index + 1}. {row.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {row.start_date ? `${formatDate(row.start_date)} – ` : 'Selesai '}
+                                        {formatDate(row.target_date)}
+                                        {days !== null && ` · ${days} hari`}
+                                    </p>
+                                </div>
+                                <StatusChip domain="milestone" status={row.status} waitingOn={null} className="hidden sm:inline-flex" />
+                                {canManage && (
+                                    <div className="flex shrink-0 items-center">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={`Ubah ${row.name}`}
+                                            onClick={() => onEdit(row)}
+                                        >
+                                            <Pencil className="size-4" />
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label={`Hapus ${row.name}`}
+                                            onClick={() => onDelete(row)}
+                                        >
+                                            <Trash2 className="size-4 text-error-ink" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                {canManage ? (
+                    <Button type="button" variant="outline" size="sm" onClick={onAdd}>
+                        <Plus className="size-4" />
+                        Tambah Timeline
+                    </Button>
+                ) : (
+                    <span />
+                )}
+                {span !== null && first && last && (
+                    <p className="text-xs text-muted-foreground">
+                        Total {formatDate(first)} – {formatDate(last)} · {span} hari
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/** Read-only TM card (the Pengawas during TM): plan the materials next to the RAB items. */
+function ReadOnlyMaterials({ project, execution, materialOptions }: { project: Project; execution: ProjectExecution; materialOptions: MaterialOption[] }) {
+    if (execution.phase !== 'TM' || (execution.meetingRab.length === 0 && !execution.can.planMaterials)) {
+        return null;
+    }
+
+    return (
+        <div id="tm-bahan" className="mt-5 scroll-mt-24 border-t border-border pt-5">
+            <h3 className="text-sm font-semibold text-foreground">
+                Bahan yang Digunakan <span className="font-normal text-muted-foreground">· Pengawas</span>
+            </h3>
+            {execution.can.planMaterials && (
+                <p className="mt-0.5 text-xs text-muted-foreground">Cari barang, isi jumlah, Enter — rencana bisa diubah sampai produksi dimulai.</p>
+            )}
+            <div className="mt-3">
+                <MaterialsPlanning project={project} execution={execution} materialOptions={materialOptions} />
+            </div>
+        </div>
+    );
+}
+
+/**
+ * Step 4 — the Pengawas's planned materials (the inline planner for whoever
+ * may plan, a list otherwise), with the approved RAB's work items
+ * (description + volume, no prices) beside them as the reference.
+ */
+function MaterialsPlanning({ project, execution, materialOptions }: { project: Project; execution: ProjectExecution; materialOptions: MaterialOption[] }) {
+    const rab = execution.meetingRab;
+    const materials = execution.meetingMaterials;
+    const labelClass = 'mb-2 text-xs font-medium tracking-wide text-daiku-muted uppercase';
+
+    return (
+        <div className={cn('grid gap-4', rab.length > 0 && 'lg:grid-cols-2')}>
+            {rab.length > 0 && (
+                <div className="min-w-0">
+                    <p className={labelClass}>Acuan · Item RAB</p>
+                    <div className="max-h-[28rem] overflow-y-auto rounded-lg ring-1 ring-border">
+                        {rab.map((group) => (
+                            <div key={group.id}>
+                                <p className="sticky top-0 bg-daiku-yellow-light px-3 py-1.5 text-xs font-semibold text-foreground">{group.title}</p>
+                                <ul className="divide-y divide-border">
+                                    {group.items.map((item) => (
+                                        <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                                            <span className="min-w-0 text-foreground">{item.description}</span>
+                                            <span className="shrink-0 text-muted-foreground tabular-nums">{item.volume}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <div className="min-w-0">
+                <p className={labelClass}>Bahan direncanakan ({materials.length})</p>
+                {execution.can.planMaterials ? (
+                    <TmMaterialPlanner
+                        projectId={project.id}
+                        lines={materials}
+                        options={materialOptions}
+                        canUpdate={execution.can.updateMaterials}
+                        canRemove={execution.can.removeMaterials}
+                    />
+                ) : materials.length === 0 ? (
+                    <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
+                        Belum ada bahan — menunggu Pengawas.
+                    </p>
+                ) : (
+                    <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-lg ring-1 ring-border">
+                        {materials.map((line) => (
+                            <li key={line.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                                <span className="min-w-0 truncate text-foreground">{line.name}</span>
+                                <span className="shrink-0 text-muted-foreground tabular-nums">{line.qty}</span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+                <Button variant="link" size="sm" className="mt-1 h-auto px-0" asChild>
+                    <Link href={route('projects.show', { project: project.id, tab: 'material' })}>
+                        <ExternalLink className="size-3.5" />
+                        Buka tab Material (vendor, ajukan barang di luar katalog)
+                    </Link>
+                </Button>
+            </div>
+        </div>
     );
 }

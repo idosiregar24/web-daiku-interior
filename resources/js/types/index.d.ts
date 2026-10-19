@@ -2378,6 +2378,17 @@ export interface ProjectExecution {
         completer: string | null;
     } | null;
     meetingRequirements: ExecutionRequirement[];
+    meetingMaterials: {
+        id: number;
+        material_id: number | null;
+        name: string;
+        qty: string;
+        qty_planned: number;
+        unit: string | null;
+        source: ProjectMaterialSource;
+        editable: boolean;
+    }[];
+    meetingRab: { id: string; title: string; items: { id: number; description: string; volume: string }[] }[];
     attendeeOptions: Pick<User, 'id' | 'name'>[];
     defaultEndDate: string | null;
     fee: { total_amount: number; dp_percent: number; dp_amount: number; committed: number; paid: number; remaining: number } | null;
@@ -2439,5 +2450,8 @@ export interface ProjectExecution {
         resolveFinding: boolean;
         manageTargets: boolean;
         requestSettlement: boolean;
+        planMaterials: boolean;
+        updateMaterials: boolean;
+        removeMaterials: boolean;
     };
 }

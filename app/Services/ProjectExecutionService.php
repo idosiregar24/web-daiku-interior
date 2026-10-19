@@ -4,12 +4,17 @@ namespace App\Services;
 
 use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
+use App\Enums\QuotationStatus;
 use App\Models\Project;
+use App\Models\ProjectMaterial;
+use App\Models\Quotation;
+use App\Models\QuotationItem;
 use App\Models\SiteFinding;
 use App\Models\SupervisorPayment;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Support\DailyFormSchedule;
+use App\Support\Quantity;
 use Illuminate\Support\Carbon;
 
 /**
@@ -85,6 +90,26 @@ class ProjectExecutionService
                 'completer' => $meeting->completer?->name,
             ] : null,
             'meetingRequirements' => $phase === ProjectPhase::Tm ? $this->technicalMeetingService->requirements($project) : [],
+            // The Pengawas's "bahan yang digunakan", planned right in the TM card.
+            'meetingMaterials' => $phase === ProjectPhase::Tm
+                ? $this->technicalMeetingService->plannedMaterials($project)
+                    ->with(['material:id,name', 'unit:id,code'])
+                    ->get()
+                    ->map(fn (ProjectMaterial $line) => [
+                        'id' => $line->id,
+                        'material_id' => $line->material_id,
+                        'name' => $line->display_name,
+                        'qty' => $line->quantityLabel($line->qty_planned ?? 0),
+                        'qty_planned' => (float) $line->qty_planned,
+                        'unit' => $line->unit?->code,
+                        'source' => $line->source->value,
+                        // Only a catalog line nothing arrived on can still be changed from the TM card.
+                        'editable' => $line->material_id !== null && $line->request_channel === null && (float) $line->qty_received === 0.0,
+                    ])->values()->all()
+                : [],
+            // What the RAB says the work is — the reference the Pengawas plans the materials from
+            // (description + volume only, never prices). Only the PM side and the project's Pengawas.
+            'meetingRab' => $phase === ProjectPhase::Tm && ($runsMeeting || $supervises) ? $this->rabReference($project) : [],
             // The TM form's pickers: attendees (every active account but technical ones), and E1's
             // default Tanggal Selesai (the project's, else the last timeline's end).
             'attendeeOptions' => $active && $phase === ProjectPhase::Tm && $runsMeeting
@@ -174,8 +199,43 @@ class ProjectExecutionService
                 'resolveFinding' => ! $project->isClosed() && ($supervises || $approves),
                 'manageTargets' => $managesTargets && $phase->allowsTargets(),
                 'requestSettlement' => $project->status === ProjectStatus::Completed && $supervises,
+                // The TM card's material planner (same routes and policies as the Material tab).
+                'planMaterials' => $active && $phase === ProjectPhase::Tm && $user->can('planMaterials', $project),
+                'updateMaterials' => $active && $phase === ProjectPhase::Tm
+                    && ($user->can('manageMaterials', $project) || $user->can('reviseMaterialPlan', $project)),
+                'removeMaterials' => $active && $phase === ProjectPhase::Tm
+                    && ($user->hasRole('LOGISTICS') || $user->can('reviseMaterialPlan', $project)),
             ],
         ];
+    }
+
+    /**
+     * The approved RAB Proyek (+ approved RAB Tambahan) grouped per bagian pekerjaan.
+     *
+     * @return list<array{id: string, title: string, items: list<array{id: int, description: string, volume: string}>}>
+     */
+    private function rabReference(Project $project): array
+    {
+        $quotations = collect([$project->quotation])
+            ->merge($project->addenda()->where('status', QuotationStatus::ClientApproved->value)->get())
+            ->filter();
+
+        return $quotations->flatMap(function (Quotation $quotation) {
+            $quotation->load(['sections:id,quotation_id,name,sort_order', 'items']);
+
+            return $quotation->items
+                ->groupBy(fn (QuotationItem $item) => $item->section_id ?? 0)
+                ->sortBy(fn ($items, $sectionId) => $quotation->sections->firstWhere('id', $sectionId)?->sort_order ?? -1)
+                ->map(fn ($items, $sectionId) => [
+                    'id' => "{$quotation->id}-{$sectionId}",
+                    'title' => collect([$quotation->title(), $quotation->sections->firstWhere('id', $sectionId)?->name])->filter()->implode(' · '),
+                    'items' => $items->map(fn (QuotationItem $item) => [
+                        'id' => $item->id,
+                        'description' => $item->description,
+                        'volume' => trim(Quantity::format($item->qty).' '.($item->unit?->code ?? '')),
+                    ])->values()->all(),
+                ])->values();
+        })->values()->all();
     }
 
     /** @return array{end_date: string|null, warn_from: string|null, warning: bool, days_left: int|null} */
