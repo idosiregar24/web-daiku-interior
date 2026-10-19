@@ -189,8 +189,11 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
   | `Pasang kabinet di lokasi` | Pemasangan & Finishing | +8 hari | 300.000 |
 
 ### Langkah 9 · Pengawas mengajukan DP
-- Tab **Eksekusi** → **Ajukan DP Pengawas** (aktif bila bahan ✓ · upah ✓ ·
-  tiap timeline punya target).
+- Tab **Eksekusi** → kartu **Syarat DP Pengawas** (Sprint 27): tiga baris
+  bahan · upah · daily target; yang belum lengkap menyebut apa yang kurang
+  (target tanpa upah, timeline tanpa target) dan punya tombol **Lengkapi →**
+  (upah kosong ditandai "Upah belum diisi" di Daily Target › Per Tukang).
+  Lengkap semua → **Ajukan DP Pengawas** di kartu yang sama.
 
 ### Langkah 10 · PM menyetujui DP = Start Produksi
 - **Login:** `pm` → tab **Eksekusi** → **Putuskan → Setujui** (nominal
@@ -222,6 +225,13 @@ Semua isian TM ada di **satu kartu**: proyek → tab **Eksekusi** → kartu
 - **Cek (Sprint 25):** `pm` / `ceo` → tab **Activity Target** — kolom Actual
   hari ini bertambah, Actual Kumulatif minggu ini = Progress Proyek di
   ringkasan (dan di tab Ringkasan / daftar proyek).
+- **Cek (Sprint 27):** di bawahnya, **Target vs Actual per Task** — kiri
+  target (judul · tukang · timeline), kanan actual (selesai kapan, lebih
+  cepat/terlambat, bergulir). Hanya `pm` / `ceo` / Pengawas proyek; `qa` lain
+  dan `marketing` tidak melihat tabel ini.
+- **Cek (Sprint 27):** tab **Eksekusi** → kartu **QC Pengawas** (mingguan
+  Jumat · daily target hari ini · 70% · finishing) dan **Pemesanan Bahan**
+  (n dari m bahan lengkap datang).
 
 ### Langkah 13 · Pengawas menggeser jadwal
 - **Login:** `qa` → tab **Daily Target** → **Per Hari** (kolom Senin–Minggu, ‹ ›

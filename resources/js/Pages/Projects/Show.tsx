@@ -21,6 +21,7 @@ import { MilestoneList } from '@/Components/modules/projects/MilestoneList';
 import { ProgressLogFormDialog } from '@/Components/modules/projects/ProgressLogFormDialog';
 import { ProgressTimeline } from '@/Components/modules/projects/ProgressTimeline';
 import { ActivityTargetPanel } from '@/Components/modules/projects/ActivityTargetPanel';
+import { TaskTargetTable } from '@/Components/modules/projects/TaskTargetTable';
 import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDialog';
 import { ProjectPhaseStepper } from '@/Components/modules/projects/ProjectPhaseStepper';
 import { DepartureButton } from '@/Components/modules/projects/DepartureButton';
@@ -196,7 +197,7 @@ function ViewTabs({ views, view, onView, children }: { views: ViewOption[]; view
     );
 }
 
-/** Sprint 26 H3e — tab "Timeline & QC": Gantt · Kalender · Pemeriksaan QC. */
+/** Sprint 26 H3e — tab "Timeline & QC": Gantt · Kalender · QC Timeline (Sprint 27 P2b). */
 function MilestoneTab({
     project,
     milestones,
@@ -384,6 +385,8 @@ function TaskAssigneeTable({
                     chip
                 )}
                 {task.status === 'DONE' && task.is_wage_paid && <StatusChip status="PAID" label="Upah dibayar" />}
+                {/* Sprint 27 P1b — the DP condition "Upah" points here; an empty rate shows on its row. */}
+                {canEdit && !(Number(task.rate_per_task) > 0) && <StatusChip status="NO_RATE" tone="warning" label="Upah belum diisi" />}
             </div>
         );
     }
@@ -485,6 +488,7 @@ function TaskTab({
     canManageProgressLogs,
     overtimeRequests,
     canOpenOvertimeList,
+    canViewTasks,
 }: {
     project: Project;
     milestones: Milestone[];
@@ -502,6 +506,7 @@ function TaskTab({
     canManageProgressLogs: boolean;
     overtimeRequests: OvertimeRequest[];
     canOpenOvertimeList: boolean;
+    canViewTasks: boolean;
 }) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -560,6 +565,7 @@ function TaskTab({
                         progressLogs={progressLogs}
                         canView={canViewProgressLogs}
                         canManage={canManageProgressLogs}
+                        tasks={canViewTasks ? tasks : null}
                     />
                 ) : view === 'lembur' ? (
                     <ProjectOvertimeTab requests={overtimeRequests} canOpenList={canOpenOvertimeList} />
@@ -631,12 +637,15 @@ function ActivityTargetTab({
     progressLogs,
     canView,
     canManage,
+    tasks,
 }: {
     project: Project;
     activityTarget: ActivityTarget | null;
     progressLogs: ProgressLog[];
     canView: boolean;
     canManage: boolean;
+    /** Sprint 27 P5 — the per-task table; null for viewers who don't see the project's tasks (PRD §4.6). */
+    tasks: Task[] | null;
 }) {
     const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -649,6 +658,7 @@ function ActivityTargetTab({
     return (
         <div className="space-y-6">
             {activityTarget && <ActivityTargetPanel data={activityTarget} />}
+            {tasks && <TaskTargetTable tasks={tasks} />}
 
             {/* Sprint 24 D11 — notes only; the percentage is the actual activity above. */}
             <SectionCard
@@ -1027,7 +1037,7 @@ const PROJECT_TAB_LABEL: Record<string, string> = {
 /**
  * Sprint 26 H3c — the 11 tabs before Sprint 26 are 6 now; their old keys
  * (Perlu Tindakan, notifications, cross-project lists, bookmarks) still
- * open the same content: `?tab=qa` → Timeline & QC › Pemeriksaan QC.
+ * open the same content: `?tab=qa` → Timeline & QC › QC Timeline.
  */
 const PROJECT_TAB_ALIASES: TabAliases = {
     qa: ['milestone', 'qc'],
@@ -1080,7 +1090,7 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         case 'TM':
             return { text: 'Jadwalkan Technical Meeting, susun Timeline & jasa pengawas, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
         case 'PERSIAPAN':
-            return { text: 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'dp' } };
+            return { text: 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
     }
 
     if (milestones.length === 0) {
@@ -1205,7 +1215,7 @@ export default function ProjectShow({
         milestone: [
             { key: 'timeline', label: compact ? 'Timeline' : 'Gantt' },
             ...(compact ? [] : [{ key: 'kalender', label: 'Kalender' }]),
-            ...(canViewQa ? [{ key: 'qc', label: 'Pemeriksaan QC' }] : []),
+            ...(canViewQa ? [{ key: 'qc', label: 'QC Timeline' }] : []),
         ],
         task: [
             ...(canViewTasks
@@ -1428,6 +1438,9 @@ export default function ProjectShow({
                             canManageMilestones={canManageMilestones}
                             materialOptions={materialOptions}
                             onOpenActivityTarget={activityTarget ? () => openTarget({ tab: 'task', view: 'activity-target' }) : undefined}
+                            onOpen={openTarget}
+                            canOpen={canOpenTarget}
+                            projectMaterials={canViewMaterials ? projectMaterials : null}
                         />
                     </TabsContent>
                 )}
@@ -1462,6 +1475,7 @@ export default function ProjectShow({
                             canManageProgressLogs={canManageProgressLogs}
                             overtimeRequests={overtimeRequests}
                             canOpenOvertimeList={canOpenOvertimeList}
+                            canViewTasks={canViewTasks}
                         />
                     </TabsContent>
                 )}

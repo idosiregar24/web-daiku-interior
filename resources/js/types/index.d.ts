@@ -2345,6 +2345,10 @@ export interface ExecutionRequirement {
     key: string;
     label: string;
     done: boolean;
+    /** Sprint 27 P1a — DP conditions only: what is missing, named items (task titles only for task viewers), and how many more. */
+    detail?: string | null;
+    missing?: string[];
+    more?: number;
 }
 
 /** Sprint 24 D2 — WorkingDrawingController::show `drawing`. */

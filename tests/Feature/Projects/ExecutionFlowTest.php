@@ -448,6 +448,58 @@ test('DP: conditions first, the Pengawas asks, the PM approves (= Start Produksi
     $this->actingAs($this->finance)->post(route('finance.supervisor-payments.pay', $payment), ['bank_account_id' => $account->id])->assertSessionHasErrors('payment');
 });
 
+test('DP conditions say what is missing — task titles only for viewers of the project\'s tasks (Sprint 27 P1a)', function () {
+    $project = execProject($this, ProjectPhase::Persiapan);
+    SupervisorFee::create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'total_amount' => 5_000_000, 'dp_percent' => 10]);
+    $first = Milestone::factory()->create(['project_id' => $project->id, 'name' => 'Rangka Kabinet', 'order' => 1, 'start_date' => '2026-10-12', 'target_date' => '2026-10-24']);
+    Milestone::factory()->create(['project_id' => $project->id, 'name' => 'Finishing HPL', 'order' => 2, 'start_date' => '2026-10-12', 'target_date' => '2026-10-24']);
+    execTarget($project, $first, $this->tukang, ['title' => 'Pasang rangka atas', 'rate_per_task' => null]);
+
+    $this->actingAs($this->qa)->get(route('projects.show', $project))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('execution.dpRequirements.0.done', false)
+            ->where('execution.dpRequirements.0.detail', 'Belum ada rencana bahan.')
+            ->where('execution.dpRequirements.1.detail', '1 daily target belum punya upah.')
+            ->where('execution.dpRequirements.1.missing', ['Pasang rangka atas · 14/10'])
+            ->where('execution.dpRequirements.2.detail', '1 timeline belum punya daily target.')
+            ->where('execution.dpRequirements.2.missing', ['Finishing HPL']));
+
+    // A QA who isn't this project's Pengawas, and Logistik: the count, never the task title (PRD §4.6).
+    foreach ([$this->otherQa, $this->logistics] as $viewer) {
+        $this->actingAs($viewer)->get(route('projects.show', $project))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('execution.dpRequirements.1.detail', '1 daily target belum punya upah.')
+                ->where('execution.dpRequirements.1.missing', [])
+                ->where('execution.dpRequirements.2.missing', ['Finishing HPL']));
+    }
+
+    // The rule itself is unchanged: still refused until every condition is met.
+    $this->actingAs($this->qa)->post(route('projects.supervisor-payments.dp', $project))->assertSessionHasErrors('dp');
+});
+
+test('daftar proyek: a Pengawas starts on its own projects, every role can filter by phase (Sprint 27 P6a)', function () {
+    $mineAtTm = execProject($this, ProjectPhase::Tm);
+    $mineProducing = execProject($this, ProjectPhase::Produksi);
+    $theirs = execProject($this, ProjectPhase::Produksi, ['supervisor_id' => $this->otherQa->id]);
+    $done = execProject($this, ProjectPhase::Pemasangan, ['status' => ProjectStatus::Completed->value]);
+
+    // QA/QC: "Yang saya awasi" by default, `supervised=0` shows every project (access unchanged).
+    $this->actingAs($this->qa)->get(route('projects.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('filters.supervised', '1')->where('canFilterSupervised', true)
+            ->where('projects.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$mineAtTm->id, $mineProducing->id, $done->id])->sort()->values()->all()));
+    $this->actingAs($this->qa)->get(route('projects.index', ['supervised' => '0']))
+        ->assertInertia(fn (Assert $page) => $page->has('projects.data', 4));
+
+    // Tahap: a running project's phase (ACTIVE only); SELESAI = completed.
+    $this->actingAs($this->pm)->get(route('projects.index', ['phase' => 'PRODUKSI']))
+        ->assertInertia(fn (Assert $page) => $page->where('canFilterSupervised', false)->missing('filters.supervised')
+            ->where('projects.data', fn ($rows) => collect($rows)->pluck('id')->sort()->values()->all() === collect([$mineProducing->id, $theirs->id])->sort()->values()->all()));
+    $this->actingAs($this->pm)->get(route('projects.index', ['phase' => 'SELESAI']))
+        ->assertInertia(fn (Assert $page) => $page->has('projects.data', 1)->where('projects.data.0.id', $done->id));
+    $this->actingAs($this->pm)->get(route('projects.index', ['phase' => 'BUKAN_FASE']))
+        ->assertInertia(fn (Assert $page) => $page->has('projects.data', 4));
+});
+
 test('the Jasa Pengawas page: CEO and Finance only', function (string $role, int $status) {
     $this->actingAs(execUser($role))->get(route('finance.supervisor-payments.index'))->assertStatus($status);
 })->with([['CEO', 200], ['FINANCE', 200], ['PM', 403], ['QA', 403], ['MARKETING', 403]]);

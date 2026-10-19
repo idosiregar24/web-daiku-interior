@@ -13,6 +13,7 @@ use App\Models\SiteFinding;
 use App\Models\SupervisorPayment;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Policies\ProjectPolicy;
 use App\Support\DailyFormSchedule;
 use App\Support\Quantity;
 use Illuminate\Support\Carbon;
@@ -117,7 +118,10 @@ class ProjectExecutionService
                 : [],
             'defaultEndDate' => $project->end_date?->toDateString() ?? $project->milestones()->reorder()->max('target_date'),
             'fee' => $seesMoney ? $this->supervisorPaymentService->summary($project) : null,
-            'dpRequirements' => $phase === ProjectPhase::Persiapan ? $this->supervisorPaymentService->dpRequirements($project) : [],
+            'dpRequirements' => $phase === ProjectPhase::Persiapan
+                // Sprint 27 P1a — task titles only for a viewer who sees the project's tasks (PRD §4.6).
+                ? $this->supervisorPaymentService->dpRequirements($project, app(ProjectPolicy::class)->taskVisibility($user, $project) === 'all')
+                : [],
             'payments' => $seesMoney
                 ? $project->supervisorPayments()
                     ->with(['project:id,name', 'weeklyReport:id,week_number', 'decider:id,name', 'payer:id,name'])

@@ -8,27 +8,24 @@ import { router } from '@inertiajs/react';
 import { HardHat } from 'lucide-react';
 import { useState } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
-import { RequirementList } from './TechnicalMeetingCard';
 
 /**
- * Sprint 24 D4/D5/E3 — Jasa Pengawas: the fee set at the TM, the Pengawas's
- * DP conditions (bahan ✓ · upah ✓ · daily target ✓) and "Ajukan DP", every
+ * Sprint 24 D4/D5/E3 — Jasa Pengawas: the fee set at the TM, every
  * payment with its turn (PM decides, Finance pays), and "Ajukan Pelunasan"
  * once the project is done. Money only reaches CEO / PM / Finance / the
- * Pengawas (`fee` is null otherwise).
+ * Pengawas (`fee` is null otherwise). Sprint 27 P1c — the DP conditions
+ * and "Ajukan DP" live in DpRequirementsCard.
  */
 export function SupervisorFeeCard({ projectId, execution }: { projectId: number; execution: ProjectExecution }) {
     const { fee, payments, can } = execution;
     const [deciding, setDeciding] = useState<ExecutionDecisionTarget | null>(null);
     const [busy, setBusy] = useState(false);
-    const dpReady = execution.dpRequirements.length > 0 && execution.dpRequirements.every((row) => row.done);
-    const dpAsked = payments.some((payment) => payment.kind === 'DP' && payment.status !== 'DITOLAK');
 
-    if (!fee && execution.dpRequirements.length === 0) {
+    if (!fee) {
         return null;
     }
 
-    function post(routeName: 'projects.supervisor-payments.dp' | 'projects.supervisor-payments.settlement') {
+    function post(routeName: 'projects.supervisor-payments.settlement') {
         router.post(route(routeName, { project: projectId }), {}, {
             preserveScroll: true,
             onStart: () => setBusy(true),
@@ -42,19 +39,6 @@ export function SupervisorFeeCard({ projectId, execution }: { projectId: number;
             description={fee ? `Total ${formatRupiah(fee.total_amount)} · DP ${fee.dp_percent}% · dibayar ${formatRupiah(fee.paid)} · sisa ${formatRupiah(fee.remaining)}` : undefined}
             icon={HardHat}
         >
-            {execution.dpRequirements.length > 0 && (
-                <div className="mb-5 rounded-lg bg-daiku-gray/60 p-4">
-                    <p className="mb-3 text-sm font-medium text-foreground">Syarat produksi · Pengawas</p>
-                    <RequirementList items={execution.dpRequirements} />
-                    {can.requestDp && !dpAsked && (
-                        <Button className="mt-4 w-full sm:w-auto" disabled={!dpReady || busy} onClick={() => post('projects.supervisor-payments.dp')}>
-                            Ajukan DP Pengawas{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
-                        </Button>
-                    )}
-                    {dpAsked && <p className="mt-3 text-xs text-muted-foreground">DP sudah diajukan — disetujui PM = Start Produksi.</p>}
-                </div>
-            )}
-
             {payments.length === 0 ? (
                 <EmptyState title="Belum ada pengajuan pembayaran pengawas." />
             ) : (

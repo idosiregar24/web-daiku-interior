@@ -35,29 +35,66 @@ class SupervisorPaymentService
         private TechnicalMeetingService $technicalMeetingService,
     ) {}
 
+    /** Sprint 27 P1a — at most this many items are named per condition (the rest is "dan n lainnya"). */
+    private const MISSING_SHOWN = 5;
+
     /**
      * D5 — the Pengawas's conditions for the DP: materials ✓, wages ✓
      * (every daily target has its rate), daily targets ✓ (every timeline
      * has at least one).
      *
-     * @return list<array{key: string, label: string, done: bool}>
+     * Sprint 27 P1a — each open condition also says what is missing
+     * (`detail`, `missing`, `more`), so the Pengawas knows where to fix it.
+     * Task titles only with `$withTaskTitles` — a viewer who sees the
+     * project's tasks (ProjectPolicy::taskVisibility = all, PRD §4.6);
+     * others get the count only. Timeline names are not task detail.
+     *
+     * @return list<array{key: string, label: string, done: bool, detail: string|null, missing: list<string>, more: int}>
      */
-    public function dpRequirements(Project $project): array
+    public function dpRequirements(Project $project, bool $withTaskTitles = false): array
     {
-        $milestones = $project->milestones()->withCount('tasks')->get(['id']);
+        $milestones = $project->milestones()->withCount('tasks')->reorder()->orderBy('order')->get(['id', 'name', 'order']);
         $taskCount = $project->tasks()->count();
+        $unpaid = $project->tasks()
+            ->where(fn ($q) => $q->whereNull('rate_per_task')->orWhere('rate_per_task', '<=', 0))
+            ->orderByRaw('COALESCE(planned_date, due_date)')
+            ->orderBy('id')
+            ->get(['id', 'title', 'planned_date', 'due_date']);
+        $empty = $milestones->filter(fn ($milestone) => $milestone->tasks_count === 0)->values();
+        $hasMaterials = $this->technicalMeetingService->plannedMaterials($project)->exists();
+
+        $wagesMissing = $withTaskTitles
+            ? $unpaid->take(self::MISSING_SHOWN)->map(fn ($task) => trim($task->title.' · '.(($task->planned_date ?? $task->due_date)?->format('d/m') ?? '')))->all()
+            : [];
 
         return [
-            ['key' => 'materials', 'label' => 'Bahan', 'done' => $this->technicalMeetingService->plannedMaterials($project)->exists()],
+            [
+                'key' => 'materials',
+                'label' => 'Bahan',
+                'done' => $hasMaterials,
+                'detail' => $hasMaterials ? null : 'Belum ada rencana bahan.',
+                'missing' => [],
+                'more' => 0,
+            ],
             [
                 'key' => 'wages',
                 'label' => 'Upah (semua daily target punya upah)',
-                'done' => $taskCount > 0 && ! $project->tasks()->where(fn ($q) => $q->whereNull('rate_per_task')->orWhere('rate_per_task', '<=', 0))->exists(),
+                'done' => $taskCount > 0 && $unpaid->isEmpty(),
+                'detail' => $taskCount === 0
+                    ? 'Belum ada daily target.'
+                    : ($unpaid->isEmpty() ? null : "{$unpaid->count()} daily target belum punya upah."),
+                'missing' => array_values($wagesMissing),
+                'more' => $withTaskTitles ? max(0, $unpaid->count() - self::MISSING_SHOWN) : 0,
             ],
             [
                 'key' => 'targets',
                 'label' => 'Daily target (tiap timeline minimal satu)',
-                'done' => $milestones->isNotEmpty() && $milestones->every(fn ($milestone) => $milestone->tasks_count > 0),
+                'done' => $milestones->isNotEmpty() && $empty->isEmpty(),
+                'detail' => $milestones->isEmpty()
+                    ? 'Belum ada timeline.'
+                    : ($empty->isEmpty() ? null : "{$empty->count()} timeline belum punya daily target."),
+                'missing' => $empty->take(self::MISSING_SHOWN)->pluck('name')->values()->all(),
+                'more' => max(0, $empty->count() - self::MISSING_SHOWN),
             ],
         ];
     }

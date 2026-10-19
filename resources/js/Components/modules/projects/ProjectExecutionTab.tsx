@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { domainStatusLabel } from '@/lib/waitingOn';
-import type { Milestone, Project, ProjectExecution, ProjectPhase, User } from '@/types';
+import type { Milestone, Project, ProjectExecution, ProjectMaterial, ProjectPhase, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import {
@@ -37,6 +37,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { DepartureButton } from './DepartureButton';
+import { DpRequirementsCard } from './DpRequirementsCard';
+import { MaterialOrdersCard } from './MaterialOrdersCard';
+import { QcPanelCard } from './QcPanelCard';
+import type { ProjectTabTarget } from './projectWaiting';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
@@ -47,7 +51,7 @@ const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'num
 
 const PHASE_ORDER: ProjectPhase[] = ['GAMBAR_KERJA', 'TM', 'PERSIAPAN', 'PRODUKSI', 'PEMASANGAN'];
 
-type ExecutionCard = 'workingDrawing' | 'meeting' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
+type ExecutionCard = 'workingDrawing' | 'meeting' | 'dpRequirements' | 'qc' | 'materialOrders' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
 
 /**
  * Sprint 26 H2a — the one place that says which cards a phase works with.
@@ -59,9 +63,10 @@ const PHASE_CARDS: Record<ProjectPhase, ExecutionCard[]> = {
     GAMBAR_KERJA: ['workingDrawing'],
     TM: ['meeting'],
     // Sprint 26 — the Pengawas plans daily targets in Persiapan, so Target vs Actual (Tukar Hari) shows from here.
-    PERSIAPAN: ['fee', 'materialPlan', 'targetVsActual'],
-    PRODUKSI: ['targetVsActual', 'departure', 'weekly', 'fee'],
-    PEMASANGAN: ['findings', 'weekly', 'fee'],
+    PERSIAPAN: ['dpRequirements', 'materialPlan', 'fee', 'targetVsActual'],
+    // Sprint 27 P2 — the whiteboard's QC branch first, then the cards it points to.
+    PRODUKSI: ['qc', 'materialOrders', 'targetVsActual', 'departure', 'weekly', 'fee'],
+    PEMASANGAN: ['qc', 'findings', 'weekly', 'fee'],
 };
 
 /** H2f / Sub 03 — card ids used by the header's step link, Perlu Tindakan and notifications. */
@@ -69,6 +74,9 @@ const CARD_ANCHORS: Record<ExecutionCard, string[]> = {
     workingDrawing: ['gambar-kerja'],
     // `#tm-bahan` is rendered by the TM card itself, and only while TM is the running phase.
     meeting: ['tm'],
+    dpRequirements: ['syarat-dp'],
+    qc: ['qc-pengawas'],
+    materialOrders: ['pemesanan-bahan'],
     materialPlan: ['tm-bahan'],
     fee: ['dp'],
     targetVsActual: ['target-vs-actual'],
@@ -162,6 +170,9 @@ export function ProjectExecutionTab({
     canManageMilestones,
     materialOptions,
     onOpenActivityTarget,
+    onOpen,
+    canOpen,
+    projectMaterials,
 }: {
     project: Project;
     execution: ProjectExecution;
@@ -171,6 +182,11 @@ export function ProjectExecutionTab({
     materialOptions: MaterialOption[];
     /** Sprint 25 — opens the project-wide "Activity Target" tab (when this viewer reads it). */
     onOpenActivityTarget?: () => void;
+    /** Sprint 27 — opens another tab/view of Detail Proyek ("Lengkapi →", "Buka →"). */
+    onOpen?: (target: ProjectTabTarget) => void;
+    canOpen?: (target: ProjectTabTarget) => boolean;
+    /** Sprint 27 P3 — the Material tab's lines (null for viewers without that tab). */
+    projectMaterials?: ProjectMaterial[] | null;
 }) {
     const active = project.status === 'ACTIVE';
     const currentIndex = Math.max(0, PHASE_ORDER.indexOf(execution.phase));
@@ -205,8 +221,12 @@ export function ProjectExecutionTab({
                 return execution.workingDrawing !== null;
             case 'meeting':
                 return execution.meeting !== null;
+            case 'dpRequirements':
+                return execution.dpRequirements.length > 0;
+            case 'materialOrders':
+                return Boolean(projectMaterials?.length);
             case 'fee':
-                return execution.fee !== null || execution.dpRequirements.length > 0;
+                return execution.fee !== null;
             case 'targetVsActual':
                 return execution.targetVsActual !== null;
             case 'weekly':
@@ -251,6 +271,15 @@ export function ProjectExecutionTab({
                         materialOptions={materialOptions}
                     />
                 );
+                break;
+            case 'qc':
+                body = <QcPanelCard execution={execution} />;
+                break;
+            case 'materialOrders':
+                body = projectMaterials && <MaterialOrdersCard lines={projectMaterials} onOpen={onOpen} canOpen={canOpen} />;
+                break;
+            case 'dpRequirements':
+                body = <DpRequirementsCard projectId={project.id} execution={execution} onOpen={onOpen} canOpen={canOpen} />;
                 break;
             case 'materialPlan':
                 body = <MaterialPlanCard project={project} execution={execution} />;

@@ -19,6 +19,8 @@ interface Step {
     state: StepState;
     /** Under the label: whose turn (current), the date it finished (done), "dilewati" (legacy). */
     note: string | null;
+    /** Sprint 27 P4b — the note tinted (H-30% / past the end date). */
+    alert?: 'warning' | 'error';
 }
 
 /** When each phase was left — only for viewers who receive the Eksekusi data. */
@@ -69,7 +71,16 @@ function buildSteps(project: Pick<Project, 'status' | 'phase'>, execution: Proje
         return { key: phase, label: domainStatusLabel('projectPhase', phase) ?? phase, state: 'upcoming', note: null };
     });
 
-    steps.push({ key: DONE_KEY, label: 'Selesai', state: completed ? 'done' : 'upcoming', note: null });
+    // Sprint 27 P4b — the H-30% window shows on the last dot (only with the Eksekusi data).
+    const deadline = execution?.deadline;
+    const daysLeft = deadline?.warning && project.status !== 'COMPLETED' ? deadline.days_left : null;
+    steps.push({
+        key: DONE_KEY,
+        label: 'Selesai',
+        state: completed ? 'done' : 'upcoming',
+        note: daysLeft === null ? null : daysLeft >= 0 ? `sisa ${daysLeft} hari` : `lewat ${-daysLeft} hari`,
+        alert: daysLeft === null ? undefined : daysLeft >= 0 ? 'warning' : 'error',
+    });
 
     return steps;
 }
@@ -114,7 +125,12 @@ function StepText({ step }: { step: Step }) {
                 {step.label}
             </span>
             {step.note && (
-                <span className={cn('mt-0.5 block text-xs', step.state === 'paused' ? 'text-warning-ink' : 'text-muted-foreground')}>
+                <span
+                    className={cn(
+                        'mt-0.5 block text-xs',
+                        step.alert === 'error' ? 'text-error-ink' : step.state === 'paused' || step.alert === 'warning' ? 'text-warning-ink' : 'text-muted-foreground',
+                    )}
+                >
                     {step.state === 'current' ? `giliran ${step.note}` : step.note}
                 </span>
             )}
@@ -232,5 +248,46 @@ export function ProjectPhaseStepper({
                 </ResponsiveDialogContent>
             </Dialog>
         </nav>
+    );
+}
+
+const SEGMENT_CLASS: Record<StepState, string> = {
+    done: 'bg-success/50',
+    skipped: 'bg-success/50',
+    current: 'bg-daiku-yellow',
+    paused: 'bg-warning/60',
+    upcoming: 'bg-border',
+};
+
+/**
+ * Sprint 27 P6b — the same track in one line for list rows: a 6-part bar
+ * and "Tahap 3/6 · Persiapan Produksi · giliran Pengawas → PM". Built by
+ * the same buildSteps() (no Eksekusi data on a list, so no dates).
+ */
+export function ProjectPhaseMini({ project, className }: { project: Pick<Project, 'status' | 'phase'>; className?: string }) {
+    if (project.status === 'CANCELLED') {
+        return null;
+    }
+
+    const steps = buildSteps(project, null);
+    const index = steps.findIndex((step) => step.state === 'current' || step.state === 'paused');
+    const shown = index === -1 ? steps.length - 1 : index;
+    const step = steps[shown];
+
+    return (
+        <div className={cn('min-w-40', className)}>
+            <span className="flex gap-0.5" aria-hidden>
+                {steps.map((segment) => (
+                    <span key={segment.key} className={cn('h-1 flex-1 rounded-full', SEGMENT_CLASS[segment.state])} />
+                ))}
+            </span>
+            <p className="mt-1 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                    {shown + 1}/{steps.length} · {step.label}
+                </span>
+                {step.note && step.state === 'current' && ` · giliran ${step.note}`}
+                {step.state === 'paused' && <span className="text-warning-ink"> · ditahan</span>}
+            </p>
+        </div>
     );
 }

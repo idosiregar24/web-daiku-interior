@@ -36,6 +36,10 @@ class ProjectController extends Controller
     public function index(Request $request, ProjectService $projectService): Response
     {
         $user = $request->user();
+        // Sprint 27 P6a — a Pengawas (QA/QC) starts on the projects it supervises
+        // (`supervised=0` shows every project, as before — access is unchanged).
+        $canFilterSupervised = $user->hasRole('QA');
+        $supervised = $canFilterSupervised && $request->input('supervised', '1') !== '0';
 
         $projects = Project::query()
             ->with(['pm:id,name', 'lead:id,client_name'])
@@ -43,6 +47,8 @@ class ProjectController extends Controller
             ->withActivityCounts()
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
+            ->byPhase($request->string('phase')->value() ?: null)
+            ->when($supervised, fn ($query) => $query->supervisedBy($user))
             ->visibleTo($user)
             ->latest()
             ->paginate(15)
@@ -66,7 +72,11 @@ class ProjectController extends Controller
             'pendingOpenings' => $openings->values(),
             // The form's pickers — only for someone who may open one of them.
             'openingForm' => $openings->contains('can_open', true) ? $projectService->openingFormOptions() : null,
-            'filters' => $request->only(['status', 'pm_id']),
+            'filters' => [
+                ...$request->only(['status', 'pm_id', 'phase']),
+                ...($canFilterSupervised ? ['supervised' => $supervised ? '1' : '0'] : []),
+            ],
+            'canFilterSupervised' => $canFilterSupervised,
             'projectManagers' => User::role('PM')->orderBy('name')->get(['id', 'name']),
         ]);
     }

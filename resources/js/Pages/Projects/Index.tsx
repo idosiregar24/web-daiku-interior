@@ -19,10 +19,15 @@ import { Head, Link, router } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, FolderKanban, Hourglass } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
+import { ProjectPhaseMini } from '@/Components/modules/projects/ProjectPhaseStepper';
+import { domainStatusLabel } from '@/lib/waitingOn';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
-    filters: { status?: string; pm_id?: string };
+    /** Sprint 27 P6a — `phase` (5 phases or SELESAI); `supervised` = '1' for a QA's "Yang saya awasi". */
+    filters: { status?: string; pm_id?: string; phase?: string; supervised?: string };
+    /** QA/QC users — the "Yang saya awasi" filter (on by default). */
+    canFilterSupervised: boolean;
     projectManagers: Pick<User, 'id' | 'name'>[];
     /** Approved RAB Proyek waiting for "Buka Proyek" (CEO / PM see it) — Sprint 23 K13: `can_open` = the approving PM. */
     pendingOpenings: ProjectOpening[];
@@ -31,6 +36,31 @@ interface ProjectIndexProps {
 }
 
 const STATUS_OPTIONS = ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
+
+/** Sprint 27 P6a — the list's "Tahap" filter (Project::scopeByPhase). */
+const PHASE_OPTIONS: { value: string; label: string }[] = [
+    ...(['GAMBAR_KERJA', 'TM', 'PERSIAPAN', 'PRODUKSI', 'PEMASANGAN'] as const).map((phase) => ({
+        value: phase,
+        label: domainStatusLabel('projectPhase', phase) ?? phase,
+    })),
+    { value: 'SELESAI', label: 'Selesai' },
+];
+
+/** Status + (Sprint 27 P6b) where a running project is in the flow — shared by the grid and the phone card. */
+function ProjectStatusCell({ project }: { project: Project }) {
+    return (
+        <div className="space-y-1.5">
+            <StatusChip domain="project" status={project.status} />
+            {(project.status === 'ACTIVE' || project.status === 'ON_HOLD') && <ProjectPhaseMini project={project} />}
+        </div>
+    );
+}
+
+function actualActivity(project: Project): string | null {
+    const total = project.tasks_count ?? 0;
+
+    return total === 0 ? null : `${Math.floor(((project.done_tasks_count ?? 0) * 100) / total)}%`;
+}
 
 const columns: ColumnDef<Project>[] = [
     {
@@ -55,26 +85,16 @@ const columns: ColumnDef<Project>[] = [
     {
         accessorKey: 'status',
         header: 'Status',
-        cell: ({ row }) => (
-            <div className="flex flex-wrap gap-1">
-                <StatusChip domain="project" status={row.original.status} />
-                {/* Sprint 24 D1 — the execution phase while it runs. */}
-                {row.original.status === 'ACTIVE' && row.original.phase && <StatusChip domain="projectPhase" status={row.original.phase} />}
-            </div>
-        ),
+        cell: ({ row }) => <ProjectStatusCell project={row.original} />,
     },
     {
         // Sprint 24 D11 — actual activity: DONE ÷ all daily targets.
         id: 'progress',
         header: 'Actual Activity',
         cell: ({ row }) => {
-            const total = row.original.tasks_count ?? 0;
+            const value = actualActivity(row.original);
 
-            return total === 0 ? (
-                <span className="text-muted-foreground">—</span>
-            ) : (
-                <span className="tabular-nums">{Math.floor(((row.original.done_tasks_count ?? 0) * 100) / total)}%</span>
-            );
+            return value === null ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums">{value}</span>;
         },
     },
     {
@@ -92,7 +112,7 @@ const columns: ColumnDef<Project>[] = [
     },
 ];
 
-export default function ProjectIndex({ projects, filters, projectManagers, pendingOpenings, openingForm }: ProjectIndexProps) {
+export default function ProjectIndex({ projects, filters, canFilterSupervised, projectManagers, pendingOpenings, openingForm }: ProjectIndexProps) {
     // "Proyek siap dibuka" in Perlu Tindakan links here with `?opening=<id>` — open its form straight away.
     const [opening, setOpening] = useState<ProjectOpening | null>(() => {
         const requested = typeof window === 'undefined' ? null : Number(new URLSearchParams(window.location.search).get('opening'));
@@ -164,8 +184,48 @@ export default function ProjectIndex({ projects, filters, projectManagers, pendi
                 data={projects.data}
                 emptyMessage="Belum ada proyek. Proyek dibuka PM setelah klien menyetujui RAB Proyek."
                 pagination={projects}
+                mobileCard={(project) => (
+                    <Link href={route('projects.show', { project: project.id })} className="block space-y-2 p-4">
+                        <div>
+                            <p className="font-medium text-foreground">{project.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {project.lead?.client_name ?? '—'} · PM {project.pm?.name ?? '—'}
+                            </p>
+                        </div>
+                        <ProjectStatusCell project={project} />
+                        <p className="text-xs text-muted-foreground">
+                            Actual activity <span className="font-medium text-foreground tabular-nums">{actualActivity(project) ?? '—'}</span>
+                        </p>
+                    </Link>
+                )}
                 toolbar={
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                        {canFilterSupervised && (
+                            <Select value={filters.supervised === '0' ? '0' : '1'} onValueChange={(value) => applyFilter({ supervised: value })}>
+                                <SelectTrigger className="sm:w-48" aria-label="Saring proyek yang diawasi">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1">Yang saya awasi</SelectItem>
+                                    <SelectItem value="0">Semua proyek</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        )}
+
+                        <Select value={filters.phase ?? 'all'} onValueChange={(value) => applyFilter({ phase: value === 'all' ? undefined : value })}>
+                            <SelectTrigger className="sm:w-48" aria-label="Saring tahap">
+                                <SelectValue placeholder="Semua tahap" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Semua tahap</SelectItem>
+                                {PHASE_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
                         <Select
                             value={filters.status ?? 'all'}
                             onValueChange={(value) =>

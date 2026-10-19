@@ -1,7 +1,9 @@
 # Sprint 27 — UX Mengikuti Papan Tulis: Syarat, QC Pengawas, Bahan, H-30%, Target per Task
 
-> Status: **rencana 2026-10-19** — belum dikerjakan. Pertanyaan §5 menunggu
-> jawaban user; bila tidak dijawab, dipakai kolom "Usulan".
+> Status: **kode selesai 2026-10-19** (Sub 01–06, 08 kecuali cek browser; Sub 07
+> dilewati, Q6 = tidak). 2200 test lulus (2 baru di `ExecutionFlowTest`),
+> `npm run build` & Pint bersih. Q1–Q6 tidak dijawab user ("kerjakan sprint
+> 27") → dipakai kolom "Usulan". **Belum:** cek tampilan di browser.
 > Sumber: pertanyaan user 2026-10-19 ("ada lagi UX yang bisa disempurnakan,
 > sesuai alur papan tulis kemarin?") → 6 saran Claude + penjelasan user atas
 > tulisan kecil di pojok kiri bawah papan. Papan:
@@ -119,41 +121,45 @@ memakai `TmMaterialPlanner`.
 Satu perintah = satu sub ("Kerjakan Sprint 27 Sub 1"). Urutan dari yang
 paling dekat dengan papan & risiko terendah.
 
-### Sub 01 — Tabel Target vs Actual per Task (P5)
-- [ ] Fungsi murni `taskTargetRows(tasks)` (hari target, actual WIB, selisih hari, bergulir) di `Components/modules/projects/`
-- [ ] Section/komponen tabel + kartu HP, saringan tukang & status, minggu terlipat
-- [ ] Hanya bila `canViewTasks`; cek jumlah per hari = tabel angka Sprint 25 pada data demo
-- [ ] `npm run build`
+### Sub 01 — Tabel Target vs Actual per Task (P5) — **kode selesai**
+- [x] `taskTargetRows.ts` (fungsi murni: hari target `planned_date ?? due_date`, actual = hari WIB `completed_at` lewat `Intl` `Asia/Jakarta`, selisih hari, bergulir) + `groupTaskTargets()` per minggu (Senin) & hari
+- [x] `TaskTargetTable.tsx` — kolom **Hari Target · Daily Target · Actual**, minggu berjalan terbuka, saringan tukang & status (Semua / Belum selesai / Selesai / Bergulir / Terlambat), HP = kartu dua kolom Target | Actual
+- [x] Di Daily Target › Activity Target, di bawah tabel angka (Q2); hanya bila `canViewTasks` (prop `tasks` yang sudah ada)
+- [x] `npm run build`
+- [ ] Cek angka per hari = tabel angka Sprint 25 di browser (data demo)
 
-### Sub 02 — Syarat DP Pengawas (P1)
-- [ ] `SupervisorPaymentService::dpRequirements()` + `detail`/`missing` (judul task hanya `taskVisibility = all`); tipe `ExecutionRequirement`
-- [ ] Kartu Syarat DP di PERSIAPAN, tombol "Lengkapi →" (+ sorotan upah kosong di Per Tukang), Ajukan DP pindah (Q1)
-- [ ] Test Pest: isi `missing` per syarat; QA lain tidak menerima judul task; `requestDp()` tetap menolak syarat kurang
-- [ ] `npm run build`, Pint
+### Sub 02 — Syarat DP Pengawas (P1) — **kode selesai**
+- [x] `dpRequirements($project, $withTaskTitles)` + `detail` / `missing` (maks. 5) / `more`; judul task hanya bila `taskVisibility = all` (`ProjectExecutionService`); tipe `ExecutionRequirement`
+- [x] `DpRequirementsCard` di PERSIAPAN (anchor `#syarat-dp`, di depan Rencana Bahan & Jasa Pengawas): tiga baris + "Lengkapi →" (Bahan → `#tm-bahan`, Upah → Daily Target › Per Tukang, Daily target → Per Hari) hanya untuk Pengawas / yang mengatur target; **Ajukan DP** pindah ke sini (Q1); `SupervisorFeeCard` tanpa daftar syarat (P1c); langkah header & baris Ringkasan → `#syarat-dp`
+- [x] **Beda dari P1b:** sorotan upah = chip **"Upah belum diisi"** di baris Per Tukang (selalu, untuk yang bisa mengubah) — bukan saringan `?upah=kosong`; "Daily target" membuka Per Hari tanpa melompat ke minggu timeline kosong
+- [x] Test Pest: isi `missing`; QA lain & Logistik tanpa judul task; `requestDp()` tetap menolak
+- [x] `npm run build`, Pint
 
-### Sub 03 — Panel QC Pengawas (P2)
-- [ ] Kartu QC Pengawas (4 baris) di PRODUKSI/PEMASANGAN, tautan ke kartu, tanda "menunggu Pengawas"
-- [ ] "Pemeriksaan QC" → "QC Timeline" (Q4) + simulasi dokumen
-- [ ] `npm run build`
+### Sub 03 — Panel QC Pengawas (P2) — **kode selesai**
+- [x] `QcPanelCard` (anchor `#qc-pengawas`) pertama di PRODUKSI & PEMASANGAN: mingguan (status laporan minggu ini, "hari ini Jumat"), daily target hari ini (dari `targetVsActual`), 70% (+ `ProgressBar`), finishing (PEMASANGAN); baris menunggu viewer `bg-warning/10`; "Buka →" scroll ke kartu, kartu di fase terlipat dibuka lewat `location.hash` (`hashchange` Sprint 26)
+- [x] "Pemeriksaan QC" → **"QC Timeline"** (Q4)
+- [x] `npm run build`
 
-### Sub 04 — Pemesanan Bahan (P3)
-- [ ] Fungsi status baris bersama (dipakai `ProjectMaterialsPanel` & kartu)
-- [ ] Kartu Pemesanan Bahan di PRODUKSI (+ riwayat), baris Ringkasan "Bahan belum datang · Logistik"
-- [ ] `npm run build`
+### Sub 04 — Pemesanan Bahan (P3) — **kode selesai**
+- [x] `materialArrival.ts` (lengkap / sebagian / belum datang / pengajuan; jumlah dibanding dalam perseratus) — dipakai kartu & Ringkasan
+- [x] `MaterialOrdersCard` di PRODUKSI (riwayat di baris Produksi saat PEMASANGAN), hanya bila `projectMaterials` dikirim; baris Ringkasan "n bahan · Logistik"
+- [x] **Beda dari P3a/P3b:** tidak ada data "dipesan" (hanya `qty_received`) → status lengkap / sebagian / belum datang / pengajuan menunggu; `ProjectMaterialsPanel` tidak diubah (tidak menampilkan status kedatangan)
+- [x] `npm run build`
 
-### Sub 05 — H-30% di Ringkasan & stepper (P4)
-- [ ] Informasi Proyek warning, catatan di titik Selesai stepper, baris Giliran Anda PM
-- [ ] `npm run build`
+### Sub 05 — H-30% di Ringkasan & stepper (P4) — **kode selesai**
+- [x] Informasi Proyek: "sisa n hari · masa H-30%" `text-warning-ink`; titik "Selesai" stepper: "sisa / lewat n hari"; baris Giliran Anda PM (`can.decide`) → Target vs Actual
+- [x] `npm run build`
 
-### Sub 06 — Daftar proyek: fase, "yang saya awasi", mini-stepper (P6)
-- [ ] `ProjectController::index` saringan `phase` + `supervised` (QA), default Q5; test Pest (QA melihat proyek awasannya, saringan fase, RBAC tetap)
-- [ ] `ProjectPhaseStepper` mode ringkas di kolom Status + `mobileCard`
-- [ ] `npm run build`, Pint
+### Sub 06 — Daftar proyek: fase, "yang saya awasi", mini-stepper (P6) — **kode selesai**
+- [x] `Project::scopeByPhase()` (ACTIVE + fase, `SELESAI` = COMPLETED, nilai lain diabaikan) + `scopeSupervisedBy()`; `ProjectController::index` `phase`, `supervised` (QA, default aktif — Q5), `canFilterSupervised`; akses `visibleTo()` tetap
+- [x] `ProjectPhaseMini` (ekspor kedua `ProjectPhaseStepper`, `buildSteps()` yang sama) di kolom Status + `mobileCard` (sebelumnya daftar proyek belum punya kartu HP)
+- [x] Test Pest: QA default proyek awasannya, `supervised=0` semua, saringan fase / SELESAI / nilai asing
+- [x] `npm run build`, Pint
 
-### Sub 07 — (opsional, bila Q6 = ya) Planner bahan di Persiapan (P7)
+### Sub 07 — (opsional) Planner bahan di Persiapan (P7) — **dilewati** (Q6 = tidak)
 
 ### Sub 08 — Uji & dokumen
-- [ ] Suite Pest penuh, Pint, build
+- [x] Suite Pest penuh (2200), Pint, build
 - [ ] Uji browser per role (PM, Pengawas, QA lain, Logistik, Finance, Marketing) + HP 390px
-- [ ] `CLAUDE.md` aturan 17 (satu kalimat: syarat DP dengan "Lengkapi", QC Pengawas, tabel per task hanya untuk yang melihat task); `simulasi-eksekusi-proyek.md`
-- [ ] README: status Sprint 27
+- [x] `CLAUDE.md` aturan 17 (syarat DP `detail`/`missing`, tabel per task dari prop `tasks`, `materialArrival()`); `simulasi-eksekusi-proyek.md` Langkah 9 & 12
+- [x] README: status Sprint 27

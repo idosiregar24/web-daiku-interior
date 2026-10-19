@@ -194,8 +194,8 @@ function shortDate(value: string): string {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
-/** H6g — "Mulai 1 Okt → Selesai 30 Nov · sisa 42 hari". */
-function DateLine({ project }: { project: Project }) {
+/** H6g — "Mulai 1 Okt → Selesai 30 Nov · sisa 42 hari"; Sprint 27 P4a — amber inside the H-30% window. */
+function DateLine({ project, nearDeadline = false }: { project: Project; nearDeadline?: boolean }) {
     const running = project.status === 'ACTIVE' || project.status === 'ON_HOLD';
     const start = project.start_date ? `Mulai ${shortDate(project.start_date)}` : 'Mulai belum ditentukan';
 
@@ -214,7 +214,11 @@ function DateLine({ project }: { project: Project }) {
             {start} → Selesai {shortDate(project.end_date)}
             {running &&
                 (daysLeft >= 0 ? (
-                    <span className="text-muted-foreground"> · {daysLeft === 0 ? 'hari ini' : `sisa ${daysLeft} hari`}</span>
+                    <span className={nearDeadline ? 'text-warning-ink' : 'text-muted-foreground'}>
+                        {' '}
+                        · {daysLeft === 0 ? 'hari ini' : `sisa ${daysLeft} hari`}
+                        {nearDeadline && ' · masa H-30%'}
+                    </span>
                 ) : (
                     <span className="text-error-ink"> · lewat {-daysLeft} hari</span>
                 ))}
@@ -222,7 +226,7 @@ function DateLine({ project }: { project: Project }) {
     );
 }
 
-function InfoCard({ project }: { project: Project }) {
+function InfoCard({ project, nearDeadline }: { project: Project; nearDeadline: boolean }) {
     const hasContract = project.contract_value != null && project.contract_value !== '';
 
     return (
@@ -237,7 +241,7 @@ function InfoCard({ project }: { project: Project }) {
                     </DetailItem>
                 )}
                 <DetailItem label="Jadwal" className="sm:col-span-2" valueClassName="font-medium">
-                    <DateLine project={project} />
+                    <DateLine project={project} nearDeadline={nearDeadline} />
                     {project.opened_on && (
                         <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
                             Proyek dibuka {formatDate(project.opened_on)}
@@ -417,7 +421,7 @@ export function ProjectOverviewTab({
 
             <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
                 <OthersCard rows={others} onOpen={onOpen} canOpen={canOpen} />
-                <InfoCard project={project} />
+                <InfoCard project={project} nearDeadline={Boolean(execution?.deadline.warning)} />
             </div>
 
             <div className="flex min-w-0 flex-col gap-6">

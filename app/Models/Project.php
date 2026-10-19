@@ -326,6 +326,27 @@ class Project extends Model
         return $query->when($pmId, fn (Builder $q) => $q->where('pm_id', $pmId));
     }
 
+    /**
+     * Sprint 27 P6a — the list's "Tahap" filter: a running project's phase
+     * (ACTIVE only), or `SELESAI` for completed projects. Unknown → no filter.
+     */
+    public function scopeByPhase(Builder $query, ?string $phase): Builder
+    {
+        if ($phase === 'SELESAI') {
+            return $query->where('status', ProjectStatus::Completed->value);
+        }
+
+        $value = $phase ? ProjectPhase::tryFrom($phase) : null;
+
+        return $query->when($value, fn (Builder $q) => $q->where('status', ProjectStatus::Active->value)->where('phase', $value->value));
+    }
+
+    /** Sprint 27 P6a — the query twin of isSupervisedBy(): "Yang saya awasi". */
+    public function scopeSupervisedBy(Builder $query, User $user): Builder
+    {
+        return $query->where('supervisor_id', $user->id);
+    }
+
     /** Only ACTIVE projects feed the automation (penalties, overdue flags) — ON_HOLD/closed ones are paused. */
     public function scopeActive(Builder $query): Builder
     {

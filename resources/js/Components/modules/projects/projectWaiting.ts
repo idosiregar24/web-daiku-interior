@@ -1,3 +1,4 @@
+import { summarizeArrivals } from '@/Components/modules/projects/materialArrival';
 import type { MaterialPermissions } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { formatDate, formatRupiah } from '@/lib/format';
 import { waitingOn } from '@/lib/waitingOn';
@@ -129,12 +130,12 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                         holder: waitingOn('projectPhase', 'PERSIAPAN'),
                         mine: isSupervisor,
                         tone: 'info',
-                        target: { tab: 'execution', anchor: 'dp' },
+                        target: { tab: 'execution', anchor: 'syarat-dp' },
                     },
                 ];
             }
 
-            // Same reading as SupervisorFeeCard: a DP not rejected counts as asked.
+            // Same reading as DpRequirementsCard: a DP not rejected counts as asked.
             const dp = execution.payments.find((payment) => payment.kind === 'DP' && payment.status !== 'DITOLAK');
 
             if (dp?.status === 'DIAJUKAN') {
@@ -171,7 +172,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     holder: 'Pengawas (QA/QC)',
                     mine: ready ? (can?.requestDp ?? false) : Boolean(can?.requestDp || can?.manageTargets || isSupervisor),
                     tone: 'warning',
-                    target: { tab: 'execution', anchor: 'dp' },
+                    target: { tab: 'execution', anchor: 'syarat-dp' },
                 },
             ];
         }
@@ -213,6 +214,20 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         (payment) => payment.status === 'DIAJUKAN' && !(payment.kind === 'DP' && project.phase === 'PERSIAPAN'),
     );
     const reports = execution.weeklyReports.filter((report) => report.status === 'DIAJUKAN');
+
+    // Sprint 27 P4c — the H-30% reminder (Sprint 24 D13) as a row: the PM's turn to push the pace.
+    const { deadline } = execution;
+    if (project.status === 'ACTIVE' && deadline.warning && deadline.days_left !== null) {
+        rows.push({
+            key: 'deadline',
+            label: deadline.days_left >= 0 ? `Sisa ${deadline.days_left} hari` : `Lewat ${-deadline.days_left} hari`,
+            detail: `Mendekati Tanggal Selesai ${formatDate(deadline.end_date)} — actual activity ${execution.progress}%`,
+            holder: 'PM',
+            mine: can.decide,
+            tone: deadline.days_left >= 0 ? 'warning' : 'error',
+            target: { tab: 'execution', anchor: execution.targetVsActual ? 'target-vs-actual' : undefined },
+        });
+    }
     const findingsOpen = execution.findings.filter((finding) => finding.status === 'TERBUKA').length;
     const thisWeek = execution.currentWeek
         ? execution.weeklyReports.find((report) => report.week_start === execution.currentWeek?.week_start)
@@ -360,6 +375,23 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
             tone: 'warning',
             target: { tab: 'material' },
         });
+    }
+
+    // Sprint 27 P3c — Start Produksi → Logistik: materials not (fully) arrived yet.
+    if (project.status === 'ACTIVE' && project.phase === 'PRODUKSI') {
+        const arrivals = summarizeArrivals(projectMaterials);
+
+        if (arrivals.open.length > 0) {
+            rows.push({
+                key: 'material-arrival',
+                label: `${arrivals.open.length} bahan`,
+                detail: `Bahan belum lengkap datang (${arrivals.complete} dari ${arrivals.total - arrivals.request} lengkap)`,
+                holder: 'Logistik',
+                mine: materialPermissions.receive && !managesProject,
+                tone: 'info',
+                target: { tab: 'material' },
+            });
+        }
     }
 
     const nextTermin = termins.find((termin) => termin.status !== 'PAID');

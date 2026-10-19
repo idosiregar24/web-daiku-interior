@@ -240,6 +240,12 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     as `targetVsActual()`); ≥ 70 % unlocks "Berangkat ke
     Lokasi"; open `site_findings` hold QA and completion. The project's
     "Eksekusi" tab is built once in `ProjectExecutionService::overview()`.
+    Sprint 27: the DP conditions say what is missing
+    (`dpRequirements()` `detail`/`missing` — task titles only for
+    `taskVisibility = all`) in their own "Syarat DP" card; the per-task
+    "Target vs Actual per Task" table is built client-side from the `tasks`
+    prop only (never a new prop for viewers without tasks); material arrival
+    is read only through `materialArrival()`.
     **Pengawas = QA = QC — one person** (role `QA`, shown as "Pengawas
     (QA/QC)"): a timeline's QA check, its notification and queue belong to
     the project's Pengawas (`QaFormPolicy::review`,
