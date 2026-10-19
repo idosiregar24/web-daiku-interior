@@ -97,7 +97,9 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
 - **Pengawas (QA/QC)** (Sprint 24) hanya pada proyek yang ia awasi
   (`Project::isSupervisedBy()`, `ProjectPolicy::supervise` /
   `manageTargets` / `planMaterials`): daily target, DP / pelunasan, laporan
-  mingguan, temuan. QA lain tetap **tidak** melihat task (PRD §4.6 —
+  mingguan, temuan, rencana bahan — boleh diubah/dihapus olehnya sampai
+  Produksi (`reviseMaterialPlan`; route `project-materials.update/destroy`
+  menerima `QA`, baris pengajuan tukang tidak). QA lain tetap **tidak** melihat task (PRD §4.6 —
   `taskVisibility($user, $project)`). Pengawas = QA = QC (satu orang):
   pemeriksaan QA timeline juga hanya oleh Pengawas proyek itu
   (`QaFormPolicy::review`); proyek tanpa Pengawas tetap terbuka untuk semua

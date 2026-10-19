@@ -846,11 +846,12 @@ Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(functi
 Route::post('projects/{project}/materials', [ProjectMaterialController::class, 'store'])
     ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
     ->name('projects.materials.store');
+// Sprint 24 — + the project's Pengawas revises their plan before production (ProjectPolicy::reviseMaterialPlan()).
 Route::put('project-materials/{project_material}', [ProjectMaterialController::class, 'update'])
-    ->middleware(['auth', 'role:PM|LOGISTICS'])
+    ->middleware(['auth', 'role:PM|LOGISTICS|QA'])
     ->name('project-materials.update');
 Route::delete('project-materials/{project_material}', [ProjectMaterialController::class, 'destroy'])
-    ->middleware(['auth', 'role:LOGISTICS'])
+    ->middleware(['auth', 'role:LOGISTICS|QA'])
     ->name('project-materials.destroy');
 
 // Sprint 11 Sub 4 — "Pengajuan Barang" outside the catalog (decision #13).

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\User;
 
@@ -70,6 +71,18 @@ class ProjectPolicy
     public function manageMaterials(User $user, Project $project): bool
     {
         return $user->hasRole('LOGISTICS') || $this->ownsAsPm($user, $project);
+    }
+
+    /**
+     * The Pengawas revises the "bahan yang digunakan" they planned — change
+     * the quantity or drop a line — until production starts (TM / PERSIAPAN);
+     * from PRODUKSI on, Logistics is ordering against it.
+     */
+    public function reviseMaterialPlan(User $user, Project $project): bool
+    {
+        return $project->status === ProjectStatus::Active
+            && $project->isSupervisedBy($user)
+            && ! $project->currentPhase()->isProducing();
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Models\ProjectMaterial;
 use App\Services\ProjectMaterialService;
 use App\Support\Quantity;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 /**
  * PRD §4.8 "Kebutuhan Material Proyek" + Sprint 11 Sub 3 lifecycle —
@@ -31,15 +32,19 @@ class ProjectMaterialController extends Controller
 
     public function update(UpdateProjectMaterialRequest $request, ProjectMaterial $projectMaterial, ProjectMaterialService $service): RedirectResponse
     {
-        $this->authorize('manageMaterials', $projectMaterial->project);
+        $this->authorizeRevision($request, $projectMaterial, 'manageMaterials');
 
         $service->updatePlan($projectMaterial, $request->validated());
 
         return back()->with('success', 'Kebutuhan material diperbarui.');
     }
 
-    public function destroy(ProjectMaterial $projectMaterial, ProjectMaterialService $service): RedirectResponse
+    public function destroy(Request $request, ProjectMaterial $projectMaterial, ProjectMaterialService $service): RedirectResponse
     {
+        if (! $request->user()->hasRole('LOGISTICS')) {
+            $this->authorizeRevision($request, $projectMaterial, null);
+        }
+
         $service->removePlan($projectMaterial);
 
         return back()->with('success', 'Material dihapus dari kebutuhan proyek.');
@@ -99,5 +104,20 @@ class ProjectMaterialController extends Controller
     private function label(ProjectMaterial $line, ProjectMaterialActionRequest $request): string
     {
         return Quantity::format($request->validated('qty')).' '.$line->unit?->code.' '.$line->display_name;
+    }
+
+    /**
+     * Sprint 24 — besides `$ability` (Logistics / the PM), the project's
+     * Pengawas may revise a catalog line of their plan before production
+     * (ProjectPolicy::reviseMaterialPlan); a Tukang's request keeps its own flow.
+     */
+    private function authorizeRevision(Request $request, ProjectMaterial $line, ?string $ability): void
+    {
+        if ($ability !== null && $request->user()->can($ability, $line->project)) {
+            return;
+        }
+
+        $this->authorize('reviseMaterialPlan', $line->project);
+        abort_unless($line->material_id !== null && $line->request_channel === null, 403);
     }
 }
