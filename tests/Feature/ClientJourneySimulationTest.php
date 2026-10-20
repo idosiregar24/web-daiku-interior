@@ -467,7 +467,11 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     $dpPayment = SupervisorPayment::where('project_id', $project->id)->sole();
     $this->actingAs($pm)->post(route('supervisor-payments.decide', $dpPayment), ['decision' => 'approve'])->assertSessionHasNoErrors();
     expect($project->fresh()->phase)->toBe(ProjectPhase::Produksi)
-        ->and(journeyNotified($logistics, 'production_started'))->toBe(1);
+        ->and(journeyNotified($logistics, 'production_started'))->toBe(1)
+        // Sprint 28 K9 — Start Produksi starts the first timeline; the others wait their turn.
+        ->and($persiapan->fresh()->status)->toBe(MilestoneStatus::InProgress)
+        ->and($pemasangan->fresh()->status)->toBe(MilestoneStatus::Pending)
+        ->and($finishing->fresh()->status)->toBe(MilestoneStatus::Pending);
     $this->actingAs($this->finance)->post(route('finance.supervisor-payments.pay', $dpPayment), ['bank_account_id' => $this->bca->id])
         ->assertSessionHasNoErrors();
     expect($dpPayment->fresh()->status)->toBe(SupervisorPaymentStatus::Dibayar)

@@ -4,6 +4,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { quietSuccess } from '@/hooks/useFlashToasts';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { isWorkDay } from '@/lib/workDays';
 import type { Milestone, Task } from '@/types';
 import { router } from '@inertiajs/react';
 import { addDays, format, startOfWeek } from 'date-fns';
@@ -29,8 +30,9 @@ interface TaskWeekBoardProps {
  * Sprint 24 D9 — daily targets laid out per day (Mon → Sun). Drag a card
  * onto another day — or, on a phone, tap the card then "Pindah ke sini" —
  * to move it. Same rule as "Geser Tanggal" (tasks.reschedule): only an
- * unfinished target, only inside its timeline (days outside are greyed
- * while moving; the server checks again), the Tukang is told.
+ * unfinished target, only inside its timeline and only onto a working day
+ * (Sprint 28 K13 — no Minggu; days outside are greyed while moving; the
+ * server checks again), the Tukang is told.
  */
 export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps) {
     const today = ymd(new Date());
@@ -69,9 +71,9 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
 
     const movable = (task: Task) => canMove && task.status !== 'DONE' && !(task.id in pending);
 
-    /** Inside the moving card's timeline (no timeline → anywhere; the server decides). */
+    /** A working day inside the moving card's timeline (no timeline → any working day; the server decides). */
     function accepts(day: string): boolean {
-        if (!moving) return false;
+        if (!moving || !isWorkDay(day)) return false;
         const from = moving.milestone?.start_date?.slice(0, 10);
         const to = moving.milestone?.target_date?.slice(0, 10);
 
@@ -154,7 +156,7 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                 <p className="mb-3 text-xs text-muted-foreground">
                     {moving
                         ? `Memindahkan "${moving.title}" — pilih hari di dalam timeline${moving.milestone ? ` ${moving.milestone.name}` : ''}.`
-                        : 'Seret kartu ke hari lain untuk menggeser target (di HP: ketuk kartu, lalu "Pindah ke sini"). Hanya di dalam rentang timeline-nya.'}
+                        : 'Seret kartu ke hari lain untuk menggeser target (di HP: ketuk kartu, lalu "Pindah ke sini"). Hanya hari kerja di dalam rentang timeline-nya.'}
                 </p>
             )}
 
@@ -201,7 +203,7 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                                     Pindah ke sini
                                 </button>
                             )}
-                            {blocked && <p className="mb-2 px-1 text-center text-xs text-daiku-muted">Di luar timeline</p>}
+                            {blocked && <p className="mb-2 px-1 text-center text-xs text-daiku-muted">{isWorkDay(day) ? 'Di luar timeline' : 'Bukan hari kerja'}</p>}
 
                             <div className="flex flex-col gap-2">
                                 {dayTasks.length === 0 && !allowed && <p className="px-1 py-4 text-center text-xs text-daiku-muted">Kosong</p>}

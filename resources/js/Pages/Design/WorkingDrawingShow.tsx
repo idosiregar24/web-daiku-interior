@@ -1,4 +1,5 @@
 import { AssignDesignDialog } from '@/Components/modules/design/AssignDesignDialog';
+import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
@@ -58,6 +59,7 @@ function stepOf(drawing: WorkingDrawing): string | undefined {
 export default function WorkingDrawingShow({ drawing, canAssign, canWork, architects }: WorkingDrawingShowProps) {
     const [assigning, setAssigning] = useState(false);
     const [completing, setCompleting] = useState(false);
+    const [confirmingComplete, setConfirmingComplete] = useState(false);
     const working = drawing.status === 'DIKERJAKAN';
     const urls = drawing.drawing_urls ?? [];
     const form = useForm<z.infer<typeof schema>>({
@@ -84,9 +86,9 @@ export default function WorkingDrawingShow({ drawing, canAssign, canWork, archit
     }
 
     function complete() {
-        if (!confirm('Tandai gambar kerja selesai? Hasilnya final dan proyek lanjut ke Technical Meeting.')) return;
         router.post(route('design.working-drawings.complete', { workingDrawing: drawing.id }), {}, {
             onStart: () => setCompleting(true),
+            onSuccess: () => setConfirmingComplete(false),
             onFinish: () => setCompleting(false),
         });
     }
@@ -109,13 +111,24 @@ export default function WorkingDrawingShow({ drawing, canAssign, canWork, archit
                             </Button>
                         )}
                         {canWork && working && (
-                            <Button disabled={urls.length === 0 || completing} onClick={complete} title={urls.length === 0 ? 'Simpan minimal satu link dulu' : undefined}>
+                            <Button disabled={urls.length === 0 || completing} onClick={() => setConfirmingComplete(true)} title={urls.length === 0 ? 'Simpan minimal satu link dulu' : undefined}>
                                 <CheckCircle2 className="size-4" />
                                 Gambar Kerja Selesai
                             </Button>
                         )}
                     </>
                 }
+            />
+
+            <ConfirmDialog
+                open={confirmingComplete}
+                onOpenChange={setConfirmingComplete}
+                busy={completing}
+                onConfirm={complete}
+                icon={CheckCircle2}
+                title="Gambar kerja selesai?"
+                description="Hasilnya final (tanpa ACC klien) dan proyek lanjut ke tahap Technical Meeting. PM, Asisten PM, dan Pengawas (QA/QC) diberi tahu untuk menjadwalkan TM."
+                confirmLabel="Ya, selesai"
             />
 
             <div className="grid gap-6 lg:grid-cols-2">

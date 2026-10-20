@@ -247,7 +247,7 @@ test('posts can be renamed and reordered', function () {
 
 // ── Summary: discount & warning (#24, #26) ──────────────────────────────
 
-test('the discount is only a deduction in the summary; posts above the RAB total warn without blocking', function () {
+test('the discount is only a deduction in the summary; a discounted RAB fully allocated does not warn', function () {
     verifiedPayment($this->project);
     $service = app(ProjectBudgetService::class);
     $post = budgetPost($this);
@@ -262,15 +262,17 @@ test('the discount is only a deduction in the summary; posts above the RAB total
         'rabTotal' => 19_000_000.0,
         'postsTotal' => 16_000_000.0,
         'unallocatedTotal' => 4_000_000.0,
-        'overRab' => false,
+        'overItems' => false,
     ]);
 
-    // Every item allocated: 20 jt in posts > 19 jt RAB — a warning, the save went through.
+    // Every item allocated: 20 jt in posts = 20 jt items before the 1 jt discount —
+    // no warning (Sprint 28 K3; it used to compare with the 19 jt RAB total).
     $service->allocate($post, [$this->items[2]->id], $this->pm);
     $summary = $service->overview($this->project->fresh())['summary'];
 
     expect($summary['postsTotal'])->toBe(20_000_000.0)
-        ->and($summary['overRab'])->toBeTrue()
+        ->and($summary['unallocatedTotal'])->toBe(0.0)
+        ->and($summary['overItems'])->toBeFalse()
         ->and(BudgetLine::count())->toBe(3);
 });
 

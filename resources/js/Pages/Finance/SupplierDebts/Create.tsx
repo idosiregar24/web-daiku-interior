@@ -119,6 +119,7 @@ export default function SupplierDebtCreate({ projects, vendors }: SupplierDebtCr
                                                 <DatePicker
                                                     value={field.value}
                                                     onChange={field.onChange}
+                                                    clearable
                                                     placeholder="Pilih tanggal"
                                                 />
                                             </FormControl>

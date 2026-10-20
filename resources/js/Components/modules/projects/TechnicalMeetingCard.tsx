@@ -138,8 +138,9 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
 
 /**
  * "TM Selesai" — in the page header (the detail page's actions, Sprint 23
- * K4b) and under the TM card's checklist. Locked, with the reason on hover,
- * until every requirement is met; the server checks them again.
+ * K4b; Sprint 28 K14 removed the TM card's copy) and as the Ringkasan's
+ * "Giliran Anda" action. Locked, with the reason on hover, until every
+ * requirement is met; the server checks them again.
  */
 export function CompleteMeetingButton({
     projectId,
@@ -335,7 +336,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
     return (
         <SectionCard
             title="Technical Meeting"
-            description="Semua isian PM untuk TM ada di kartu ini. Lengkapi tiap langkah, lalu tekan TM Selesai."
+            description="Semua isian PM untuk TM ada di kartu ini. Lengkapi tiap langkah, lalu tekan TM Selesai di atas halaman."
             icon={Users}
             action={
                 <span className={cn('text-xs font-medium tabular-nums', allDone ? 'text-success-ink' : 'text-muted-foreground')}>
@@ -549,19 +550,19 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                 </TmStep>
             </div>
 
+            {/* Sprint 28 K14 — status only; the one "TM Selesai" button is in the page header. */}
             <div className="mt-6 rounded-lg bg-daiku-gray/60 p-4">
                 <p className="mb-3 text-sm font-medium text-foreground">Syarat TM Selesai</p>
                 <RequirementList items={requirements} />
-                <CompleteMeetingButton
-                    projectId={project.id}
-                    requirements={requirements}
-                    blocked={dirty ? 'Simpan TM dulu — ada perubahan yang belum disimpan.' : undefined}
-                    className="mt-4 w-full sm:w-auto"
-                />
                 {dirty ? (
-                    <p className="mt-2 text-xs text-muted-foreground">Simpan TM dulu — ada perubahan yang belum disimpan.</p>
+                    <p className="mt-3 text-xs text-warning-ink">Simpan TM dulu — ada perubahan yang belum disimpan.</p>
+                ) : allDone ? (
+                    <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success-ink">
+                        <CheckCircle2 className="size-3.5" />
+                        Semua syarat lengkap. Tombol TM Selesai ada di atas halaman.
+                    </p>
                 ) : (
-                    !allDone && <p className="mt-2 text-xs text-muted-foreground">Lengkapi semua syarat di atas.</p>
+                    <p className="mt-3 text-xs text-muted-foreground">Lengkapi semua syarat di atas, lalu tekan TM Selesai di atas halaman.</p>
                 )}
             </div>
 

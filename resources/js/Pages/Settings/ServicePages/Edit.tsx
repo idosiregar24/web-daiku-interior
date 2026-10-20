@@ -11,6 +11,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PageProps, ServicePageContent, ServicePageDetail } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -127,6 +128,7 @@ function HeroCard({ page }: { page: ServicePageDetail }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [progress, setProgress] = useState<number | null>(null);
+    const { ask, dialog } = useConfirm();
 
     async function pick(file: File | undefined) {
         if (inputRef.current) inputRef.current.value = '';
@@ -161,8 +163,8 @@ function HeroCard({ page }: { page: ServicePageDetail }) {
         );
     }
 
-    function remove() {
-        if (!confirm('Hapus foto halaman ini? Halaman akan memakai tampilan tanpa foto.')) return;
+    async function remove() {
+        if (!(await ask({ title: 'Hapus foto halaman ini?', description: 'Halaman akan memakai tampilan tanpa foto.' }))) return;
         router.delete(route('settings.service-pages.hero.destroy', { servicePage: page.id }), { preserveScroll: true });
     }
 
@@ -209,6 +211,7 @@ function HeroCard({ page }: { page: ServicePageDetail }) {
                 </div>
                 <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" onChange={(event) => void pick(event.target.files?.[0])} />
             </div>
+            {dialog}
         </SectionCard>
     );
 }

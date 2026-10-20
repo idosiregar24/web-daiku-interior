@@ -155,6 +155,7 @@ export default function DisciplineIndex({ records, filters, stats, structure, ca
                 <DatePicker
                     value={filters.from ? parseISO(filters.from) : undefined}
                     onChange={(date) => applyFilter({ from: date ? format(date, 'yyyy-MM-dd') : null })}
+                    clearable
                     placeholder="Dari tanggal"
                     className="sm:w-40"
                 />
@@ -162,6 +163,7 @@ export default function DisciplineIndex({ records, filters, stats, structure, ca
                 <DatePicker
                     value={filters.to ? parseISO(filters.to) : undefined}
                     onChange={(date) => applyFilter({ to: date ? format(date, 'yyyy-MM-dd') : null })}
+                    clearable
                     placeholder="Sampai tanggal"
                     className="sm:w-40"
                 />

@@ -18,6 +18,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import { domainStatusLabel } from '@/lib/waitingOn';
 import type { BankAccount, PageProps, PaginatedData, Termin, TerminStatus } from '@/types';
 import { ProjectLink } from '@/Components/modules/projects/ProjectLink';
+import { terminSchedule } from '@/Components/modules/projects/projectWaiting';
 import { Head, router, usePage } from '@inertiajs/react';
 import { CalendarClock, CalendarDays, FileDown, List } from 'lucide-react';
 import { useState } from 'react';
@@ -34,11 +35,6 @@ interface TerminIndexProps {
 }
 
 const STATUSES: TerminStatus[] = ['SCHEDULED', 'INVOICED', 'PAID', 'OVERDUE'];
-
-function formatDate(value: string | null) {
-    // Null = a Sprint 12 scheme termin waiting for its milestone / the project's completion.
-    return value ? new Date(value).toLocaleDateString('id-ID') : 'Menunggu pemicu';
-}
 
 /** Sprint 23 K12 — "Termin 2 dari 4 · 30%" from the server (Termin::paymentLabel()), the old "#n (x%)" as fallback. */
 function terminLabel(termin: Termin) {
@@ -147,7 +143,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                             <p className="shrink-0 text-right font-semibold text-daiku-dark">{formatRupiah(termin.amount)}</p>
                                         </div>
                                         <p className="text-xs text-daiku-muted">
-                                            Jadwal {formatDate(termin.scheduled_date)} · Sisa {formatRupiah(termin.sisa_piutang)}
+                                            Jadwal {terminSchedule(termin)} · Sisa {formatRupiah(termin.sisa_piutang)}
                                             {termin.invoice && ` · ${termin.invoice.number}`}
                                         </p>
                                         <TerminStatusChip termin={termin} />
@@ -190,7 +186,7 @@ export default function TerminIndex({ termins, filters, calendarTermins, calenda
                                                 {termin.invoice && <p className="text-xs">{termin.invoice.number}</p>}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-daiku-muted">{termin.bank_account?.label ?? '—'}</td>
-                                            <td className="px-4 py-3 text-daiku-muted">{formatDate(termin.scheduled_date)}</td>
+                                            <td className="px-4 py-3 text-daiku-muted">{terminSchedule(termin)}</td>
                                             <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
                                             <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.dp_amount)}</td>
                                             <td className="px-4 py-3 text-right text-daiku-muted">{formatRupiah(termin.pelunasan)}</td>

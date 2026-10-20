@@ -13,6 +13,7 @@ import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { projectWaitingOn } from '@/lib/waitingOn';
 import type { DesignKpis, DesignPicKpi, DesignRevenue, DesignRevenueProject, MonthOption, MyDesignRow, MyDesigns } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -145,7 +146,7 @@ const revenueColumns: ColumnDef<DesignRevenueProject>[] = [
             </div>
         ),
     },
-    { accessorKey: 'status', header: 'Status Proyek', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} /> },
+    { accessorKey: 'status', header: 'Status Proyek', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} waitingOn={projectWaitingOn(row.original)} /> },
 ];
 
 /** One row of the "Desain Saya" lists. */

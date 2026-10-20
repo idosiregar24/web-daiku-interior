@@ -18,6 +18,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import type { Division, Position } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -65,14 +66,15 @@ export default function StructureIndex({ divisions, canManage }: StructureIndexP
         position: null,
         divisionId: null,
     });
+    const { ask, dialog } = useConfirm();
 
-    function destroyDivision(division: Division) {
-        if (!confirm(`Hapus divisi "${division.name}"?`)) return;
+    async function destroyDivision(division: Division) {
+        if (!(await ask({ title: 'Hapus divisi?', description: `Divisi "${division.name}" akan dihapus.` }))) return;
         router.delete(route('hr.divisions.destroy', { division: division.id }), { preserveScroll: true });
     }
 
-    function destroyPosition(position: Position) {
-        if (!confirm(`Hapus jabatan "${position.name}"?`)) return;
+    async function destroyPosition(position: Position) {
+        if (!(await ask({ title: 'Hapus jabatan?', description: `Jabatan "${position.name}" akan dihapus.` }))) return;
         router.delete(route('hr.positions.destroy', { position: position.id }), { preserveScroll: true });
     }
 
@@ -225,6 +227,7 @@ export default function StructureIndex({ divisions, canManage }: StructureIndexP
                     />
                 </>
             )}
+            {dialog}
         </AppLayout>
     );
 }

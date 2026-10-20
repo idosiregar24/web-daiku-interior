@@ -12,6 +12,7 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import type { TestimonialRow } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -55,6 +56,7 @@ const EMPTY: FormValues = { client_label: '', quote: '', portfolio_item_id: '', 
 export default function TestimonialIndex({ testimonials, portfolioOptions }: TestimonialIndexProps) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<TestimonialRow | null>(null);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
     const [clientLabel, quote] = form.watch(['client_label', 'quote']);
@@ -98,8 +100,8 @@ export default function TestimonialIndex({ testimonials, portfolioOptions }: Tes
         }
     }
 
-    function destroy(row: TestimonialRow) {
-        if (!confirm(`Hapus testimoni dari "${row.client_label}"?`)) return;
+    async function destroy(row: TestimonialRow) {
+        if (!(await ask({ title: 'Hapus testimoni?', description: `Testimoni dari "${row.client_label}" akan dihapus.` }))) return;
         router.delete(route('settings.testimonials.destroy', { testimonial: row.id }), { preserveScroll: true });
     }
 
@@ -301,6 +303,7 @@ export default function TestimonialIndex({ testimonials, portfolioOptions }: Tes
                     </Form>
                 </ResponsiveDialogContent>
             </Dialog>
+            {dialog}
         </AppLayout>
     );
 }

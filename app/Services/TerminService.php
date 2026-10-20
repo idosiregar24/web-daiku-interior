@@ -462,8 +462,10 @@ class TerminService
             ]));
 
             $marketing = $project->lead?->assignee;
-            $title = "Terbitkan Invoice Termin {$termin->termin_number}";
-            $message = "Termin {$termin->termin_number} proyek \"{$project->name}\" (".'Rp '.number_format((float) $termin->amount, 0, ',', '.').') sudah waktunya ditagih — '.$termin->trigger->label().'.';
+            // Sprint 28 K8 — the termin's own label ("Pelunasan", "Termin 2 dari 3 · 30%"), as Finance and the invoice call it.
+            $label = $termin->paymentLabel();
+            $title = "Terbitkan Invoice {$label}";
+            $message = "{$label} proyek \"{$project->name}\" (".'Rp '.number_format((float) $termin->amount, 0, ',', '.').') sudah waktunya ditagih — '.$termin->trigger->label().'.';
             $metadata = ['termin_id' => $termin->id, 'project_id' => $project->id];
 
             $marketing

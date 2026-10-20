@@ -579,12 +579,14 @@ class ActionInboxService
                 ->where('status', '!=', TerminStatus::Paid->value)
                 ->whereHas('project', fn (Builder $project) => $project->whereHas('lead', fn (Builder $lead) => $lead
                     ->where(fn (Builder $q) => $q->where('assigned_to', $user->id)->orWhereNull('assigned_to'))))
-                ->with('project:id,name')
+                ->withRabPosition()
+                ->with('project:id,name,quotation_id')
                 ->oldest('invoice_reminded_at'),
             fn (Termin $termin) => [
                 'id' => $termin->id,
                 'title' => $termin->project?->name ?? 'Proyek',
-                'subtitle' => "Termin {$termin->termin_number} · {$this->rupiah($termin->amount)}",
+                // Sprint 28 K8 — "Pelunasan" / "Termin 2 dari 4 · 30%", as Finance and the invoice call it.
+                'subtitle' => "{$termin->paymentLabel()} · {$this->rupiah($termin->amount)}",
                 'at' => $termin->invoice_reminded_at,
                 'href' => route('projects.show', ['project' => $termin->project_id, 'tab' => 'finance', 'view' => 'termin']),
             ],

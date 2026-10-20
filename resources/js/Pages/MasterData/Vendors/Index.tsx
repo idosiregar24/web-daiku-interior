@@ -18,6 +18,7 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PaginatedData, Vendor, VendorType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -76,6 +77,7 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
     const [open, setOpen] = useState(false);
     const [editing, setEditing] = useState<VendorRow | null>(null);
     const [search, setSearch] = useState(filters.search ?? '');
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -127,8 +129,8 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
         }
     }
 
-    function destroy(vendor: VendorRow) {
-        if (!confirm(`Hapus vendor "${vendor.name}"?`)) return;
+    async function destroy(vendor: VendorRow) {
+        if (!(await ask({ title: 'Hapus vendor?', description: `Vendor "${vendor.name}" akan dihapus.` }))) return;
         router.delete(route('master-data.vendors.destroy', { vendor: vendor.id }), { preserveScroll: true });
     }
 
@@ -355,6 +357,7 @@ export default function VendorIndex({ vendors, filters }: VendorIndexProps) {
                     </Form>
                 </DialogContent>
             </Dialog>
+            {dialog}
         </AppLayout>
     );
 }

@@ -2,6 +2,7 @@
 
 use App\Enums\FinanceCategory;
 use App\Enums\LeadStatus;
+use App\Enums\MilestoneStatus;
 use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
@@ -448,6 +449,23 @@ test('DP: conditions first, the Pengawas asks, the PM approves (= Start Produksi
     $this->actingAs($this->finance)->post(route('finance.supervisor-payments.pay', $payment), ['bank_account_id' => $account->id])->assertSessionHasErrors('payment');
 });
 
+test('Start Produksi starts the first timeline; the others stay PENDING (Sprint 28 K9)', function () {
+    $project = execProject($this, ProjectPhase::Persiapan);
+    $fee = SupervisorFee::create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'total_amount' => 2_000_000, 'dp_percent' => 10]);
+    // Created out of order: the project's `order` decides which one is first.
+    $second = Milestone::factory()->create(['project_id' => $project->id, 'order' => 2, 'status' => 'PENDING', 'start_date' => '2026-10-19', 'target_date' => '2026-10-24']);
+    $first = Milestone::factory()->create(['project_id' => $project->id, 'order' => 1, 'status' => 'PENDING', 'start_date' => '2026-10-12', 'target_date' => '2026-10-17']);
+    $third = Milestone::factory()->create(['project_id' => $project->id, 'order' => 3, 'status' => 'PENDING', 'start_date' => '2026-10-26', 'target_date' => '2026-10-31']);
+    $payment = $fee->payments()->create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'kind' => 'DP', 'amount' => 200_000, 'status' => 'DIAJUKAN']);
+
+    $this->actingAs($this->pm)->post(route('supervisor-payments.decide', $payment), ['decision' => 'approve'])->assertSessionHasNoErrors();
+
+    expect($project->fresh()->phase)->toBe(ProjectPhase::Produksi)
+        ->and($first->fresh()->status)->toBe(MilestoneStatus::InProgress)
+        ->and($second->fresh()->status)->toBe(MilestoneStatus::Pending)
+        ->and($third->fresh()->status)->toBe(MilestoneStatus::Pending);
+});
+
 test('DP conditions say what is missing — task titles only for viewers of the project\'s tasks (Sprint 27 P1a)', function () {
     $project = execProject($this, ProjectPhase::Persiapan);
     SupervisorFee::create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'total_amount' => 5_000_000, 'dp_percent' => 10]);
@@ -613,6 +631,18 @@ test('geser: the Pengawas moves a target inside its timeline only; the Tukang ne
         ->and(notified($this->tukang, 'task_updated'))->toBe(1);
 });
 
+test('geser onto a Sunday is refused — not a working day (Sprint 28 K13)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $task = execTarget($project, execTimeline($project), $this->tukang);
+
+    // 2026-10-18 is a Sunday inside the timeline (12 → 24 Oct).
+    $this->actingAs($this->qa)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-18'])
+        ->assertSessionHasErrors(['due_date' => 'Hari Minggu bukan hari kerja — pilih Senin–Sabtu.']);
+
+    expect($task->fresh()->due_date->toDateString())->toBe('2026-10-14')
+        ->and(TaskScheduleChange::where('task_id', $task->id)->exists())->toBeFalse();
+});
+
 test('tukar: two days of targets swap, refused as a whole when one would leave its timeline', function () {
     $project = execProject($this, ProjectPhase::Produksi);
     $milestone = execTimeline($project, '2026-10-12', '2026-10-20');
@@ -627,6 +657,22 @@ test('tukar: two days of targets swap, refused as a whole when one would leave i
     expect($b->fresh()->due_date->toDateString())->toBe('2026-10-15');
 
     $this->actingAs($this->marketing)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-15', 'to_date' => '2026-10-16'])->assertForbidden();
+});
+
+test('tukar onto a Sunday is refused as a whole (Sprint 28 K13)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $milestone = execTimeline($project, '2026-10-12', '2026-10-24');
+    $a = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-16']);
+    $b = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-17']);
+
+    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-16', 'to_date' => '2026-10-18'])
+        ->assertSessionHasErrors(['to_date' => 'Hari Minggu bukan hari kerja — pilih Senin–Sabtu.']);
+    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-18', 'to_date' => '2026-10-17'])
+        ->assertSessionHasErrors('from_date');
+
+    expect($a->fresh()->due_date->toDateString())->toBe('2026-10-16')
+        ->and($b->fresh()->due_date->toDateString())->toBe('2026-10-17')
+        ->and(TaskScheduleChange::count())->toBe(0);
 });
 
 // ── Sub 08: Laporan mingguan ─────────────────────────────────────────────

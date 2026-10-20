@@ -134,6 +134,29 @@ class MilestoneService
         return $milestone->fresh();
     }
 
+    /**
+     * Sprint 28 K9 — Start Produksi: the project's first timeline not yet
+     * completed (in the project's `order`) is IN_PROGRESS — same step as
+     * QaFormService::advanceNextMilestone() after a QA approval. Only a
+     * PENDING one moves; one already running, overdue or with QA is left
+     * as it is. Runs inside the caller's transaction.
+     */
+    public function startFirstPending(Project $project): ?Milestone
+    {
+        $first = $project->milestones()
+            ->where('status', '!=', MilestoneStatus::Completed->value)
+            ->reorder()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->first();
+
+        if ($first && $first->status === MilestoneStatus::Pending) {
+            $first->update(['status' => MilestoneStatus::InProgress->value]);
+        }
+
+        return $first;
+    }
+
     private function defaultStartDate(Project $project, string $targetDate): string
     {
         $previous = $project->milestones()->reorder()->orderByDesc('order')->orderByDesc('target_date')->orderByDesc('id')->first();

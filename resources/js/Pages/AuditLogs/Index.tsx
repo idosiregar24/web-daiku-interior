@@ -77,6 +77,10 @@ const ACTION_LABELS: Record<string, string> = {
     'finance.salary_paid': 'Gaji karyawan dibayar',
     'finance.employee_created': 'Karyawan ditambahkan',
     'finance.employee_updated': 'Data karyawan diubah',
+    // Sprint 28 K15 — BudgetRealizationService (realisasi melebihi anggaran → CEO).
+    'finance.budget_overrun_requested': 'Pengajuan overrun anggaran',
+    'finance.budget_overrun_approved': 'Overrun anggaran disetujui',
+    'finance.budget_overrun_rejected': 'Overrun anggaran ditolak',
     'overtime.pm_approved': 'Lembur disetujui PM',
     'overtime.pm_rejected': 'Lembur ditolak PM',
     'overtime.finance_approved': 'Lembur disetujui Finance',
@@ -194,12 +198,14 @@ export default function AuditLogIndex({ logs, filters, areas, actors }: AuditLog
                         <DatePicker
                             value={filters.from ? new Date(filters.from) : undefined}
                             onChange={(date) => applyFilter({ from: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            clearable
                             placeholder="Dari tanggal"
                             className="w-44"
                         />
                         <DatePicker
                             value={filters.to ? new Date(filters.to) : undefined}
                             onChange={(date) => applyFilter({ to: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            clearable
                             placeholder="Sampai tanggal"
                             className="w-44"
                         />

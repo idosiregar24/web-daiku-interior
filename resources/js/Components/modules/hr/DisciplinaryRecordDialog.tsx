@@ -228,6 +228,7 @@ export function DisciplinaryRecordDialog({ open, onOpenChange, employees, employ
                                             <DatePicker
                                                 value={field.value}
                                                 onChange={field.onChange}
+                                                clearable
                                                 placeholder={`Otomatis ${formatDate(format(addMonths(issuedOn ?? new Date(), SP_VALID_MONTHS), 'yyyy-MM-dd'))}`}
                                             />
                                         </FormControl>

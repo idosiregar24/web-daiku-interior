@@ -1,18 +1,15 @@
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatDate } from '@/lib/format';
+import { TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
 import type { Milestone, Task, TaskStatus } from '@/types';
 import { AlertCircle, CalendarDays, User } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-const COLUMNS: { status: TaskStatus; label: string }[] = [
-    { status: 'PENDING', label: 'Pending' },
-    { status: 'ONPROGRESS', label: 'On Progress' },
-    { status: 'PENGECEKAN', label: 'Pengecekan' },
-    { status: 'DONE', label: 'Done' },
-    { status: 'OVER', label: 'Over' },
-];
+const COLUMNS: { status: TaskStatus; label: string }[] = (['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE', 'OVER'] as const).map(
+    (status) => ({ status, label: TASK_STATUS_LABEL[status] }),
+);
 
 const NO_MILESTONE = 'none';
 

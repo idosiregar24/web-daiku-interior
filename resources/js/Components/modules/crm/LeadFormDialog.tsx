@@ -381,7 +381,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                     <FormItem>
                                         <FormLabel>Pertama Dihubungi</FormLabel>
                                         <FormControl>
-                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                            <DatePicker value={field.value} onChange={field.onChange} clearable />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -396,7 +396,7 @@ export function LeadFormDialog({ open, onOpenChange, editing, marketers, leadSou
                                     <FormItem>
                                         <FormLabel>Jadwal Follow-up Pertama (FU-1)</FormLabel>
                                         <FormControl>
-                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                            <DatePicker value={field.value} onChange={field.onChange} clearable />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

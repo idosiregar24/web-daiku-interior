@@ -31,6 +31,7 @@ import { Textarea } from '@/Components/ui/textarea';
 import type { Milestone, Task, TaskPriority, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { formatDate } from '@/lib/format';
+import { TASK_PRIORITY_LABEL } from '@/lib/taskLabels';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { useEffect, useMemo } from 'react';
@@ -328,7 +329,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                             <SelectContent>
                                                 {PRIORITY_OPTIONS.map((option) => (
                                                     <SelectItem key={option} value={option}>
-                                                        {option}
+                                                        {TASK_PRIORITY_LABEL[option]}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

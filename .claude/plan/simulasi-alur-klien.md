@@ -48,16 +48,17 @@ Marketing  : Tambah Lead → Follow-up → Jadwalkan Survey → Buat RAB Jasa De
 Estimator  : Susun RAB → Simpan sebagai Draft → Kirim ke PM
 PM         : Periksa item ✔/✘ di tabel RAB → Setujui RAB → langsung ke Marketing
 Marketing  : Kirim ke Klien (link) ─────────────▶ Klien: Setuju / Tidak Setuju
-Marketing  : Terbitkan Invoice → Kirim Bukti Bayar
+Marketing  : Terbitkan Invoice → Tandai Klien Sudah Bayar
 Finance    : Verifikasi Pembayaran  → desain terbuka
 Kep. Desain: Tugaskan Desain → semua proses desain di grup WhatsApp
 Arsitek / Marketing: simpan link grup WA + link desain → Desain Disetujui Klien
              → RAB Proyek otomatis diminta ke Estimator
 Estimator  : Susun RAB Proyek + skema bayar → PM → Marketing → Klien setuju
              (CEO hanya dapat info + boleh menulis catatan)
-Marketing  : Invoice DP → Finance verifikasi
+Marketing  : Invoice DP (langsung setelah klien setuju, atau sesudah Buka
+             Proyek — keduanya bisa) → Finance verifikasi
 PM peng-ACC: Buka Proyek (Kepala Tim, Pengawas, tanggal) → termin dibuat otomatis
-PM         : Alokasi Dana → Timeline → Task → Realisasi
+PM         : Anggaran (Keuangan) → Timeline → Daily Target → Realisasi
 Tukang     : Kerjakan task + Form Harian (sebelum 21.00)
 PM         : Tandai timeline selesai → QA: Setujui QA
 Marketing  : Invoice termin & pelunasan → Finance verifikasi → Proyek Selesai
@@ -99,7 +100,7 @@ Dipakai di seluruh simulasi:
   ```
   Kirim portofolio kafe & tanyakan jadwal survey lokasi.
   ```
-- Setelah dihubungi: **Tandai Follow-up Selesai** → **Hasil follow-up**:
+- Setelah dihubungi: **Tandai Selesai** → **Hasil follow-up**:
   ```
   Klien tertarik, minta survey lokasi minggu ini.
   ```
@@ -158,7 +159,7 @@ Dipakai di seluruh simulasi:
 - Klik **Simpan sebagai Draft** (baris tombol di bawah tabel RAB, di atas
   Skema Pembayaran) → periksa **Skema Pembayaran** (bawaan: 1 baris 100% di
   muka) → **Simpan Skema Pembayaran**.
-- **Catatan surat** (opsional, tampil di PDF & link klien) → **Simpan Catatan**.
+- **Catatan untuk Klien** (opsional, tampil di PDF & link klien) → **Simpan Catatan**.
 - Klik **Kirim ke PM** (nonaktif selama ada perubahan RAB yang belum disimpan —
   keterangannya berubah jadi "Ada perubahan yang belum disimpan").
 - **Hasil:** status **Submitted** (menunggu PM).
@@ -183,7 +184,7 @@ membuatnya **Siap Dikirim**.
 
 ### Langkah 9 · Marketing mengirim ke klien
 - **Login:** Marketing → buka RAB (dari Quotation atau Riwayat RAB di detail lead)
-- Klik **Kirim ke Klien** → **Salin link klien** (atau **Kirim via WhatsApp**).
+- Klik **Kirim ke Klien** → **Salin Link** (atau **Kirim via WhatsApp**).
 - **Unduh PDF** untuk melihat surat penawaran resmi: kop surat, nomor
   surat format `…/OFF/Daiku/X/2026`, tabel RAB, terbilang, catatan, tanda tangan.
 - **Hasil:** status **Sent To Client**; masa berlaku 14 hari.
@@ -275,14 +276,14 @@ membuatnya **Siap Dikirim**.
   | Bagian | Item | P | T | Volume | Satuan | Harga |
   |---|---|---|---|---|---|---|
   | Pekerjaan Persiapan | Bongkar plafon & partisi lama | | | 1 | ls | 3.500.000 |
-  | Interior | Meja bar HPL motif kayu | 4 | 1,1 | 1 | unit | 18.000.000 |
+  | Interior | Meja bar HPL motif kayu | 4 | 1,1 | 1 *(ketik manual — P × T otomatis 4,4)* | unit | 18.000.000 |
   | Interior | Partisi rangka besi + kaca | 6 | 2,4 | 14,4 *(otomatis P × T/L)* | m² | 950.000 |
   | Interior | Mural dinding | 5 | 3 | 15 *(otomatis)* | m² | 350.000 |
   | Interior | List gypsum keliling | 18 | | 18 *(m/lari → pilih "P")* | m/lari | 85.000 |
   | Listrik | Titik lampu gantung | | | 12 | titik | 450.000 |
   | Listrik | Tambah daya & panel | | | 1 | ls | 6.500.000 |
 
-- **Diskon:** 2.000.000 · **Pembulatan:** sesuaikan ke ribuan terdekat → **Simpan RAB**.
+- **Diskon:** 2.000.000 · **Pembulatan:** sesuaikan ke ribuan terdekat → **Simpan sebagai Draft**.
 - **Skema Pembayaran** (maks. 6 baris) → **Simpan Skema Pembayaran**:
 
   | Termin | % | Pemicu |
@@ -301,10 +302,12 @@ membuatnya **Siap Dikirim**.
   mengembalikan ke Estimator); catatan tampil untuk Estimator, PM, Marketing.
 
 ### Langkah 18 · Marketing → Klien
-- Marketing: **Kirim ke Klien** → **Salin link klien** → kirim ke klien.
+- Marketing: **Kirim ke Klien** → **Salin Link** → kirim ke klien.
 - Klien (Incognito): **Setujui Penawaran** + centang → konfirmasi.
 - **Hasil:** RAB Proyek **Disetujui Klien**; status lead **Closing**; **PM
-  yang meng-ACC RAB** mendapat notifikasi + pop-up **Buka Proyek**.
+  yang meng-ACC RAB** mendapat notifikasi + pop-up **Buka Proyek**; Marketing
+  langsung mendapat **Terbitkan Invoice DP** (boleh ditagih sebelum proyek
+  dibuka — invoice-nya ditempel ke termin DP saat Buka Proyek).
 
 ---
 
@@ -325,21 +328,25 @@ membuatnya **Siap Dikirim**.
   mendapat notifikasi "Proyek dibuka".
 
 ### Langkah 20 · Marketing menagih DP, Finance memverifikasi
-- **Marketing:** Proyek → buka proyek → tab **Keuangan** → termin DP →
-  **Terbitkan Invoice** → lalu **Kirim Bukti Bayar** (Keuangan → Penagihan → Invoice).
+- **Marketing** (bila DP belum ditagih di Langkah 18): Proyek → buka proyek →
+  tab **Keuangan → Termin & Invoice** → termin DP → **Terbitkan Invoice** → lalu
+  **Tandai Klien Sudah Bayar** (Keuangan → Penagihan → Invoice).
 - **Finance:** **Verifikasi Pembayaran** (seperti Langkah 12).
-- **Hasil:** termin DP **Paid**; tab **Alokasi Dana** terbuka untuk PM.
+- **Hasil:** termin DP **Paid**; **Keuangan → Anggaran** terbuka untuk PM.
 
 ---
 
 ## Tahap 7 — Pelaksanaan proyek
 
 ### Langkah 21 · PM mengatur alokasi dana
-- **Login:** PM → proyek → tab **Alokasi Dana** → **Tambah Pos**:
+- **Login:** PM → proyek → tab **Keuangan → Anggaran** → **Tambah Pos**:
   `Persiapan`, `Interior`, `Listrik`.
 - Masukkan item RAB ke pos masing-masing (bagian **Item Belum Dialokasikan**).
 - **Hasil:** Ringkasan Alokasi menunjukkan anggaran per pos; perubahan
-  tercatat di **Riwayat Alokasi**.
+  tercatat di **Riwayat Alokasi**. Selama masih ada item belum dialokasikan
+  muncul peringatan; setelah semua masuk pos tidak ada peringatan — diskon
+  2.000.000 tampil sebagai **info** (pengurang margin, tidak dibebankan ke
+  pos; total pos dibandingkan dengan total item sebelum diskon).
 
 > Marketing dan Asisten PM **tidak** bisa melihat alokasi dana maupun
 > realisasi — coba login sebagai Marketing untuk memastikan tab ini tidak ada.
@@ -349,7 +356,7 @@ membuatnya **Siap Dikirim**.
   tahapnya). **Login:** kepaladesain → **Desain → Gambar Kerja** → proyek →
   **Tugaskan Arsitek** (PIC, asisten, tanggal mulai, target hari).
 - **Login:** arsitek → simpan link gambar kerja → **Gambar Kerja Selesai**
-  (tanpa persetujuan klien). **Hasil:** proyek pindah ke tahap **Technical
+  → pop-up konfirmasi **Ya, selesai** (tanpa persetujuan klien). **Hasil:** proyek pindah ke tahap **Technical
   Meeting**; PM & Pengawas mendapat notifikasi.
 
 ### Langkah 22 · PM menjalankan Technical Meeting & membuat timeline
@@ -357,27 +364,32 @@ membuatnya **Siap Dikirim**.
 > rencana bahan Pengawas ada di **tab Eksekusi → kartu Technical Meeting**.
 > Langkah rinci: [`simulasi-eksekusi-proyek.md`](simulasi-eksekusi-proyek.md) Tahap 3.
 
-- Kartu TM langkah **2 · Pembagian Timeline** (atau tab **Timeline**) →
+- Kartu TM langkah **2 · Pembagian Timeline** (atau tab **Timeline & QC**) →
   **Tambah Timeline** (nama + **tanggal mulai** + tanggal selesai; tanggal
-  mulai disarankan = hari setelah timeline sebelumnya):
+  mulai otomatis terisi = hari setelah timeline sebelumnya — mengklik ulang
+  tanggal yang sudah terpilih tidak mengosongkannya):
   1. `Persiapan & Bongkar` — hari ini s.d. +7 hari
   2. `Pemasangan Interior` — +8 s.d. +30 hari  *(nama sama dengan pemicu Termin 2)*
   3. `Finishing & Serah Terima` — +31 s.d. +40 hari
-- Gantt menggambar batang mulai → selesai.
+- Gantt (tab **Timeline & QC**) menggambar batang mulai → selesai; **Tanggal
+  Selesai Proyek** otomatis = tanggal selesai timeline terakhir.
 - **Login:** qa (Pengawas) → kartu TM → **Bahan yang Digunakan** (cari
   barang, jumlah, Enter — acuan item RAB di sebelahnya).
 - **Login:** PM → kartu **Technical Meeting**: tanggal (bisa disimpan lebih
   dulu sebagai jadwal), notulen, peserta (akun atau ketik nama), **Nilai
   Jasa Pengawas** `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan
-  TM** → setelah semua syarat ✓ → **TM Selesai** (header halaman → pop-up
-  konfirmasi). **Hasil:** tahap **Persiapan**.
+  TM** → setelah semua syarat ✓ → **TM Selesai** (hanya di header halaman;
+  kartu TM menulis "Tombol TM Selesai ada di atas halaman" → pop-up
+  konfirmasi). **Hasil:** tahap **Persiapan**; chip status proyek menyebut
+  pemegang giliran fase (sama dengan stepper), bukan selalu "PM".
 - **Login:** qa (Pengawas) → tab **Daily Target** → **Tambah Daily Target** (wajib
   timeline, tanggal di dalam rentang timeline, isi **Upah**):
   - Judul: `Bongkar plafon lama lantai 1` · Tukang: Field Staff Daiku Interior
   - Timeline: Persiapan & Bongkar · Tanggal Target: +3 hari · Upah: 250.000
 - Tab **Eksekusi** → **Ajukan DP Pengawas** (aktif bila bahan ✓ · upah ✓ ·
   tiap timeline punya target). **Login:** PM → **Putuskan → Setujui**.
-  **Hasil:** **Start Produksi** — Logistik diminta memesan bahan; Finance
+  **Hasil:** **Start Produksi** — timeline pertama (*Persiapan & Bongkar*)
+  otomatis **Dikerjakan**; Logistik diminta memesan bahan; Finance
   melihat "Bayar Pengawas: DP · Proyek …" di **Pembayaran Staf → Jasa
   Pengawas** → **Bayar**.
 
@@ -393,21 +405,25 @@ membuatnya **Siap Dikirim**.
   Tidak menyentuh satu pun target hari itu → penalti otomatis. Target yang
   belum selesai **bergulir** ke hari kerja berikutnya selama masih di dalam
   timeline; lewat timeline → **Terlambat**.
-- **Pengawas** bisa menyeret target ke hari lain di tab **Daily Target → Per Hari**,
-  **Geser Tanggal** (menu baris task) atau **Tukar Hari** (tab Eksekusi →
-  Target vs Actual), hanya di dalam rentang timeline.
+- **Pengawas** bisa memindah target di tab **Daily Target → Per Hari**: seret
+  kartu, atau ketuk kartu → **Pindah ke sini** di hari tujuan; atau **Tukar
+  Hari** (tab Eksekusi → Target vs Actual). Hanya hari kerja (Senin–Sabtu) di
+  dalam rentang timeline — hari Minggu tidak ditawarkan dan ditolak server.
 - **Jumat:** Pengawas → tab Eksekusi → **Laporan Mingguan** → PM
   **Putuskan** (setujui + nominal jasa minggu ini, atau tolak + alasan).
 - Actual activity ≥ 70% → PM mendapat notifikasi → **Setujui Berangkat ke
-  Lokasi** → tahap **Pemasangan**: Pengawas mencatat **Temuan Finishing** →
+  Lokasi** → pop-up konfirmasi (perpindahan fase tidak bisa dibatalkan) →
+  **Ya, berangkat** → tahap **Pemasangan**: Pengawas mencatat **Temuan Finishing** →
   **Jadikan Task Perbaikan**. Temuan terbuka menahan QA timeline.
-- Selesai bekerja → status **Minta dicek** → PM memeriksa lalu mengubah ke **Selesai**.
+- Selesai bekerja → status **Minta dicek** → PM: menu **Tugas** → saring status
+  **Minta dicek** → **Ubah Status** → **Selesai** (pilihan status memakai kata
+  yang sama dengan Tukang).
 - **Opsional:** **Ajukan Barang** (nama + jumlah + catatan → ACC PM/Asisten
   PM → Logistik) dan **Pengajuan lembur** (→ PM **Setujui Lembur**).
 - Tukang tidak bisa mengubah judul, deskripsi, atau jatuh tempo task.
 
 ### Langkah 24 · PM mencatat realisasi biaya
-- Tab **Alokasi Dana** → item `Titik lampu gantung` → **Catat Realisasi**:
+- Tab **Keuangan → Anggaran** → item `Titik lampu gantung` → **Catat Realisasi**:
   Qty Riil = 12, Harga Modal / Satuan = 300.000, Vendor (opsional).
 - **Coba overrun:** catat realisasi `Tambah daya & panel` dengan harga modal
   di atas anggaran pos → sistem memblokir dan meminta **Alasan untuk CEO**:
@@ -421,12 +437,16 @@ membuatnya **Siap Dikirim**.
 ## Tahap 8 — QA & termin berikutnya
 
 ### Langkah 25 · PM menyerahkan timeline ke QA
-- Semua task timeline *Persiapan & Bongkar* sudah **Selesai** → tab
-  **Timeline** → **Tandai Selesai**.
+- Tab **Timeline & QC** → timeline *Persiapan & Bongkar* → **Tandai Selesai**
+  → pop-up konfirmasi. (Sistem belum mensyaratkan semua daily target di
+  dalamnya Selesai — keputusan Sprint 28 K17, ditinjau lagi nanti.)
 - **Hasil:** timeline **Belum Diperiksa · QA**; QA Form dibuat otomatis.
 
 ### Langkah 26 · QA memeriksa
 - **Login:** qa@daikuinterior.com → menu **QA** → buka QA Form proyek ini
+- Bila masih ada **Temuan Finishing** terbuka, halaman QA langsung menampilkan
+  "N temuan finishing masih terbuka…" + **Lihat Temuan**, dan **Setujui QA**
+  terkunci sampai temuannya selesai.
 - Isi **Checklist Kualitas** (lulus/tidak + catatan) → **Setujui QA**.
 - **Hasil:** timeline **Selesai**; timeline berikutnya otomatis berjalan;
   PM mendapat notifikasi.
@@ -436,12 +456,17 @@ membuatnya **Siap Dikirim**.
 
 ### Langkah 27 · Termin 2 & pelunasan
 - Ulangi Langkah 22–26 untuk timeline **Pemasangan Interior**. Setelah QA
-  menyetujuinya, Termin 2 jatuh tempo → Marketing mendapat pengingat →
-  **Terbitkan Invoice** → **Kirim Bukti Bayar** → Finance **Verifikasi Pembayaran**.
+  menyetujuinya, Termin 2 jatuh tempo → Marketing mendapat pengingat
+  "Terbitkan Invoice Termin 2 dari 3 · 30%" → **Terbitkan Invoice** → **Tandai
+  Klien Sudah Bayar** → Finance **Verifikasi Pembayaran**. Chip termin ikut
+  invoice-nya ("Menunggu Konfirmasi · Finance" setelah bukti dikirim).
+- **Variasi:** Marketing boleh menagih termin sebelum pemicunya tercapai —
+  dialog hanya memberi keterangan "Pemicu belum tercapai (…)", tidak memblokir.
 - Selesaikan timeline **Finishing & Serah Terima** → QA **Setujui QA**.
 - **Hasil:** proyek otomatis **Completed** (syarat: semua timeline lolos
   QA, tidak ada sisa material, tidak ada pengajuan barang yang belum
-  diputuskan). Termin **Pelunasan** jatuh tempo → invoice → verifikasi Finance.
+  diputuskan). Termin **Pelunasan** jatuh tempo ("Terbitkan Invoice Pelunasan")
+  → invoice → verifikasi Finance.
 
 > **RAB Tambahan (opsional):** klien minta pekerjaan tambah saat proyek
 > berjalan → proyek → **Minta RAB Tambahan** → alur sama seperti Tahap 5;
@@ -456,11 +481,11 @@ membuatnya **Siap Dikirim**.
 | Riwayat RAB klien | Marketing / CEO | CRM / Pipeline → detail Rina Kusuma | RAB Jasa Desain & RAB Proyek, masing-masing dengan nomor surat, PDF, link klien |
 | Informasi Pembayaran | Marketing / CEO / PM proyek | CRM / Pipeline → detail Rina Kusuma | Semua pembayaran (Jasa Desain, DP, Termin n dari N, Pelunasan) **Lunas**; Arsitek & Estimator tidak melihat kartu ini |
 | Pemasukan | Finance | Keuangan → Cash Flow → Transaksi | Pembayaran jasa desain, DP, termin 2, pelunasan |
-| Termin | Finance / CEO | Keuangan → Penagihan → Termin | Semua termin **Paid** |
-| Anggaran vs realisasi | PM / CEO / Finance | Proyek → Alokasi Dana | Per pos, termasuk overrun yang disetujui CEO |
+| Termin | Finance / CEO | Keuangan → Penagihan → Termin | Semua termin **Paid**; kolom Jadwal "Lunas {tanggal}" |
+| Anggaran vs realisasi | PM / CEO / Finance | Proyek → Keuangan → Anggaran | Per pos, termasuk overrun yang disetujui CEO |
 | Upah tukang | Finance | Keuangan → Pembayaran Staf → Upah Tukang | Task selesai siap dibayar (**Bayar Upah**) |
 | Penalti | Finance / Tukang | Keuangan → Pembayaran Staf → Penalti | Muncul bila Form Harian terlewat |
-| Jejak audit | CEO | Eksekutif → Audit Trail | Persetujuan RAB, persetujuan klien, verifikasi invoice, overrun |
+| Jejak audit | CEO | Eksekutif → Audit Trail | Persetujuan RAB, persetujuan klien, verifikasi invoice, overrun ("Pengajuan overrun anggaran", "Overrun anggaran disetujui") |
 | Ringkasan bisnis | CEO | Eksekutif → Analytics | Pipeline, pendapatan, proyek |
 
 ---

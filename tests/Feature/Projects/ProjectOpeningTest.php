@@ -381,6 +381,37 @@ test('Marketing is reminded once per termin when its trigger is reached', functi
     expect($reminded())->toBe(4)->and($service->remindInvoices())->toBe(0);
 });
 
+test('the reminder, Perlu Tindakan and the project page name a termin as Finance does (Sprint 28 K8)', function () {
+    $project = openProject($this);
+    $service = app(TerminService::class);
+    $titles = fn () => Notification::where('user_id', $this->marketing->id)->where('type', 'termin_invoice_due')->orderBy('id')->pluck('title')->all();
+
+    Milestone::factory()->create(['project_id' => $project->id, 'name' => 'Produksi', 'status' => MilestoneStatus::Completed->value]);
+    $service->remindInvoices();
+    $project->update(['status' => ProjectStatus::Completed->value]);
+    $service->remindInvoices();
+
+    // Never "Termin 4" for the completion row — that one is the Pelunasan.
+    expect($titles())->toBe(['Terbitkan Invoice DP', 'Terbitkan Invoice Termin 2 dari 4 · 33,33%', 'Terbitkan Invoice Pelunasan']);
+
+    $group = collect(app(ActionInboxService::class)->for($this->marketing, fresh: true))->firstWhere('key', 'termin-invoice');
+    expect(collect($group['items'])->pluck('subtitle')->all())->toBe([
+        'DP · Rp 30.000.000',
+        'Termin 2 dari 4 · 33,33% · Rp 33.330.000',
+        'Pelunasan · Rp 20.000.000',
+    ]);
+
+    // The Keuangan tab gets the same label and what its "Jadwal" reads (paid / trigger reached).
+    $this->actingAs($this->marketing)->get(route('projects.show', $project))
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('termins.0.payment_label', 'DP')
+            ->where('termins.1.payment_label', 'Termin 2 dari 4 · 33,33%')
+            ->where('termins.2.payment_label', 'Termin 3 dari 4 · 16,67%')
+            ->where('termins.3.payment_label', 'Pelunasan')
+            ->where('termins.2.invoice_reminded_at', null)
+            ->whereNot('termins.3.invoice_reminded_at', null));
+});
+
 test('the client approving a RAB Proyek sends Marketing straight to the DP invoice; unbilled, Buka Proyek moves it to "termin-invoice" (Sub 06 K2)', function () {
     $quotation = approvedProjectRab($this);
 

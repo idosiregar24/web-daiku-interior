@@ -1,6 +1,6 @@
 # Sprint 28 — Perbaikan dari Uji Alur Klien (simulasi Rina Kusuma)
 
-> Status: **rencana — belum dikerjakan** (2026-10-20). Q1–Q5 dijawab user
+> Status: **kode selesai 2026-10-20** (Sub 01, 03–09; Sub 02 dilewati — diganti Sprint 29 F5); tersisa uji ulang di browser (Sub 08). Rencana awal 2026-10-20. Q1–Q5 dijawab user
 > 2026-10-20 (§4): Q1 tetap boleh, Q2 boleh, Q3 tetap "Form Harian", Q4 ya,
 > Q5 ya → keputusan K1–K16 terkunci (F18 & blokir Tandai Selesai dibatalkan).
 > Sumber: uji ulang [`simulasi-alur-klien.md`](simulasi-alur-klien.md)
@@ -106,10 +106,10 @@ Satu perintah = satu sub ("Kerjakan Sprint 28 Sub 1"). Urutan: yang
 menjebak pengguna dulu.
 
 ### Sub 01 — Tanggal tidak bisa dipilih ulang (F1, K1)
-- [ ] `DatePicker`: abaikan `onSelect(undefined)`; prop `clearable` + tombol "Hapus tanggal" untuk kolom opsional yang sekarang bisa dikosongkan
-- [ ] Cari semua pemakai `DatePicker` (`grep -rn "<DatePicker" resources/js`) — tandai yang opsional sebagai `clearable`
+- [x] `DatePicker`: abaikan `onSelect(undefined)`; prop `clearable` + tombol "Hapus tanggal" untuk kolom opsional yang sekarang bisa dikosongkan
+- [x] Cari semua pemakai `DatePicker` (`grep -rn "<DatePicker" resources/js`) — tandai yang opsional sebagai `clearable`
 - [ ] Cek di browser: Tambah Timeline → klik tanggal mulai yang disarankan → tetap terisi, Simpan berhasil
-- [ ] `npm run build`
+- [x] `npm run build`
 
 ### Sub 02 — Antrean "Daily target minta dicek" (F2, K2)
 - [ ] Method baru di `ActionInboxService` (scope halaman Tugas + `isManagedBy()`), `routeName` = menu Tugas dengan saringan PENGECEKAN
@@ -118,47 +118,47 @@ menjebak pengguna dulu.
 - [ ] `npm run build`, Pint
 
 ### Sub 03 — Label task & prioritas (F4, K4)
-- [ ] Satu peta label status task (`lib/`), dipakai `TaskStatusDialog`, `TaskActionSheet`, halaman Tugas
-- [ ] Prioritas berlabel Indonesia di tabel & form
-- [ ] `npm run build`
+- [x] Satu peta label status task (`lib/`), dipakai `TaskStatusDialog`, `TaskActionSheet`, halaman Tugas
+- [x] Prioritas berlabel Indonesia di tabel & form
+- [x] `npm run build`
 
 ### Sub 04 — Peringatan anggaran berdiskon (F3, K3)
-- [ ] `BudgetAllocationTab`: bandingkan `postsTotal` dengan total item (sebelum diskon); diskon jadi baris info
-- [ ] Ringkasan backend (`ProjectBudgetService` summary) mengirim `itemsTotal` bila belum ada
-- [ ] Test Pest: RAB berdiskon, semua item dialokasikan → tanpa peringatan
-- [ ] `npm run build`, Pint
+- [x] `BudgetAllocationTab`: bandingkan `postsTotal` dengan total item (sebelum diskon); diskon jadi baris info
+- [x] Ringkasan backend (`ProjectBudgetService` summary) mengirim `itemsTotal` bila belum ada
+- [x] Test Pest: RAB berdiskon, semua item dialokasikan → tanpa peringatan
+- [x] `npm run build`, Pint
 
 ### Sub 05 — Konfirmasi & dialog (F5, F6, F13, K5, K12)
-- [ ] `ConfirmDialog` untuk Gambar Kerja Selesai & Setujui Berangkat ke Lokasi
-- [ ] Isi dialog tidak kosong saat menutup (Bayar Pengawas, Tandai Selesai timeline)
-- [ ] `npm run build`
+- [x] `ConfirmDialog` untuk Gambar Kerja Selesai & Setujui Berangkat ke Lokasi
+- [x] Isi dialog tidak kosong saat menutup (Bayar Pengawas, Tandai Selesai timeline)
+- [x] `npm run build`
 
 ### Sub 06 — Penagihan konsisten (F7, F8, F9, F12, K6–K8, K11)
-- [ ] `waitingOn` termin INVOICED dari status invoice
-- [ ] Kolom Jadwal termin: Lunas {tanggal} / Pemicu tercapai / Menunggu pemicu · {pemicu}
-- [ ] Judul notifikasi `TerminInvoiceDue` & dialog terbitkan invoice termin dari `invoiceType()` / `paymentTypeLabel()`
-- [ ] (K8b) dialog termin yang pemicunya belum tercapai: keterangan "Pemicu belum tercapai ({pemicu})" — tidak memblokir
-- [ ] `QuotationLetter` catatan skema "di atas"; cek PDF & link klien
-- [ ] Test Pest: judul notifikasi pelunasan, label kolom jadwal
-- [ ] `npm run build`, Pint
+- [x] `waitingOn` termin INVOICED dari status invoice
+- [x] Kolom Jadwal termin: Lunas {tanggal} / Pemicu tercapai / Menunggu pemicu · {pemicu}
+- [x] Judul notifikasi `TerminInvoiceDue` & dialog terbitkan invoice termin dari `invoiceType()` / `paymentTypeLabel()`
+- [x] (K8b) dialog termin yang pemicunya belum tercapai: keterangan "Pemicu belum tercapai ({pemicu})" — tidak memblokir
+- [x] `QuotationLetter` catatan skema "di atas"; cek PDF & link klien
+- [x] Test Pest: judul notifikasi pelunasan, label kolom jadwal
+- [x] `npm run build`, Pint
 
 ### Sub 07 — Eksekusi proyek (F10, F11, F14–F17, K9, K10, K13–K15)
-- [ ] Start Produksi → timeline pertama IN_PROGRESS (`MilestoneService`)
-- [ ] QA form: notice temuan terbuka + Setujui nonaktif
-- [ ] Geser/tukar: tolak hari Minggu (server) + tidak ditawarkan di `TaskWeekBoard`
-- [ ] Chip status proyek ACTIVE = pemegang giliran fase; satu tombol TM Selesai
-- [ ] Label audit overrun
-- [ ] Test Pest: reschedule/tukar ke Minggu ditolak; timeline pertama IN_PROGRESS setelah DP disetujui
-- [ ] Tidak diubah: `markDone()` (K17), menu "Form Harian" (K18)
-- [ ] `npm run build`, Pint
+- [x] Start Produksi → timeline pertama IN_PROGRESS (`MilestoneService`)
+- [x] QA form: notice temuan terbuka + Setujui nonaktif
+- [x] Geser/tukar: tolak hari Minggu (server) + tidak ditawarkan di `TaskWeekBoard`
+- [x] Chip status proyek ACTIVE = pemegang giliran fase; satu tombol TM Selesai
+- [x] Label audit overrun
+- [x] Test Pest: reschedule/tukar ke Minggu ditolak; timeline pertama IN_PROGRESS setelah DP disetujui
+- [x] Tidak diubah: `markDone()` (K17), menu "Form Harian" (K18)
+- [x] `npm run build`, Pint
 
 ### Sub 08 — Dokumen, test E2E & uji ulang
-- [ ] `simulasi-alur-klien.md`: D1–D7 + perubahan sprint ini (antrean minta dicek, konfirmasi Berangkat, keterangan tagih termin lebih awal); Langkah 25 tanpa "semua task sudah Selesai" sebagai syarat (K17)
-- [ ] `ClientJourneySimulationTest`: tambah cek K9 (timeline pertama IN_PROGRESS setelah Start Produksi); commit bersama sprint ini
-- [ ] Suite Pest penuh, Pint, `npm run build`
+- [x] `simulasi-alur-klien.md`: D1–D7 + perubahan sprint ini (antrean minta dicek, konfirmasi Berangkat, keterangan tagih termin lebih awal); Langkah 25 tanpa "semua task sudah Selesai" sebagai syarat (K17)
+- [x] `ClientJourneySimulationTest`: tambah cek K9 (timeline pertama IN_PROGRESS setelah Start Produksi); commit bersama sprint ini
+- [x] Suite Pest penuh, Pint, `npm run build`
 - [ ] Uji ulang di browser (database `daiku_interior_sim`) langkah 21–27 + HP 390px untuk Tukang
-- [ ] README: status Sprint 28
+- [x] README: status Sprint 28
 
 ### Sub 09 — Ganti `confirm()` lama (F19, K16 — Q5 = ya)
-- [ ] ±20 lokasi → `ConfirmDialog tone="danger"` (daftar: `grep -rn "confirm(" resources/js`)
-- [ ] `npm run build`
+- [x] ±20 lokasi → `ConfirmDialog tone="danger"` (daftar: `grep -rn "confirm(" resources/js`)
+- [x] `npm run build`

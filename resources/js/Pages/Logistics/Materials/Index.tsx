@@ -17,6 +17,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Switch } from '@/Components/ui/switch';
 import { useCreateParam } from '@/hooks/useCreateParam';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatQty, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
     const [editing, setEditing] = useState<Material | null>(null);
     const [movement, setMovement] = useState<{ material: Material; type: StockMovementType } | null>(null);
     const [search, setSearch] = useState(filters.search);
+    const { ask, dialog } = useConfirm();
 
     function applyFilter(next: Partial<MaterialIndexProps['filters']>) {
         const merged = { ...filters, ...next };
@@ -95,8 +97,8 @@ export default function MaterialIndex({ materials, filters, categories, summary,
         setFormOpen(true);
     }
 
-    function destroy(material: Material) {
-        if (!confirm(`Hapus material "${material.name}"?`)) return;
+    async function destroy(material: Material) {
+        if (!(await ask({ title: 'Hapus material?', description: `Material "${material.name}" akan dihapus.` }))) return;
         router.delete(route('logistics.materials.destroy', { material: material.id }), { preserveScroll: true });
     }
 
@@ -381,6 +383,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                     />
                 </>
             )}
+            {dialog}
         </AppLayout>
     );
 }

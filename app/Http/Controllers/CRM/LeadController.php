@@ -95,7 +95,7 @@ class LeadController extends Controller
             'quotation:id,lead_id,type,custom_name,status,total_amount,version,valid_until,client_approved_at',
             // Sprint 12 #6 / Sprint 14 Sub 02 — every RAB of the client ("Riwayat RAB"), named.
             'quotations:id,lead_id,type,custom_name,parent_quotation_id,status,total_amount,version,valid_until,letter_number,created_at',
-            'project:id,lead_id,name,pm_id,status,contract_value',
+            'project:id,lead_id,name,pm_id,status,phase,contract_value',
             'project.pm:id,name',
             // Sprint 12 decisions #2–#3 — the follow-up & survey timeline.
             'followUps.creator:id,name',

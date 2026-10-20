@@ -724,7 +724,7 @@ function LegacyBriefCard({
                                 <FormItem>
                                     <FormLabel>Tanggal Mulai</FormLabel>
                                     <FormControl>
-                                        <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage} />
+                                        <DatePicker value={field.value} onChange={field.onChange} disabled={!canManage} clearable />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

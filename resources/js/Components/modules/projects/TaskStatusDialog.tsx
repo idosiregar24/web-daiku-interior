@@ -23,6 +23,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
+import { MANUAL_TASK_STATUSES, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import type { Task, TaskStatus } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -30,12 +31,8 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-// OVER excluded — system-computed only (PRD §4.5), never a manual choice.
-// See TaskService::updateStatus()/UpdateTaskStatusRequest.
-const STATUS_OPTIONS: Exclude<TaskStatus, 'OVER'>[] = ['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE'];
-
 const schema = z.object({
-    status: z.enum(STATUS_OPTIONS as [TaskStatus, ...TaskStatus[]]),
+    status: z.enum(MANUAL_TASK_STATUSES as [TaskStatus, ...TaskStatus[]]),
     kendala: z.string().optional(),
     note: z.string().optional(),
 });
@@ -102,9 +99,9 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            {STATUS_OPTIONS.map((option) => (
+                                            {MANUAL_TASK_STATUSES.map((option) => (
                                                 <SelectItem key={option} value={option}>
-                                                    {option}
+                                                    {TASK_STATUS_LABEL[option]}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>

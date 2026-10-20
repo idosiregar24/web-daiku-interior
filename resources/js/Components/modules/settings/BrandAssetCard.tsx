@@ -1,5 +1,6 @@
 import { type CropAspect, type CropOutput, ImageCropDialog } from '@/Components/shared/ImageCropDialog';
 import { Button } from '@/Components/ui/button';
+import { useConfirm } from '@/hooks/useConfirm';
 import { cn } from '@/lib/utils';
 import type { BrandAsset } from '@/types';
 import { router } from '@inertiajs/react';
@@ -109,6 +110,7 @@ export function BrandAssetCard({ asset, title, description, url, preview, placeh
     const [dragging, setDragging] = useState(false);
     /** Picked file waiting in the crop dialog. */
     const [pending, setPending] = useState<File | null>(null);
+    const { ask, dialog } = useConfirm();
 
     function resetInput() {
         if (inputRef.current) inputRef.current.value = '';
@@ -152,8 +154,8 @@ export function BrandAssetCard({ asset, title, description, url, preview, placeh
         );
     }
 
-    function remove() {
-        if (!confirm(`Hapus ${title.toLowerCase()}? Tampilan akan kembali ke bawaan.`)) return;
+    async function remove() {
+        if (!(await ask({ title: `Hapus ${title.toLowerCase()}?`, description: 'Tampilan akan kembali ke bawaan.' }))) return;
 
         router.delete(route('settings.assets.destroy', { asset }), {
             preserveScroll: true,
@@ -236,6 +238,7 @@ export function BrandAssetCard({ asset, title, description, url, preview, placeh
                     resetInput();
                 }}
             />
+            {dialog}
         </div>
     );
 }

@@ -1,4 +1,6 @@
 import { formatDateTime, formatRupiah } from '@/lib/format';
+import { TASK_PRIORITY_LABEL } from '@/lib/taskLabels';
+import { projectWaitingOn } from '@/lib/waitingOn';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { EmptyState } from '@/Components/shared/EmptyState';
@@ -26,7 +28,8 @@ import { ProjectFormDialog } from '@/Components/modules/projects/ProjectFormDial
 import { ProjectPhaseStepper } from '@/Components/modules/projects/ProjectPhaseStepper';
 import { DepartureButton } from '@/Components/modules/projects/DepartureButton';
 import { ProjectOverviewTab } from '@/Components/modules/projects/ProjectOverviewTab';
-import { terminTrigger } from '@/Components/modules/projects/projectWaiting';
+import { terminTrigger, terminTriggerReached } from '@/Components/modules/projects/projectWaiting';
+import { TerminStatusChip } from '@/Components/modules/finance/TerminPaymentDialog';
 import { TaskDeleteDialog } from '@/Components/modules/projects/TaskDeleteDialog';
 import { TaskFormDialog } from '@/Components/modules/projects/TaskFormDialog';
 import { TaskKanbanBoard } from '@/Components/modules/projects/TaskKanbanBoard';
@@ -42,6 +45,7 @@ import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
 // Sprint 24 — the execution flow tab. Imported statically: a lazy() chunk shared with this page made Vite drop the page's manifest entry.
 import { ProjectExecutionTab } from '@/Components/modules/projects/ProjectExecutionTab';
 import { CompleteMeetingButton } from '@/Components/modules/projects/TechnicalMeetingCard';
+import { useLastDefined } from '@/hooks/useLastDefined';
 import { BELOW_MD, useMediaQuery } from '@/hooks/useMediaQuery';
 import { resolveView, type TabAliases, useQueryTab } from '@/hooks/useQueryTab';
 import AppLayout from '@/Layouts/AppLayout';
@@ -222,6 +226,7 @@ function MilestoneTab({
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<Milestone | null>(null);
     const [confirming, setConfirming] = useState<{ kind: 'delete' | 'done'; milestone: Milestone } | null>(null);
+    const shownConfirm = useLastDefined(confirming);
     const [confirmBusy, setConfirmBusy] = useState(false);
     // Sprint 13 P2 — Gantt/calendar need width; a phone gets the plain list.
     const compact = useMediaQuery(BELOW_MD);
@@ -323,17 +328,17 @@ function MilestoneTab({
                 onOpenChange={(open) => !open && setConfirming(null)}
                 busy={confirmBusy}
                 onConfirm={runConfirmed}
-                {...(confirming?.kind === 'delete'
+                {...(shownConfirm?.kind === 'delete'
                     ? {
                           tone: 'danger' as const,
                           title: 'Hapus timeline?',
-                          description: `"${confirming.milestone.name}" dihapus dari proyek ini.`,
+                          description: `"${shownConfirm.milestone.name}" dihapus dari proyek ini.`,
                           confirmLabel: 'Ya, hapus',
                       }
                     : {
                           icon: CircleCheck,
                           title: 'Tandai timeline selesai?',
-                          description: `"${confirming?.milestone.name ?? ''}" — Pengawas (QA/QC) proyek akan diminta memeriksanya.`,
+                          description: `"${shownConfirm?.milestone.name ?? ''}" — Pengawas (QA/QC) proyek akan diminta memeriksanya.`,
                           confirmLabel: 'Ya, tandai selesai',
                       })}
             />
@@ -419,7 +424,7 @@ function TaskAssigneeTable({
                         <div className="min-w-0 flex-1 space-y-1.5">
                             <p className="font-medium text-foreground">{task.title}</p>
                             <p className="text-xs text-daiku-muted">
-                                {task.milestone?.name ?? '—'} · {task.priority} · jatuh tempo {formatDate(task.due_date)}
+                                {task.milestone?.name ?? '—'} · Prioritas {TASK_PRIORITY_LABEL[task.priority].toLowerCase()} · jatuh tempo {formatDate(task.due_date)}
                             </p>
                             {statusOf(task)}
                         </div>
@@ -446,7 +451,7 @@ function TaskAssigneeTable({
                             <td className="px-4 py-3 font-medium">{task.title}</td>
                             <td className="px-4 py-3 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
                             <td className="px-4 py-3">{statusOf(task)}</td>
-                            <td className="px-4 py-3 text-daiku-muted">{task.priority}</td>
+                            <td className="px-4 py-3 text-daiku-muted">{TASK_PRIORITY_LABEL[task.priority]}</td>
                             <td className="px-4 py-3 text-daiku-muted">{formatDate(task.due_date)}</td>
                             <td className="px-4 py-3">
                                 {canEdit && (
@@ -760,7 +765,7 @@ function FinanceTab({
                                 {termins.map((termin) => (
                                     <tr key={termin.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                                         <td className="px-4 py-3 font-medium">
-                                            #{termin.termin_number}
+                                            {termin.payment_label ?? `#${termin.termin_number}`}
                                             {termin.quotation_id && project.quotation_id && termin.quotation_id !== project.quotation_id && (
                                                 <span className="ml-1.5 text-xs font-normal text-daiku-muted">Tambahan</span>
                                             )}
@@ -770,17 +775,9 @@ function FinanceTab({
                                         <td className="px-4 py-3 text-right font-medium text-daiku-dark">{formatRupiah(termin.amount)}</td>
                                         <td className="px-4 py-3 text-right font-medium">{formatRupiah(termin.sisa_piutang)}</td>
                                         <td className="px-4 py-3">
-                                            <div className="flex flex-wrap gap-1">
-                                                <StatusChip domain="termin" status={termin.status} />
-                                                {Number(termin.dp_amount) + Number(termin.pelunasan) > 0 && Number(termin.sisa_piutang) > 0 && (
-                                                    <StatusChip status="PARTIAL" label="Dibayar Sebagian" />
-                                                )}
-                                            </div>
-                                            {termin.invoice && (
-                                                <p className="mt-1 text-xs text-daiku-muted">
-                                                    {termin.invoice.number} · <StatusChip domain="invoice" status={termin.invoice.status} className="align-middle" />
-                                                </p>
-                                            )}
+                                            {/* Sprint 28 K6 — invoiced: the invoice's own state and holder, same chip as Finance › Termin. */}
+                                            <TerminStatusChip termin={termin} />
+                                            {termin.invoice && <p className="mt-1 text-xs text-daiku-muted">{termin.invoice.number}</p>}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -829,8 +826,13 @@ function FinanceTab({
                     open
                     onOpenChange={(open) => !open && setInvoicing(null)}
                     action={route('finance.termins.invoices.store', { termin: invoicing.id })}
-                    label={`Termin ${invoicing.termin_number}`}
+                    label={invoicing.payment_label ?? `Termin ${invoicing.termin_number}`}
                     amount={invoicing.sisa_piutang}
+                    note={
+                        terminTriggerReached(invoicing) === false
+                            ? `Pemicu belum tercapai (${terminTrigger(invoicing)}). Invoice tetap bisa diterbitkan lebih awal.`
+                            : undefined
+                    }
                 />
             )}
 
@@ -1303,8 +1305,8 @@ export default function ProjectShow({
                 }
                 actions={
                     <>
-                        {/* Sprint 26 H1d — the phase lives in ProjectPhaseStepper below. */}
-                        <StatusChip domain="project" status={project.status} />
+                        {/* Sprint 26 H1d — the phase lives in ProjectPhaseStepper below; Sprint 28 K14 — the chip names that phase's holder. */}
+                        <StatusChip domain="project" status={project.status} waitingOn={projectWaitingOn(project)} />
                         {canMakePortfolio && (
                             <Button
                                 variant="outline"

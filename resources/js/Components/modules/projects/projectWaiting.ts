@@ -61,6 +61,39 @@ export function terminTrigger(termin: Termin): string {
     }
 }
 
+/**
+ * Sprint 28 K7/K8b — has the scheme termin's trigger been reached? Di muka
+ * and a passed date are known here; a timeline / project completion is
+ * known once TerminService::remindInvoices() stamped `invoice_reminded_at`.
+ * Null for a pre-Sprint-12 manual termin (no trigger).
+ */
+export function terminTriggerReached(termin: Termin): boolean | null {
+    switch (termin.trigger) {
+        case 'DI_MUKA':
+            return true;
+        case 'TANGGAL':
+            return termin.scheduled_date !== null && termin.scheduled_date.slice(0, 10) <= todayIso();
+        case 'MILESTONE':
+        case 'PROYEK_SELESAI':
+            return Boolean(termin.invoice_reminded_at);
+        default:
+            return null;
+    }
+}
+
+/** Sprint 28 K7 — the "Jadwal" column: "Lunas 20/10/2026", the date, "Pemicu tercapai" or "Menunggu pemicu · Timeline: X". */
+export function terminSchedule(termin: Termin): string {
+    if (termin.status === 'PAID') {
+        return termin.paid_at ? `Lunas ${formatDate(termin.paid_at)}` : 'Lunas';
+    }
+
+    if (termin.scheduled_date) {
+        return formatDate(termin.scheduled_date);
+    }
+
+    return terminTriggerReached(termin) ? 'Pemicu tercapai' : `Menunggu pemicu · ${terminTrigger(termin)}`;
+}
+
 function todayIso(): string {
     const now = new Date();
     const pad = (value: number) => String(value).padStart(2, '0');

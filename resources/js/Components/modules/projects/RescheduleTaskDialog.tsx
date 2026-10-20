@@ -4,6 +4,7 @@ import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, Dia
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { formatDate } from '@/lib/format';
+import { isWorkDay, NON_WORK_DAY_MESSAGE } from '@/lib/workDays';
 import type { Task } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -11,9 +12,9 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
-// Mirrors RescheduleTargetRequest (single task).
+// Mirrors RescheduleTargetRequest (single task) + TaskService's working-day rule.
 const schema = z.object({
-    due_date: z.string().min(1, 'Tanggal baru wajib diisi.'),
+    due_date: z.string().min(1, 'Tanggal baru wajib diisi.').refine(isWorkDay, NON_WORK_DAY_MESSAGE),
     note: z.string().max(255, 'Catatan maksimal 255 karakter.').optional(),
 });
 

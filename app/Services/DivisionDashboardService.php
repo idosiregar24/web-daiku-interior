@@ -234,6 +234,8 @@ class DivisionDashboardService
                     'client' => $project->lead?->client_name ?? '—',
                     'pic' => $project->lead?->design?->pic?->name,
                     'status' => $project->status,
+                    // Sprint 28 K14 — the status chip names the phase's holder.
+                    'phase' => $project->phase,
                     'closedAt' => $project->created_at->toDateString(),
                     'month' => $project->created_at->format('Y-m'),
                     'contractValue' => round($contract, 2),
@@ -619,6 +621,8 @@ class DivisionDashboardService
                     'name' => $project->name,
                     'client' => $project->lead?->client_name,
                     'status' => $project->status,
+                    // Sprint 28 K14 — the status chip names the phase's holder.
+                    'phase' => $project->phase,
                     'pm' => $project->pm?->name,
                     // Sprint 24 D11 — actual activity; null while no daily target exists.
                     'progress' => $project->tasks_count === 0

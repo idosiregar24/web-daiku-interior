@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\QA\ReviewQaFormRequest;
 use App\Models\QaForm;
 use App\Services\QaFormService;
+use App\Services\SiteFindingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -44,12 +45,14 @@ class QaFormController extends Controller
 
     public function show(QaForm $qaForm): Response
     {
-        $qaForm->load(['project:id,name,supervisor_id', 'milestone:id,name,order,status', 'reviewer:id,name']);
+        $qaForm->load(['project:id,name,supervisor_id', 'milestone:id,project_id,name,order,status', 'reviewer:id,name']);
 
         return Inertia::render('QA/Show', [
             'qaForm' => $qaForm,
             // Sprint 24 D14 — the project's Pengawas (QA/QC) (QaFormPolicy).
             'canReview' => request()->user()->can('review', $qaForm),
+            // Sprint 28 K10 — the same count QaFormService::review() refuses an approval on (a number only, no task data).
+            'openFindingsCount' => $qaForm->milestone ? SiteFindingService::openFor($qaForm->milestone) : 0,
         ]);
     }
 

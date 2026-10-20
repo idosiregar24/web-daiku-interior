@@ -20,7 +20,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { AlertTriangle, FolderKanban, Hourglass } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 import { ProjectPhaseMini } from '@/Components/modules/projects/ProjectPhaseStepper';
-import { domainStatusLabel } from '@/lib/waitingOn';
+import { domainStatusLabel, projectWaitingOn } from '@/lib/waitingOn';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
@@ -50,7 +50,7 @@ const PHASE_OPTIONS: { value: string; label: string }[] = [
 function ProjectStatusCell({ project }: { project: Project }) {
     return (
         <div className="space-y-1.5">
-            <StatusChip domain="project" status={project.status} />
+            <StatusChip domain="project" status={project.status} waitingOn={projectWaitingOn(project)} />
             {(project.status === 'ACTIVE' || project.status === 'ON_HOLD') && <ProjectPhaseMini project={project} />}
         </div>
     );

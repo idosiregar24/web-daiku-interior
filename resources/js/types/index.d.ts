@@ -1129,8 +1129,8 @@ export interface ProjectBudget {
         rabTotal: number;
         postsTotal: number;
         unallocatedTotal: number;
-        /** Σ posts > RAB total — warns, never blocks (#24). */
-        overRab: boolean;
+        /** Σ posts > items total before the discount — warns, never blocks (#24, Sprint 28 K3). */
+        overItems: boolean;
         realizedTotal: number;
     };
     logs: BudgetLogEntry[];
@@ -1148,6 +1148,8 @@ export interface Termin {
     payment_term_id?: number | null;
     trigger?: PaymentTermTrigger | null;
     milestone_name?: string | null;
+    /** Set by TerminService::remindInvoices() once the trigger is reached ("Pemicu tercapai", Sprint 28 K7). */
+    invoice_reminded_at?: string | null;
     /** Sprint 12 #20 — the invoice Marketing issued for it. */
     invoice_id?: number | null;
     invoice?: (Pick<Invoice, 'id' | 'number' | 'status'> & Partial<Pick<Invoice, 'amount' | 'reject_reason'>>) | null;
@@ -2017,6 +2019,8 @@ export interface DesignRevenueProject {
     client: string;
     pic: string | null;
     status: ProjectStatus;
+    /** Sprint 28 K14 — for the chip's holder (`projectWaitingOn`). */
+    phase: ProjectPhase | null;
     /** Deal month = the Project's creation (LeadService::confirmDeal()). */
     closedAt: string;
     contractValue: number;
@@ -2098,6 +2102,8 @@ export interface MonitorProject {
     name: string;
     client: string | null;
     status: ProjectStatus;
+    /** Sprint 28 K14 — for the chip's holder (`projectWaitingOn`). */
+    phase: ProjectPhase | null;
     pm: string | null;
     /** Sprint 24 D11 — actual activity (DONE ÷ all daily targets); null without targets. */
     progress: number | null;

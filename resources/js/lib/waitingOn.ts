@@ -1,3 +1,5 @@
+import { TASK_STATUS_LABEL } from '@/lib/taskLabels';
+
 /**
  * Sprint 23 K3 — "menunggu siapa": every status that is still running names
  * whose turn it is ("Menunggu Review · PM / Asisten PM", "Dikirim · Klien").
@@ -246,13 +248,7 @@ const LABEL: Partial<Record<WaitingDomain, Partial<Record<string, string>>>> = {
         COMPLETED: 'Selesai',
         OVERDUE: 'Terlambat',
     },
-    task: {
-        PENDING: 'Belum Mulai',
-        ONPROGRESS: 'Dikerjakan',
-        PENGECEKAN: 'Pengecekan',
-        DONE: 'Selesai',
-        OVER: 'Terlambat',
-    },
+    task: TASK_STATUS_LABEL,
     qa: {
         PENDING: 'Belum Diperiksa',
         APPROVED: 'Lolos',
@@ -343,6 +339,22 @@ export function waitingOn(domain: WaitingDomain, status: string | null | undefin
     }
 
     return HOLDER[domain][status] ?? null;
+}
+
+/**
+ * Sprint 28 K14 — whose turn a project is. A running (ACTIVE) project's turn
+ * is its phase's holder — the same `projectPhase` map ProjectPhaseStepper
+ * reads, PRODUKSI for projects opened before the flow existed — so the
+ * status chip never says "PM" while the stepper says "Pengawas → PM".
+ * Pass it as `<StatusChip domain="project" waitingOn={projectWaitingOn(project)} />`;
+ * without a known phase (rows that don't send it) it falls back to the project map.
+ */
+export function projectWaitingOn(project: { status: string; phase?: string | null }): string | null {
+    if (project.status === 'ACTIVE' && project.phase !== undefined) {
+        return waitingOn('projectPhase', project.phase ?? 'PRODUKSI');
+    }
+
+    return waitingOn('project', project.status);
 }
 
 /** The domain's own wording for a status, if it has one (else StatusChip's global label). */

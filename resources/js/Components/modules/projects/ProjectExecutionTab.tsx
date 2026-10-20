@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { formatDate, formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { domainStatusLabel } from '@/lib/waitingOn';
+import { isWorkDay, NON_WORK_DAY_MESSAGE } from '@/lib/workDays';
 import type { Milestone, Project, ProjectExecution, ProjectMaterial, ProjectPhase, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
@@ -674,11 +675,11 @@ function TargetVsActualCard({
     );
 }
 
-// Mirrors RescheduleTargetRequest (swap form).
+// Mirrors RescheduleTargetRequest (swap form) + TaskService's working-day rule.
 const swapSchema = z
     .object({
-        from_date: z.string().min(1, 'Tanggal pertama wajib diisi.'),
-        to_date: z.string().min(1, 'Tanggal kedua wajib diisi.'),
+        from_date: z.string().min(1, 'Tanggal pertama wajib diisi.').refine(isWorkDay, NON_WORK_DAY_MESSAGE),
+        to_date: z.string().min(1, 'Tanggal kedua wajib diisi.').refine(isWorkDay, NON_WORK_DAY_MESSAGE),
         assignee_id: z.string().optional(),
     })
     .refine((values) => values.from_date !== values.to_date, { message: 'Pilih dua tanggal yang berbeda.', path: ['to_date'] });

@@ -11,6 +11,7 @@ use App\Models\MaterialCategory;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\ProjectOpening;
+use App\Models\Termin;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
@@ -218,7 +219,11 @@ class ProjectController extends Controller
             'canOpenOvertimeList' => $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']),
             'canManageProgressLogs' => $canManageProgressLogs,
             'termins' => $canViewTermins
-                ? $project->termins()->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status,amount,reject_reason'])->orderBy('termin_number')->get()
+                // Sprint 28 K8 — "Pelunasan" / "Termin 2 dari 3 · 30%" (Termin::paymentLabel()), same words as Finance & the invoice.
+                ? $project->termins()->withRabPosition()
+                    ->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status,type,amount,reject_reason'])
+                    ->orderBy('termin_number')->get()
+                    ->each(fn (Termin $termin) => $termin->setRelation('project', $project)->append('payment_label'))
                 : [],
             'canViewTermins' => $canViewTermins,
             'canIssueTerminInvoices' => $canIssueTerminInvoices,

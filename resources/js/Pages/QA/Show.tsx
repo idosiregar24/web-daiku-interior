@@ -25,6 +25,8 @@ import { z } from 'zod';
 interface QaShowProps {
     qaForm: QaForm;
     canReview: boolean;
+    /** Sprint 28 K10 — open site findings holding this timeline's approval (QaFormService::review's own count). */
+    openFindingsCount: number;
 }
 
 const checklistItemSchema = z.object({
@@ -46,9 +48,11 @@ type FormValues = z.infer<typeof schema>;
  * Jika QA reject, wajib mengisi catatan perbaikan" — mirrored client-side
  * via zod's `refine` below, server-enforced in QaFormService::review().
  */
-export default function QaShow({ qaForm, canReview }: QaShowProps) {
+export default function QaShow({ qaForm, canReview, openFindingsCount }: QaShowProps) {
     const isDecided = qaForm.status !== 'PENDING';
     const editable = canReview && !isDecided;
+    // The server refuses an approval while a finding is open — say so up front instead (rejecting stays possible).
+    const approvalBlocked = openFindingsCount > 0;
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -108,6 +112,19 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                 <Notice tone="warning" className="mb-6">
                     Timeline ini sudah ditolak QA {qaForm.rejection_count}x.
                     {qaForm.rejection_count >= 2 && ' CEO sudah diberi notifikasi.'}
+                </Notice>
+            )}
+
+            {!isDecided && approvalBlocked && (
+                <Notice tone="warning" className="mb-6">
+                    {openFindingsCount} temuan finishing masih terbuka di timeline ini — QA baru bisa disetujui setelah semuanya
+                    selesai.{' '}
+                    <Link
+                        href={`${route('projects.show', { project: qaForm.project_id, tab: 'execution' })}#temuan`}
+                        className="font-medium underline underline-offset-2"
+                    >
+                        Lihat Temuan
+                    </Link>
                 </Notice>
             )}
 
@@ -177,7 +194,13 @@ export default function QaShow({ qaForm, canReview }: QaShowProps) {
                                     <XCircle className="size-4" />
                                     Tolak QA
                                 </Button>
-                                <Button type="button" className="h-11 sm:h-8" onClick={submitDecision('approve')}>
+                                <Button
+                                    type="button"
+                                    className="h-11 sm:h-8"
+                                    disabled={approvalBlocked}
+                                    title={approvalBlocked ? 'Selesaikan temuan finishing yang masih terbuka dulu.' : undefined}
+                                    onClick={submitDecision('approve')}
+                                >
                                     <CheckCircle2 className="size-4" />
                                     Setujui QA
                                 </Button>

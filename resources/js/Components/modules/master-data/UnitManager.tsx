@@ -13,6 +13,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { UnitRow } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -43,6 +44,7 @@ const EMPTY: FormValues = { code: '', name: '', sort_order: '0', is_active: true
 export function UnitManager({ units }: { units: UnitRow[] }) {
     const [editing, setEditing] = useState<UnitRow | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -73,8 +75,8 @@ export function UnitManager({ units }: { units: UnitRow[] }) {
         }
     }
 
-    function onDelete(unit: UnitRow) {
-        if (!confirm(`Hapus satuan "${unit.code}"?`)) return;
+    async function onDelete(unit: UnitRow) {
+        if (!(await ask({ title: 'Hapus satuan?', description: `Satuan "${unit.code}" akan dihapus.` }))) return;
         router.delete(route('master-data.units.destroy', { unit: unit.id }));
     }
 
@@ -208,6 +210,7 @@ export function UnitManager({ units }: { units: UnitRow[] }) {
                     </Form>
                 </DialogContent>
             </Dialog>
+            {dialog}
         </div>
     );
 }

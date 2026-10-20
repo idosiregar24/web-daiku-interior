@@ -1,4 +1,5 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { Notice } from '@/Components/shared/Notice';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { PaymentProofGallery, PaymentProofPicker } from '@/Components/modules/finance/PaymentProofPhotos';
 import { Button } from '@/Components/ui/button';
@@ -138,6 +139,7 @@ export function IssueInvoiceDialog({
     action,
     label,
     amount,
+    note,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -145,6 +147,8 @@ export function IssueInvoiceDialog({
     action: string;
     label: string;
     amount: string;
+    /** Sprint 28 K8b — information only (e.g. "Pemicu belum tercapai"), never blocks. */
+    note?: string;
 }) {
     const form = useForm<z.infer<typeof issueSchema>>({ resolver: zodResolver(issueSchema) });
 
@@ -164,6 +168,7 @@ export function IssueInvoiceDialog({
             }
             submitLabel="Terbitkan Invoice"
         >
+            {note && <Notice tone="info">{note}</Notice>}
             <FormField
                 control={form.control}
                 name="due_date"

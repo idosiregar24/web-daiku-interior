@@ -313,16 +313,9 @@ export function ProjectFormDialog({
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Tanggal Selesai</FormLabel>
-                                        <div className="flex gap-2">
-                                            <FormControl>
-                                                <DatePicker value={field.value} onChange={field.onChange} />
-                                            </FormControl>
-                                            {field.value && (
-                                                <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => field.onChange(undefined)}>
-                                                    Kosongkan
-                                                </Button>
-                                            )}
-                                        </div>
+                                        <FormControl>
+                                            <DatePicker value={field.value} onChange={field.onChange} clearable />
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}

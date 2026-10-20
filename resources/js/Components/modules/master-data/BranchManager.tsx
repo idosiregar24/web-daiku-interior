@@ -20,6 +20,7 @@ import {
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { Branch } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -39,6 +40,7 @@ type FormValues = z.infer<typeof schema>;
 export function BranchManager({ branches }: { branches: Branch[] }) {
     const [editing, setEditing] = useState<Branch | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -75,8 +77,8 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
         }
     }
 
-    function onDelete(branch: Branch) {
-        if (!confirm(`Hapus cabang "${branch.name}"?`)) return;
+    async function onDelete(branch: Branch) {
+        if (!(await ask({ title: 'Hapus cabang?', description: `Cabang "${branch.name}" akan dihapus.` }))) return;
         router.delete(route('master-data.branches.destroy', { branch: branch.id }));
     }
 
@@ -187,6 +189,7 @@ export function BranchManager({ branches }: { branches: Branch[] }) {
                     </table>
                 </TableCard>
             )}
+            {dialog}
         </div>
     );
 }

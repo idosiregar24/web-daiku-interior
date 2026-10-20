@@ -1,14 +1,15 @@
+import { TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
 import type { TaskStatus } from '@/types';
 
 // Status meaning, so status tokens (same mapping as StatusChip), in the
 // task lifecycle order — never re-sorted by count.
 const SEGMENTS: { status: TaskStatus; label: string; className: string }[] = [
-    { status: 'PENDING', label: 'Pending', className: 'bg-daiku-muted/40' },
-    { status: 'ONPROGRESS', label: 'On Progress', className: 'bg-info' },
-    { status: 'PENGECEKAN', label: 'Pengecekan', className: 'bg-warning' },
-    { status: 'DONE', label: 'Done', className: 'bg-success' },
-    { status: 'OVER', label: 'Over', className: 'bg-error' },
+    { status: 'PENDING', label: TASK_STATUS_LABEL.PENDING, className: 'bg-daiku-muted/40' },
+    { status: 'ONPROGRESS', label: TASK_STATUS_LABEL.ONPROGRESS, className: 'bg-info' },
+    { status: 'PENGECEKAN', label: TASK_STATUS_LABEL.PENGECEKAN, className: 'bg-warning' },
+    { status: 'DONE', label: TASK_STATUS_LABEL.DONE, className: 'bg-success' },
+    { status: 'OVER', label: TASK_STATUS_LABEL.OVER, className: 'bg-error' },
 ];
 
 /**

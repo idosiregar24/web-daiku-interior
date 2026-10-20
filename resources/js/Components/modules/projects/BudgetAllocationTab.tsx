@@ -62,7 +62,7 @@ function describeLog(log: BudgetLogEntry): string {
  * Sprint 12 decisions #23–#26 — "Alokasi Dana Proyek" (Model A, like the
  * Excel sheets): the PM puts RAB Fix items into freely named posts so
  * Finance sees where the money goes. Opens after the first verified
- * payment; a post total above the RAB only warns; the discount stays a
+ * payment; a post total above the items total only warns; the discount stays a
  * deduction in the summary. CEO / Finance read it, only the project's PM
  * changes it, every change lands in the history.
  */
@@ -118,19 +118,32 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                     <DetailItem label="Total RAB" valueClassName="font-semibold">
                         {formatRupiah(summary.rabTotal)}
                     </DetailItem>
-                    <DetailItem label="Total semua pos" valueClassName={summary.overRab ? 'font-semibold text-warning-ink' : 'font-semibold'}>
+                    <DetailItem label="Total semua pos" valueClassName={summary.overItems ? 'font-semibold text-warning-ink' : 'font-semibold'}>
                         {formatRupiah(summary.postsTotal)}
                     </DetailItem>
                     <DetailItem label="Belum dialokasikan">{formatRupiah(summary.unallocatedTotal)}</DetailItem>
                     <DetailItem label="Total realisasi (harga modal)">{formatRupiah(summary.realizedTotal)}</DetailItem>
                     <DetailItem label="Selisih anggaran − realisasi">{formatRupiah(summary.postsTotal - summary.realizedTotal)}</DetailItem>
                 </DetailList>
-                {summary.overRab && (
-                    <Notice tone="warning" className="mt-4">
-                        Total pos ({formatRupiah(summary.postsTotal)}) melebihi total RAB ({formatRupiah(summary.rabTotal)}) — diskon tidak
-                        ikut dibebankan ke pos. Periksa kembali alokasinya.
-                    </Notice>
-                )}
+                <div className="mt-4 space-y-2 empty:hidden">
+                    {summary.overItems && (
+                        <Notice tone="warning">
+                            Total pos ({formatRupiah(summary.postsTotal)}) melebihi total item RAB ({formatRupiah(summary.itemsTotal)}). Periksa
+                            kembali alokasinya.
+                        </Notice>
+                    )}
+                    {budget.unallocatedItems.length > 0 && (
+                        <Notice tone="warning">
+                            Masih ada {budget.unallocatedItems.length} item belum dialokasikan ({formatRupiah(summary.unallocatedTotal)}).
+                        </Notice>
+                    )}
+                    {summary.discount > 0 && (
+                        <Notice tone="info">
+                            Diskon {formatRupiah(summary.discount)} menjadi pengurang margin, tidak dibebankan ke pos — total pos dibandingkan
+                            dengan total item RAB sebelum diskon.
+                        </Notice>
+                    )}
+                </div>
             </SectionCard>
 
             <div className="grid gap-6 lg:grid-cols-5">

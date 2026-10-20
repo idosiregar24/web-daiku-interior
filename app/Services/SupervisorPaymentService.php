@@ -33,6 +33,7 @@ class SupervisorPaymentService
         private FinanceTransactionService $financeTransactionService,
         private ProjectPhaseService $phaseService,
         private TechnicalMeetingService $technicalMeetingService,
+        private MilestoneService $milestoneService,
     ) {}
 
     /** Sprint 27 P1a — at most this many items are named per condition (the rest is "dan n lainnya"). */
@@ -308,10 +309,14 @@ class SupervisorPaymentService
         ];
     }
 
-    /** PERSIAPAN → PRODUKSI: Logistics orders the materials, the team and the Pengawas start. */
+    /**
+     * PERSIAPAN → PRODUKSI: Logistics orders the materials, the team and the
+     * Pengawas start — and so does the first timeline (Sprint 28 K9).
+     */
     private function startProduction(Project $project, User $actor): void
     {
         $this->phaseService->advance($project, ProjectPhase::Persiapan, ProjectPhase::Produksi, $actor);
+        $this->milestoneService->startFirstPending($project);
 
         $this->notificationService->notifyMany(
             User::role('LOGISTICS')->where('is_active', true)->get()

@@ -17,7 +17,7 @@ import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpi
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
-import { statusWithHolder, waitingOn, type WaitingDomain } from '@/lib/waitingOn';
+import { projectWaitingOn, statusWithHolder, waitingOn, type WaitingDomain } from '@/lib/waitingOn';
 import type {
     Design,
     Lead,
@@ -61,7 +61,7 @@ type LeadDetail = Omit<Lead, 'design' | 'quotation' | 'follow_ups' | 'surveys'> 
         /** Sprint 15 — the RAB's own client link (CEO/Marketing only). */
         client_url?: string | null;
     })[];
-    project: (Pick<Project, 'id' | 'name' | 'status' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
+    project: (Pick<Project, 'id' | 'name' | 'status' | 'phase' | 'contract_value'> & { pm?: Pick<User, 'id' | 'name'> | null }) | null;
 };
 
 interface LeadShowProps {
@@ -321,6 +321,7 @@ export default function LeadShow({
                             label="Proyek"
                             status={lead.project?.status}
                             domain="project"
+                            holder={lead.project ? projectWaitingOn(lead.project) : undefined}
                             href={lead.project ? route('projects.show', { project: lead.project.id }) : undefined}
                         >
                             {lead.project ? (
@@ -470,6 +471,7 @@ function StageRow({
     label,
     status,
     domain,
+    holder,
     href,
     children,
 }: {
@@ -478,6 +480,8 @@ function StageRow({
     status?: string;
     /** Sprint 23 K3 — the status's domain, for its wording and whose turn it is. */
     domain?: WaitingDomain;
+    /** Overrides the domain's holder (Sprint 28 K14 — a running project's phase holder). */
+    holder?: string | null;
     href?: string;
     children: ReactNode;
 }) {
@@ -487,7 +491,7 @@ function StageRow({
             <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium text-foreground">{label}</p>
-                    {status && <StatusChip domain={domain} status={status} />}
+                    {status && <StatusChip domain={domain} status={status} waitingOn={holder} />}
                 </div>
                 <div className="mt-0.5 text-xs text-muted-foreground">{children}</div>
                 {href && (

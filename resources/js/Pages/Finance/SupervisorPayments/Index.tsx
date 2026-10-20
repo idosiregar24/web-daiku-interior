@@ -8,6 +8,7 @@ import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, Dia
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { TabsList, TabsTrigger, Tabs } from '@/Components/ui/tabs';
+import { useLastDefined } from '@/hooks/useLastDefined';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
 import type { BankAccount, PaginatedData, SupervisorPayment } from '@/types';
@@ -117,6 +118,7 @@ const schema = z.object({ bank_account_id: z.string().min(1, 'Rekening sumber wa
 
 function PayDialog({ payment, bankAccounts, onOpenChange }: { payment: SupervisorPayment | null; bankAccounts: BankOption[]; onOpenChange: (open: boolean) => void }) {
     const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { bank_account_id: '' } });
+    const shown = useLastDefined(payment);
 
     useEffect(() => {
         if (payment) form.reset({ bank_account_id: '' });
@@ -139,9 +141,9 @@ function PayDialog({ payment, bankAccounts, onOpenChange }: { payment: Superviso
         <Dialog open={payment !== null} onOpenChange={onOpenChange}>
             <ResponsiveDialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Bayar Pengawas: {payment?.label}</DialogTitle>
+                    <DialogTitle>Bayar Pengawas: {shown?.label}</DialogTitle>
                     <DialogDescription>
-                        {formatRupiah(payment?.amount)} untuk {payment?.supervisor?.name} — dicatat sebagai pengeluaran "Jasa Pengawas".
+                        {formatRupiah(shown?.amount)} untuk {shown?.supervisor?.name} — dicatat sebagai pengeluaran "Jasa Pengawas".
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>

@@ -6,10 +6,13 @@ use App\Models\Milestone;
 use App\Models\Notification;
 use App\Models\Project;
 use App\Models\QaForm;
+use App\Models\SiteFinding;
 use App\Models\User;
 use App\Services\MilestoneService;
+use App\Services\SiteFindingService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Validation\ValidationException;
+use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(fn () => $this->seed(RoleSeeder::class));
 
@@ -144,4 +147,44 @@ test('markDone is rejected for a milestone already QA_WAITING or COMPLETED', fun
 
     expect(fn () => app(MilestoneService::class)->markDone($milestone))
         ->toThrow(ValidationException::class);
+});
+
+test('the QA form page carries the open findings count that holds its approval', function () {
+    $qa = User::factory()->create();
+    $qa->assignRole('QA');
+    $project = Project::factory()->create();
+    $milestone = Milestone::factory()->create(['project_id' => $project->id, 'status' => MilestoneStatus::QaWaiting->value]);
+    $otherMilestone = Milestone::factory()->create(['project_id' => $project->id]);
+    $qaForm = QaForm::factory()->create(['project_id' => $project->id, 'milestone_id' => $milestone->id]);
+    $finding = fn (?int $milestoneId, string $status = 'TERBUKA') => SiteFinding::create([
+        'project_id' => $project->id,
+        'milestone_id' => $milestoneId,
+        'description' => 'Lis plafon miring',
+        'status' => $status,
+        'reported_by' => $qa->id,
+    ]);
+
+    $own = $finding($milestone->id);
+    $projectWide = $finding(null);
+    $finding($otherMilestone->id);       // another timeline — does not hold this one
+    $finding($milestone->id, 'SELESAI'); // already closed
+
+    $this->actingAs($qa)->get(route('qa-forms.show', $qaForm))
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('QA/Show')
+            ->where('openFindingsCount', 2)
+            ->missing('qaForm.tasks'));
+
+    // The same number the server refuses an approval on (rule unchanged).
+    expect(SiteFindingService::openFor($milestone))->toBe(2);
+    $this->actingAs($qa)->put(route('qa-forms.update', $qaForm), [
+        'decision' => 'approve',
+        'checklist_data' => [['label' => 'Item 1', 'passed' => true, 'note' => null]],
+    ])->assertSessionHasErrors('decision');
+
+    app(SiteFindingService::class)->resolve($own, $qa);
+    app(SiteFindingService::class)->resolve($projectWide, $qa);
+
+    $this->actingAs($qa)->get(route('qa-forms.show', $qaForm))
+        ->assertInertia(fn (Assert $page) => $page->where('openFindingsCount', 0));
 });

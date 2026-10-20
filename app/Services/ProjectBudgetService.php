@@ -23,7 +23,7 @@ use Illuminate\Validation\ValidationException;
  * Excel sheets): once the project's first payment is verified, its PM
  * groups the RAB Fix items into freely named posts so Finance knows where
  * the money goes. Not every item has to be allocated; a post total above
- * the RAB total only warns; the discount is a deduction in the summary,
+ * the items total only warns; the discount is a deduction in the summary,
  * never charged to a post. Every change is logged (BudgetAllocationLog).
  *
  * Not Finance's Sprint 8 FinanceAllocationService (company income split).
@@ -173,8 +173,10 @@ class ProjectBudgetService
                 'rabTotal' => $rabTotal,
                 'postsTotal' => $postsTotal,
                 'unallocatedTotal' => round((float) $unallocated->sum(fn (QuotationItem $item) => (float) $item->total_price), 2),
-                // Decision #24 — warns, never blocks.
-                'overRab' => $postsTotal > $rabTotal,
+                // Decision #24 — warns, never blocks. Compared with the items
+                // before the discount (Sprint 28 K3): a discounted RAB fully
+                // allocated is exactly itemsTotal, not "over".
+                'overItems' => $postsTotal > $itemsTotal,
                 'realizedTotal' => round((float) $posts->flatMap->lines->flatMap->realizations->sum(fn (BudgetRealization $row) => (float) $row->total_cost), 2),
             ],
             'logs' => BudgetAllocationLog::query()

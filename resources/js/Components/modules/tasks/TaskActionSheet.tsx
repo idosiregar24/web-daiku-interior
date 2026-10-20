@@ -2,8 +2,8 @@ import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/Components/ui/sheet';
 import { Textarea } from '@/Components/ui/textarea';
+import { MANUAL_TASK_STATUSES, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
-import type { TaskStatus } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
@@ -11,15 +11,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { FieldTask } from './TaskCard';
 
-type ManualStatus = Exclude<TaskStatus, 'OVER'>;
-
-// OVER is system-computed only (PRD §4.5) — same list as UpdateTaskStatusRequest / StoreDailyTaskFormRequest.
-const STATUS_BUTTONS: { value: ManualStatus; label: string }[] = [
-    { value: 'PENDING', label: 'Belum mulai' },
-    { value: 'ONPROGRESS', label: 'Sedang dikerjakan' },
-    { value: 'PENGECEKAN', label: 'Minta dicek' },
-    { value: 'DONE', label: 'Selesai' },
-];
+const STATUS_BUTTONS = MANUAL_TASK_STATUSES.map((value) => ({ value, label: TASK_STATUS_LABEL[value] }));
 
 const schema = z.object({
     status: z.enum(['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE'], { message: 'Pilih status tugas.' }),

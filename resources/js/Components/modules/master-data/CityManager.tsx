@@ -19,6 +19,7 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { CityRow } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -44,6 +45,7 @@ const EMPTY: FormValues = { name: '', province: '' };
 export function CityManager({ cities }: { cities: CityRow[] }) {
     const [editing, setEditing] = useState<CityRow | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -73,8 +75,8 @@ export function CityManager({ cities }: { cities: CityRow[] }) {
         }
     }
 
-    function onDelete(city: CityRow) {
-        if (!confirm(`Hapus kota "${city.name}"?`)) return;
+    async function onDelete(city: CityRow) {
+        if (!(await ask({ title: 'Hapus kota?', description: `Kota "${city.name}" akan dihapus.` }))) return;
         router.delete(route('master-data.cities.destroy', { city: city.id }));
     }
 
@@ -174,6 +176,7 @@ export function CityManager({ cities }: { cities: CityRow[] }) {
                     </table>
                 </TableCard>
             )}
+            {dialog}
         </div>
     );
 }

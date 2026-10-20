@@ -10,6 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -81,6 +82,7 @@ export default function PortfolioEdit({ item, photos, projectTypes, cities, maxF
     const dirty = form.formState.isDirty;
     const [publishing, setPublishing] = useState(false);
     const [publishErrors, setPublishErrors] = useState<string[]>([]);
+    const { ask, dialog } = useConfirm();
 
     const hasPhotos = photos.length > 0;
     const ready = item.client_consent && hasPhotos;
@@ -125,9 +127,13 @@ export default function PortfolioEdit({ item, photos, projectTypes, cities, maxF
         );
     }
 
-    function destroy() {
+    async function destroy() {
         const where = item.is_published ? ' Halamannya di situs ikut hilang.' : '';
-        if (!confirm(`Hapus portofolio "${item.title}" beserta ${photos.length} fotonya? Tidak bisa dibatalkan.${where}`)) return;
+        const confirmed = await ask({
+            title: 'Hapus portofolio?',
+            description: `Portofolio "${item.title}" beserta ${photos.length} fotonya akan dihapus. Tidak bisa dibatalkan.${where}`,
+        });
+        if (!confirmed) return;
 
         router.delete(route('settings.portfolio.destroy', { portfolio: item.id }));
     }
@@ -333,6 +339,7 @@ export default function PortfolioEdit({ item, photos, projectTypes, cities, maxF
                     />
                 </div>
             </div>
+            {dialog}
         </AppLayout>
     );
 }

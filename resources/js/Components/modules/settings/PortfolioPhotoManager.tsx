@@ -7,6 +7,7 @@ import { Button } from '@/Components/ui/button';
 import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { useConfirm } from '@/hooks/useConfirm';
 import { cn } from '@/lib/utils';
 import type { PortfolioPhoto } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -171,6 +172,7 @@ export function PortfolioPhotoManager({ itemId, photos, coverPhotoId, maxFiles, 
     const [progress, setProgress] = useState<number | null>(null);
     const [busy, setBusy] = useState(false);
     const [editing, setEditing] = useState<PortfolioPhoto | null>(null);
+    const { ask, dialog } = useConfirm();
 
     // The server falls back to the first photo while no cover is picked.
     const coverId = coverPhotoId ?? photos[0]?.id ?? null;
@@ -217,9 +219,9 @@ export function PortfolioPhotoManager({ itemId, photos, coverPhotoId, maxFiles, 
         router.patch(route('settings.portfolio.photos.reorder', { portfolio: itemId }), { ids }, visit);
     }
 
-    function destroy(photo: PortfolioPhoto, position: number) {
+    async function destroy(photo: PortfolioPhoto, position: number) {
         const note = photo.id === coverId && photos.length > 1 ? ' Foto sampul akan pindah ke foto berikutnya.' : '';
-        if (!confirm(`Hapus foto ${position}? File-nya ikut terhapus dan tidak bisa dikembalikan.${note}`)) return;
+        if (!(await ask({ title: `Hapus foto ${position}?`, description: `File-nya ikut terhapus dan tidak bisa dikembalikan.${note}` }))) return;
         router.delete(route('settings.portfolio.photos.destroy', { portfolio: itemId, photo: photo.id }), visit);
     }
 
@@ -380,6 +382,7 @@ export function PortfolioPhotoManager({ itemId, photos, coverPhotoId, maxFiles, 
             </div>
 
             <PhotoDialog itemId={itemId} photo={editing} onClose={() => setEditing(null)} />
+            {dialog}
         </SectionCard>
     );
 }

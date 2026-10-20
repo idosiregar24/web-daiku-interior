@@ -451,6 +451,7 @@ class TaskService
                 return $locked;
             }
 
+            $this->ensureWorkDay($toDate, 'due_date');
             $this->ensureWithinTimeline($locked->milestone, $toDate);
             $attributes = ['due_date' => $toDate];
 
@@ -470,7 +471,8 @@ class TaskService
     /**
      * Sprint 24 D9 — "Tukar": every unfinished target of `$dateA` goes to
      * `$dateB` and back (optionally one Tukang's only). Refused as a whole
-     * when any of them would land outside its timeline.
+     * when any of them would land outside its timeline, and — Sprint 28
+     * K13 — when either day isn't a working day.
      */
     public function swapDays(Project $project, string $dateA, string $dateB, ?int $assigneeId, User $actor): int
     {
@@ -482,6 +484,9 @@ class TaskService
             if ($dateA === $dateB) {
                 throw ValidationException::withMessages(['to_date' => 'Pilih dua tanggal yang berbeda.']);
             }
+
+            $this->ensureWorkDay($dateA, 'from_date');
+            $this->ensureWorkDay($dateB, 'to_date');
 
             /** @var Collection<int, Task> $tasks */
             $tasks = Task::query()
@@ -532,6 +537,22 @@ class TaskService
 
             return $tasks->count();
         });
+    }
+
+    /**
+     * Sprint 28 K13 — a target is moved ("Geser"/"Tukar") only onto a working
+     * day (config daiku.daily_form.work_days via DailyFormSchedule): no
+     * daily form, no report and no penalty run on the others.
+     */
+    private function ensureWorkDay(string $date, string $field): void
+    {
+        $day = Carbon::parse($date, DailyFormSchedule::TIMEZONE);
+
+        if (! DailyFormSchedule::isWorkDay($day)) {
+            throw ValidationException::withMessages([
+                $field => 'Hari '.$day->locale('id')->translatedFormat('l').' bukan hari kerja — pilih Senin–Sabtu.',
+            ]);
+        }
     }
 
     /**

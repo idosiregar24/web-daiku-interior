@@ -241,7 +241,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, employees, li
                                     <FormItem>
                                         <FormLabel>Tanggal Bergabung</FormLabel>
                                         <FormControl>
-                                            <DatePicker value={field.value} onChange={field.onChange} />
+                                            <DatePicker value={field.value} onChange={field.onChange} clearable />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

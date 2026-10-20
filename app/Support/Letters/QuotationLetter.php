@@ -44,7 +44,7 @@ final class QuotationLetter
         // One payment row = paid in full (Jasa Survey / Desain); several = the DP/termin scheme below.
         $notes = [LetterParts::paymentLine($terms->count() > 1 ? "Nilai {$job}" : $job, $total, $site)];
         if ($terms->count() > 1) {
-            $notes[] = 'Pembayaran mengikuti skema termin pada tabel di bawah.';
+            $notes[] = 'Pembayaran mengikuti skema pembayaran di atas.';
         }
         $notes = [...$notes, ...LetterParts::lines($quotation->client_notes ?: $site->defaultNoteFor(($quotation->type ?? QuotationType::Proyek)->value))];
         $notes[] = $quotation->valid_until

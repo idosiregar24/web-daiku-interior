@@ -19,6 +19,7 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { useConfirm } from '@/hooks/useConfirm';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
@@ -68,6 +69,7 @@ export function NameOnlyLookupManager({
 }: NameOnlyLookupManagerProps) {
     const [editing, setEditing] = useState<LookupItem | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -104,8 +106,8 @@ export function NameOnlyLookupManager({
         }
     }
 
-    function onDelete(item: LookupItem) {
-        if (!confirm(`Hapus "${item.name}"?`)) return;
+    async function onDelete(item: LookupItem) {
+        if (!(await ask({ title: 'Hapus data?', description: `"${item.name}" akan dihapus.` }))) return;
         router.delete(route(destroyRouteName, { [routeParam]: item.id }));
     }
 
@@ -184,6 +186,7 @@ export function NameOnlyLookupManager({
                     </table>
                 </TableCard>
             )}
+            {dialog}
         </div>
     );
 }

@@ -6,6 +6,7 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { MaterialCategory } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -38,6 +39,7 @@ const EMPTY: FormValues = { name: '', code_prefix: '', sort_order: '0', is_activ
 export function MaterialCategoryManager({ categories }: { categories: MaterialCategory[] }) {
     const [editing, setEditing] = useState<MaterialCategory | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
     function openForm(category: MaterialCategory | null) {
@@ -65,8 +67,8 @@ export function MaterialCategoryManager({ categories }: { categories: MaterialCa
         }
     }
 
-    function onDelete(category: MaterialCategory) {
-        if (!confirm(`Hapus kategori "${category.name}"?`)) return;
+    async function onDelete(category: MaterialCategory) {
+        if (!(await ask({ title: 'Hapus kategori?', description: `Kategori "${category.name}" akan dihapus.` }))) return;
         router.delete(route('master-data.material-categories.destroy', { material_category: category.id }));
     }
 
@@ -200,6 +202,7 @@ export function MaterialCategoryManager({ categories }: { categories: MaterialCa
                     </Form>
                 </DialogContent>
             </Dialog>
+            {dialog}
         </div>
     );
 }

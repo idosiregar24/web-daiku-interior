@@ -18,6 +18,7 @@ import {
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { projectWaitingOn } from '@/lib/waitingOn';
 import type {
     AttentionMilestone,
     DueTaskRow,
@@ -65,7 +66,7 @@ const projectColumns: ColumnDef<MonitorProject>[] = [
             </div>
         ),
     },
-    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} /> },
+    { accessorKey: 'status', header: 'Status', cell: ({ row }) => <StatusChip domain="project" status={row.original.status} waitingOn={projectWaitingOn(row.original)} /> },
     { accessorKey: 'pm', header: 'PM', cell: ({ row }) => row.original.pm ?? '—' },
     {
         accessorKey: 'progress',

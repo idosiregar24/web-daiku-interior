@@ -4,6 +4,7 @@ import { Button } from '@/Components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { useConfirm } from '@/hooks/useConfirm';
 import type { MaterialSynonym } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -34,6 +35,7 @@ type FormValues = z.infer<typeof schema>;
 export function MaterialSynonymManager({ synonyms }: { synonyms: MaterialSynonym[] }) {
     const [editing, setEditing] = useState<MaterialSynonym | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { term: '', canonical: '' } });
 
     function openForm(synonym: MaterialSynonym | null) {
@@ -56,8 +58,8 @@ export function MaterialSynonymManager({ synonyms }: { synonyms: MaterialSynonym
         }
     }
 
-    function onDelete(synonym: MaterialSynonym) {
-        if (!confirm(`Hapus sinonim "${synonym.term} → ${synonym.canonical}"?`)) return;
+    async function onDelete(synonym: MaterialSynonym) {
+        if (!(await ask({ title: 'Hapus sinonim?', description: `Sinonim "${synonym.term} → ${synonym.canonical}" akan dihapus.` }))) return;
         router.delete(route('master-data.material-synonyms.destroy', { material_synonym: synonym.id }));
     }
 
@@ -161,6 +163,7 @@ export function MaterialSynonymManager({ synonyms }: { synonyms: MaterialSynonym
                     </Form>
                 </DialogContent>
             </Dialog>
+            {dialog}
         </div>
     );
 }

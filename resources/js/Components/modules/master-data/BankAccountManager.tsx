@@ -23,6 +23,7 @@ import {
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Switch } from '@/Components/ui/switch';
+import { useConfirm } from '@/hooks/useConfirm';
 import { formatRupiah } from '@/lib/format';
 import type { BankAccount } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,6 +51,7 @@ type FormValues = z.infer<typeof schema>;
 export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount[] }) {
     const [editing, setEditing] = useState<BankAccount | null>(null);
     const [open, setOpen] = useState(false);
+    const { ask, dialog } = useConfirm();
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -93,8 +95,8 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
         }
     }
 
-    function onDelete(account: BankAccount) {
-        if (!confirm(`Hapus rekening "${account.label}"?`)) return;
+    async function onDelete(account: BankAccount) {
+        if (!(await ask({ title: 'Hapus rekening?', description: `Rekening "${account.label}" akan dihapus.` }))) return;
         router.delete(route('master-data.bank-accounts.destroy', { bank_account: account.id }));
     }
 
@@ -260,6 +262,7 @@ export function BankAccountManager({ bankAccounts }: { bankAccounts: BankAccount
                     </table>
                 </TableCard>
             )}
+            {dialog}
         </div>
     );
 }

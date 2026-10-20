@@ -6,6 +6,7 @@ import { StatCard } from '@/Components/shared/StatCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import type { Asset, AssetCondition, PaginatedData } from '@/types';
@@ -34,6 +35,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Asset | null>(null);
     const [search, setSearch] = useState(filters.search ?? '');
+    const { ask, dialog } = useConfirm();
 
     function applyFilter(next: Partial<AssetIndexProps['filters']>) {
         router.get(route('logistics.assets.index'), { ...filters, ...next }, { preserveState: true, replace: true });
@@ -49,8 +51,8 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
         return () => clearTimeout(timeout);
     }, [search]);
 
-    function destroy(asset: Asset) {
-        if (!confirm(`Hapus aset "${asset.name}"?`)) return;
+    async function destroy(asset: Asset) {
+        if (!(await ask({ title: 'Hapus aset?', description: `Aset "${asset.name}" akan dihapus.` }))) return;
         router.delete(route('logistics.assets.destroy', { asset: asset.id }), { preserveScroll: true });
     }
 
@@ -243,6 +245,7 @@ export default function AssetIndex({ assets, filters, categories, summary, canMa
             {canManage && (
                 <AssetFormDialog open={formOpen} onOpenChange={setFormOpen} asset={editing} categories={categories} />
             )}
+            {dialog}
         </AppLayout>
     );
 }

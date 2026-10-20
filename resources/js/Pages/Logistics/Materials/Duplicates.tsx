@@ -6,6 +6,7 @@ import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { Button } from '@/Components/ui/button';
 import { Label } from '@/Components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
+import { useConfirm } from '@/hooks/useConfirm';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatQty } from '@/lib/format';
 import type { Material } from '@/types';
@@ -32,11 +33,18 @@ export default function MaterialDuplicates({ groups, materials }: DuplicatesProp
     const errors = usePage().props.errors as Record<string, string>;
     const [fromId, setFromId] = useState('');
     const [intoId, setIntoId] = useState('');
+    const { ask, dialog } = useConfirm();
     const from = materials.find((material) => String(material.id) === fromId);
     const targets = from ? materials.filter((material) => material.id !== from.id && material.unit_id === from.unit_id) : [];
 
-    function merge(source: Pick<Material, 'id' | 'code' | 'name'>, target: Pick<Material, 'id' | 'code' | 'name'>) {
-        if (!confirm(`Gabungkan ${source.code} ${source.name} ke ${target.code} ${target.name}? Stok dan baris material proyek dipindah; ${source.code} menjadi nonaktif.`)) {
+    async function merge(source: Pick<Material, 'id' | 'code' | 'name'>, target: Pick<Material, 'id' | 'code' | 'name'>) {
+        const confirmed = await ask({
+            title: 'Gabungkan material?',
+            description: `${source.code} ${source.name} digabung ke ${target.code} ${target.name}. Stok dan baris material proyek dipindah; ${source.code} menjadi nonaktif.`,
+            confirmLabel: 'Ya, gabungkan',
+            tone: 'default',
+        });
+        if (!confirmed) {
             return;
         }
 
@@ -169,6 +177,7 @@ export default function MaterialDuplicates({ groups, materials }: DuplicatesProp
                     </div>
                 </SectionCard>
             </div>
+            {dialog}
         </AppLayout>
     );
 }

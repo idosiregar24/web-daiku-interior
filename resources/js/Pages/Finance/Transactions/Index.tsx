@@ -219,12 +219,14 @@ export default function TransactionIndex({
                         <DatePicker
                             value={filters.from ? new Date(`${filters.from}T00:00:00`) : undefined}
                             onChange={(date) => applyFilter({ from: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            clearable
                             placeholder="Dari tanggal"
                             className="w-44"
                         />
                         <DatePicker
                             value={filters.to ? new Date(`${filters.to}T00:00:00`) : undefined}
                             onChange={(date) => applyFilter({ to: date ? format(date, 'yyyy-MM-dd') : undefined })}
+                            clearable
                             placeholder="Sampai tanggal"
                             className="w-44"
                         />

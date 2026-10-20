@@ -18,6 +18,7 @@ import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog
 import { TaskActionSheet } from '@/Components/modules/tasks/TaskActionSheet';
 import { type FieldTask, TaskCard } from '@/Components/modules/tasks/TaskCard';
 import { AT_LEAST_LG, useMediaQuery } from '@/hooks/useMediaQuery';
+import { TASK_PRIORITY_LABEL, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
 import AppLayout from '@/Layouts/AppLayout';
 import { MaterialRequestDialog } from '@/Components/modules/logistics/MaterialRequestDialog';
@@ -46,15 +47,6 @@ interface TasksIndexProps {
     /** Sprint 13 H3 — Tukang, working day, before the cutoff: a card's Simpan also sends today's form. */
     canSubmitDailyForm?: boolean;
 }
-
-/** Sprint 13 H4/H9 — the Tukang's status chips, in plain words. */
-const FIELD_STATUS_LABEL: Record<TaskStatus, string> = {
-    PENDING: 'Belum mulai',
-    ONPROGRESS: 'Dikerjakan',
-    PENGECEKAN: 'Minta dicek',
-    DONE: 'Selesai',
-    OVER: 'Terlambat',
-};
 
 const STATUS_OPTIONS: TaskStatus[] = ['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE', 'OVER'];
 
@@ -161,6 +153,7 @@ export default function TasksIndex({
         {
             accessorKey: 'priority',
             header: 'Prioritas',
+            cell: ({ row }) => TASK_PRIORITY_LABEL[row.original.priority],
         },
         {
             accessorKey: 'status',
@@ -251,7 +244,7 @@ export default function TasksIndex({
                                         selected ? 'bg-daiku-dark text-background ring-daiku-dark' : 'bg-background text-foreground ring-border',
                                     )}
                                 >
-                                    {status ? FIELD_STATUS_LABEL[status] : 'Semua'}
+                                    {status ? TASK_STATUS_LABEL[status] : 'Semua'}
                                 </button>
                             );
                         })}

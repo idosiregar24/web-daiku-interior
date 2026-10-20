@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, X } from 'lucide-react';
 import { useState } from 'react';
 
 interface DatePickerProps {
@@ -17,6 +17,8 @@ interface DatePickerProps {
     placeholder?: string;
     disabled?: boolean;
     className?: string;
+    /** Optional field: shows "Hapus tanggal" under the calendar to empty it. */
+    clearable?: boolean;
 }
 
 /**
@@ -24,6 +26,11 @@ interface DatePickerProps {
  * see .claude/rules/frontend-standards.md §3. Pair with
  * Components/ui/form.tsx's <FormControl> when used inside a React Hook
  * Form field.
+ *
+ * Clicking the already-selected day keeps it (react-day-picker would emit
+ * `undefined`, which left RHF empty while the button still showed the date —
+ * Sprint 28 F1). Emptying an optional field is the explicit `clearable`
+ * button instead.
  */
 export function DatePicker({
     value,
@@ -31,6 +38,7 @@ export function DatePicker({
     placeholder = 'Pilih tanggal',
     disabled,
     className,
+    clearable = false,
 }: DatePickerProps) {
     const [open, setOpen] = useState(false);
 
@@ -56,12 +64,29 @@ export function DatePicker({
                     mode="single"
                     selected={value}
                     onSelect={(date) => {
-                        onChange?.(date);
+                        if (date) onChange?.(date);
                         setOpen(false);
                     }}
                     locale={id}
                     autoFocus
                 />
+                {clearable && value && (
+                    <div className="border-t border-border p-2">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            onClick={() => {
+                                onChange?.(undefined);
+                                setOpen(false);
+                            }}
+                        >
+                            <X className="size-4" />
+                            Hapus tanggal
+                        </Button>
+                    </div>
+                )}
             </PopoverContent>
         </Popover>
     );
