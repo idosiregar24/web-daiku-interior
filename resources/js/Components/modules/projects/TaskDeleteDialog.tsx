@@ -9,15 +9,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/Components/ui/dialog';
+import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
 import type { Task } from '@/types';
 import { router } from '@inertiajs/react';
-import { Trash2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface TaskDeleteDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     task: Pick<Task, 'id' | 'title'> | null;
+    /** Sprint 29 L7 — page props a delete reloads (Detail Proyek: `RELOAD.tasks`); omitted = full reload. A decision, so the success pop-up stays. */
+    reload?: TaskReload;
 }
 
 /**
@@ -26,7 +29,7 @@ interface TaskDeleteDialogProps {
  * overtime, penalty, wage payment) or is DONE; that message is shown here
  * instead of closing the dialog.
  */
-export function TaskDeleteDialog({ open, onOpenChange, task }: TaskDeleteDialogProps) {
+export function TaskDeleteDialog({ open, onOpenChange, task, reload }: TaskDeleteDialogProps) {
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +40,10 @@ export function TaskDeleteDialog({ open, onOpenChange, task }: TaskDeleteDialogP
     }, [open, task]);
 
     function onConfirm() {
-        if (!task) return;
+        if (!task || processing) return;
 
         router.delete(route('tasks.destroy', { task: task.id }), {
-            preserveScroll: true,
+            ...taskVisit(reload),
             onStart: () => setProcessing(true),
             onFinish: () => setProcessing(false),
             onSuccess: () => onOpenChange(false),
@@ -70,8 +73,8 @@ export function TaskDeleteDialog({ open, onOpenChange, task }: TaskDeleteDialogP
                         </Button>
                     </DialogClose>
                     <Button type="button" variant="destructive" disabled={processing || !task} onClick={onConfirm}>
-                        <Trash2 className="size-4" />
-                        Hapus Task
+                        {processing ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+                        {processing ? 'Menghapus…' : 'Hapus Task'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -6,7 +6,9 @@ use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\RescheduleTargetRequest;
+use App\Http\Requests\Projects\ReturnTaskRequest;
 use App\Http\Requests\Projects\StoreTaskRequest;
+use App\Http\Requests\Projects\StoreTasksRequest;
 use App\Http\Requests\Projects\UpdateTaskRequest;
 use App\Http\Requests\Projects\UpdateTaskStatusRequest;
 use App\Models\Material;
@@ -39,6 +41,8 @@ class TaskController extends Controller
         $canAssign = $user->hasAnyRole(['PM', 'SUPERADMIN']);
         $due = in_array($request->query('due'), self::DUE_FILTERS, true) ? $request->query('due') : null;
         $isFieldStaff = $user->hasRole('FIELD_STAFF') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
+        // Sprint 29 Sub 04 (F6) — a Pengawas sees the targets of the projects it supervises.
+        $isSupervisor = $user->hasRole('QA') && ! $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']);
         // Sprint 13 H3 — a Tukang's card shows (and its Simpan sends) today's daily form.
         $now = DailyFormSchedule::now();
         $formDay = DailyFormSchedule::isWorkDay($now);
@@ -46,6 +50,7 @@ class TaskController extends Controller
         $tasks = Task::query()
             ->with(['project:id,name,status', 'milestone:id,name', 'assignee:id,name'])
             ->when($isFieldStaff, fn ($query) => $query->where('assignee_id', $user->id))
+            ->when($isSupervisor, fn ($query) => $query->whereHas('project', fn ($project) => $project->where('supervisor_id', $user->id)))
             ->when($isFieldStaff && $formDay, fn ($query) => $query->withExists([
                 'dailyTaskForms as has_form_today' => fn ($form) => $form->where('staff_id', $user->id)->forDate($now->toDateString()),
             ]))
@@ -101,13 +106,68 @@ class TaskController extends Controller
         return back()->with('success', 'Daily target berhasil ditambahkan.');
     }
 
+    /** Sprint 29 Sub 04 (K5) — one target for several tukang × days ("Buat untuk beberapa hari"). */
+    public function storeMany(StoreTasksRequest $request, Project $project, TaskService $service): RedirectResponse
+    {
+        $this->authorize('manageTargets', $project);
+        $tasks = $service->createMany($project, $request->validated(), $request->user());
+
+        return back()->with('success', count($tasks).' daily target berhasil ditambahkan.');
+    }
+
+    /** Sprint 29 Sub 04 (F2) — "Setujui" a target the Tukang reported done. */
+    public function approve(Task $task, Request $request, TaskService $service): RedirectResponse
+    {
+        $this->authorize('review', $task);
+        $service->approve($task, $request->user());
+
+        return back()->with('success', 'Target disetujui selesai.');
+    }
+
+    /** Sprint 29 Sub 04 (F4) — "Setujui semua" of one tukang's day. */
+    public function approveMany(Request $request, Project $project, TaskService $service): RedirectResponse
+    {
+        $ids = $request->validate(['task_ids' => ['required', 'array', 'min:1', 'max:100'], 'task_ids.*' => ['integer']], [
+            'task_ids.required' => 'Tidak ada target yang dipilih.',
+        ])['task_ids'];
+
+        Task::query()->where('project_id', $project->id)->whereIn('id', $ids)->with('project')->get()
+            ->each(fn (Task $task) => $this->authorize('review', $task));
+
+        $count = $service->approveMany($project, $ids, $request->user());
+
+        return back()->with('success', "{$count} target disetujui selesai.");
+    }
+
+    /** Sprint 29 Sub 04 (F2) — "Kembalikan" with a reason. */
+    public function returnToStaff(ReturnTaskRequest $request, Task $task, TaskService $service): RedirectResponse
+    {
+        $this->authorize('review', $task);
+        $service->returnToStaff($task, $request->validated('note'), $request->user());
+
+        return back()->with('success', 'Target dikembalikan ke tukang.');
+    }
+
+    /** Sprint 29 Sub 04 (F3) — the Pengawas ticks a target done for the Tukang. */
+    public function checkOff(Task $task, Request $request, TaskService $service): RedirectResponse
+    {
+        $this->authorize('review', $task);
+        $service->checkOff($task, $request->user());
+
+        return back()->with('success', 'Target dicentang selesai.');
+    }
+
     /** Sprint 24 D9 — "Geser" one target inside its timeline (TaskPolicy::reschedule()). */
     public function reschedule(RescheduleTargetRequest $request, Task $task, TaskService $service): RedirectResponse
     {
         $this->authorize('reschedule', $task);
-        $service->reschedule($task, $request->validated('due_date'), $request->user(), $request->validated('note'));
+        $before = $task->milestone_id;
+        $moved = $service->reschedule($task, $request->validated('due_date'), $request->user(), $request->validated('note'));
 
-        return back()->with('success', 'Tanggal target digeser.');
+        // Sprint 29 Sub 05 — say so when the target followed its new day into another timeline.
+        return back()->with('success', $moved->milestone_id !== $before && $moved->milestone
+            ? "Tanggal target digeser — dipindah ke timeline {$moved->milestone->name}."
+            : 'Tanggal target digeser.');
     }
 
     /**

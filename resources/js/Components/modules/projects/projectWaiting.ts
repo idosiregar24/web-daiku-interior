@@ -200,7 +200,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     detail: ready
                         ? 'Syarat DP lengkap — DP pengawas belum diajukan'
                         : requirements.length > 0
-                          ? `Syarat DP belum lengkap · ${done}/${requirements.length} (bahan, upah & daily target)`
+                          ? `Syarat DP belum lengkap · ${done}/${requirements.length} (jasa, bahan, upah & daily target)`
                           : 'Bahan, upah & daily target disiapkan, lalu DP pengawas diajukan',
                     holder: 'Pengawas (QA/QC)',
                     mine: ready ? (can?.requestDp ?? false) : Boolean(can?.requestDp || can?.manageTargets || isSupervisor),
@@ -290,15 +290,15 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         });
     }
 
-    // Same rule as WeeklyReportsCard's "Kirim Laporan": report day, none sent (or it was rejected).
-    if (can.submitWeekly && execution.currentWeek?.is_report_day && (!thisWeek || thisWeek.status === 'DITOLAK')) {
+    // Same rule as WeeklyReportsCard's "Kirim Laporan": any day of the week (Sprint 29 Sub 02), none sent (or it was rejected).
+    if (can.submitWeekly && execution.currentWeek && (!thisWeek || thisWeek.status === 'DITOLAK')) {
         rows.push({
             key: 'weekly-due',
             label: 'Laporan',
-            detail: `Laporan mingguan ke-${execution.currentWeek.week_number} ${thisWeek ? 'ditolak — kirim ulang' : 'belum dikirim'}`,
+            detail: `Laporan mingguan ke-${execution.currentWeek.week_number} ${thisWeek ? 'ditolak — kirim ulang' : 'belum dikirim · paling lambat Jumat'}`,
             holder: 'Pengawas (QA/QC)',
             mine: true,
-            tone: thisWeek ? 'error' : 'warning',
+            tone: thisWeek ? 'error' : execution.currentWeek.is_due ? 'warning' : 'info',
             target: { tab: 'execution', anchor: 'laporan-mingguan' },
         });
     }

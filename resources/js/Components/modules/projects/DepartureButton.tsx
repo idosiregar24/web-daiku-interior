@@ -1,8 +1,9 @@
 import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { Button } from '@/Components/ui/button';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { Project, ProjectExecution } from '@/types';
 import { router } from '@inertiajs/react';
-import { MapPin } from 'lucide-react';
+import { Loader2, MapPin } from 'lucide-react';
 import { useState } from 'react';
 
 /**
@@ -37,7 +38,8 @@ export function DepartureButton({
             route('projects.departure.approve', { project: project.id }),
             {},
             {
-                preserveScroll: true,
+                // A phase move — keeps the pop-up; rendered only on Detail Proyek, reloads the phase side only.
+                ...projectVisit(RELOAD.phase),
                 onStart: () => setBusy(true),
                 onSuccess: () => setConfirming(false),
                 onFinish: () => setBusy(false),
@@ -54,7 +56,7 @@ export function DepartureButton({
                 title={reached ? undefined : `Terbuka mulai actual activity ${execution.threshold}% (sekarang ${execution.progress}%).`}
                 onClick={() => setConfirming(true)}
             >
-                <MapPin className="size-4" />
+                {busy ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
                 Setujui Berangkat ke Lokasi
             </Button>
             <ConfirmDialog

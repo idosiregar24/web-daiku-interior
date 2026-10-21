@@ -5,10 +5,12 @@ import { Dialog, DialogClose, DialogDescription, DialogFooter, DialogHeader, Dia
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -47,6 +49,7 @@ export interface ExecutionDecisionTarget {
  * left of the fee; the server checks it) or reject with a reason.
  */
 export function ExecutionDecisionDialog({ target, onOpenChange }: { target: ExecutionDecisionTarget | null; onOpenChange: (open: boolean) => void }) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { decision: 'approve', amount: '', note: '' } });
     const decision = form.watch('decision');
 
@@ -69,7 +72,10 @@ export function ExecutionDecisionDialog({ target, onOpenChange }: { target: Exec
             route(target.routeName, target.params),
             { decision: values.decision, amount: values.amount ? Number(values.amount) : null, note: values.note || null },
             {
-                preserveScroll: true,
+                // A decision (DP approved = Start Produksi) — keeps the pop-up; reloads the Eksekusi side only.
+                ...projectVisit(RELOAD.supervision),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onSuccess: () => onOpenChange(false),
                 onError: (errors) => {
                     Object.entries(errors).forEach(([key, message]) =>
@@ -151,7 +157,8 @@ export function ExecutionDecisionDialog({ target, onOpenChange }: { target: Exec
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" variant={decision === 'reject' ? 'destructive' : 'default'} disabled={form.formState.isSubmitting}>
+                            <Button type="submit" variant={decision === 'reject' ? 'destructive' : 'default'} disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 {decision === 'reject' ? 'Tolak' : 'Setujui'}
                             </Button>
                         </DialogFooter>

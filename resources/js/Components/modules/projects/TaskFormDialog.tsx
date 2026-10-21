@@ -1,4 +1,5 @@
 import { Button } from '@/Components/ui/button';
+import { Checkbox } from '@/Components/ui/checkbox';
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { Notice } from '@/Components/shared/Notice';
 import {
@@ -30,11 +31,14 @@ import {
 import { Textarea } from '@/Components/ui/textarea';
 import type { Milestone, Task, TaskPriority, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
 import { formatDate } from '@/lib/format';
 import { TASK_PRIORITY_LABEL } from '@/lib/taskLabels';
+import { isWorkDay } from '@/lib/workDays';
 import { router } from '@inertiajs/react';
-import { format } from 'date-fns';
-import { useEffect, useMemo } from 'react';
+import { addDays, format } from 'date-fns';
+import { CircleCheck, Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -49,6 +53,9 @@ const schema = z.object({
     description: z.string().optional(),
     assignee_id: z.string().min(1, 'Tukang wajib dipilih'),
     due_date: z.date({ message: 'Tanggal jatuh tempo wajib diisi' }),
+    // Sprint 29 Sub 04 (K5) — create only: more tukang and/or a last day → tasks.storeMany (StoreTasksRequest).
+    extra_assignee_ids: z.array(z.string()).max(9, 'Maksimal 10 tukang sekaligus'),
+    until: z.date().optional(),
     priority: z.enum(PRIORITY_OPTIONS as [TaskPriority, ...TaskPriority[]]),
     rate_per_task: z
         .string()
@@ -65,11 +72,24 @@ const EMPTY_VALUES: FormValues = {
     description: '',
     assignee_id: '',
     due_date: undefined as unknown as Date,
+    extra_assignee_ids: [],
+    until: undefined,
     priority: 'MEDIUM',
     rate_per_task: '',
 };
 
 const FIELDS = Object.keys(EMPTY_VALUES);
+
+/**
+ * Sprint 29 L4 — the next working day after `day` (Senin–Sabtu,
+ * lib/workDays), or `day` itself when that would leave the timeline.
+ */
+function nextWorkDay(day: Date, lastDay: string | null): Date {
+    let next = addDays(day, 1);
+    while (!isWorkDay(format(next, 'yyyy-MM-dd'))) next = addDays(next, 1);
+
+    return lastDay && format(next, 'yyyy-MM-dd') > lastDay ? day : next;
+}
 
 /** What a DONE-but-unpaid task still allows — TaskService::update()'s DONE_EDITABLE. */
 const DONE_EDITABLE: (keyof FormValues)[] = ['title', 'description', 'rate_per_task'];
@@ -84,6 +104,11 @@ interface TaskFormDialogProps {
     /** May span several projects (Tasks/Index) — filtered to the task's project here. Dates (when sent) bound the target day. */
     milestones: (Pick<Milestone, 'id' | 'name' | 'project_id' | 'status'> & Partial<Pick<Milestone, 'start_date' | 'target_date'>>)[];
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+    /**
+     * Sprint 29 L4 — the page props a save reloads (Detail Proyek:
+     * `RELOAD.tasks`, Tugas: `TASKS_INDEX_RELOAD`); omitted = full reload.
+     */
+    reload?: TaskReload;
 }
 
 /**
@@ -91,12 +116,20 @@ interface TaskFormDialogProps {
  * (.claude/plan/sprint-02.md Week 4) and, since Sprint 9, "Edit Task" —
  * PM only (TaskPolicy::update()). Create is reached from Projects/Show.tsx's
  * Task tab; edit from there and from Tasks/Index.tsx.
+ * Sprint 29 L4 — creating offers "Simpan & buat lagi" (also Enter): saved
+ * without the pop-up, the dialog stays open with tukang, timeline,
+ * priority and upah kept, the day moved to the next working day inside the
+ * timeline, and the cursor back in Judul. "Simpan" saves and closes.
  */
-export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff }: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff, reload }: TaskFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
     });
+    // Which button is saving ('again' = Simpan & buat lagi) — both stay locked meanwhile.
+    const [saving, setSaving] = useState<'close' | 'again' | null>(null);
+    // Titles saved with "Simpan & buat lagi" since the dialog opened — the quiet "Tersimpan ✓".
+    const [savedTitles, setSavedTitles] = useState<string[]>([]);
 
     const targetProjectId = editing?.project_id ?? projectId;
     const isDone = editing?.status === 'DONE';
@@ -123,6 +156,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
     useEffect(() => {
         if (!open) return;
 
+        setSavedTitles([]);
         if (editing) {
             form.reset({
                 milestone_id: editing.milestone_id ? String(editing.milestone_id) : '',
@@ -132,6 +166,8 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                 due_date: editing.due_date ? new Date(editing.due_date) : (undefined as unknown as Date),
                 priority: editing.priority,
                 rate_per_task: editing.rate_per_task !== null ? String(Number(editing.rate_per_task)) : '',
+                extra_assignee_ids: [],
+                until: undefined,
             });
         } else {
             form.reset(EMPTY_VALUES);
@@ -150,7 +186,9 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
     // Sprint 24 D6 — a new daily target always sits in a timeline (an old task without one may keep none).
     const milestoneRequired = !editing || editing.milestone_id !== null;
 
-    function onSubmit(values: FormValues) {
+    function onSubmit(values: FormValues, again: boolean) {
+        if (saving) return;
+
         if (milestoneRequired && !values.milestone_id) {
             form.setError('milestone_id', { message: 'Pilih timeline daily target ini.' });
             return;
@@ -162,8 +200,23 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
             return;
         }
 
+        const until = !editing && values.until ? format(values.until, 'yyyy-MM-dd') : null;
+        if (until && until < day) {
+            form.setError('until', { message: 'Sampai tanggal tidak boleh sebelum Tanggal Target.' });
+            return;
+        }
+        if (until && range && until > range.to) {
+            form.setError('until', { message: 'Sampai tanggal harus di dalam rentang timeline.' });
+            return;
+        }
+        const extras = editing ? [] : values.extra_assignee_ids.filter((id) => id !== values.assignee_id);
+        const batch = !editing && (extras.length > 0 || (until !== null && until !== day));
+
+        // StoreTasksRequest's keys back onto this form's fields.
+        const BATCH_FIELD: Record<string, keyof FormValues> = { assignee_ids: 'assignee_id', date_from: 'due_date', date_to: 'until' };
         const onError = (errors: Record<string, string>) => {
-            Object.entries(errors).forEach(([field, message]) => {
+            Object.entries(errors).forEach(([key, message]) => {
+                const field = BATCH_FIELD[key.split('.')[0]] ?? key;
                 if (FIELDS.includes(field)) {
                     form.setError(field as keyof FormValues, { message });
                 } else {
@@ -181,15 +234,40 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
             priority: values.priority,
             rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null,
         };
-        const options = { preserveScroll: true, onError, onSuccess: () => onOpenChange(false) };
+        const keepGoing = again && !editing;
+        const options = {
+            ...taskVisit(reload, { quiet: keepGoing }),
+            onStart: () => setSaving(keepGoing ? 'again' : 'close'),
+            onFinish: () => setSaving(null),
+            onError,
+            onSuccess: () => {
+                if (!keepGoing) {
+                    onOpenChange(false);
+                    return;
+                }
+
+                // Same tukang, timeline, priority & upah — a new title on the next working day.
+                form.reset({ ...values, title: '', description: '', due_date: nextWorkDay(values.until ?? values.due_date, range?.to ?? null), until: undefined });
+                setSavedTitles((titles) => [...titles, values.title]);
+                setTimeout(() => form.setFocus('title'), 0);
+            },
+        };
 
         if (editing) {
             router.put(route('tasks.update', { task: editing.id }), payload, options);
+        } else if (targetProjectId && batch) {
+            const { assignee_id, due_date, ...shared } = payload;
+            router.post(
+                route('tasks.storeMany', { project: targetProjectId }),
+                { ...shared, assignee_ids: [assignee_id, ...extras.map(Number)], date_from: due_date, date_to: until ?? due_date },
+                options,
+            );
         } else if (targetProjectId) {
             router.post(route('tasks.store', { project: targetProjectId }), payload, options);
         }
     }
 
+    const submit = (again: boolean) => form.handleSubmit((values) => onSubmit(values, again));
     const serverError = form.formState.errors.root?.server?.message;
 
     return (
@@ -200,7 +278,8 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                     {editing?.project && <DialogDescription>Proyek {editing.project.name}</DialogDescription>}
                 </DialogHeader>
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                    {/* Enter = the main button: "Simpan & buat lagi" when creating, "Simpan" when editing. */}
+                    <form onSubmit={submit(!editing)} className="space-y-4">
                         {serverError && <Notice tone="error">{serverError}</Notice>}
                         {isPaid ? (
                             <Notice tone="info">Upah daily target ini sudah dibayar — daily target terkunci dan tidak bisa diubah lagi.</Notice>
@@ -295,6 +374,38 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 )}
                             />
                         </div>
+                        {!editing && staffOptions.filter((staff) => staff.is_active !== false).length > 1 && (
+                            <FormField
+                                control={form.control}
+                                name="extra_assignee_ids"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Juga untuk tukang</FormLabel>
+                                        <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                            {staffOptions
+                                                .filter((staff) => staff.is_active !== false && String(staff.id) !== form.watch('assignee_id'))
+                                                .map((staff) => {
+                                                    const id = String(staff.id);
+                                                    const checked = field.value.includes(id);
+
+                                                    return (
+                                                        <label key={staff.id} className="flex min-h-9 items-center gap-2 text-sm">
+                                                            <Checkbox
+                                                                checked={checked}
+                                                                onCheckedChange={(next) =>
+                                                                    field.onChange(next ? [...field.value, id] : field.value.filter((value) => value !== id))
+                                                                }
+                                                            />
+                                                            {staff.name}
+                                                        </label>
+                                                    );
+                                                })}
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 control={form.control}
@@ -314,6 +425,22 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                     </FormItem>
                                 )}
                             />
+                            {!editing && (
+                                <FormField
+                                    control={form.control}
+                                    name="until"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Sampai tanggal</FormLabel>
+                                            <FormControl>
+                                                <DatePicker value={field.value} onChange={field.onChange} clearable placeholder="Satu hari saja" />
+                                            </FormControl>
+                                            <p className="text-xs text-muted-foreground">Satu target tiap hari kerja (Senin–Sabtu).</p>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
                             <FormField
                                 control={form.control}
                                 name="priority"
@@ -352,16 +479,39 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 </FormItem>
                             )}
                         />
+                        {savedTitles.length > 0 && (
+                            <p role="status" className="flex items-start gap-1.5 text-sm text-success-ink">
+                                <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden />
+                                <span>
+                                    Tersimpan: “{savedTitles.at(-1)}”
+                                    {savedTitles.length > 1 && ` · ${savedTitles.length} target sejak dialog dibuka`}
+                                </span>
+                            </p>
+                        )}
                         <DialogFooter>
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">
-                                    {isPaid ? 'Tutup' : 'Batal'}
+                                    {isPaid || savedTitles.length > 0 ? 'Tutup' : 'Batal'}
                                 </Button>
                             </DialogClose>
-                            {!isPaid && (
-                                <Button type="submit" disabled={form.formState.isSubmitting}>
-                                    Simpan
-                                </Button>
+                            {editing ? (
+                                !isPaid && (
+                                    <Button type="submit" disabled={saving !== null}>
+                                        {saving && <Loader2 className="size-4 animate-spin" />}
+                                        {saving ? 'Menyimpan…' : 'Simpan'}
+                                    </Button>
+                                )
+                            ) : (
+                                <>
+                                    <Button type="button" variant="outline" disabled={saving !== null} onClick={submit(false)}>
+                                        {saving === 'close' && <Loader2 className="size-4 animate-spin" />}
+                                        Simpan
+                                    </Button>
+                                    <Button type="submit" disabled={saving !== null}>
+                                        {saving === 'again' && <Loader2 className="size-4 animate-spin" />}
+                                        {saving === 'again' ? 'Menyimpan…' : 'Simpan & buat lagi'}
+                                    </Button>
+                                </>
                             )}
                         </DialogFooter>
                     </form>

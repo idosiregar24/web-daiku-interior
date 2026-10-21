@@ -1,10 +1,10 @@
 import { DatePicker } from '@/Components/shared/DatePicker';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
 import { Button } from '@/Components/ui/button';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -16,15 +16,17 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatQty, formatRupiah } from '@/lib/format';
+import { type ProjectProp, projectVisit, RELOAD, type ReturnCatalogMaterial, useProjectCatalog } from '@/lib/projectReload';
 import { parseQty, quantityField } from '@/lib/quantity';
 import { MaterialCategorySelect } from '@/Components/modules/logistics/MaterialCategorySelect';
 import { SimilarMaterialsPanel } from '@/Components/modules/logistics/SimilarMaterialsPanel';
 import { useSimilarMaterials } from '@/hooks/useSimilarMaterials';
-import type { Material, MaterialCategory, ProjectMaterial, VendorOption } from '@/types';
+import type { MaterialCategory, ProjectMaterial, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -82,8 +84,6 @@ interface ProjectMaterialActionDialogProps {
     action: MaterialAction | null;
     onOpenChange: (open: boolean) => void;
     vendors: VendorOption[];
-    /** Catalog items a CUSTOM line can be mapped onto when returned (Logistics). */
-    catalogOptions: Pick<Material, 'id' | 'name' | 'unit_id'>[];
     /** Material categories for registering a custom leftover as a new catalog item (Logistics). */
     categories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
 }
@@ -97,7 +97,23 @@ const ROUTE: Record<MaterialAction, string> = {
     handOver: 'project-materials.handOver',
 };
 
-export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendors, catalogOptions, categories }: ProjectMaterialActionDialogProps) {
+/**
+ * Settling a leftover may complete the project (ProjectService::completeIfFinished) —
+ * those actions also refresh the header & status note.
+ */
+const RELOAD_FOR: Record<MaterialAction, readonly ProjectProp[]> = {
+    issue: RELOAD.materials,
+    purchase: RELOAD.materials,
+    usage: RELOAD.materials,
+    return: [...RELOAD.materials, 'project', 'statusNote'],
+    waste: [...RELOAD.materials, 'project', 'statusNote'],
+    handOver: [...RELOAD.materials, 'project', 'statusNote'],
+};
+
+export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendors, categories }: ProjectMaterialActionDialogProps) {
+    // Catalog items a CUSTOM line can be mapped onto when returned (Logistics) — loaded on demand.
+    const catalog = useProjectCatalog();
+    const [busy, setBusy] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { qty: '' } });
     // §5.5 Lapis 3 — a custom leftover registered as a new catalog item gets the same duplicate check.
     const [returnTarget, newName, newCategory, newSpec, newBrand] = form.watch(['return_target', 'new_name', 'new_category_id', 'new_spec', 'new_brand']);
@@ -126,6 +142,11 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
         }
     }, [line?.id, action]);
 
+    const needsCatalog = action === 'return' && line?.material_id === null;
+    useEffect(() => {
+        if (needsCatalog) catalog.load();
+    }, [needsCatalog]);
+
     if (!line || !action) {
         return null;
     }
@@ -133,7 +154,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
     const unit = line.unit?.code ?? '';
     const copy = ACTION_COPY[action];
     const isCustomReturn = action === 'return' && line.material_id === null;
-    const sameUnitCatalog = catalogOptions.filter((material) => material.unit_id === line.unit_id);
+    const sameUnitCatalog = catalog.catalogOptions.filter((material) => material.unit_id === line.unit_id);
     // The ceiling shown and checked client-side; the server re-checks under a lock.
     const ceiling = action === 'issue' ? (line.material?.stock ?? 0) : action === 'purchase' ? null : line.leftover;
 
@@ -204,7 +225,9 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
         if (action === 'handOver') Object.assign(payload, { note });
 
         router.post(route(ROUTE[action], { project_material: line.id }), payload, {
-            preserveScroll: true,
+            ...projectVisit(RELOAD_FOR[action]),
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
             onError: (errors: Record<string, string>) =>
                 Object.entries(errors).forEach(([field, message]) => {
                     const key = (
@@ -236,7 +259,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
 
     return (
         <Dialog open onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{copy.title}</DialogTitle>
                     <DialogDescription>
@@ -255,7 +278,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                     <FormItem>
                                         <FormLabel required>Jumlah ({unit})</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0.01" step="0.01" inputMode="decimal" autoFocus {...field} />
+                                            <Input type="number" min="0.01" step="0.01" inputMode="decimal" autoFocus className="max-md:h-11" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -350,6 +373,12 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
+                                                {!catalog.loaded && (
+                                                    <p className="flex items-center gap-2 px-2 py-1.5 text-sm text-daiku-muted">
+                                                        <Loader2 className="size-4 animate-spin" />
+                                                        Memuat katalog…
+                                                    </p>
+                                                )}
                                                 {sameUnitCatalog.map((material) => (
                                                     <SelectItem key={material.id} value={String(material.id)}>
                                                         {material.name}
@@ -474,17 +503,18 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
 
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button type="button" variant="outline">
+                                <Button type="button" variant="outline" className="max-md:h-11">
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                {copy.submit}
+                            <Button type="submit" className="max-md:h-11" disabled={busy}>
+                                {busy && <Loader2 className="size-4 animate-spin" />}
+                                {busy ? 'Menyimpan…' : copy.submit}
                             </Button>
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

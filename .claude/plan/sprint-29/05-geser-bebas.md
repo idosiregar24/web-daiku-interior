@@ -1,7 +1,7 @@
 # Sprint 29 · 05 — Geser & Tukar Task Bebas
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Penukaran task per timeline bersifat bebas" · Keputusan F7 · Q29
-> Status: **belum dikerjakan** · Bergantung: Sub 01
+> Status: **kode selesai 2026-10-21** (pindah timeline dicatat di `task_schedule_changes.note`; tersisa cek browser) · Bergantung: Sub 01
 
 ## Keputusan user
 > "Penukaran sekarang bebas tanpa harus di timeline yang ditentukan untuk
@@ -26,8 +26,8 @@
   berubah).
 
 ## Checklist
-- [ ] **[Backend]** `reschedule()` / `swapDays()` tanpa `ensureWithinTimeline`, tolak Minggu, pindah `milestone_id` sesuai tanggal
-- [ ] **[UI]** `TaskWeekBoard` & `RescheduleTaskDialog`: batas tanggal dibuka, label timeline tujuan
-- [ ] **[UX]** Optimistic (Sub 01); toast kecil "Dipindah ke Timeline B" bila timeline berubah
-- [ ] **[Test]** Pest: geser ke luar timeline diterima + pindah timeline; Minggu ditolak; tukar dua hari lintas timeline; bergulir memakai timeline baru
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Backend]** `reschedule()` / `swapDays()` tanpa `ensureWithinTimeline`, tolak Minggu, pindah `milestone_id` sesuai tanggal
+- [x] **[UI]** `TaskWeekBoard` & `RescheduleTaskDialog`: batas tanggal dibuka, label timeline tujuan
+- [x] **[UX]** Optimistic (Sub 01); toast kecil "Dipindah ke Timeline B" bila timeline berubah
+- [x] **[Test]** Pest: geser ke luar timeline diterima + pindah timeline; Minggu ditolak; tukar dua hari lintas timeline; bergulir memakai timeline baru
+- [x] **[Build]** `npm run build`, Pint

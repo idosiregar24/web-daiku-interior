@@ -4,15 +4,15 @@ import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
-import { quietSuccess } from '@/hooks/useFlashToasts';
 import { formatQty } from '@/lib/format';
+import { projectVisit, RELOAD, useProjectCatalog } from '@/lib/projectReload';
 import { parseQty, quantityField } from '@/lib/quantity';
 import { cn } from '@/lib/utils';
 import type { Material, ProjectExecution } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { Check, Plus, Trash2, X } from 'lucide-react';
-import { type KeyboardEvent, useId, useMemo, useState } from 'react';
+import { Check, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -30,7 +30,18 @@ const schema = z.object({
 
 type Values = z.infer<typeof schema>;
 
-const VISIT = { preserveState: true, preserveScroll: true, ...quietSuccess };
+// Quiet partial reload (Sprint 29 Sub 01 K2/K4): the changed row is the feedback.
+const VISIT = projectVisit(RELOAD.materials, { quiet: true });
+
+/** An added line not saved yet — shown at once (K3), sent one after another. */
+interface QueuedLine {
+    key: string;
+    material_id: number;
+    name: string;
+    unit: string;
+    source: Values['source'];
+    qty: string;
+}
 
 /**
  * Sprint 24 — "Bahan yang digunakan" planned right in the TM card: search
@@ -38,20 +49,29 @@ const VISIT = { preserveState: true, preserveScroll: true, ...quietSuccess };
  * tab. Amounts are edited in place; the Pengawas may drop a line until
  * production starts. Same routes & policies as the Material tab
  * (projects.materials.store, project-materials.update / destroy).
+ *
+ * Sprint 29 Sub 01 (L2): Enter puts the line in the list straight away
+ * ("menyimpan…") and the search is ready for the next item; lines are sent
+ * one at a time (each answer carries the whole list), a refused one
+ * disappears with the reason.
  */
 export function TmMaterialPlanner({
     projectId,
     lines,
-    options,
     canUpdate,
     canRemove,
 }: {
     projectId: number;
     lines: PlannedLine[];
-    options: MaterialOption[];
     canUpdate: boolean;
     canRemove: boolean;
 }) {
+    const catalog = useProjectCatalog();
+    const options = catalog.materialOptions;
+    const [queue, setQueue] = useState<QueuedLine[]>([]);
+    const [sendingKey, setSendingKey] = useState<string | null>(null);
+    const [failure, setFailure] = useState<string | null>(null);
+    const nextKey = useRef(0);
     const [term, setTerm] = useState('');
     const [listOpen, setListOpen] = useState(false);
     const [active, setActive] = useState(0);
@@ -67,6 +87,32 @@ export function TmMaterialPlanner({
     const picked = options.find((option) => String(option.id) === materialId) ?? null;
     const existing = picked ? lines.find((line) => line.material_id === picked.id && line.source === source) : undefined;
     const plannedIds = useMemo(() => new Set(lines.map((line) => line.material_id)), [lines]);
+    // A queued item already planned from the same source replaces that line's amount — mark it there.
+    const isSame = (line: PlannedLine, queued: QueuedLine) => line.material_id === queued.material_id && line.source === queued.source;
+    const savingLineIds = new Set(lines.filter((line) => queue.some((queued) => isSame(line, queued))).map((line) => line.id));
+    const incoming = queue.filter((queued) => !lines.some((line) => isSame(line, queued)));
+
+    // Send the queue one line at a time.
+    useEffect(() => {
+        if (sendingKey !== null || queue.length === 0) return;
+
+        const next = queue[0];
+        setSendingKey(next.key);
+        router.post(
+            route('projects.materials.store', { project: projectId }),
+            { material_id: next.material_id, source: next.source, qty_planned: parseQty(next.qty), vendor_id: null },
+            {
+                ...VISIT,
+                // Not cancelled by an amount edited meanwhile.
+                async: true,
+                onError: (errors) => setFailure(`${next.name}: ${Object.values(errors)[0] ?? 'gagal disimpan.'}`),
+                onFinish: () => {
+                    setQueue((rows) => rows.filter((row) => row.key !== next.key));
+                    setSendingKey(null);
+                },
+            },
+        );
+    }, [queue, sendingKey]);
 
     const matches = useMemo(() => {
         const needle = term.trim().toLowerCase();
@@ -105,18 +151,23 @@ export function TmMaterialPlanner({
     }
 
     function onSubmit(values: Values) {
-        router.post(
-            route('projects.materials.store', { project: projectId }),
-            { material_id: Number(values.material_id), source: values.source, qty_planned: parseQty(values.qty_planned), vendor_id: null },
+        const material = options.find((option) => String(option.id) === values.material_id);
+        if (!material) return;
+
+        setQueue((rows) => [
+            ...rows,
             {
-                ...VISIT,
-                onSuccess: () => {
-                    form.reset({ material_id: '', qty_planned: '', source: 'GUDANG' });
-                    focus(searchId);
-                },
-                onError: (errors) => Object.entries(errors).forEach(([key, message]) => form.setError(key as keyof Values, { message })),
+                key: `tm-${nextKey.current++}`,
+                material_id: material.id,
+                name: material.name,
+                unit: material.unit?.code ?? '',
+                source: values.source,
+                qty: values.qty_planned.trim(),
             },
-        );
+        ]);
+        setFailure(null);
+        form.reset({ material_id: '', qty_planned: '', source: 'GUDANG' });
+        focus(searchId);
     }
 
     return (
@@ -137,7 +188,7 @@ export function TmMaterialPlanner({
                                         <span className="shrink-0 text-xs text-daiku-muted">
                                             stok {formatQty(picked.stock)} {picked.unit?.code}
                                         </span>
-                                        <Button type="button" variant="ghost" size="icon-sm" aria-label="Ganti barang" onClick={clearPick}>
+                                        <Button type="button" variant="ghost" size="icon-sm" className="max-md:size-11" aria-label="Ganti barang" onClick={clearPick}>
                                             <X className="size-4" />
                                         </Button>
                                     </div>
@@ -145,13 +196,17 @@ export function TmMaterialPlanner({
                                     <div className="relative">
                                         <SearchInput
                                             data-focus-key={searchId}
+                                            className="max-md:[&_input]:h-11"
                                             value={term}
                                             onChange={(event) => {
                                                 setTerm(event.target.value);
                                                 setActive(0);
                                                 setListOpen(true);
                                             }}
-                                            onFocus={() => setListOpen(true)}
+                                            onFocus={() => {
+                                                catalog.load();
+                                                setListOpen(true);
+                                            }}
                                             onBlur={() => setTimeout(() => setListOpen(false), 150)}
                                             onKeyDown={onSearchKey}
                                             placeholder="Ketik nama atau kode barang…"
@@ -160,7 +215,12 @@ export function TmMaterialPlanner({
                                         />
                                         {listOpen && (
                                             <ul className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-lg bg-popover py-1 shadow-md ring-1 ring-border">
-                                                {matches.length === 0 ? (
+                                                {!catalog.loaded ? (
+                                                    <li className="flex items-center gap-2 px-3 py-2 text-sm text-daiku-muted">
+                                                        <Loader2 className="size-4 animate-spin" />
+                                                        Memuat katalog…
+                                                    </li>
+                                                ) : matches.length === 0 ? (
                                                     <li className="px-3 py-2 text-sm text-daiku-muted">
                                                         Tidak ada di katalog — ajukan lewat tab Material (Ajukan Barang).
                                                     </li>
@@ -173,7 +233,7 @@ export function TmMaterialPlanner({
                                                                 onClick={() => pick(option)}
                                                                 onMouseEnter={() => setActive(index)}
                                                                 className={cn(
-                                                                    'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm',
+                                                                    'flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm max-md:min-h-11',
                                                                     index === active && 'bg-daiku-yellow-light',
                                                                 )}
                                                             >
@@ -204,7 +264,7 @@ export function TmMaterialPlanner({
                                 <FormItem data-focus-key={qtyId}>
                                     <FormLabel required>Jumlah{picked?.unit?.code ? ` (${picked.unit.code})` : ''}</FormLabel>
                                     <FormControl>
-                                        <Input {...field} inputMode="decimal" placeholder="0" autoComplete="off" />
+                                        <Input {...field} inputMode="decimal" placeholder="0" autoComplete="off" className="max-md:h-11" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -218,7 +278,7 @@ export function TmMaterialPlanner({
                                     <FormLabel required>Sumber</FormLabel>
                                     <Select value={field.value} onValueChange={field.onChange}>
                                         <FormControl>
-                                            <SelectTrigger className="w-full">
+                                            <SelectTrigger className="w-full max-md:h-11">
                                                 <SelectValue />
                                             </SelectTrigger>
                                         </FormControl>
@@ -230,7 +290,7 @@ export function TmMaterialPlanner({
                                 </FormItem>
                             )}
                         />
-                        <Button type="submit" className="mt-[1.375rem]" disabled={form.formState.isSubmitting}>
+                        <Button type="submit" className="mt-[1.375rem] max-md:h-11">
                             <Plus className="size-4" />
                             Tambah
                         </Button>
@@ -243,7 +303,9 @@ export function TmMaterialPlanner({
                 </form>
             </Form>
 
-            {lines.length === 0 ? (
+            {failure && <p className="text-sm text-error-ink">{failure}</p>}
+
+            {lines.length === 0 && incoming.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">Belum ada bahan.</p>
             ) : (
                 <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-lg ring-1 ring-border">
@@ -252,9 +314,21 @@ export function TmMaterialPlanner({
                             // Re-seed the local amount whenever the server's changes.
                             key={`${line.id}-${line.qty_planned}`}
                             line={line}
+                            saving={savingLineIds.has(line.id)}
                             canUpdate={canUpdate && line.editable}
                             canRemove={canRemove && line.editable}
                         />
+                    ))}
+                    {incoming.map((queued) => (
+                        <li key={queued.key} className="flex items-center gap-2 px-3 py-2 text-sm">
+                            <div className="min-w-0 flex-1">
+                                <p className="truncate text-foreground">{queued.name}</p>
+                                <SavingMark source={queued.source} />
+                            </div>
+                            <span className="shrink-0 text-muted-foreground tabular-nums">
+                                {formatQty(parseQty(queued.qty))} {queued.unit}
+                            </span>
+                        </li>
                     ))}
                 </ul>
             )}
@@ -262,9 +336,20 @@ export function TmMaterialPlanner({
     );
 }
 
-function PlannedRow({ line, canUpdate, canRemove }: { line: PlannedLine; canUpdate: boolean; canRemove: boolean }) {
+function SavingMark({ source }: { source: string }) {
+    return (
+        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+            {SOURCE_LABEL[source]} ·
+            <Loader2 className="size-3 animate-spin" />
+            menyimpan…
+        </p>
+    );
+}
+
+function PlannedRow({ line, saving, canUpdate, canRemove }: { line: PlannedLine; saving: boolean; canUpdate: boolean; canRemove: boolean }) {
     const [value, setValue] = useState(String(line.qty_planned).replace('.', ','));
     const [error, setError] = useState<string | null>(null);
+    const [updating, setUpdating] = useState(false);
     const [confirming, setConfirming] = useState(false);
     const [removing, setRemoving] = useState(false);
 
@@ -282,6 +367,8 @@ function PlannedRow({ line, canUpdate, canRemove }: { line: PlannedLine; canUpda
 
         router.put(route('project-materials.update', { project_material: line.id }), { qty_planned: qty }, {
             ...VISIT,
+            onStart: () => setUpdating(true),
+            onFinish: () => setUpdating(false),
             onError: (errors) => setError(Object.values(errors)[0] ?? 'Gagal menyimpan'),
         });
     }
@@ -301,7 +388,7 @@ function PlannedRow({ line, canUpdate, canRemove }: { line: PlannedLine; canUpda
         <li className="flex items-center gap-2 px-3 py-2 text-sm">
             <div className="min-w-0 flex-1">
                 <p className="truncate text-foreground">{line.name}</p>
-                <p className="text-xs text-muted-foreground">{SOURCE_LABEL[line.source]}</p>
+                {saving || updating ? <SavingMark source={line.source} /> : <p className="text-xs text-muted-foreground">{SOURCE_LABEL[line.source]}</p>}
                 {error && <p className="text-xs text-error-ink">{error}</p>}
             </div>
             {canUpdate ? (
@@ -318,7 +405,7 @@ function PlannedRow({ line, canUpdate, canRemove }: { line: PlannedLine; canUpda
                         }}
                         inputMode="decimal"
                         aria-label={`Jumlah ${line.name}`}
-                        className="h-8 w-20 text-right tabular-nums"
+                        className="h-8 w-20 text-right tabular-nums max-md:h-11"
                     />
                     <span className="w-10 text-xs text-muted-foreground">{line.unit}</span>
                 </div>
@@ -327,7 +414,14 @@ function PlannedRow({ line, canUpdate, canRemove }: { line: PlannedLine; canUpda
             )}
             {canRemove && (
                 <>
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label={`Hapus ${line.name}`} onClick={() => setConfirming(true)}>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="max-md:size-11"
+                        aria-label={`Hapus ${line.name}`}
+                        onClick={() => setConfirming(true)}
+                    >
                         <Trash2 className="size-4 text-error-ink" />
                     </Button>
                     <ConfirmDialog

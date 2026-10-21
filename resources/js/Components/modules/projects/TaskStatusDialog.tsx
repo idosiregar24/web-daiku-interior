@@ -23,11 +23,13 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
+import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
 import { MANUAL_TASK_STATUSES, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import type { Task, TaskStatus } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -43,10 +45,17 @@ interface TaskStatusDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     task: Task | null;
+    /**
+     * Sprint 29 L7 — the page props a status change reloads (Detail Proyek:
+     * `RELOAD.tasks`); then the save is partial and quiet (the row's chip is
+     * the feedback). Omitted: full reload with the success pop-up.
+     */
+    reload?: TaskReload;
 }
 
 /** Task immutability (CLAUDE.md golden rule #6) — only status/kendala/note, enforced server-side by TaskPolicy::updateStatus(). */
-export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogProps) {
+export function TaskStatusDialog({ open, onOpenChange, task, reload }: TaskStatusDialogProps) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { status: 'PENDING', kendala: '', note: '' },
@@ -63,7 +72,7 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
     }, [open, task]);
 
     function onSubmit(values: FormValues) {
-        if (!task) return;
+        if (!task || saving) return;
 
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
@@ -72,6 +81,9 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
         };
 
         router.patch(route('tasks.updateStatus', { task: task.id }), values, {
+            ...(reload ? taskVisit(reload, { quiet: true }) : {}),
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
             onError,
             onSuccess: () => onOpenChange(false),
         });
@@ -142,8 +154,9 @@ export function TaskStatusDialog({ open, onOpenChange, task }: TaskStatusDialogP
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Simpan
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
+                                {saving ? 'Menyimpan…' : 'Simpan'}
                             </Button>
                         </DialogFooter>
                     </form>

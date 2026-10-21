@@ -154,29 +154,31 @@ class ProjectController extends Controller
         // Sprint 23 K15 — Kepala Tim (user or typed name) and Pengawas on the overview.
         $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name', 'teamLead:id,name', 'supervisor:id,name']);
 
-        $project->setAttribute('actual_progress', $project->actualProgress());
-
+        // Sprint 29 Sub 01 (K1) — every prop that queries is a closure: a save that
+        // reloads only what it changed (`only`, lib/projectReload.ts) computes
+        // nothing else. The material catalog is optional — loaded once when a
+        // material form first needs it (useProjectCatalog()).
         return Inertia::render('Projects/Show', [
-            'project' => $project,
+            'project' => fn () => $project->setAttribute('actual_progress', $project->actualProgress()),
             // Sprint 24 — the "Eksekusi" tab (phase, Gambar Kerja, TM, Pengawas, production, QC).
-            'execution' => ProjectExecutionService::canView($user, $project)
+            'execution' => fn () => ProjectExecutionService::canView($user, $project)
                 ? $executionService->overview($project, $user, $request->query('week'))
                 : null,
             'canEditProject' => $canEditProject,
             'canChangePm' => $canChangePm,
-            'projectManagers' => $canChangePm
+            'projectManagers' => fn () => $canChangePm
                 ? User::role('PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             // D2 — the CEO or the project's PM may change the Asisten PM in Edit Proyek.
-            'assistantPms' => $canEditProject
+            'assistantPms' => fn () => $canEditProject
                 ? User::role('ASISTEN_PM')->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             // Sprint 23 K15 — Kepala Tim / Pengawas pickers for Edit Proyek.
-            'teamOptions' => $canEditProject ? $projectService->teamOptions() : null,
+            'teamOptions' => fn () => $canEditProject ? $projectService->teamOptions() : null,
             // Once any termin received money the contract value is fixed (ProjectService::update()).
-            'hasTerminPayments' => $canEditProject && $project->hasTerminPayments(),
-            'statusNote' => $projectService->statusNote($project),
-            'milestones' => $canViewMilestones
+            'hasTerminPayments' => fn () => $canEditProject && $project->hasTerminPayments(),
+            'statusNote' => fn () => $projectService->statusNote($project),
+            'milestones' => fn () => $canViewMilestones
                 ? $project->milestones()->with('qaForm:id,milestone_id,status,rejection_count')->get()
                 : [],
             'canViewMilestones' => $canViewMilestones,
@@ -184,7 +186,7 @@ class ProjectController extends Controller
             'canManageTasks' => $canManageTasks,
             // Scoped per ProjectPolicy::taskVisibility() — QA and roles with
             // no task row in PRD §7.1 get none; Field Staff only their own.
-            'tasks' => $taskVisibility === 'none'
+            'tasks' => fn () => $taskVisibility === 'none'
                 ? []
                 : $project->tasks()
                     ->when($taskVisibility === 'own', fn ($query) => $query->where('assignee_id', $user->id))
@@ -196,14 +198,14 @@ class ProjectController extends Controller
             'canViewTasks' => $taskVisibility !== 'none',
             // `is_active` lets the task form offer only active tukang while
             // still showing a deactivated current assignee.
-            'fieldStaff' => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name', 'is_active']) : [],
-            'progressLogs' => $canViewProgressLogs
+            'fieldStaff' => fn () => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name', 'is_active']) : [],
+            'progressLogs' => fn () => $canViewProgressLogs
                 ? $project->progressLogs()->with('logger:id,name')->get()
                 : [],
             'canViewProgressLogs' => $canViewProgressLogs,
             // Sprint 25 — tab "Activity Target": daily target vs actual, numbers only.
-            'activityTarget' => $canViewProgressLogs ? $productionService->activityTarget($project) : null,
-            'qaForms' => $canViewQa
+            'activityTarget' => fn () => $canViewProgressLogs ? $productionService->activityTarget($project) : null,
+            'qaForms' => fn () => $canViewQa
                 ? $project->qaForms()
                     ->with(['milestone:id,name,order,status', 'reviewer:id,name'])
                     ->get(['id', 'project_id', 'milestone_id', 'reviewer_id', 'status', 'rejection_count', 'notes', 'reviewed_at', 'created_at'])
@@ -212,13 +214,13 @@ class ProjectController extends Controller
                 : [],
             'canViewQa' => $canViewQa,
             'canOpenQaForm' => $user->hasAnyRole(['CEO', 'PM', 'QA', 'SUPERADMIN']),
-            'overtimeRequests' => $canViewOvertime
+            'overtimeRequests' => fn () => $canViewOvertime
                 ? $project->overtimeRequests()->with('staff:id,name')->latest('work_date')->latest('id')->get()
                 : [],
             'canViewOvertime' => $canViewOvertime,
             'canOpenOvertimeList' => $user->hasAnyRole(['CEO', 'PM', 'FINANCE', 'SUPERADMIN']),
             'canManageProgressLogs' => $canManageProgressLogs,
-            'termins' => $canViewTermins
+            'termins' => fn () => $canViewTermins
                 // Sprint 28 K8 — "Pelunasan" / "Termin 2 dari 3 · 30%" (Termin::paymentLabel()), same words as Finance & the invoice.
                 ? $project->termins()->withRabPosition()
                     ->with(['milestone:id,name', 'bankAccount:id,label', 'invoice:id,number,status,type,amount,reject_reason'])
@@ -231,7 +233,7 @@ class ProjectController extends Controller
             'canMarkTerminPaid' => $canMarkTerminPaid,
             // Sprint 17 Sub 07 — "Tandai Klien Sudah Bayar" on termin & document invoice rows.
             'canSubmitInvoiceProof' => $user->hasAnyRole(['MARKETING', 'FINANCE', 'SUPERADMIN']),
-            'documents' => $canViewDocuments ? [
+            'documents' => fn () => $canViewDocuments ? [
                 'quotation' => $project->quotation()->first(['id', 'type', 'version', 'total_amount', 'client_approved_at', 'status']),
                 // Sprint 12 #29 — RAB Tambahan of this project, any status.
                 'addenda' => $project->addenda()->get(['id', 'type', 'version', 'status', 'total_amount', 'request_note', 'client_approved_at', 'created_at']),
@@ -240,15 +242,15 @@ class ProjectController extends Controller
                     ->orderBy('issued_at')
                     ->get(['id', 'number', 'type', 'amount', 'due_date', 'status', 'issued_at', 'paid_date', 'reject_reason']),
             ] : null,
-            'budget' => $canViewBudget ? $budgetService->overview($project) : null,
+            'budget' => fn () => $canViewBudget ? $budgetService->overview($project) : null,
             'canManageBudget' => $canViewBudget && $user->can('manageBudget', $project) && ! $project->isClosed(),
             'canRequestAddendum' => $project->quotation_id !== null && ! $project->isClosed() && $user->can('requestAddendum', $project),
             // Sprint 12 #28 — the CEO decides held realisations from the tab too.
             'canDecideOverrun' => $canViewBudget && $user->hasAnyRole(['CEO', 'SUPERADMIN']),
-            'budgetVendors' => $canViewBudget && $user->can('manageBudget', $project) ? Vendor::options() : [],
-            'allocationBreakdown' => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
-            'supplierDebts' => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
-            'projectMaterials' => $canViewMaterials
+            'budgetVendors' => fn () => $canViewBudget && $user->can('manageBudget', $project) ? Vendor::options() : [],
+            'allocationBreakdown' => fn () => $canViewFinanceSummary ? $allocationService->breakdownFor($project) : [],
+            'supplierDebts' => fn () => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
+            'projectMaterials' => fn () => $canViewMaterials
                 ? $project->projectMaterials()
                     ->with(['material:id,name,unit_id,stock,cost_price', 'unit:id,code,name', 'vendor:id,name', 'requester:id,name'])
                     ->orderBy('source')
@@ -270,13 +272,13 @@ class ProjectController extends Controller
                 'pmDecide' => $user->hasRole('SUPERADMIN') || $project->isManagedBy($user),
                 'review' => $isLogistics,
             ],
-            'units' => $isRunning && $canViewMaterials ? Unit::options() : [],
-            'materialOptions' => $canPlanMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id', 'stock', 'cost_price']) : [],
+            'units' => fn () => $isRunning && $canViewMaterials ? Unit::options() : [],
+            'materialOptions' => Inertia::optional(fn () => $canPlanMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id', 'stock', 'cost_price']) : []),
             // Return-to-stock of a CUSTOM line maps it onto a catalog item (Logistics only).
-            'catalogOptions' => $isLogistics && $canViewMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id']) : [],
-            'vendors' => $canManageMaterials || $canPlanMaterials ? Vendor::options() : [],
+            'catalogOptions' => Inertia::optional(fn () => $isLogistics && $canViewMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id']) : []),
+            'vendors' => fn () => $canManageMaterials || $canPlanMaterials ? Vendor::options() : [],
             // Registering a custom leftover as a catalog item on return (Logistics, §5.5).
-            'materialCategories' => $isLogistics && $canViewMaterials ? MaterialCategory::options() : [],
+            'materialCategories' => fn () => $isLogistics && $canViewMaterials ? MaterialCategory::options() : [],
         ]);
     }
 

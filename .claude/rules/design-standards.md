@@ -79,6 +79,25 @@ Komponen gabungan modul-spesifik (`StatusChip`, `DataTable` + TanStack,
 | Konfirmasi "yakin?" | `ConfirmDialog` (pop-up khas Daiku, gaya sama dengan `SuccessDialog`: ikon dalam lingkaran, judul, deskripsi, Batal + aksi lebar penuh; `tone="danger"` untuk hapus) — jangan `confirm()` bawaan browser di kode baru |
 | Pesan sukses / loading | Otomatis di `AppLayout`: `->with('success')` → `SuccessDialog` di tengah (tutup sendiri ±3 dtk), error tetap toast; `GlobalLoadingOverlay` "Menyimpan…/Memuat…" untuk kunjungan > 300 ms (bukan reload latar / filter `preserveState`) — jangan buat toast sukses sendiri setelah aksi server |
 
+**Simpan cepat (Sprint 29 Sub 01).** Simpan di halaman berat (Detail Proyek,
+daftar Logistik) memuat ulang **sebagian** — hanya prop yang berubah
+(`projectVisit(RELOAD.x)` di `lib/projectReload.ts`, lihat
+`frontend-standards.md` §7). Kunjungan sebagian tidak memunculkan overlay
+"Menyimpan…", jadi **tombolnya sendiri** terkunci + spinner (`Loader2`)
+selama menyimpan (cegah klik ganda). Pop-up sukses mengikuti jenis aksinya:
+
+| Jenis aksi | Umpan balik |
+|---|---|
+| Isian berulang / inline (tambah bahan, rencana bahan TM, daily target, centang tukang, geser kartu, ubah jumlah, temuan, catatan) | `quiet` (`quietSuccess`) — tanpa pop-up; baris yang berubah atau tanda kecil "Tersimpan ✓" / "n bahan tersimpan ✓" |
+| Keputusan / perpindahan alur (Setujui, Tolak, Ajukan, TM Selesai, Start Produksi, Berangkat ke Lokasi, Tandai Selesai timeline, Verifikasi) | `SuccessDialog` (default), tetap reload sebagian |
+
+Form isian berulang **tidak tertutup** setelah simpan: "Simpan & tambah
+lagi" / "Simpan & buat lagi" (kolom dikosongkan, fokus kembali ke kolom
+pertama, Enter = simpan); banyak baris sekaligus → satu "Simpan semua".
+Aksi kecil yang aman (centang Selesai, geser kartu, baris bahan baru)
+**tampil langsung** dengan tanda "menyimpan…" dan kembali + pesan bila
+server menolak. Target: simpan di Detail Proyek < 300 ms.
+
 **Kolom wajib (Sprint 16).** Bintang merah (`text-error-ink`) hanya untuk
 kolom yang aturan Form Request-nya `required`; `required_if`/`required_with`
 → bintang **dinamis** (`required={status === 'LOST'}`); halaman Edit

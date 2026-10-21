@@ -206,6 +206,8 @@ class ActionInboxService
             $groups[] = $this->pendingQa($user);
             $groups[] = $this->meetingsForSupervisor($user);
             $groups[] = $this->executionForSupervisor($user);
+            $groups[] = $this->weeklyReportsDue($user);
+            $groups[] = $this->targetsToCheck($user);
         }
 
         if ($user->hasRole('HR')) {
@@ -826,6 +828,65 @@ class ActionInboxService
                 'subtitle' => $project->phase === ProjectPhase::Persiapan ? 'Syarat produksi & DP pengawas' : 'Laporan mingguan ditolak PM',
                 'at' => $project->phase_changed_at,
                 'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 29 Sub 02 — "Pengecekan mingguan belum diisi": from the day
+     * before the report day (Thursday) until the week ends, the Pengawas's
+     * producing projects without any report this week. A rejected report is
+     * executionForSupervisor()'s, so a project is never in both.
+     */
+    private function weeklyReportsDue(User $user): ?array
+    {
+        if (! WeeklyReportService::isDue(daysBefore: 1)) {
+            return null;
+        }
+
+        $monday = DailyFormSchedule::now()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $weeks = app(WeeklyReportService::class);
+
+        return $this->group(
+            'weekly-report-due', 'Pengecekan mingguan belum diisi', 'Isi laporan minggu ini — paling lambat Jumat.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->where('supervisor_id', $user->id)
+                ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value])
+                ->whereDoesntHave('weeklyReports', fn (Builder $report) => $report->whereDate('week_start', $monday))
+                ->oldest('production_started_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => 'Minggu ke-'.$weeks->weekOf($project)['week_number'],
+                'at' => null,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']).'#laporan-mingguan',
+            ],
+        );
+    }
+
+    /**
+     * Sprint 29 Sub 04 (F5, replaces Sprint 28 K2) — "Daily target menunggu
+     * dicek": the Tukang's "Selesai" waits for the project's Pengawas.
+     */
+    private function targetsToCheck(User $user): ?array
+    {
+        return $this->group(
+            'targets-to-check', 'Daily target menunggu dicek', 'Setujui atau kembalikan target yang ditandai selesai oleh tukang.', 'task', 'tasks.index',
+            route('tasks.index', ['status' => TaskStatus::Pengecekan->value]),
+            Project::query()
+                ->active()
+                ->where('supervisor_id', $user->id)
+                ->whereHas('tasks', fn (Builder $task) => $task->where('status', TaskStatus::Pengecekan->value))
+                ->withCount(['tasks as awaiting_check_count' => fn (Builder $task) => $task->where('status', TaskStatus::Pengecekan->value)])
+                ->orderBy('name'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => "{$project->awaiting_check_count} target menunggu dicek",
+                'at' => null,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'task']),
             ],
         );
     }

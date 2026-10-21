@@ -324,7 +324,8 @@ test('moving an OVER task on through a status update drops the remembered status
 
     $this->actingAs($staff)->patch(route('tasks.updateStatus', $task), ['status' => 'DONE'])->assertSessionHasNoErrors();
 
-    expect($task->fresh()->status)->toBe(TaskStatus::Done)
+    // Sprint 29 Sub 04 — the Tukang's "Selesai" waits for the Pengawas.
+    expect($task->fresh()->status)->toBe(TaskStatus::Pengecekan)
         ->and($task->fresh()->pre_overdue_status)->toBeNull();
 });
 

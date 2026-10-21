@@ -1,7 +1,7 @@
 # Sprint 29 · 04 — Daily Target: Approval & Centang Pengawas
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Pengecekan daily target = approval Pengawas", "QC juga bisa isi status task" · Keputusan F1–F6 · Menggantikan Sprint 28 K2
-> Status: **belum dikerjakan** · Bergantung: Sub 01
+> Status: **kode selesai 2026-10-21** tanpa bagian Admin Proyek (menyusul Sub 07: `TaskPolicy::review()` + `tasks.index`); tersisa cek HP 390 px di browser · Bergantung: Sub 01
 
 ## Keputusan user
 > "Karena tukang dan kepala tukang agak gaptek, buat saja Pengawas bisa
@@ -37,11 +37,11 @@
    `?status=PENGECEKAN`.
 
 ## Checklist
-- [ ] **[Backend]** `TaskService`: `approve()`, `returnToStaff()`, `checkOffBySupervisor()` (catat aktivitas + audit); route + `TaskPolicy` (Pengawas proyek, PM, Admin Proyek); tukang tidak bisa langsung `DONE` di proyek fase baru
-- [ ] **[Backend]** `tasks.storeMany` (beberapa tukang × hari)
-- [ ] **[Backend]** Penalti: centang Pengawas dihitung laporan (`DailyPenaltyJob` / `awaitingDailyForm`)
-- [ ] **[Backend]** Antrean + `waitingOn`; `tasks.index` untuk QA & Admin Proyek
-- [ ] **[UI]** Kartu tukang (label baru), papan Per Hari / Per Tukang (centang, Setujui semua, Kembalikan), `TaskFormDialog` beberapa hari/tukang
+- [x] **[Backend]** `TaskService`: `approve()`, `returnToStaff()`, `checkOffBySupervisor()` (catat aktivitas + audit); route + `TaskPolicy` (Pengawas proyek, PM, Admin Proyek); tukang tidak bisa langsung `DONE` di proyek fase baru
+- [x] **[Backend]** `tasks.storeMany` (beberapa tukang × hari)
+- [x] **[Backend]** Penalti: centang Pengawas dihitung laporan (`DailyPenaltyJob` / `awaitingDailyForm`)
+- [x] **[Backend]** Antrean + `waitingOn`; `tasks.index` untuk QA & Admin Proyek
+- [x] **[UI]** Kartu tukang (label baru), papan Per Hari / Per Tukang (centang, Setujui semua, Kembalikan), `TaskFormDialog` beberapa hari/tukang
 - [ ] **[UX]** Optimistic + `projectVisit(['tasks','execution','activityTarget'])`; HP 390 px untuk Pengawas (kotak ≥ 48 px); ConfirmDialog untuk "Setujui semua"
-- [ ] **[Test]** Pest: tukang → PENGECEKAN; Setujui/Kembalikan/centang (RBAC: Pengawas proyek ya, QA lain 403, tukang 403); penalti tidak jatuh bila Pengawas mencentang; antrean muncul/hilang; storeMany
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Test]** Pest: tukang → PENGECEKAN; Setujui/Kembalikan/centang (RBAC: Pengawas proyek ya, QA lain 403, tukang 403); penalti tidak jatuh bila Pengawas mencentang; antrean muncul/hilang; storeMany
+- [x] **[Build]** `npm run build`, Pint

@@ -1,7 +1,7 @@
 # Sprint 29 · 02 — Pengecekan Mingguan Boleh Sebelum Jumat
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Form pengecekan mingguan boleh diisi sebelum Jumat" · Keputusan C2
-> Status: **belum dikerjakan** · Bergantung: Sub 01 (pola simpan)
+> Status: **kode selesai 2026-10-20** (tersisa cek HP 390 px di browser) · Bergantung: Sub 01 (pola simpan)
 
 ## Kondisi sekarang
 Server **sudah** menerima laporan hari apa pun selama PRODUKSI/PEMASANGAN
@@ -22,8 +22,8 @@ Server **sudah** menerima laporan hari apa pun selama PRODUKSI/PEMASANGAN
 - Isi form (% per item) berubah di Sub 09 — sub ini hanya waktu & tampilan.
 
 ## Checklist
-- [ ] **[UI]** `WeeklyReportsCard`, `QcPanelCard`, `projectWaiting.ts`: teks & aturan tampil
-- [ ] **[Backend]** `ActionInboxService`: antrean pengecekan belum diisi (Kamis–Jumat), scope Pengawas proyek
+- [x] **[UI]** `WeeklyReportsCard`, `QcPanelCard`, `projectWaiting.ts`: teks & aturan tampil
+- [x] **[Backend]** `ActionInboxService`: antrean pengecekan belum diisi (Kamis–Jumat), scope Pengawas proyek
 - [ ] **[UX]** Form pengecekan bisa dibuka kapan saja dari panel QC; simpan pakai `projectVisit` (Sub 01); HP 390 px
-- [ ] **[Test]** Pest: submit hari Selasa diterima; antrean muncul Kamis, hilang setelah dikirim; tidak dobel
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Test]** Pest: submit hari Selasa diterima; antrean muncul Kamis, hilang setelah dikirim; tidak dobel
+- [x] **[Build]** `npm run build`, Pint

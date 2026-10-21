@@ -3,9 +3,10 @@ import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { ProjectExecution } from '@/types';
 import { router } from '@inertiajs/react';
-import { HardHat } from 'lucide-react';
+import { HardHat, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
 
@@ -26,8 +27,9 @@ export function SupervisorFeeCard({ projectId, execution }: { projectId: number;
     }
 
     function post(routeName: 'projects.supervisor-payments.settlement') {
+        // "Ajukan Pelunasan" — a request to the PM: keeps the pop-up, reloads the Eksekusi side only.
         router.post(route(routeName, { project: projectId }), {}, {
-            preserveScroll: true,
+            ...projectVisit(RELOAD.supervision),
             onStart: () => setBusy(true),
             onFinish: () => setBusy(false),
         });
@@ -81,6 +83,7 @@ export function SupervisorFeeCard({ projectId, execution }: { projectId: number;
 
             {can.requestSettlement && fee && fee.remaining > 0 && (
                 <Button variant="outline" className="mt-4" disabled={busy} onClick={() => post('projects.supervisor-payments.settlement')}>
+                    {busy && <Loader2 className="size-4 animate-spin" />}
                     Ajukan Pelunasan · {formatRupiah(fee.remaining)}
                 </Button>
             )}

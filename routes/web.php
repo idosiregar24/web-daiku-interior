@@ -518,7 +518,8 @@ Route::put('qa-forms/{qa_form}', [QaFormController::class, 'update'])
 // Tasks — PRD §7.1 "Task – Create/Edit" (PM CRUD, CEO R-only) / "Task –
 // Update Status" (PM U, Field Staff U† own task only — enforced by
 // TaskPolicy, see AppServiceProvider's SUPERADMIN Gate::before bypass).
-Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('tasks')->name('tasks.')->group(function () {
+// Sprint 29 Sub 04 (F6) — + QA: the targets of the projects it supervises (TaskController::index()).
+Route::middleware(['auth', 'role:CEO|PM|QA|FIELD_STAFF'])->prefix('tasks')->name('tasks.')->group(function () {
     Route::get('/', [TaskController::class, 'index'])->name('index');
 });
 
@@ -526,6 +527,18 @@ Route::middleware(['auth', 'role:CEO|PM|FIELD_STAFF'])->prefix('tasks')->name('t
 Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
     ->middleware(['auth', 'role:PM|ASISTEN_PM|QA'])
     ->name('tasks.store');
+// Sprint 29 Sub 04 (K5) — several tukang × days in one request (same roles & policy as store).
+Route::post('projects/{project}/tasks/batch', [TaskController::class, 'storeMany'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA'])
+    ->name('tasks.storeMany');
+
+// Sprint 29 Sub 04 (F2–F4) — the Pengawas / PM checks the Tukang's targets (TaskPolicy::review()).
+Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA', 'throttle:60,1'])->group(function () {
+    Route::post('tasks/{task}/approve', [TaskController::class, 'approve'])->name('tasks.approve');
+    Route::post('tasks/{task}/return', [TaskController::class, 'returnToStaff'])->name('tasks.return');
+    Route::post('tasks/{task}/check', [TaskController::class, 'checkOff'])->name('tasks.checkOff');
+    Route::post('projects/{project}/tasks/approve', [TaskController::class, 'approveMany'])->name('tasks.approveMany');
+});
 
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
     ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|FIELD_STAFF', 'throttle:60,1'])
@@ -846,6 +859,10 @@ Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(functi
 Route::post('projects/{project}/materials', [ProjectMaterialController::class, 'store'])
     ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
     ->name('projects.materials.store');
+// Sprint 29 Sub 01 — several lines in one "Simpan semua" (same roles & policy as store).
+Route::post('projects/{project}/materials/batch', [ProjectMaterialController::class, 'storeMany'])
+    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
+    ->name('projects.materials.storeMany');
 // Sprint 24 — + the project's Pengawas revises their plan before production (ProjectPolicy::reviseMaterialPlan()).
 Route::put('project-materials/{project_material}', [ProjectMaterialController::class, 'update'])
     ->middleware(['auth', 'role:PM|LOGISTICS|QA'])

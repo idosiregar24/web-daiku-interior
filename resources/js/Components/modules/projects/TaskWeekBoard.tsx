@@ -1,14 +1,18 @@
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
+import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
+import { Textarea } from '@/Components/ui/textarea';
+import { useConfirm } from '@/hooks/useConfirm';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
-import { quietSuccess } from '@/hooks/useFlashToasts';
+import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { isWorkDay } from '@/lib/workDays';
-import type { Milestone, Task } from '@/types';
+import type { Milestone, Task, TaskStatus } from '@/types';
 import { router } from '@inertiajs/react';
 import { addDays, format, startOfWeek } from 'date-fns';
-import { AlertCircle, ChevronLeft, ChevronRight, GripVertical, Lock, MoveRight, User } from 'lucide-react';
+import { AlertCircle, Check, CheckCheck, ChevronLeft, ChevronRight, GripVertical, Loader2, Lock, MoveRight, Undo2, User } from 'lucide-react';
 import { type DragEvent, useMemo, useState } from 'react';
 
 const DAY_HEAD = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -24,6 +28,10 @@ interface TaskWeekBoardProps {
     milestones: Milestone[];
     /** PM / Asisten PM / the project's Pengawas on an open project — may move targets. */
     canMove: boolean;
+    /** Sprint 29 L5 — page props a move reloads (Detail Proyek: `RELOAD.tasks`); omitted = full reload. */
+    reload?: TaskReload;
+    /** Sprint 29 Sub 04 — the project's Pengawas / PM: Setujui, Kembalikan, Centang selesai (TaskPolicy::review()). */
+    canReview?: boolean;
 }
 
 /**
@@ -33,8 +41,11 @@ interface TaskWeekBoardProps {
  * unfinished target, only inside its timeline and only onto a working day
  * (Sprint 28 K13 — no Minggu; days outside are greyed while moving; the
  * server checks again), the Tukang is told.
+ * Sprint 29 L5 — the card moves at once (optimistic) and the save reloads
+ * only `reload`; a refused move puts it back on its old day with the
+ * server's reason under the board's hint (and as a toast).
  */
-export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps) {
+export function TaskWeekBoard({ tasks, milestones, canMove, reload, canReview = false }: TaskWeekBoardProps) {
     const today = ymd(new Date());
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [milestoneFilter, setMilestoneFilter] = useState(ALL);
@@ -44,6 +55,12 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
     const [overDay, setOverDay] = useState<string | null>(null);
     // Shown in their new day until the server answers.
     const [pending, setPending] = useState<Record<number, string>>({});
+    // The last refused move — its card is back on its old day.
+    const [refused, setRefused] = useState<string | null>(null);
+    // Sprint 29 Sub 04 — reviewed cards show their new status until the server answers (K3).
+    const [reviewing, setReviewing] = useState<Record<number, TaskStatus>>({});
+    const [returning, setReturning] = useState<Task | null>(null);
+    const { ask, dialog } = useConfirm();
 
     const days = useMemo(() => Array.from({ length: 7 }, (_, index) => ymd(addDays(weekStart, index))), [weekStart]);
 
@@ -64,33 +81,42 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
         return days.map((day) => ({
             day,
             tasks: visible
+                .map((task) => (task.id in reviewing ? { ...task, status: reviewing[task.id] } : task))
                 .filter((task) => (pending[task.id] ?? task.due_date?.slice(0, 10)) === day)
                 .sort((a, b) => (a.assignee?.name ?? '').localeCompare(b.assignee?.name ?? '') || a.title.localeCompare(b.title)),
         }));
-    }, [tasks, days, milestoneFilter, assigneeFilter, pending]);
+    }, [tasks, days, milestoneFilter, assigneeFilter, pending, reviewing]);
 
     const movable = (task: Task) => canMove && task.status !== 'DONE' && !(task.id in pending);
 
-    /** A working day inside the moving card's timeline (no timeline → any working day; the server decides). */
+    /** Sprint 29 Sub 05 (F7) — any working day; the server checks again. */
     function accepts(day: string): boolean {
-        if (!moving || !isWorkDay(day)) return false;
-        const from = moving.milestone?.start_date?.slice(0, 10);
-        const to = moving.milestone?.target_date?.slice(0, 10);
+        return moving !== null && isWorkDay(day);
+    }
 
-        return (!from || day >= from) && (!to || day <= to);
+    /** The timeline a moved card would join on `day` when it isn't its own (Q29 — same rule as TaskService::timelineOn()). */
+    function otherTimeline(day: string): Milestone | null {
+        if (!moving) return null;
+        const inside = (milestone: Partial<Pick<Milestone, 'start_date' | 'target_date'>> | null | undefined) =>
+            Boolean(milestone?.start_date && milestone?.target_date && day >= milestone.start_date.slice(0, 10) && day <= milestone.target_date.slice(0, 10));
+
+        if (inside(moving.milestone)) return null;
+
+        return milestones.filter((milestone) => milestone.status !== 'COMPLETED').find((milestone) => inside(milestone)) ?? null;
     }
 
     function move(task: Task, day: string) {
         setMoving(null);
         setOverDay(null);
 
-        if (task.due_date?.slice(0, 10) === day || !accepts(day)) return;
+        if (task.due_date?.slice(0, 10) === day || !accepts(day) || task.id in pending) return;
 
+        setRefused(null);
         setPending((current) => ({ ...current, [task.id]: day }));
         router.patch(route('tasks.reschedule', { task: task.id }), { due_date: day, note: null }, {
-            preserveScroll: true,
+            ...taskVisit(reload, { quiet: true }),
             preserveState: true,
-            ...quietSuccess,
+            onError: (errors) => setRefused(`"${task.title}" kembali ke ${formatDate(task.due_date)}: ${Object.values(errors)[0] ?? 'gagal digeser.'}`),
             onFinish: () =>
                 setPending((current) => {
                     const { [task.id]: _done, ...rest } = current;
@@ -98,6 +124,37 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                     return rest;
                 }),
         });
+    }
+
+    /** Sprint 29 Sub 04 — Setujui / Centang (one card) or Setujui semua (a day); shown as Selesai at once. */
+    function review(url: string, ids: number[], data: { task_ids?: number[] } = {}) {
+        setRefused(null);
+        setReviewing((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, 'DONE' as TaskStatus])) }));
+        router.post(url, data, {
+            ...taskVisit(reload, { quiet: true }),
+            preserveState: true,
+            onError: (errors) => setRefused(Object.values(errors)[0] ?? 'Gagal disimpan.'),
+            onFinish: () =>
+                setReviewing((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(Number(id))))),
+        });
+    }
+
+    async function approveDay(dayTasks: Task[], day: string) {
+        const waiting = dayTasks.filter((task) => task.status === 'PENGECEKAN');
+
+        if (
+            waiting.length === 0 ||
+            !(await ask({
+                title: `Setujui ${waiting.length} target?`,
+                description: `Semua target "Menunggu dicek" ${DAY_HEAD.format(parse(day))}${assigneeFilter === ALL ? '' : ` milik ${waiting[0].assignee?.name ?? 'tukang ini'}`} ditandai Selesai.`,
+                confirmLabel: 'Ya, setujui semua',
+                tone: 'default',
+            }))
+        ) {
+            return;
+        }
+
+        review(route('tasks.approveMany', { project: waiting[0].project_id }), waiting.map((task) => task.id), { task_ids: waiting.map((task) => task.id) });
     }
 
     function onDrop(event: DragEvent, day: string) {
@@ -155,8 +212,14 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
             {canMove && (
                 <p className="mb-3 text-xs text-muted-foreground">
                     {moving
-                        ? `Memindahkan "${moving.title}" — pilih hari di dalam timeline${moving.milestone ? ` ${moving.milestone.name}` : ''}.`
-                        : 'Seret kartu ke hari lain untuk menggeser target (di HP: ketuk kartu, lalu "Pindah ke sini"). Hanya hari kerja di dalam rentang timeline-nya.'}
+                        ? `Memindahkan "${moving.title}" — pilih hari kerja mana saja; hari di timeline lain memindah target ke timeline itu.`
+                        : 'Seret kartu ke hari lain untuk menggeser target (di HP: ketuk kartu, lalu "Pindah ke sini"). Semua hari kerja (Senin–Sabtu).'}
+                </p>
+            )}
+            {refused && (
+                <p role="alert" className="mb-3 flex items-start gap-1.5 text-xs font-medium text-error-ink">
+                    <AlertCircle className="mt-px size-3.5 shrink-0" aria-hidden />
+                    {refused}
                 </p>
             )}
 
@@ -193,6 +256,13 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                                 <span className="text-xs font-medium text-daiku-muted tabular-nums">{dayTasks.length}</span>
                             </header>
 
+                            {canReview && dayTasks.filter((task) => task.status === 'PENGECEKAN').length > 1 && (
+                                <Button size="sm" variant="outline" className="mb-2 h-auto min-h-9 whitespace-normal" onClick={() => approveDay(dayTasks, day)}>
+                                    <CheckCheck className="size-4" />
+                                    Setujui semua ({dayTasks.filter((task) => task.status === 'PENGECEKAN').length})
+                                </Button>
+                            )}
+
                             {allowed && (
                                 <button
                                     type="button"
@@ -203,7 +273,10 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                                     Pindah ke sini
                                 </button>
                             )}
-                            {blocked && <p className="mb-2 px-1 text-center text-xs text-daiku-muted">{isWorkDay(day) ? 'Di luar timeline' : 'Bukan hari kerja'}</p>}
+                            {allowed && otherTimeline(day) && (
+                                <p className="mb-2 px-1 text-center text-[11px] text-info-ink">→ timeline {otherTimeline(day)?.name}</p>
+                            )}
+                            {blocked && <p className="mb-2 px-1 text-center text-xs text-daiku-muted">Bukan hari kerja</p>}
 
                             <div className="flex flex-col gap-2">
                                 {dayTasks.length === 0 && !allowed && <p className="px-1 py-4 text-center text-xs text-daiku-muted">Kosong</p>}
@@ -214,8 +287,19 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                                         today={today}
                                         movable={movable(task)}
                                         selected={moving?.id === task.id}
-                                        saving={task.id in pending}
+                                        saving={task.id in pending || task.id in reviewing}
                                         showTimeline={milestoneFilter === ALL}
+                                        actions={
+                                            canReview ? (
+                                                <ReviewActions
+                                                    task={task}
+                                                    busy={task.id in reviewing}
+                                                    onApprove={() => review(route('tasks.approve', { task: task.id }), [task.id])}
+                                                    onCheck={() => review(route('tasks.checkOff', { task: task.id }), [task.id])}
+                                                    onReturn={() => setReturning(task)}
+                                                />
+                                            ) : null
+                                        }
                                         onPick={() => setMoving((current) => (current?.id === task.id ? null : task))}
                                         onDragStart={(event) => {
                                             event.dataTransfer.effectAllowed = 'move';
@@ -233,7 +317,104 @@ export function TaskWeekBoard({ tasks, milestones, canMove }: TaskWeekBoardProps
                     );
                 })}
             </div>
+
+            <ReturnDialog task={returning} reload={reload} onClose={() => setReturning(null)} />
+            {dialog}
         </div>
+    );
+}
+
+/** Sprint 29 Sub 04 (F2/F3) — a card's check buttons: Setujui / Kembalikan a reported target, or Centang one the Tukang didn't touch. */
+function ReviewActions({ task, busy, onApprove, onCheck, onReturn }: { task: Task; busy: boolean; onApprove: () => void; onCheck: () => void; onReturn: () => void }) {
+    if (task.status === 'DONE') return null;
+
+    // The card itself picks a target to move — the buttons must not.
+    const stop = (handler: () => void) => (event: React.MouseEvent) => {
+        event.stopPropagation();
+        handler();
+    };
+
+    if (task.status === 'PENGECEKAN') {
+        return (
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+                <Button size="sm" className="h-9 max-md:h-11" disabled={busy} onClick={stop(onApprove)}>
+                    {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                    Setujui
+                </Button>
+                <Button size="sm" variant="outline" className="h-9 max-md:h-11" disabled={busy} onClick={stop(onReturn)}>
+                    <Undo2 className="size-4" />
+                    Kembalikan
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <Button size="sm" variant="outline" className="mt-2 h-9 w-full max-md:h-11" disabled={busy} onClick={stop(onCheck)} title="Untuk tukang yang tidak memakai HP — dicatat sebagai laporan hari ini">
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            Centang selesai
+        </Button>
+    );
+}
+
+/** Sprint 29 Sub 04 (F2) — "Kembalikan": the reason goes to the Tukang (ReturnTaskRequest). */
+function ReturnDialog({ task, reload, onClose }: { task: Task | null; reload?: TaskReload; onClose: () => void }) {
+    const [note, setNote] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+
+    function submit() {
+        if (!task) return;
+        if (note.trim().length < 3) {
+            setError('Tulis alasan target dikembalikan (minimal 3 karakter).');
+            return;
+        }
+
+        router.post(route('tasks.return', { task: task.id }), { note: note.trim() }, {
+            ...taskVisit(reload, { quiet: true }),
+            preserveState: true,
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
+            onError: (errors) => setError(errors.note ?? Object.values(errors)[0] ?? 'Gagal disimpan.'),
+            onSuccess: () => {
+                setNote('');
+                setError(null);
+                onClose();
+            },
+        });
+    }
+
+    return (
+        <Dialog open={task !== null} onOpenChange={(open) => !open && !saving && onClose()}>
+            <ResponsiveDialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Kembalikan target?</DialogTitle>
+                    <DialogDescription>
+                        "{task?.title}" kembali ke {task?.assignee?.name ?? 'tukang'} (Dikerjakan). Alasannya dikirim ke tukang.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-1.5">
+                    <Textarea
+                        rows={3}
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder="Contoh: sambungan HPL belum rapi, perbaiki sisi kiri."
+                        aria-label="Alasan dikembalikan"
+                        autoFocus
+                    />
+                    {error && <p className="text-xs font-medium text-error-ink">{error}</p>}
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" disabled={saving} onClick={onClose}>
+                        Batal
+                    </Button>
+                    <Button disabled={saving} onClick={submit}>
+                        {saving && <Loader2 className="size-4 animate-spin" />}
+                        Kembalikan
+                    </Button>
+                </DialogFooter>
+            </ResponsiveDialogContent>
+        </Dialog>
     );
 }
 
@@ -244,6 +425,7 @@ function TargetCard({
     selected,
     saving,
     showTimeline,
+    actions,
     onPick,
     onDragStart,
     onDragEnd,
@@ -254,6 +436,7 @@ function TargetCard({
     selected: boolean;
     saving: boolean;
     showTimeline: boolean;
+    actions?: React.ReactNode;
     onPick: () => void;
     onDragStart: (event: DragEvent) => void;
     onDragEnd: () => void;
@@ -299,7 +482,7 @@ function TargetCard({
                     <User className="size-3 shrink-0" aria-hidden />
                     <span className="truncate">{task.assignee?.name ?? 'Belum ditugaskan'}</span>
                 </span>
-                <StatusChip domain="task" status={task.status} waitingOn={null} className="text-[11px]" />
+                <StatusChip domain="task" status={task.status} waitingOn={task.status === 'PENGECEKAN' ? undefined : null} className="text-[11px]" />
                 {late && <span className="font-medium text-error-ink">Terlambat</span>}
             </div>
             {task.kendala && (
@@ -308,6 +491,7 @@ function TargetCard({
                     <span className="line-clamp-2">Kendala: {task.kendala}</span>
                 </p>
             )}
+            {actions}
         </div>
     );
 }

@@ -6,12 +6,19 @@ import { MANUAL_TASK_STATUSES, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
+import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { FieldTask } from './TaskCard';
+import type { SaveTaskStatus, TaskStatusPayload } from './taskSave';
 
-const STATUS_BUTTONS = MANUAL_TASK_STATUSES.map((value) => ({ value, label: TASK_STATUS_LABEL[value] }));
+// Sprint 29 Sub 04 (F1) — the Tukang's "Selesai" is sent to the Pengawas to check
+// (TaskService turns it into PENGECEKAN), so "Menunggu dicek" isn't a button of its own.
+const STATUS_BUTTONS = MANUAL_TASK_STATUSES.filter((value) => value !== 'PENGECEKAN').map((value) => ({
+    value,
+    label: value === 'DONE' ? 'Selesai · dicek Pengawas' : TASK_STATUS_LABEL[value],
+}));
 
 const schema = z.object({
     status: z.enum(['PENDING', 'ONPROGRESS', 'PENGECEKAN', 'DONE'], { message: 'Pilih status tugas.' }),
@@ -28,16 +35,22 @@ type FormValues = z.infer<typeof schema>;
  * AND updates the task, one transaction); otherwise it only updates the
  * status. Only status/kendala/catatan ever leave the phone — title,
  * description and due date aren't sent at all (task immutability, PRD §4.5).
+ * Sprint 29 L3 — `save` (the page's useTaskStatusSave) shows the new status
+ * on the card at once and reloads only the page's task props; Simpan stays
+ * locked with a spinner until the server answers.
  */
 export function TaskActionSheet({
     task,
     canSubmitDailyForm,
     onOpenChange,
+    save,
 }: {
     task: FieldTask | null;
     /** Working day, before the cutoff (TodayController / TaskController). */
     canSubmitDailyForm: boolean;
     onOpenChange: (open: boolean) => void;
+    /** Optimistic save from the page; without it the sheet saves with a full reload, as before. */
+    save?: SaveTaskStatus;
 }) {
     const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({
@@ -59,25 +72,33 @@ export function TaskActionSheet({
     const sendsDailyForm = Boolean(task && canSubmitDailyForm && task.has_form_today === false);
 
     function onSubmit(values: FormValues) {
-        if (!task) return;
+        if (!task || saving) return;
 
-        const options = {
+        const payload: TaskStatusPayload = { status: values.status, kendala: values.kendala || null, note: values.note || null };
+        const onError = (errors: Record<string, string>) => {
+            const first = Object.values(errors)[0];
+            form.setError('root', { message: first ?? 'Gagal menyimpan, coba lagi.' });
+        };
+
+        // Sprint 24 D7 — one endpoint: the Tukang's own update records today's activity on the server.
+        if (save) {
+            const sent = save(task, payload, {
+                onSuccess: () => onOpenChange(false),
+                onError,
+                onFinish: () => setSaving(false),
+            });
+            setSaving(sent);
+
+            return;
+        }
+
+        router.patch(route('tasks.updateStatus', { task: task.id }), { ...payload }, {
             preserveScroll: true,
             onStart: () => setSaving(true),
             onFinish: () => setSaving(false),
             onSuccess: () => onOpenChange(false),
-            onError: (errors: Record<string, string>) => {
-                const first = Object.values(errors)[0];
-                form.setError('root', { message: first ?? 'Gagal menyimpan, coba lagi.' });
-            },
-        };
-
-        // Sprint 24 D7 — one endpoint: the Tukang's own update records today's activity on the server.
-        router.patch(
-            route('tasks.updateStatus', { task: task.id }),
-            { status: values.status, kendala: values.kendala || null, note: values.note || null },
-            options,
-        );
+            onError,
+        });
     }
 
     return (
@@ -154,6 +175,7 @@ export function TaskActionSheet({
                             <p className="text-sm text-error-ink">{form.formState.errors.root.message}</p>
                         )}
                         <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={saving}>
+                            {saving && <Loader2 className="size-5 animate-spin" />}
                             {saving ? 'Menyimpan…' : 'Simpan'}
                         </Button>
                     </form>

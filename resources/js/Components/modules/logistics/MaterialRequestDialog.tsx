@@ -1,11 +1,11 @@
 import { MoneyInput } from '@/Components/shared/MoneyInput';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import { UnitSelect } from '@/Components/shared/UnitSelect';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
 import { Button } from '@/Components/ui/button';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -17,9 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/Components/ui/textarea';
 import { parseQty, quantityField } from '@/lib/quantity';
 import type { Project, UnitOption, VendorOption } from '@/types';
+import type { VisitOptions } from '@inertiajs/core';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -57,6 +59,8 @@ interface MaterialRequestDialogProps {
     initialName?: string;
     /** Picking a suggestion plans that catalog item instead (project tab). Without it the pick is noted in the request. */
     onPickCatalog?: (materialId: number) => void;
+    /** Extra visit options — Detail Proyek reloads only its material props (Sprint 29 Sub 01, `projectVisit()`). */
+    visitOptions?: Pick<VisitOptions, 'only' | 'preserveState' | 'preserveScroll' | 'headers'>;
 }
 
 /** Catalog items sharing a word (3+ letters) with what's typed, best match first. */
@@ -93,7 +97,9 @@ export function MaterialRequestDialog({
     catalogHints = [],
     initialName = '',
     onPickCatalog,
+    visitOptions,
 }: MaterialRequestDialogProps) {
+    const [busy, setBusy] = useState(false);
     const empty: FormValues = {
         project_id: fixedProjectId ? String(fixedProjectId) : projects.length === 1 ? String(projects[0].id) : '',
         name: initialName,
@@ -152,6 +158,9 @@ export function MaterialRequestDialog({
 
         router.post(route('projects.material-requests.store', { project: Number(values.project_id) }), payload, {
             preserveScroll: true,
+            ...visitOptions,
+            onStart: () => setBusy(true),
+            onFinish: () => setBusy(false),
             onError: (errors: Record<string, string>) =>
                 Object.entries(errors).forEach(([field, message]) => form.setError(field as keyof FormValues, { message })),
             onSuccess: () => onOpenChange(false),
@@ -176,7 +185,7 @@ export function MaterialRequestDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+            <ResponsiveDialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Ajukan Barang</DialogTitle>
                     <DialogDescription>
@@ -320,17 +329,18 @@ export function MaterialRequestDialog({
                         />
                         <DialogFooter>
                             <DialogClose asChild>
-                                <Button type="button" variant="outline">
+                                <Button type="button" variant="outline" className="max-md:h-11">
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
-                                Kirim Pengajuan
+                            <Button type="submit" className="max-md:h-11" disabled={busy}>
+                                {busy && <Loader2 className="size-4 animate-spin" />}
+                                {busy ? 'Mengirim…' : 'Kirim Pengajuan'}
                             </Button>
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

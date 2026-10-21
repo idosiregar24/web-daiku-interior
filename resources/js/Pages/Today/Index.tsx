@@ -1,11 +1,12 @@
 import { TaskActionSheet } from '@/Components/modules/tasks/TaskActionSheet';
 import { type FieldTask, TaskCard } from '@/Components/modules/tasks/TaskCard';
+import { TODAY_RELOAD, useTaskStatusSave } from '@/Components/modules/tasks/taskSave';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Notice } from '@/Components/shared/Notice';
 import { PushOptIn } from '@/Components/shared/PushOptIn';
 import AppLayout from '@/Layouts/AppLayout';
 import type { PageProps } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { CalendarCheck, CalendarDays } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -40,27 +41,35 @@ function dayLabel(date: string) {
  * open tasks as cards with the daily-form mark, a warning while forms are
  * missing before the penalty hour, and one tap to update a task (status +
  * form in a single save). On Sunday — no penalty — next week's tasks.
+ * Sprint 29 L3 — a save shows on the card at once and reloads only the
+ * cards & the count (TODAY_RELOAD), without the success pop-up.
  */
 export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, today, tasks, upcoming, missingToday }: TodayIndexProps) {
     const { auth } = usePage<PageProps>().props;
     const [active, setActive] = useState<FieldTask | null>(null);
-    // Sprint 24 D7 — counted on the server (Task::awaitingDailyForm, same as the queue & penalty).
-    const missing = missingToday;
+    const todaySave = useTaskStatusSave(tasks, TODAY_RELOAD);
+    const upcomingSave = useTaskStatusSave(upcoming, TODAY_RELOAD);
+    // Sprint 24 D7 — counted on the server (Task::awaitingDailyForm, same as the queue & penalty);
+    // a report still on its way already counts as sent.
+    const missing = Math.max(0, missingToday - (canSubmitDailyForm ? todaySave.pendingReports : 0));
 
     /** Sprint 24 D7 — the big ✔: the target is done, and that is today's report. */
     function check(task: FieldTask) {
-        router.patch(route('tasks.updateStatus', { task: task.id }), { status: 'DONE' }, { preserveScroll: true });
+        todaySave.save(task, { status: 'DONE' });
     }
 
     const upcomingByDay = useMemo(() => {
         const groups = new Map<string, FieldTask[]>();
-        for (const task of upcoming) {
+        for (const task of upcomingSave.items) {
             const day = (task.due_date ?? '').slice(0, 10);
             groups.set(day, [...(groups.get(day) ?? []), task]);
         }
 
         return [...groups.entries()];
-    }, [upcoming]);
+    }, [upcomingSave.items]);
+
+    // The sheet saves through the list its task came from (its card shows the change).
+    const activeSave = active && upcoming.some((task) => task.id === active.id) ? upcomingSave : todaySave;
 
     const firstName = auth.user.name.split(' ')[0];
 
@@ -105,8 +114,8 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                         />
                     ) : (
                         <div className="flex flex-col gap-3">
-                            {tasks.map((task) => (
-                                <TaskCard key={task.id} task={task} onOpen={setActive} onCheck={check} />
+                            {todaySave.items.map((task) => (
+                                <TaskCard key={task.id} task={task} onOpen={setActive} onCheck={check} saving={todaySave.isSaving(task)} />
                             ))}
                         </div>
                     )}
@@ -130,7 +139,7 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                                     <h2 className="mb-2 text-sm font-semibold text-foreground capitalize">{dayLabel(day)}</h2>
                                     <div className="flex flex-col gap-3">
                                         {dayTasks.map((task) => (
-                                            <TaskCard key={task.id} task={task} onOpen={setActive} />
+                                            <TaskCard key={task.id} task={task} onOpen={setActive} saving={upcomingSave.isSaving(task)} />
                                         ))}
                                     </div>
                                 </section>
@@ -140,7 +149,12 @@ export default function TodayIndex({ isWorkDay, penaltyAt, canSubmitDailyForm, t
                 </>
             )}
 
-            <TaskActionSheet task={active} canSubmitDailyForm={canSubmitDailyForm} onOpenChange={(open) => !open && setActive(null)} />
+            <TaskActionSheet
+                task={active}
+                canSubmitDailyForm={canSubmitDailyForm}
+                onOpenChange={(open) => !open && setActive(null)}
+                save={activeSave.save}
+            />
         </AppLayout>
     );
 }

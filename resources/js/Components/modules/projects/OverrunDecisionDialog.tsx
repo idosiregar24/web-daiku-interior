@@ -12,8 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
 import { zodResolver } from '@hookform/resolvers/zod';
+import type { projectVisit } from '@/lib/projectReload';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -28,11 +30,17 @@ interface OverrunDecisionDialogProps {
     onOpenChange: (open: boolean) => void;
     decision: OverrunDecision;
     request: { id: number; item: string | null; post?: string; amount_over: number; reason: string };
+    /**
+     * Sprint 29 Sub 01 — partial-reload options from the host page (Detail Proyek passes
+     * `projectVisit(RELOAD.budget)`); omitted = the page reloads as before (Analytics).
+     */
+    visit?: ReturnType<typeof projectVisit>;
 }
 
 /** Sprint 12 decision #28 — the CEO approves (the held realisation is recorded) or rejects (note required). */
-export function OverrunDecisionDialog({ open, onOpenChange, decision, request }: OverrunDecisionDialogProps) {
+export function OverrunDecisionDialog({ open, onOpenChange, decision, request, visit }: OverrunDecisionDialogProps) {
     const approve = decision === 'approve';
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { note: '' } });
 
     useEffect(() => {
@@ -52,6 +60,9 @@ export function OverrunDecisionDialog({ open, onOpenChange, decision, request }:
             { decision, note: values.note.trim() || null },
             {
                 preserveScroll: true,
+                ...visit,
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onError: (errors) => form.setError('note', { message: errors.note ?? errors.decision ?? errors.post }),
                 onSuccess: () => onOpenChange(false),
             },
@@ -90,7 +101,8 @@ export function OverrunDecisionDialog({ open, onOpenChange, decision, request }:
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" variant={approve ? 'default' : 'destructive'} disabled={form.formState.isSubmitting}>
+                            <Button type="submit" variant={approve ? 'default' : 'destructive'} disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 {approve ? 'Setujui Overrun' : 'Tolak Overrun'}
                             </Button>
                         </DialogFooter>

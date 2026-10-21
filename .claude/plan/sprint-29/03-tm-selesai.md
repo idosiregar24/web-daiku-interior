@@ -1,7 +1,7 @@
 # Sprint 29 · 03 — TM Selesai Tanpa Bagian Pengawas
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Langkah 3 dan 4 diselesaikan di TM" · Keputusan D1–D3
-> Status: **belum dikerjakan** · Bergantung: Sub 01
+> Status: **kode selesai 2026-10-21** — TM Selesai 4/4 (PM); jasa pengawas pindah ke Syarat DP sampai Sub 08 (tersisa cek browser) · Bergantung: Sub 01
 
 ## Keputusan user
 > "Fase untuk upah dan daily target itu biarkan Pengawas saja, jadi Pengawas
@@ -27,8 +27,8 @@ Pengawas & Tanggal Selesai · 4 Bahan (Pengawas).
   teks disesuaikan).
 
 ## Checklist
-- [ ] **[Backend]** `TechnicalMeetingService::complete()` / checklist: hapus syarat bahan & jasa; `SaveTechnicalMeetingRequest` jasa opsional
-- [ ] **[UI]** `TechnicalMeetingCard` dipecah (PM 3 langkah + "Bagian Pengawas"); `CompleteMeetingButton` "n/4"
-- [ ] **[UX]** Penjelasan singkat di kotak Pengawas; `PageHeader step` PERSIAPAN = "Pengawas melengkapi bahan, upah, daily target"
-- [ ] **[Test]** Pest: TM Selesai tanpa bahan & jasa diterima; syarat DP tetap menolak tanpa bahan/upah; test lama `ExecutionFlowTest` disesuaikan
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Backend]** `TechnicalMeetingService::complete()` / checklist: hapus syarat bahan & jasa; `SaveTechnicalMeetingRequest` jasa opsional
+- [x] **[UI]** `TechnicalMeetingCard` dipecah (PM 3 langkah + "Bagian Pengawas"); `CompleteMeetingButton` "n/4"
+- [x] **[UX]** Penjelasan singkat di kotak Pengawas; `PageHeader step` PERSIAPAN = "Pengawas melengkapi bahan, upah, daily target"
+- [x] **[Test]** Pest: TM Selesai tanpa bahan & jasa diterima; syarat DP tetap menolak tanpa bahan/upah; test lama `ExecutionFlowTest` disesuaikan
+- [x] **[Build]** `npm run build`, Pint

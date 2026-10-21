@@ -1,10 +1,11 @@
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
 import { formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import type { ExecutionRequirement, ProjectExecution } from '@/types';
 import { router } from '@inertiajs/react';
-import { ArrowRight, CheckCircle2, Circle, ClipboardCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, ClipboardCheck, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ProjectTabTarget } from './projectWaiting';
 
@@ -95,13 +96,15 @@ export function DpRequirementsCard({
                         className="w-full sm:w-auto"
                         disabled={!ready || busy}
                         onClick={() =>
+                            // "Ajukan DP" — a request to the PM: keeps the pop-up, reloads the Eksekusi side only.
                             router.post(route('projects.supervisor-payments.dp', { project: projectId }), {}, {
-                                preserveScroll: true,
+                                ...projectVisit(RELOAD.supervision),
                                 onStart: () => setBusy(true),
                                 onFinish: () => setBusy(false),
                             })
                         }
                     >
+                        {busy && <Loader2 className="size-4 animate-spin" />}
                         Ajukan DP Pengawas{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
                     </Button>
                 ) : asked ? (

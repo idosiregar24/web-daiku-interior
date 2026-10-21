@@ -17,7 +17,9 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatRupiah } from '@/lib/format';
 import type { BudgetLine, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { router } from '@inertiajs/react';
+import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -54,6 +56,7 @@ const toNumber = (value: string) => Number(value.replace(',', '.'));
  */
 export function RealizationDialog({ open, onOpenChange, projectId, postName, line, vendors }: RealizationDialogProps) {
     const [overrun, setOverrun] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { qty_actual: '', unit_cost: '', vendor_id: '', note: '', reason: '' },
@@ -89,7 +92,10 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
             route(overrun ? 'projects.budget.overruns.store' : 'projects.budget.realizations.store', { project: projectId, line: line.id }),
             payload,
             {
-                preserveScroll: true,
+                // Booked cost / a request to the CEO — keeps the pop-up; reloads the budget only.
+                ...projectVisit(RELOAD.budget),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onError: (errors) => {
                     if (errors.overrun) {
                         setOverrun(errors.overrun);
@@ -202,7 +208,8 @@ export function RealizationDialog({ open, onOpenChange, projectId, postName, lin
                                     </Button>
                                 </DialogClose>
                             )}
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 {overrun ? 'Ajukan ke CEO' : 'Simpan'}
                             </Button>
                         </DialogFooter>

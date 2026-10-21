@@ -14,10 +14,11 @@ import {
 } from '@/Components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import type { BudgetLine, BudgetLogEntry, BudgetPost, PendingOverrun, ProjectBudget, VendorOption } from '@/types';
 import { router } from '@inertiajs/react';
-import { ArrowDown, ArrowUp, FolderPlus, History, Layers, ListTodo, MoreHorizontal, PenLine, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, FolderPlus, History, Layers, ListTodo, Loader2, MoreHorizontal, PenLine, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { BudgetPostDialog } from './BudgetPostDialog';
 import { OverrunDecisionDialog, type OverrunDecision } from './OverrunDecisionDialog';
@@ -72,6 +73,9 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
     const [deciding, setDeciding] = useState<{ request: PendingOverrun & { post: string }; decision: OverrunDecision } | null>(null);
     const [targetPost, setTargetPost] = useState('');
     const [postDialog, setPostDialog] = useState<{ open: boolean; post: Pick<BudgetPost, 'id' | 'name'> | null }>({ open: false, post: null });
+    // Sprint 29 Sub 01 (K6) — one budget save at a time; `saving` names the control that spins.
+    const [saving, setSaving] = useState<string | null>(null);
+    const busy = saving !== null;
     const { summary, posts } = budget;
 
     if (!budget.hasRab) {
@@ -82,26 +86,34 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
         return <Notice tone="info">Alokasi dibuka setelah pembayaran pertama diverifikasi Finance.</Notice>;
     }
 
+    // Sprint 29 Sub 01 — arranging posts is repeated inline work: quiet, the moved rows are the feedback.
+    const tracked = (key: string, quiet: boolean) => ({
+        ...projectVisit(RELOAD.budget, { quiet }),
+        onStart: () => setSaving(key),
+        onFinish: () => setSaving(null),
+    });
+
     function allocate(itemIds: number[], postId: number | null) {
         router.post(
             route('projects.budget.allocate', { project: projectId }),
             { budget_post_id: postId, item_ids: itemIds },
-            { preserveScroll: true, onSuccess: () => setSelected((current) => current.filter((id) => !itemIds.includes(id))) },
+            { ...tracked('allocate', true), onSuccess: () => setSelected((current) => current.filter((id) => !itemIds.includes(id))) },
         );
     }
 
     function move(index: number, direction: -1 | 1) {
         const ids = posts.map((post) => post.id);
         [ids[index], ids[index + direction]] = [ids[index + direction], ids[index]];
-        router.put(route('projects.budget.posts.reorder', { project: projectId }), { post_ids: ids }, { preserveScroll: true });
+        router.put(route('projects.budget.posts.reorder', { project: projectId }), { post_ids: ids }, tracked('move', true));
     }
 
     function removePost(post: BudgetPost) {
-        router.delete(route('projects.budget.posts.destroy', { project: projectId, post: post.id }), { preserveScroll: true });
+        router.delete(route('projects.budget.posts.destroy', { project: projectId, post: post.id }), tracked(`remove-${post.id}`, true));
     }
 
     function reverse(realizationId: number) {
-        router.post(route('projects.budget.realizations.reverse', { project: projectId, realization: realizationId }), {}, { preserveScroll: true });
+        // A correction of booked money — keeps the pop-up.
+        router.post(route('projects.budget.realizations.reverse', { project: projectId, realization: realizationId }), {}, tracked(`reverse-${realizationId}`, false));
     }
 
     const allSelected = budget.unallocatedItems.length > 0 && selected.length === budget.unallocatedItems.length;
@@ -169,9 +181,10 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                     </SelectContent>
                                 </Select>
                                 <Button
-                                    disabled={selected.length === 0 || !targetPost}
+                                    disabled={selected.length === 0 || !targetPost || busy}
                                     onClick={() => allocate(selected, Number(targetPost))}
                                 >
+                                    {saving === 'allocate' && <Loader2 className="size-4 animate-spin" />}
                                     Masukkan {selected.length > 0 ? `${selected.length} item` : ''}
                                 </Button>
                             </div>
@@ -245,13 +258,13 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                 action={
                                     canManage ? (
                                         <div className="flex items-center gap-1">
-                                            <Button size="icon-sm" variant="ghost" disabled={index === 0} onClick={() => move(index, -1)} aria-label={`Naikkan ${post.name}`}>
+                                            <Button size="icon-sm" variant="ghost" disabled={index === 0 || busy} onClick={() => move(index, -1)} aria-label={`Naikkan ${post.name}`}>
                                                 <ArrowUp className="size-4" />
                                             </Button>
                                             <Button
                                                 size="icon-sm"
                                                 variant="ghost"
-                                                disabled={index === posts.length - 1}
+                                                disabled={index === posts.length - 1 || busy}
                                                 onClick={() => move(index, 1)}
                                                 aria-label={`Turunkan ${post.name}`}
                                             >
@@ -263,12 +276,12 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                             <Button
                                                 size="icon-sm"
                                                 variant="ghost"
-                                                disabled={post.lines.length > 0}
+                                                disabled={post.lines.length > 0 || busy}
                                                 title={post.lines.length > 0 ? 'Pindahkan dulu itemnya' : undefined}
                                                 onClick={() => removePost(post)}
                                                 aria-label={`Hapus ${post.name}`}
                                             >
-                                                <Trash2 className="size-4 text-error-ink" />
+                                                {saving === `remove-${post.id}` ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4 text-error-ink" />}
                                             </Button>
                                         </div>
                                     ) : undefined
@@ -345,11 +358,11 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                                                             {posts
                                                                                 .filter((other) => other.id !== post.id)
                                                                                 .map((other) => (
-                                                                                    <DropdownMenuItem key={other.id} onSelect={() => allocate([line.quotation_item_id!], other.id)}>
+                                                                                    <DropdownMenuItem key={other.id} disabled={busy} onSelect={() => allocate([line.quotation_item_id!], other.id)}>
                                                                                         {other.name}
                                                                                     </DropdownMenuItem>
                                                                                 ))}
-                                                                            <DropdownMenuItem onSelect={() => allocate([line.quotation_item_id!], null)}>
+                                                                            <DropdownMenuItem disabled={busy} onSelect={() => allocate([line.quotation_item_id!], null)}>
                                                                                 Keluarkan dari pos
                                                                             </DropdownMenuItem>
                                                                         </>
@@ -378,9 +391,11 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                                                                     {canManage && !row.is_reversed && !row.reverses_id && (
                                                                         <button
                                                                             type="button"
-                                                                            className="text-error-ink underline underline-offset-2"
+                                                                            className="inline-flex items-center gap-1 text-error-ink underline underline-offset-2 disabled:opacity-50"
+                                                                            disabled={busy}
                                                                             onClick={() => reverse(row.id)}
                                                                         >
+                                                                            {saving === `reverse-${row.id}` && <Loader2 className="size-3 animate-spin" />}
                                                                             Batalkan
                                                                         </button>
                                                                     )}
@@ -432,6 +447,7 @@ export function BudgetAllocationTab({ projectId, budget, canManage, canDecideOve
                     onOpenChange={(open) => !open && setDeciding(null)}
                     decision={deciding.decision}
                     request={deciding.request}
+                    visit={projectVisit(RELOAD.budget)}
                 />
             )}
             {canManage && (

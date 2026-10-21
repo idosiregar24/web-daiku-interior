@@ -18,7 +18,9 @@ import type { Material, Project, StockMovementType } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { partialVisit } from './partialVisit';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -41,6 +43,8 @@ interface StockMovementDialogProps {
     material: Material | null;
     type: StockMovementType;
     projects: Pick<Project, 'id' | 'name'>[];
+    /** Sprint 29 Sub 01 (L9) — the host page's props to reload after a save (omitted = full reload). */
+    only?: readonly string[];
 }
 
 /**
@@ -49,9 +53,10 @@ interface StockMovementDialogProps {
  * for fast feedback and again server-side under a row lock
  * (StockService), which is the check that actually counts.
  */
-export function StockMovementDialog({ open, onOpenChange, material, type, projects }: StockMovementDialogProps) {
+export function StockMovementDialog({ open, onOpenChange, material, type, projects, only }: StockMovementDialogProps) {
     const isOut = type === 'OUT';
     const available = material?.stock ?? 0;
+    const [saving, setSaving] = useState(false);
 
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: EMPTY });
 
@@ -93,7 +98,10 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                 ...(isOut ? { project_id: Number(values.project_id) } : {}),
             },
             {
-                preserveScroll: true,
+                // Logistik records receipts / issues one after another: quiet — the row's new stock is the feedback.
+                ...partialVisit(only, { quiet: true }),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onError: (errors) =>
                     Object.entries(errors).forEach(([field, message]) =>
                         form.setError(field as keyof FormValues, { message }),
@@ -198,7 +206,8 @@ export function StockMovementDialog({ open, onOpenChange, material, type, projec
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 {isOut ? 'Keluarkan Barang' : 'Catat Penerimaan'}
                             </Button>
                         </DialogFooter>

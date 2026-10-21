@@ -12,8 +12,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/Components/ui/input';
 import type { BudgetPost } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -34,6 +36,7 @@ interface BudgetPostDialogProps {
 
 /** Sprint 12 #24 — a budget post with a free name (Interior, Listrik, Percetakan, Mural, …). */
 export function BudgetPostDialog({ open, onOpenChange, projectId, post }: BudgetPostDialogProps) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { name: '' } });
 
     useEffect(() => {
@@ -43,7 +46,10 @@ export function BudgetPostDialog({ open, onOpenChange, projectId, post }: Budget
 
     function onSubmit(values: FormValues) {
         const options = {
-            preserveScroll: true,
+            // Sprint 29 Sub 01 — quiet: the new / renamed post card is the feedback.
+            ...projectVisit(RELOAD.budget, { quiet: true }),
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
             onError: (errors: Record<string, string>) => form.setError('name', { message: errors.name ?? errors.post }),
             onSuccess: () => onOpenChange(false),
         };
@@ -83,7 +89,8 @@ export function BudgetPostDialog({ open, onOpenChange, projectId, post }: Budget
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 Simpan
                             </Button>
                         </DialogFooter>

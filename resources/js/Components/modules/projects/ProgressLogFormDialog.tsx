@@ -1,9 +1,10 @@
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
+import { SavedHint, useSavedHint } from '@/Components/shared/SavedHint';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogDescription,
     DialogFooter,
     DialogHeader,
@@ -18,10 +19,12 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Textarea } from '@/Components/ui/textarea';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -47,6 +50,10 @@ interface ProgressLogFormDialogProps {
  * 24 D11 — the progress is the actual activity of the daily targets.
  */
 export function ProgressLogFormDialog({ open, onOpenChange, projectId }: ProgressLogFormDialogProps) {
+    const [saving, setSaving] = useState(false);
+    // Sprint 29 Sub 01 (K4) — "Simpan & tambah lagi" keeps the dialog open for the next note.
+    const again = useRef(false);
+    const saved = useSavedHint();
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { description: '', ref_urls: '', log_date: new Date() },
@@ -77,13 +84,30 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                 ref_urls: urls.length > 0 ? urls : null,
                 log_date: format(values.log_date, 'yyyy-MM-dd'),
             },
-            { onError, onSuccess: () => onOpenChange(false) },
+            {
+                // Quiet — the note appears in the Catatan Progress list.
+                ...projectVisit(RELOAD.progressLogs, { quiet: true }),
+                onError,
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
+                onSuccess: () => {
+                    if (!again.current) {
+                        onOpenChange(false);
+                        return;
+                    }
+
+                    // Same day, empty note — back to "Catatan" (shadcn's Textarea doesn't forward refs, so no RHF setFocus).
+                    form.reset({ description: '', ref_urls: '', log_date: values.log_date });
+                    saved.flash();
+                    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[data-focus-key="progress-description"]')?.focus());
+                },
+            },
         );
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>Tambah Catatan Progress</DialogTitle>
                     <DialogDescription>
@@ -112,7 +136,7 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                                 <FormItem>
                                     <FormLabel required>Catatan</FormLabel>
                                     <FormControl>
-                                        <Textarea {...field} rows={3} autoFocus placeholder="mis. Pemasangan kusen selesai, mulai finishing cat" />
+                                        <Textarea {...field} rows={3} autoFocus data-focus-key="progress-description" placeholder="mis. Pemasangan kusen selesai, mulai finishing cat" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -131,19 +155,24 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                                 </FormItem>
                             )}
                         />
-                        <DialogFooter>
+                        <DialogFooter className="sm:items-center">
+                            <SavedHint shown={saved.shown} label="Catatan tersimpan" className="sm:mr-auto" />
                             <DialogClose asChild>
-                                <Button type="button" variant="outline">
+                                <Button type="button" variant="outline" disabled={saving}>
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" variant="outline" disabled={saving} onClick={() => (again.current = true)}>
+                                Simpan & tambah lagi
+                            </Button>
+                            <Button type="submit" disabled={saving} onClick={() => (again.current = false)}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 Simpan
                             </Button>
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

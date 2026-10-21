@@ -25,7 +25,9 @@ import { useSimilarMaterials } from '@/hooks/useSimilarMaterials';
 import type { Material, MaterialCategory, MaterialRequestDecision, ProjectMaterial, UnitOption, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { partialVisit } from './partialVisit';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -83,6 +85,8 @@ interface MaterialRequestReviewDialogProps {
     units: UnitOption[];
     vendors: VendorOption[];
     categories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
+    /** Sprint 29 Sub 01 (L9) — the host page's props to reload after the decision (omitted = full reload). */
+    only?: readonly string[];
 }
 
 /**
@@ -91,7 +95,8 @@ interface MaterialRequestReviewDialogProps {
  * of four decisions. Logistics may change qty, price and spec; the
  * original request stays in `requested_snapshot`.
  */
-export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units, vendors, categories }: MaterialRequestReviewDialogProps) {
+export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units, vendors, categories, only }: MaterialRequestReviewDialogProps) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({ resolver: zodResolver(schema) });
 
     useEffect(() => {
@@ -188,7 +193,10 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                   };
 
         router.post(route('logistics.material-requests.review', { project_material: line.id }), payload, {
-            preserveScroll: true,
+            // A decision (Setujui / Tolak) — keeps the pop-up; reloads only the queue.
+            ...partialVisit(only),
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
             onError: (serverErrors: Record<string, string>) =>
                 Object.entries(serverErrors).forEach(([field, message]) => form.setError(field as keyof FormValues, { message })),
             onSuccess: () => onOpenChange(false),
@@ -492,7 +500,8 @@ export function MaterialRequestReviewDialog({ line, onOpenChange, catalog, units
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" variant={decision === 'TOLAK' ? 'destructive' : 'default'} disabled={form.formState.isSubmitting}>
+                            <Button type="submit" variant={decision === 'TOLAK' ? 'destructive' : 'default'} disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 {decision === 'TOLAK' ? 'Tolak Pengajuan' : 'Setujui Pengajuan'}
                             </Button>
                         </DialogFooter>

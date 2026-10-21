@@ -1,15 +1,16 @@
 import { MaterialRequestDialog } from '@/Components/modules/logistics/MaterialRequestDialog';
 import { PmRequestDecisionDialog } from '@/Components/modules/logistics/PmRequestDecisionDialog';
 import { type MaterialAction, ProjectMaterialActionDialog } from '@/Components/modules/projects/ProjectMaterialActionDialog';
+import { type PendingMaterialLine, ProjectMaterialBatchDialog } from '@/Components/modules/projects/ProjectMaterialBatchDialog';
 import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Notice } from '@/Components/shared/Notice';
-import { SearchInput } from '@/Components/shared/SearchInput';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { TableCard, TABLE_HEAD_CLASS } from '@/Components/shared/TableCard';
 import { VendorSelect } from '@/Components/shared/VendorSelect';
 import { Button } from '@/Components/ui/button';
-import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
+import { Dialog, DialogClose, DialogFooter, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -19,11 +20,11 @@ import {
 } from '@/Components/ui/dropdown-menu';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatQty, formatRupiah } from '@/lib/format';
+import { type CatalogMaterial, projectVisit, RELOAD, type ReturnCatalogMaterial, useProjectCatalog } from '@/lib/projectReload';
 import { parseQty, quantityField } from '@/lib/quantity';
 import { cn } from '@/lib/utils';
-import type { Material, MaterialCategory, Project, ProjectMaterial, ProjectMaterialSource, UnitOption, VendorOption } from '@/types';
+import type { MaterialCategory, Project, ProjectMaterial, ProjectMaterialSource, UnitOption, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import {
@@ -32,9 +33,9 @@ import {
     Check,
     Gift,
     Hammer,
+    Loader2,
     Lock,
     MoreHorizontal,
-    PackagePlus,
     Pencil,
     Plus,
     ShoppingCart,
@@ -71,8 +72,6 @@ interface ProjectMaterialsPanelProps {
     items: ProjectMaterial[];
     canView: boolean;
     permissions: MaterialPermissions;
-    materialOptions: Pick<Material, 'id' | 'code' | 'name' | 'unit_id' | 'unit' | 'stock' | 'cost_price'>[];
-    catalogOptions: Pick<Material, 'id' | 'name' | 'unit_id'>[];
     vendors: VendorOption[];
     units: UnitOption[];
     /** Material categories — registering a custom leftover as a catalog item (Logistics). */
@@ -85,10 +84,8 @@ const SOURCES: { value: ProjectMaterialSource; label: string; hint: string }[] =
     { value: 'CUSTOM', label: 'Custom', hint: 'Barang khusus proyek di luar katalog — disetujui Logistik.' },
 ];
 
-// Mirrors StoreProjectMaterialRequest / UpdateProjectMaterialRequest.
+// Mirrors UpdateProjectMaterialRequest ("Ubah Rencana"; new lines go through ProjectMaterialBatchDialog).
 const planSchema = z.object({
-    material_id: z.string().min(1, 'Material wajib dipilih'),
-    source: z.enum(['GUDANG', 'PEMBELIAN']),
     qty_planned: quantityField('Jumlah kebutuhan', 0),
     vendor_id: z.string().optional(),
 });
@@ -107,17 +104,20 @@ export function ProjectMaterialsPanel({
     items,
     canView,
     permissions,
-    materialOptions,
-    catalogOptions,
     vendors,
     units,
     materialCategories,
 }: ProjectMaterialsPanelProps) {
+    const { materialOptions } = useProjectCatalog();
     const [planOpen, setPlanOpen] = useState(false);
     const [editing, setEditing] = useState<ProjectMaterial | null>(null);
+    const [editBusy, setEditBusy] = useState(false);
     const [action, setAction] = useState<{ line: ProjectMaterial; action: MaterialAction } | null>(null);
     const [requestOpen, setRequestOpen] = useState(false);
-    const [catalogSearch, setCatalogSearch] = useState('');
+    // What was typed in the catalog search before choosing "Ajukan barang".
+    const [requestName, setRequestName] = useState('');
+    // K3 — lines of "Simpan semua" on their way to the server.
+    const [pending, setPending] = useState<PendingMaterialLine[]>([]);
     // Set when "Mungkin maksud Anda" sends the user back from a request to planning.
     const [pickedMaterialId, setPickedMaterialId] = useState<string | null>(null);
     const [pmDecision, setPmDecision] = useState<{ line: ProjectMaterial; decision: 'approve' | 'reject' } | null>(null);
@@ -127,48 +127,36 @@ export function ProjectMaterialsPanel({
 
     const form = useForm<PlanValues>({
         resolver: zodResolver(planSchema),
-        defaultValues: { material_id: '', source: 'GUDANG', qty_planned: '', vendor_id: '' },
+        defaultValues: { qty_planned: '', vendor_id: '' },
     });
-    const plannedSource = form.watch('source');
 
     useEffect(() => {
-        if (planOpen) {
-            form.reset(
-                editing
-                    ? {
-                          material_id: String(editing.material_id ?? ''),
-                          source: editing.source === 'PEMBELIAN' ? 'PEMBELIAN' : 'GUDANG',
-                          qty_planned: String(editing.qty_planned),
-                          vendor_id: editing.vendor_id ? String(editing.vendor_id) : '',
-                      }
-                    : { material_id: pickedMaterialId ?? '', source: 'GUDANG', qty_planned: '', vendor_id: '' },
-            );
+        if (editing) {
+            form.reset({ qty_planned: String(editing.qty_planned), vendor_id: editing.vendor_id ? String(editing.vendor_id) : '' });
         }
-    }, [planOpen, editing]);
-
-    // §5.5 Lapis 4 — the planning form searches the catalog (name or code) before anything is requested.
-    const catalogMatches = useMemo(() => {
-        const term = catalogSearch.trim().toLowerCase();
-        const matches = term
-            ? materialOptions.filter((material) => `${material.code} ${material.name}`.toLowerCase().includes(term))
-            : materialOptions;
-
-        return matches.slice(0, 30);
-    }, [catalogSearch, materialOptions]);
+    }, [editing]);
 
     // Requests nobody approved yet (or rejected) live in their own section, outside the cost tables.
     const approvedItems = useMemo(() => items.filter((item) => item.request_status === 'DISETUJUI'), [items]);
     const requestItems = items.filter((item) => item.request_status !== 'DISETUJUI');
     const pendingRequests = requestItems.filter((item) => item.request_status === 'MENUNGGU_PM' || item.request_status === 'DIAJUKAN');
 
+    // K3 — a pending line for a catalog item + source already planned replaces that row's amount
+    // (ProjectMaterialService::plan), so that row is marked instead of a second one shown.
+    const savingIds = useMemo(
+        () => new Set(approvedItems.filter((item) => pending.some((line) => isSameLine(item, line))).map((item) => item.id)),
+        [approvedItems, pending],
+    );
+
     const groups = useMemo(
         () =>
             SOURCES.map((source) => {
                 const lines = approvedItems.filter((item) => item.source === source.value);
+                const incoming = pending.filter((line) => line.source === source.value && !lines.some((item) => isSameLine(item, line)));
 
-                return { ...source, lines, cost: lines.reduce((sum, line) => sum + Number(line.cost_total), 0) };
+                return { ...source, lines, incoming, cost: lines.reduce((sum, line) => sum + Number(line.cost_total), 0) };
             }),
-        [approvedItems],
+        [approvedItems, pending],
     );
     const leftovers = items.filter((item) => item.leftover > 0);
     const totalCost = groups.reduce((sum, group) => sum + group.cost, 0);
@@ -183,40 +171,31 @@ export function ProjectMaterialsPanel({
         );
     }
 
-    function onPlanSubmit(values: PlanValues) {
-        const options = {
-            preserveScroll: true,
-            onError: (errors: Record<string, string>) =>
-                Object.entries(errors).forEach(([field, message]) => form.setError(field as keyof PlanValues, { message })),
-            onSuccess: () => setPlanOpen(false),
-        };
-        const vendorId = values.source === 'PEMBELIAN' && values.vendor_id ? Number(values.vendor_id) : null;
+    /** "Ubah Rencana" — the amount (and a bought line's vendor). Quiet: the changed row is the feedback. */
+    function onEditSubmit(values: PlanValues) {
+        if (!editing) return;
 
-        if (editing) {
-            router.put(
-                route('project-materials.update', { project_material: editing.id }),
-                { qty_planned: parseQty(values.qty_planned), ...(editing.source !== 'GUDANG' ? { vendor_id: vendorId } : {}) },
-                options,
-            );
-        } else {
-            router.post(
-                route('projects.materials.store', { project: project.id }),
-                {
-                    material_id: Number(values.material_id),
-                    source: values.source,
-                    qty_planned: parseQty(values.qty_planned),
-                    vendor_id: vendorId,
-                },
-                options,
-            );
-        }
+        const vendorId = values.vendor_id ? Number(values.vendor_id) : null;
+
+        router.put(
+            route('project-materials.update', { project_material: editing.id }),
+            { qty_planned: parseQty(values.qty_planned), ...(editing.source !== 'GUDANG' ? { vendor_id: vendorId } : {}) },
+            {
+                ...projectVisit(RELOAD.materials, { quiet: true }),
+                onStart: () => setEditBusy(true),
+                onFinish: () => setEditBusy(false),
+                onError: (errors: Record<string, string>) =>
+                    Object.entries(errors).forEach(([field, message]) => form.setError(field as keyof PlanValues, { message })),
+                onSuccess: () => setEditing(null),
+            },
+        );
     }
 
     function remove() {
         if (!removing) return;
 
         router.delete(route('project-materials.destroy', { project_material: removing.id }), {
-            preserveScroll: true,
+            ...projectVisit(RELOAD.materials, { quiet: true }),
             onStart: () => setRemovingBusy(true),
             onFinish: () => {
                 setRemovingBusy(false);
@@ -257,10 +236,9 @@ export function ProjectMaterialsPanel({
                 {permissions.create && (
                     <Button
                         size="sm"
+                        className="max-md:h-11"
                         onClick={() => {
-                            setEditing(null);
                             setPickedMaterialId(null);
-                            setCatalogSearch('');
                             setPlanOpen(true);
                         }}
                     >
@@ -346,11 +324,11 @@ export function ProjectMaterialsPanel({
                 </section>
             )}
 
-            {approvedItems.length === 0 ? (
+            {approvedItems.length === 0 && pending.length === 0 ? (
                 <EmptyState className="rounded-xl border border-dashed border-border" title="Belum ada kebutuhan material untuk proyek ini." />
             ) : (
                 groups
-                    .filter((group) => group.lines.length > 0)
+                    .filter((group) => group.lines.length > 0 || group.incoming.length > 0)
                     .map((group) => (
                         <section key={group.value} className="space-y-2">
                             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -390,6 +368,7 @@ export function ProjectMaterialsPanel({
                                                 <tr key={line.id} className="border-t border-border align-top transition-colors hover:bg-daiku-gray/60">
                                                     <td className="px-4 py-3">
                                                         <p className="font-medium text-daiku-dark">{line.display_name}</p>
+                                                        {savingIds.has(line.id) && <SavingMark />}
                                                         <p className="text-xs text-daiku-muted">
                                                             {[
                                                                 line.vendor?.name,
@@ -478,7 +457,6 @@ export function ProjectMaterialsPanel({
                                                                         <DropdownMenuItem
                                                                             onClick={() => {
                                                                                 setEditing(line);
-                                                                                setPlanOpen(true);
                                                                             }}
                                                                         >
                                                                             <Pencil className="size-4" />
@@ -498,6 +476,18 @@ export function ProjectMaterialsPanel({
                                                 </tr>
                                             );
                                         })}
+                                        {group.incoming.map((line) => (
+                                            <tr key={line.key} className="border-t border-border align-top text-daiku-muted">
+                                                <td className="px-4 py-3">
+                                                    <p className="font-medium text-daiku-dark">{line.name}</p>
+                                                    <SavingMark />
+                                                </td>
+                                                <td className="px-4 py-3 text-right tabular-nums">
+                                                    {formatQty(line.qty_planned)} {line.unit}
+                                                </td>
+                                                <td colSpan={6} />
+                                            </tr>
+                                        ))}
                                     </tbody>
                                 </table>
                             </TableCard>
@@ -505,109 +495,48 @@ export function ProjectMaterialsPanel({
                     ))
             )}
 
-            <Dialog open={planOpen} onOpenChange={setPlanOpen}>
-                <DialogContent className="max-w-md">
+            <ProjectMaterialBatchDialog
+                open={planOpen}
+                onOpenChange={setPlanOpen}
+                projectId={project.id}
+                items={items}
+                vendors={vendors}
+                canRequest={permissions.request}
+                onRequest={(term) => {
+                    setRequestName(term);
+                    setPlanOpen(false);
+                    setRequestOpen(true);
+                }}
+                pickedMaterialId={pickedMaterialId}
+                onPickConsumed={() => setPickedMaterialId(null)}
+                onPendingChange={setPending}
+            />
+
+            <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+                <ResponsiveDialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>{editing ? 'Ubah Rencana Material' : 'Tambah Kebutuhan Material'}</DialogTitle>
+                        <DialogTitle>Ubah Rencana Material</DialogTitle>
                     </DialogHeader>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onPlanSubmit)} className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="material_id"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>Material (katalog)</FormLabel>
-                                        {editing ? (
-                                            <p className="rounded-md bg-daiku-gray px-3 py-2 text-sm">{editing.display_name}</p>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                <SearchInput
-                                                    value={catalogSearch}
-                                                    onChange={(event) => setCatalogSearch(event.target.value)}
-                                                    placeholder="Cari nama atau kode barang…"
-                                                    aria-label="Cari barang katalog"
-                                                />
-                                                <div className="max-h-56 space-y-1 overflow-y-auto">
-                                                    {catalogMatches.map((material) => (
-                                                        <button
-                                                            key={material.id}
-                                                            type="button"
-                                                            onClick={() => field.onChange(String(material.id))}
-                                                            className={cn(
-                                                                'flex w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm',
-                                                                field.value === String(material.id)
-                                                                    ? 'border-daiku-yellow bg-daiku-yellow-light'
-                                                                    : 'border-border hover:bg-daiku-gray/60',
-                                                            )}
-                                                        >
-                                                            <span>
-                                                                <span className="font-medium">{material.code}</span> {material.name}
-                                                            </span>
-                                                            <span className="shrink-0 text-xs text-daiku-muted">
-                                                                stok {formatQty(material.stock)} {material.unit?.code}
-                                                            </span>
-                                                        </button>
-                                                    ))}
-                                                    {catalogSearch.trim() !== '' && catalogMatches.length === 0 && (
-                                                        <p className="px-1 text-sm text-daiku-muted">Tidak ada barang katalog yang cocok.</p>
-                                                    )}
-                                                </div>
-                                                {permissions.request && catalogSearch.trim().length >= 2 && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="link"
-                                                        className="h-auto px-0"
-                                                        onClick={() => {
-                                                            setPlanOpen(false);
-                                                            setRequestOpen(true);
-                                                        }}
-                                                    >
-                                                        <PackagePlus className="size-4" />
-                                                        Ajukan barang (tidak ada di katalog)
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        )}
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="source"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>Sumber</FormLabel>
-                                        <Select value={field.value} onValueChange={field.onChange} disabled={editing !== null}>
-                                            <FormControl>
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="GUDANG">Gudang — ambil dari stok Logistik</SelectItem>
-                                                <SelectItem value="PEMBELIAN">Pembelian — dibeli khusus proyek</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                        <form onSubmit={form.handleSubmit(onEditSubmit)} className="space-y-4">
+                            <div className="rounded-md bg-daiku-gray px-3 py-2 text-sm">
+                                <p className="font-medium text-daiku-dark">{editing?.display_name}</p>
+                                <p className="text-xs text-daiku-muted">{SOURCES.find((source) => source.value === editing?.source)?.label}</p>
+                            </div>
                             <FormField
                                 control={form.control}
                                 name="qty_planned"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel required>Jumlah Kebutuhan</FormLabel>
+                                        <FormLabel required>Jumlah Kebutuhan{editing?.unit?.code ? ` (${editing.unit.code})` : ''}</FormLabel>
                                         <FormControl>
-                                            <Input type="number" min="0" step="0.01" inputMode="decimal" {...field} />
+                                            <Input inputMode="decimal" autoComplete="off" autoFocus className="max-md:h-11" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
                             />
-                            {plannedSource === 'PEMBELIAN' && (
+                            {editing?.source === 'PEMBELIAN' && (
                                 <FormField
                                     control={form.control}
                                     name="vendor_id"
@@ -615,7 +544,13 @@ export function ProjectMaterialsPanel({
                                         <FormItem>
                                             <FormLabel>Vendor</FormLabel>
                                             <FormControl>
-                                                <VendorSelect value={field.value ?? ''} onChange={field.onChange} vendors={vendors} allowEmpty />
+                                                <VendorSelect
+                                                    value={field.value ?? ''}
+                                                    onChange={field.onChange}
+                                                    vendors={vendors}
+                                                    allowEmpty
+                                                    className="w-full max-md:h-11"
+                                                />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -624,17 +559,18 @@ export function ProjectMaterialsPanel({
                             )}
                             <DialogFooter>
                                 <DialogClose asChild>
-                                    <Button type="button" variant="outline">
+                                    <Button type="button" variant="outline" className="max-md:h-11">
                                         Batal
                                     </Button>
                                 </DialogClose>
-                                <Button type="submit" disabled={form.formState.isSubmitting}>
-                                    Simpan
+                                <Button type="submit" className="max-md:h-11" disabled={editBusy}>
+                                    {editBusy && <Loader2 className="size-4 animate-spin" />}
+                                    {editBusy ? 'Menyimpan…' : 'Simpan'}
                                 </Button>
                             </DialogFooter>
                         </form>
                     </Form>
-                </DialogContent>
+                </ResponsiveDialogContent>
             </Dialog>
 
             <MaterialRequestDialog
@@ -645,15 +581,15 @@ export function ProjectMaterialsPanel({
                 minimal={false}
                 units={units}
                 vendors={vendors}
-                initialName={catalogSearch.trim()}
+                initialName={requestName}
                 catalogHints={permissions.create ? materialOptions : []}
                 onPickCatalog={(materialId) => {
                     // "Mungkin maksud Anda" → plan that catalog item instead of requesting it.
                     setRequestOpen(false);
-                    setEditing(null);
                     setPickedMaterialId(String(materialId));
                     setPlanOpen(true);
                 }}
+                visitOptions={projectVisit(RELOAD.materials)}
             />
             <PmRequestDecisionDialog
                 line={pmDecision?.line ?? null}
@@ -666,7 +602,6 @@ export function ProjectMaterialsPanel({
                 action={action?.action ?? null}
                 onOpenChange={(open) => !open && setAction(null)}
                 vendors={vendors}
-                catalogOptions={catalogOptions}
                 categories={materialCategories}
             />
 
@@ -681,5 +616,19 @@ export function ProjectMaterialsPanel({
                 onConfirm={remove}
             />
         </div>
+    );
+}
+
+function isSameLine(item: ProjectMaterial, line: PendingMaterialLine): boolean {
+    return item.material_id === line.material_id && item.source === line.source && item.request_channel === null;
+}
+
+/** K3 — a line from "Simpan semua" is still on its way to the server. */
+function SavingMark() {
+    return (
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-daiku-muted">
+            <Loader2 className="size-3 animate-spin" />
+            menyimpan…
+        </p>
     );
 }

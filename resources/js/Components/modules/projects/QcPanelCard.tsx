@@ -54,7 +54,7 @@ function weeklyRow(execution: ProjectExecution): QcRow | null {
     if (!week) return null;
 
     const report = execution.weeklyReports.find((row) => row.week_start === week.week_start);
-    const friday = week.is_report_day ? ' · hari ini Jumat' : '';
+    const due = week.is_report_day ? ' · batas hari ini' : week.is_due ? ' · lewat Jumat' : ' · paling lambat Jumat';
     const base = { key: 'weekly', icon: CalendarCheck, title: `Pengecekan mingguan · minggu ke-${week.week_number}`, anchor: 'laporan-mingguan' };
 
     switch (report?.status) {
@@ -67,9 +67,10 @@ function weeklyRow(execution: ProjectExecution): QcRow | null {
         default:
             return {
                 ...base,
-                status: `Laporan belum diisi${friday}`,
-                tone: week.is_report_day ? 'warning' : 'muted',
-                mine: execution.can.submitWeekly && week.is_report_day,
+                status: `Laporan belum diisi${due}`,
+                // Sprint 29 Sub 02 — may be sent from Monday; warning from the report day on.
+                tone: week.is_due ? 'warning' : 'muted',
+                mine: execution.can.submitWeekly,
             };
     }
 }
@@ -144,7 +145,7 @@ function findingsRow(execution: ProjectExecution): QcRow {
 
 /**
  * Sprint 27 P2 — the whiteboard's "QC" branch as one card at PRODUKSI /
- * PEMASANGAN: pengecekan mingguan (Jumat) · daily target · 70% · finishing
+ * PEMASANGAN: pengecekan mingguan (paling lambat Jumat) · daily target · 70% · finishing
  * di lokasi, each with its state and a link to its card. Everything is read
  * from `execution` (no new data); the work stays in the cards themselves.
  */
@@ -159,7 +160,7 @@ export function QcPanelCard({ execution }: { execution: ProjectExecution }) {
     return (
         <SectionCard
             title="QC Pengawas"
-            description="Pengecekan Pengawas (QA/QC) selama produksi — mingguan (Jumat), daily target, 70% sebelum berangkat, finishing di lokasi."
+            description="Pengecekan Pengawas (QA/QC) selama produksi — mingguan (paling lambat Jumat), daily target, 70% sebelum berangkat, finishing di lokasi."
             icon={ShieldCheck}
             flush
         >

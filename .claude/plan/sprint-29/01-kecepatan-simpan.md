@@ -1,7 +1,7 @@
 # Sprint 29 · 01 — Kecepatan Simpan Detail Proyek + Form Bahan Tanpa Menunggu
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · §5 (L1–L10, K1–K7)
-> Status: **belum dikerjakan**
+> Status: **kode selesai 2026-10-20** — 2213 test lulus, build & Pint bersih; tersisa uji browser (HP 390 px Logistik & Pengawas) dan ukur ulang dengan Telescope
 > Dikerjakan pertama — sub lain memakai pola simpan dari sini.
 
 ## Permintaan user
@@ -57,17 +57,30 @@ semua task, termin, dokumen, material, katalog material ×2 …) → "Menyimpan�
 10. **Pop-up sukses (L10)** — aturan: isian berulang = `quietSuccess`;
     keputusan/transisi = `SuccessDialog`. Ditulis di `design-standards.md` §2.
 
+## Pengukuran (2026-10-20)
+MySQL lokal mati saat diukur → Telescope belum bisa; diukur dengan test
+sementara (SQLite in-memory + `DatabaseSeeder`, proyek demo terbesar: 9
+task, 8 bahan, 4 timeline; median 6× `GET projects.show` sebagai PM). Angka
+relatif — di MySQL dengan katalog nyata selisihnya lebih besar.
+
+| | Penuh | Sebagian (`projectMaterials,execution,flash,navBadges`) |
+|---|---|---|
+| Sebelum (prop dihitung langsung) | 38 ms · 45,6 KB · 58 prop | 24 ms (semua prop tetap dihitung) |
+| Sesudah K1 (closure + katalog `optional`) | 37,6 ms · 43,8 KB · 56 prop | **12,6 ms** |
+
+Ulangi dengan Telescope di MySQL + data demo begitu tersedia (Sub 15).
+
 ## Checklist
-- [ ] **[Ukur]** Telescope: durasi POST tambah bahan, centang task, simpan TM, buat target di proyek demo terbesar — catat angka "sebelum" di sini
-- [ ] **[Backend]** Closure untuk prop berat `ProjectController::show`; `Inertia::optional()` katalog; route `projects.materials.storeMany` + Form Request (array baris, aturan sama dengan `store`) + `ProjectMaterialService` satu transaksi
-- [ ] **[Backend]** Pastikan redirect setelah simpan menghormati `only`
-- [ ] **[UI]** `lib/projectReload.ts` (peta aksi → prop); pakai di semua simpan Detail Proyek
-- [ ] **[UI]** `ProjectMaterialsPanel`: multi-baris + "Simpan semua", "Simpan & tambah lagi", optimistic, katalog dimuat sekali
-- [ ] **[UI]** `TmMaterialPlanner`, `TaskWeekBoard`, Hari Ini / Tugas / `TaskActionSheet`: optimistic + reload sebagian
-- [ ] **[UI]** `TaskFormDialog` "Simpan & buat lagi"
-- [ ] **[UI]** Logistik: `quietSuccess` + `only` di aksi beruntun
+- [~] **[Ukur]** (diukur dengan test sementara — lihat Pengukuran; Telescope menunggu MySQL) Telescope: durasi POST tambah bahan, centang task, simpan TM, buat target di proyek demo terbesar — catat angka "sebelum" di sini
+- [x] **[Backend]** Closure untuk prop berat `ProjectController::show`; `Inertia::optional()` katalog; route `projects.materials.storeMany` + Form Request (array baris, aturan sama dengan `store`) + `ProjectMaterialService` satu transaksi
+- [x] **[Backend]** Pastikan redirect setelah simpan menghormati `only`
+- [x] **[UI]** `lib/projectReload.ts` (peta aksi → prop); pakai di semua simpan Detail Proyek
+- [x] **[UI]** `ProjectMaterialsPanel`: multi-baris + "Simpan semua", "Simpan & tambah lagi", optimistic, katalog dimuat sekali
+- [x] **[UI]** `TmMaterialPlanner`, `TaskWeekBoard`, Hari Ini / Tugas / `TaskActionSheet`: optimistic + reload sebagian
+- [x] **[UI]** `TaskFormDialog` "Simpan & buat lagi"
+- [x] **[UI]** Logistik: `quietSuccess` + `only` di aksi beruntun
 - [ ] **[UX]** Tombol terkunci + spinner saat menyimpan; Enter = simpan; fokus kembali; HP 390 px (Logistik & Pengawas)
-- [ ] **[Test]** Pest: `storeMany` (RBAC sama dengan `store`, satu baris gagal → semua batal); partial reload `only` mengembalikan prop yang diminta saja
-- [ ] **[Ukur]** Angka "sesudah" — target < 300 ms, overlay tidak muncul
-- [ ] **[Dok]** `design-standards.md` §2 (pola simpan cepat, kapan pop-up), `frontend-standards.md` §7 (`projectVisit`)
-- [ ] **[Build]** `npm run build`, Pint, suite Pest
+- [x] **[Test]** Pest: `storeMany` (RBAC sama dengan `store`, satu baris gagal → semua batal); partial reload `only` mengembalikan prop yang diminta saja
+- [~] **[Ukur]** (server: sebagian 12,6 ms — lihat Pengukuran; ukur ulang di browser) Angka "sesudah" — target < 300 ms, overlay tidak muncul
+- [x] **[Dok]** `design-standards.md` §2 (pola simpan cepat, kapan pop-up), `frontend-standards.md` §7 (`projectVisit`)
+- [x] **[Build]** `npm run build`, Pint, suite Pest

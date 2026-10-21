@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Logistics;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Logistics\ProjectMaterialActionRequest;
 use App\Http\Requests\Logistics\StoreProjectMaterialRequest;
+use App\Http\Requests\Logistics\StoreProjectMaterialsRequest;
 use App\Http\Requests\Logistics\UpdateProjectMaterialRequest;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
@@ -28,6 +29,16 @@ class ProjectMaterialController extends Controller
         $service->plan($project, $request->validated(), $request->user());
 
         return back()->with('success', 'Kebutuhan material disimpan.');
+    }
+
+    /** Sprint 29 Sub 01 — "Simpan semua" of the multi-line material form; same gate as store(). */
+    public function storeMany(StoreProjectMaterialsRequest $request, Project $project, ProjectMaterialService $service): RedirectResponse
+    {
+        $this->authorize('planMaterials', $project);
+
+        $lines = $service->planMany($project, $request->validated('lines'), $request->user());
+
+        return back()->with('success', count($lines).' kebutuhan material disimpan.');
     }
 
     public function update(UpdateProjectMaterialRequest $request, ProjectMaterial $projectMaterial, ProjectMaterialService $service): RedirectResponse

@@ -10,17 +10,18 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import type { Milestone, Project, ProjectExecution } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import { differenceInCalendarDays } from 'date-fns';
-import { Check, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { Check, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Loader2, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { MilestoneFormDialog, suggestTimelineStart } from './MilestoneFormDialog';
-import { type MaterialOption, TmMaterialPlanner } from './TmMaterialPlanner';
+import { TmMaterialPlanner } from './TmMaterialPlanner';
 
 // Mirrors SaveTechnicalMeetingRequest.
 const schema = z.object({
@@ -67,8 +68,6 @@ interface TechnicalMeetingCardProps {
     milestones: Milestone[];
     /** May add/edit/delete timelines (Show's canManageMilestones). */
     canManageTimeline: boolean;
-    /** The catalog for the material planner (Show's materialOptions — empty without planMaterials). */
-    materialOptions: MaterialOption[];
 }
 
 /**
@@ -80,7 +79,7 @@ interface TechnicalMeetingCardProps {
  * are the Pengawas's: planned right here (TmMaterialPlanner) next to the
  * RAB items, in the PM's card and in the Pengawas's read-only one.
  */
-export function TechnicalMeetingCard({ project, execution, milestones, canManageTimeline, materialOptions }: TechnicalMeetingCardProps) {
+export function TechnicalMeetingCard({ project, execution, milestones, canManageTimeline }: TechnicalMeetingCardProps) {
     const { meeting, fee, can } = execution;
 
     if (can.saveMeeting) {
@@ -90,7 +89,6 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                 execution={execution}
                 milestones={milestones}
                 canManageTimeline={canManageTimeline}
-                materialOptions={materialOptions}
             />
         );
     }
@@ -106,7 +104,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                         <RequirementList items={execution.meetingRequirements} />
                     </div>
                 )}
-                <ReadOnlyMaterials project={project} execution={execution} materialOptions={materialOptions} />
+                <ReadOnlyMaterials project={project} execution={execution} />
             </SectionCard>
         );
     }
@@ -131,7 +129,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                     <RequirementList items={execution.meetingRequirements} />
                 </div>
             )}
-            <ReadOnlyMaterials project={project} execution={execution} materialOptions={materialOptions} />
+            <ReadOnlyMaterials project={project} execution={execution} />
         </SectionCard>
     );
 }
@@ -244,8 +242,10 @@ function TmStep({
     );
 }
 
-function TechnicalMeetingForm({ project, execution, milestones, canManageTimeline, materialOptions }: TechnicalMeetingCardProps) {
+function TechnicalMeetingForm({ project, execution, milestones, canManageTimeline }: TechnicalMeetingCardProps) {
     const { meeting, fee } = execution;
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
     const [editingTimeline, setEditingTimeline] = useState<Milestone | null>(null);
     const [deletingTimeline, setDeletingTimeline] = useState<Milestone | null>(null);
@@ -304,7 +304,15 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                     .map((row) => (row.user_id ? { user_id: Number(row.user_id) } : { name: row.name?.trim() })),
             },
             {
-                preserveScroll: true,
+                // Quiet partial reload (Sprint 29 Sub 01 L6): "Tersimpan" beside the button is the feedback.
+                ...projectVisit(RELOAD.meeting, { quiet: true }),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
+                onSuccess: () => {
+                    // The form stays mounted (preserveState) — what was saved is the new baseline.
+                    form.reset(values);
+                    setSaved(true);
+                },
                 onError: (errors) =>
                     Object.entries(errors).forEach(([key, message]) =>
                         form.setError((key.startsWith('attendees') ? 'attendees' : key) as keyof FormValues, { message }),
@@ -313,6 +321,10 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
         );
     }
 
+    // "Tersimpan" only until the next edit.
+    useEffect(() => {
+        if (dirty) setSaved(false);
+    }, [dirty]);
 
     function openTimeline(milestone: Milestone | null) {
         setEditingTimeline(milestone);
@@ -323,8 +335,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
         if (!deletingTimeline) return;
 
         router.delete(route('milestones.destroy', { milestone: deletingTimeline.id }), {
-            preserveState: true,
-            preserveScroll: true,
+            ...projectVisit(RELOAD.milestones, { quiet: true }),
             onStart: () => setRemovingTimeline(true),
             onFinish: () => {
                 setRemovingTimeline(false);
@@ -477,10 +488,10 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
 
                     <TmStep
                         number={3}
-                        title="Jasa Pengawas & Tanggal Selesai"
+                        title="Tanggal Selesai & Jasa Pengawas"
                         holder="PM"
-                        done={isDone('fee', 'end_date')}
-                        description="DP pengawas diajukan Pengawas setelah TM; Tanggal Selesai jadi dasar pengingat H-30%."
+                        done={isDone('end_date')}
+                        description="Tanggal Selesai wajib untuk TM Selesai (dasar pengingat H-30%). Nilai jasa pengawas boleh diisi nanti — dibutuhkan sebelum Pengawas mengajukan DP."
                     >
                         <div className="grid gap-4 sm:grid-cols-3">
                             <FormField
@@ -530,23 +541,39 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                     </TmStep>
 
                     <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        {dirty && <p className="text-xs text-warning-ink sm:mr-auto">Ada perubahan langkah 1 / 3 yang belum disimpan.</p>}
-                        <Button type="submit" variant={dirty ? 'default' : 'outline'} disabled={form.formState.isSubmitting}>
-                            Simpan TM
+                        {dirty ? (
+                            <p className="text-xs text-warning-ink sm:mr-auto">Ada perubahan langkah 1 / 3 yang belum disimpan.</p>
+                        ) : (
+                            saved && (
+                                <p className="flex items-center gap-1 text-xs font-medium text-success-ink sm:mr-auto" role="status">
+                                    Tersimpan
+                                    <Check className="size-3.5" />
+                                </p>
+                            )
+                        )}
+                        <Button type="submit" variant={dirty ? 'default' : 'outline'} className="max-md:h-11" disabled={saving}>
+                            {saving && <Loader2 className="size-4 animate-spin" />}
+                            {saving ? 'Menyimpan…' : 'Simpan TM'}
                         </Button>
                     </div>
                 </form>
             </Form>
 
-            <div id="tm-bahan" className="mt-5 scroll-mt-24 border-t border-border pt-5">
+            {/* Sprint 29 Sub 03 (D2) — the Pengawas's part: not a TM requirement, checked by the DP conditions. */}
+            <div id="tm-bahan" className="mt-5 scroll-mt-24 rounded-lg border border-dashed border-border p-4">
+                <p className="text-sm font-semibold text-foreground">Bagian Pengawas</p>
+                <p className="mb-4 text-xs text-muted-foreground">
+                    Bahan, upah & daily target diisi {project.supervisor?.name ?? 'Pengawas proyek'} — boleh setelah TM, sebelum Start Produksi. Tidak
+                    menahan TM Selesai.
+                </p>
                 <TmStep
                     number={4}
                     title="Bahan yang Digunakan"
                     holder="Pengawas"
-                    done={isDone('materials')}
-                    description={`Diisi ${project.supervisor?.name ?? 'Pengawas proyek'} — cari barang, isi jumlah, Enter.`}
+                    done={execution.dpRequirements.find((row) => row.key === 'materials')?.done ?? false}
+                    description="Cari barang, isi jumlah, Enter."
                 >
-                    <MaterialsPlanning project={project} execution={execution} materialOptions={materialOptions} />
+                    <MaterialsPlanning project={project} execution={execution} />
                 </TmStep>
             </div>
 
@@ -681,7 +708,7 @@ function TimelinePlanner({
 }
 
 /** Read-only TM card (the Pengawas during TM): plan the materials next to the RAB items. */
-function ReadOnlyMaterials({ project, execution, materialOptions }: { project: Project; execution: ProjectExecution; materialOptions: MaterialOption[] }) {
+function ReadOnlyMaterials({ project, execution }: { project: Project; execution: ProjectExecution }) {
     if (execution.phase !== 'TM' || (execution.meetingRab.length === 0 && !execution.can.planMaterials)) {
         return null;
     }
@@ -695,7 +722,7 @@ function ReadOnlyMaterials({ project, execution, materialOptions }: { project: P
                 <p className="mt-0.5 text-xs text-muted-foreground">Cari barang, isi jumlah, Enter — rencana bisa diubah sampai produksi dimulai.</p>
             )}
             <div className="mt-3">
-                <MaterialsPlanning project={project} execution={execution} materialOptions={materialOptions} />
+                <MaterialsPlanning project={project} execution={execution} />
             </div>
         </div>
     );
@@ -706,7 +733,7 @@ function ReadOnlyMaterials({ project, execution, materialOptions }: { project: P
  * may plan, a list otherwise), with the approved RAB's work items
  * (description + volume, no prices) beside them as the reference.
  */
-function MaterialsPlanning({ project, execution, materialOptions }: { project: Project; execution: ProjectExecution; materialOptions: MaterialOption[] }) {
+function MaterialsPlanning({ project, execution }: { project: Project; execution: ProjectExecution }) {
     const rab = execution.meetingRab;
     const materials = execution.meetingMaterials;
     const labelClass = 'mb-2 text-xs font-medium tracking-wide text-daiku-muted uppercase';
@@ -739,7 +766,6 @@ function MaterialsPlanning({ project, execution, materialOptions }: { project: P
                     <TmMaterialPlanner
                         projectId={project.id}
                         lines={materials}
-                        options={materialOptions}
                         canUpdate={execution.can.updateMaterials}
                         canRemove={execution.can.removeMaterials}
                     />

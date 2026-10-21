@@ -283,11 +283,14 @@ export default function MaterialRequestIndex({
                 units={units}
                 vendors={vendors}
                 categories={categories}
+                // A new catalog item may be born from the decision.
+                only={['requests', 'counts', 'catalog']}
             />
             <PmRequestDecisionDialog
                 line={pmDecision?.line ?? null}
                 decision={pmDecision?.decision ?? null}
                 onOpenChange={(open) => !open && setPmDecision(null)}
+                only={['requests', 'counts']}
             />
         </AppLayout>
     );

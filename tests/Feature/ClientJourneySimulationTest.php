@@ -537,6 +537,9 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     foreach (['Pasang rangka partisi' => '2026-10-28', 'Pasang meja bar' => '2026-10-29'] as $title => $day) {
         journeyAt($day, '16:00:00');
         $this->actingAs($tukang)->patch(route('tasks.updateStatus', $targets[$title]), ['status' => 'DONE'])->assertSessionHasNoErrors();
+        // Sprint 29 Sub 04 — "Selesai" waits for the Pengawas's approval.
+        expect($targets[$title]->fresh()->status)->toBe(TaskStatus::Pengecekan);
+        $this->actingAs($qa)->post(route('tasks.approve', $targets[$title]))->assertSessionHasNoErrors();
     }
     expect($project->fresh()->actualProgress())->toBe(75)
         ->and(journeyNotified($pm, 'project_progress_reached'))->toBe(1);
@@ -552,6 +555,7 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
         ->assertSessionHasNoErrors();
     journeyAt('2026-10-30', '15:00:00');
     $this->actingAs($tukang)->patch(route('tasks.updateStatus', $finding->fresh()->task), ['status' => 'DONE'])->assertSessionHasNoErrors();
+    $this->actingAs($qa)->post(route('tasks.approve', $finding->fresh()->task))->assertSessionHasNoErrors();
     expect($finding->fresh()->status)->toBe(SiteFindingStatus::Selesai);
 
     $this->actingAs($pm)->post(route('milestones.markDone', $pemasangan))->assertSessionHasNoErrors();

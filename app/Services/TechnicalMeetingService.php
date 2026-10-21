@@ -95,14 +95,13 @@ class TechnicalMeetingService
     public function requirements(Project $project): array
     {
         $meeting = $project->technicalMeeting()->withCount('attendees')->first();
-        $fee = $project->supervisorFee()->first();
 
+        // Sprint 29 Sub 03 (D1) — the PM's part only. Bahan & upah are the
+        // Pengawas's, filled after the TM up to Start Produksi (dpRequirements).
         return [
             ['key' => 'notes', 'label' => 'Tanggal & notulen TM', 'done' => $meeting !== null && $meeting->meeting_date !== null && filled($meeting->notes)],
             ['key' => 'attendees', 'label' => 'Minimal satu peserta', 'done' => (int) ($meeting?->attendees_count ?? 0) > 0],
             ['key' => 'timeline', 'label' => 'Timeline (durasi) tersusun · PM', 'done' => $project->milestones()->exists()],
-            ['key' => 'materials', 'label' => 'Bahan yang digunakan · Pengawas', 'done' => $this->plannedMaterials($project)->exists()],
-            ['key' => 'fee', 'label' => 'Nilai jasa pengawas & DP %', 'done' => $fee !== null && (float) $fee->total_amount > 0],
             ['key' => 'end_date', 'label' => 'Tanggal Selesai proyek', 'done' => $project->end_date !== null],
         ];
     }

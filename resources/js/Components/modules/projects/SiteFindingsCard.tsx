@@ -1,6 +1,7 @@
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
+import { SavedHint, useSavedHint } from '@/Components/shared/SavedHint';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -10,10 +11,11 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatDate } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { Milestone, ProjectExecution, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { ClipboardList, ExternalLink, Wrench } from 'lucide-react';
+import { ClipboardList, ExternalLink, Loader2, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -53,6 +55,10 @@ export function SiteFindingsCard({
 }) {
     const { findings, can } = execution;
     const [repairing, setRepairing] = useState<Finding | null>(null);
+    const [saving, setSaving] = useState(false);
+    // The finding being closed ("Tandai Selesai"), so only its button spins.
+    const [resolving, setResolving] = useState<number | null>(null);
+    const saved = useSavedHint();
     const form = useForm<z.infer<typeof findingSchema>>({ resolver: zodResolver(findingSchema), defaultValues: { description: '', milestone_id: '', photo_url: '' } });
 
     if (!can.recordFinding && findings.length === 0) {
@@ -66,11 +72,29 @@ export function SiteFindingsCard({
             route('projects.site-findings.store', { project: projectId }),
             { description: values.description, milestone_id: values.milestone_id ? Number(values.milestone_id) : null, photo_url: values.photo_url || null },
             {
-                preserveScroll: true,
-                onSuccess: () => form.reset({ description: '', milestone_id: '', photo_url: '' }),
+                // Sprint 29 Sub 01 (K4) — findings are noted one after another on site: quiet, the
+                // new row is the feedback; the form stays with its timeline and goes back to "Temuan".
+                ...projectVisit(RELOAD.supervision, { quiet: true }),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
+                onSuccess: () => {
+                    form.reset({ description: '', milestone_id: values.milestone_id ?? '', photo_url: '' });
+                    // shadcn's Textarea doesn't forward refs (React 18), so RHF's setFocus can't reach it.
+                    requestAnimationFrame(() => document.querySelector<HTMLTextAreaElement>('textarea[data-focus-key="finding-description"]')?.focus());
+                    saved.flash();
+                },
                 onError: (errors) => Object.entries(errors).forEach(([key, message]) => form.setError(key as 'description', { message })),
             },
         );
+    }
+
+    function resolve(finding: Finding) {
+        // Closing a finding releases the timeline's QA — a step, so it keeps the pop-up.
+        router.post(route('site-findings.resolve', { siteFinding: finding.id }), {}, {
+            ...projectVisit(RELOAD.supervision),
+            onStart: () => setResolving(finding.id),
+            onFinish: () => setResolving(null),
+        });
     }
 
     return (
@@ -89,7 +113,7 @@ export function SiteFindingsCard({
                                 <FormItem>
                                     <FormLabel required>Temuan</FormLabel>
                                     <FormControl>
-                                        <Textarea {...field} rows={2} placeholder="Mis. sambungan HPL pintu atas terkelupas" />
+                                        <Textarea {...field} rows={2} data-focus-key="finding-description" placeholder="Mis. sambungan HPL pintu atas terkelupas" />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -134,9 +158,13 @@ export function SiteFindingsCard({
                                 )}
                             />
                         </div>
-                        <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
-                            Catat Temuan
-                        </Button>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <Button type="submit" className="w-full sm:w-auto" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
+                                Catat Temuan
+                            </Button>
+                            <SavedHint shown={saved.shown} label="Temuan tercatat" />
+                        </div>
                     </form>
                 </Form>
             )}
@@ -170,11 +198,8 @@ export function SiteFindingsCard({
                                         </Button>
                                     )}
                                     {can.resolveFinding && (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => router.post(route('site-findings.resolve', { siteFinding: finding.id }), {}, { preserveScroll: true })}
-                                        >
+                                        <Button size="sm" variant="ghost" disabled={resolving !== null} onClick={() => resolve(finding)}>
+                                            {resolving === finding.id && <Loader2 className="size-4 animate-spin" />}
                                             Tandai Selesai
                                         </Button>
                                     )}
@@ -199,6 +224,7 @@ function RepairTaskDialog({
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     onOpenChange: (open: boolean) => void;
 }) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<z.infer<typeof repairSchema>>({ resolver: zodResolver(repairSchema), defaultValues: { assignee_id: '', due_date: '', rate_per_task: '' } });
 
     useEffect(() => {
@@ -212,7 +238,10 @@ function RepairTaskDialog({
             route('site-findings.repair-task', { siteFinding: finding.id }),
             { assignee_id: Number(values.assignee_id), due_date: values.due_date, rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null },
             {
-                preserveScroll: true,
+                // A new daily target for a Tukang (+ the finding's link) — keeps the pop-up.
+                ...projectVisit(RELOAD.tasks),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onSuccess: () => onOpenChange(false),
                 onError: (errors) => Object.entries(errors).forEach(([key, message]) => form.setError(key as 'assignee_id', { message })),
             },
@@ -286,7 +315,8 @@ function RepairTaskDialog({
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 Buat Task Perbaikan
                             </Button>
                         </DialogFooter>

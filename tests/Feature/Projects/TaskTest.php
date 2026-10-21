@@ -40,7 +40,7 @@ test('roles without access are forbidden from the task index', function (string 
     $user->assignRole($role);
 
     $this->actingAs($user)->get(route('tasks.index'))->assertForbidden();
-})->with(['MARKETING', 'DESIGNER', 'ESTIMATOR', 'QA', 'FINANCE', 'LOGISTICS']);
+})->with(['MARKETING', 'DESIGNER', 'ESTIMATOR', 'FINANCE', 'LOGISTICS']);
 
 test('PM can assign a task to a field staff', function () {
     $pm = User::factory()->create();

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\MilestoneStatus;
 use App\Enums\NotificationType;
 use App\Enums\ProjectPhase;
 use App\Enums\SiteFindingStatus;
@@ -16,6 +17,7 @@ use App\Models\Task;
 use App\Models\TaskScheduleChange;
 use App\Models\User;
 use App\Support\DailyFormSchedule;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -281,6 +283,12 @@ class TaskService
         $task->loadMissing('project');
         $isAssignee = (int) $task->assignee_id === (int) $actor->id;
 
+        // Sprint 29 Sub 04 (F1) — the Tukang's "Selesai" asks the Pengawas to
+        // check it; only the Pengawas / PM side turns a target DONE (approve()).
+        if ($isAssignee && ! $this->checksTargets($actor) && $data['status'] === TaskStatus::Done->value && $task->status !== TaskStatus::Done) {
+            $data['status'] = TaskStatus::Pengecekan->value;
+        }
+
         // Sprint 24 D1 — the Tukang starts on the targets once production started (DP approved by the PM).
         if ($isAssignee && $task->project && ! $task->project->currentPhase()->isProducing()) {
             throw ValidationException::withMessages([
@@ -320,6 +328,154 @@ class TaskService
         }
 
         return $task->fresh();
+    }
+
+    /**
+     * Sprint 29 Sub 04 (F2) — "Setujui": a target the Tukang reported done
+     * becomes DONE, completed when the Tukang marked it (their check-in).
+     */
+    public function approve(Task $task, User $actor): Task
+    {
+        if ($task->status !== TaskStatus::Pengecekan) {
+            throw ValidationException::withMessages(['status' => "Target \"{$task->title}\" tidak sedang menunggu dicek."]);
+        }
+
+        $reportedAt = $task->dailyTaskForms()->where('status_update', TaskStatus::Pengecekan->value)->latest('submitted_at')->value('submitted_at');
+
+        return DB::transaction(function () use ($task, $actor, $reportedAt) {
+            $task = $this->updateStatus($task, ['status' => TaskStatus::Done->value], $actor, recordActivity: false);
+
+            if ($reportedAt) {
+                $task->update(['completed_at' => $reportedAt]);
+            }
+
+            $this->auditLogService->record('task.approved', $task, ['status' => TaskStatus::Pengecekan->value], ['status' => TaskStatus::Done->value], $actor);
+
+            return $task;
+        });
+    }
+
+    /**
+     * Sprint 29 Sub 04 (F4) — "Setujui semua": every target of the given ids
+     * that waits for a check, in one transaction.
+     *
+     * @param  list<int>  $taskIds
+     */
+    public function approveMany(Project $project, array $taskIds, User $actor): int
+    {
+        return DB::transaction(function () use ($project, $taskIds, $actor) {
+            $tasks = Task::query()
+                ->where('project_id', $project->id)
+                ->whereIn('id', $taskIds)
+                ->where('status', TaskStatus::Pengecekan->value)
+                ->lockForUpdate()
+                ->get();
+
+            $tasks->each(fn (Task $task) => $this->approve($task, $actor));
+
+            return $tasks->count();
+        });
+    }
+
+    /**
+     * Sprint 29 Sub 04 (F2) — "Kembalikan": not done yet → back to the
+     * Tukang (Dikerjakan) with the reason, told by notification, audited.
+     */
+    public function returnToStaff(Task $task, string $note, User $actor): Task
+    {
+        if ($task->status !== TaskStatus::Pengecekan) {
+            throw ValidationException::withMessages(['note' => "Target \"{$task->title}\" tidak sedang menunggu dicek."]);
+        }
+
+        return DB::transaction(function () use ($task, $note, $actor) {
+            $task->update(['status' => TaskStatus::OnProgress->value, 'pre_overdue_status' => null]);
+            $this->auditLogService->record('task.returned', $task, ['status' => TaskStatus::Pengecekan->value], [
+                'status' => TaskStatus::OnProgress->value,
+                'note' => trim($note),
+            ], $actor);
+
+            if ($task->assignee) {
+                $this->notificationService->notify(
+                    $task->assignee,
+                    NotificationType::TaskUpdated,
+                    'Target Dikembalikan',
+                    "Target \"{$task->title}\" dikembalikan {$actor->name}: ".trim($note),
+                    ['task_id' => $task->id, 'project_id' => $task->project_id],
+                );
+            }
+
+            return $task->fresh();
+        });
+    }
+
+    /**
+     * Sprint 29 Sub 04 (F3) — the Pengawas ticks a target done for a Tukang
+     * who doesn't use the phone: DONE at once, and today's check-in of the
+     * Tukang is recorded (no penalty, Q30) — who ticked it is in the audit.
+     */
+    public function checkOff(Task $task, User $actor): Task
+    {
+        $task->loadMissing(['project', 'assignee']);
+
+        if ($task->status === TaskStatus::Done) {
+            throw ValidationException::withMessages(['status' => "Target \"{$task->title}\" sudah selesai."]);
+        }
+
+        if ($task->status === TaskStatus::Pengecekan) {
+            return $this->approve($task, $actor);
+        }
+
+        if ($task->project && ! $task->project->currentPhase()->isProducing()) {
+            throw ValidationException::withMessages(['status' => 'Produksi proyek ini belum dimulai — target belum bisa dicentang.']);
+        }
+
+        return DB::transaction(function () use ($task, $actor) {
+            $before = $task->status->value;
+            $task = $this->updateStatus($task, ['status' => TaskStatus::Done->value], $actor, recordActivity: false);
+
+            if ($task->assignee) {
+                $this->recordActivity($task, [
+                    'status' => TaskStatus::Done->value,
+                    'note' => "Dicentang selesai oleh {$actor->name}",
+                ], $task->assignee);
+            }
+
+            $this->auditLogService->record('task.checked_by_supervisor', $task, ['status' => $before], ['status' => TaskStatus::Done->value], $actor);
+
+            return $task;
+        });
+    }
+
+    /**
+     * Sprint 29 Sub 04 (K5) — one target for several tukang × the working
+     * days of a range: create() per row, one transaction (a row outside
+     * its timeline refuses the lot).
+     *
+     * @param  array<string, mixed>  $data  StoreTasksRequest's validated data
+     * @return list<Task>
+     */
+    public function createMany(Project $project, array $data, User $actor): array
+    {
+        $days = collect(CarbonPeriod::create($data['date_from'], $data['date_to']))
+            ->filter(fn ($day) => DailyFormSchedule::isWorkDay(Carbon::parse($day->toDateString(), DailyFormSchedule::TIMEZONE)))
+            ->map(fn ($day) => $day->toDateString())
+            ->values();
+
+        if ($days->isEmpty()) {
+            throw ValidationException::withMessages(['date_from' => 'Tidak ada hari kerja (Senin–Sabtu) di rentang ini.']);
+        }
+
+        $base = collect($data)->except(['assignee_ids', 'date_from', 'date_to'])->all();
+
+        return DB::transaction(fn () => collect(array_values(array_unique($data['assignee_ids'])))
+            ->flatMap(fn ($assigneeId) => $days->map(fn (string $day) => $this->create($project, [...$base, 'assignee_id' => $assigneeId, 'due_date' => $day], $actor)))
+            ->all());
+    }
+
+    /** Whoever checks targets (Pengawas / PM / Asisten PM) — their own DONE is final. */
+    private function checksTargets(User $actor): bool
+    {
+        return $actor->hasAnyRole(['PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
     }
 
     /**
@@ -452,16 +608,19 @@ class TaskService
             }
 
             $this->ensureWorkDay($toDate, 'due_date');
-            $this->ensureWithinTimeline($locked->milestone, $toDate);
-            $attributes = ['due_date' => $toDate];
+            // Sprint 29 Sub 05 (F7, Q29) — any working day; the target follows the timeline of its new day.
+            $milestone = $this->timelineOn($locked, $toDate);
+            $attributes = ['due_date' => $toDate, 'milestone_id' => $milestone?->id];
 
             if ($locked->status === TaskStatus::Over && $toDate >= DailyFormSchedule::now()->toDateString()) {
                 $attributes['status'] = ($locked->pre_overdue_status ?? TaskStatus::Pending)->value;
                 $attributes['pre_overdue_status'] = null;
             }
 
+            $moved = $this->timelineMoveNote($locked->milestone, $milestone);
             $locked->update($attributes);
-            $this->logScheduleChange($locked, $fromDate, $toDate, TaskScheduleChange::GESER, $actor, $note);
+            $locked->setRelation('milestone', $milestone);
+            $this->logScheduleChange($locked, $fromDate, $toDate, TaskScheduleChange::GESER, $actor, collect([$note, $moved])->filter()->implode(' · '));
             $this->notifyAssigneeOfChange($locked, $locked->project, $fromDate);
 
             return $locked;
@@ -470,9 +629,11 @@ class TaskService
 
     /**
      * Sprint 24 D9 — "Tukar": every unfinished target of `$dateA` goes to
-     * `$dateB` and back (optionally one Tukang's only). Refused as a whole
-     * when any of them would land outside its timeline, and — Sprint 28
-     * K13 — when either day isn't a working day.
+     * `$dateB` and back (optionally one Tukang's only). Sprint 29 Sub 05
+     * (F7) — not bound to the timelines: each target follows the timeline
+     * of its new day (Q29). Refused as a whole when one would land on a day
+     * that isn't a working day (Sprint 28 K13) — only the landing day
+     * counts: a target left on a Sunday may still be swapped off it.
      */
     public function swapDays(Project $project, string $dateA, string $dateB, ?int $assigneeId, User $actor): int
     {
@@ -484,9 +645,6 @@ class TaskService
             if ($dateA === $dateB) {
                 throw ValidationException::withMessages(['to_date' => 'Pilih dua tanggal yang berbeda.']);
             }
-
-            $this->ensureWorkDay($dateA, 'from_date');
-            $this->ensureWorkDay($dateB, 'to_date');
 
             /** @var Collection<int, Task> $tasks */
             $tasks = Task::query()
@@ -504,12 +662,11 @@ class TaskService
 
             foreach ($tasks as $task) {
                 $target = $task->due_date->toDateString() === $dateA ? $dateB : $dateA;
+                $day = Carbon::parse($target, DailyFormSchedule::TIMEZONE);
 
-                try {
-                    $this->ensureWithinTimeline($task->milestone, $target);
-                } catch (ValidationException) {
+                if (! DailyFormSchedule::isWorkDay($day)) {
                     throw ValidationException::withMessages([
-                        'to_date' => "Target \"{$task->title}\" akan keluar dari timeline \"{$task->milestone?->name}\" — tukar dibatalkan.",
+                        $target === $dateB ? 'to_date' : 'from_date' => "Target \"{$task->title}\" akan pindah ke hari {$day->locale('id')->translatedFormat('l')} — bukan hari kerja, tukar dibatalkan.",
                     ]);
                 }
             }
@@ -517,8 +674,10 @@ class TaskService
             foreach ($tasks as $task) {
                 $from = $task->due_date->toDateString();
                 $target = $from === $dateA ? $dateB : $dateA;
-                $task->update(['due_date' => $target]);
-                $this->logScheduleChange($task, $from, $target, TaskScheduleChange::TUKAR, $actor);
+                $milestone = $this->timelineOn($task, $target);
+                $moved = $this->timelineMoveNote($task->milestone, $milestone);
+                $task->update(['due_date' => $target, 'milestone_id' => $milestone?->id]);
+                $this->logScheduleChange($task, $from, $target, TaskScheduleChange::TUKAR, $actor, $moved);
             }
 
             $tasks->groupBy('assignee_id')->each(function (Collection $own) use ($project, $dateA, $dateB) {
@@ -544,6 +703,35 @@ class TaskService
      * day (config daiku.daily_form.work_days via DailyFormSchedule): no
      * daily form, no report and no penalty run on the others.
      */
+    /**
+     * Sprint 29 Sub 05 (Q29) — the timeline a moved target belongs to on
+     * `$date`: its own when the day is inside it, else the project's
+     * (not yet QA-passed) timeline covering that day, else its own.
+     */
+    private function timelineOn(Task $task, string $date): ?Milestone
+    {
+        $own = $task->milestone;
+
+        if ($own && $own->start_date?->toDateString() <= $date && $own->target_date?->toDateString() >= $date) {
+            return $own;
+        }
+
+        return Milestone::query()
+            ->where('project_id', $task->project_id)
+            ->where('status', '!=', MilestoneStatus::Completed->value)
+            ->whereDate('start_date', '<=', $date)
+            ->whereDate('target_date', '>=', $date)
+            ->orderBy('order')
+            ->orderBy('id')
+            ->first() ?? $own;
+    }
+
+    /** "Pindah timeline: A → B" for the schedule history, null when it stayed. */
+    private function timelineMoveNote(?Milestone $from, ?Milestone $to): ?string
+    {
+        return $from?->id !== $to?->id ? "Pindah timeline: {$from?->name} → {$to?->name}" : null;
+    }
+
     private function ensureWorkDay(string $date, string $field): void
     {
         $day = Carbon::parse($date, DailyFormSchedule::TIMEZONE);

@@ -12,9 +12,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import { domainStatusLabel } from '@/lib/waitingOn';
-import { isWorkDay, NON_WORK_DAY_MESSAGE } from '@/lib/workDays';
 import type { Milestone, Project, ProjectExecution, ProjectMaterial, ProjectPhase, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
@@ -29,6 +29,7 @@ import {
     DraftingCompass,
     ExternalLink,
     History,
+    Loader2,
     MapPin,
     Package,
     Pause,
@@ -45,7 +46,6 @@ import type { ProjectTabTarget } from './projectWaiting';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
-import type { MaterialOption } from './TmMaterialPlanner';
 import { WeeklyReportsCard } from './WeeklyReportsCard';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric' });
@@ -169,7 +169,6 @@ export function ProjectExecutionTab({
     milestones,
     fieldStaff,
     canManageMilestones,
-    materialOptions,
     onOpenActivityTarget,
     onOpen,
     canOpen,
@@ -180,7 +179,6 @@ export function ProjectExecutionTab({
     milestones: Milestone[];
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     canManageMilestones: boolean;
-    materialOptions: MaterialOption[];
     /** Sprint 25 — opens the project-wide "Activity Target" tab (when this viewer reads it). */
     onOpenActivityTarget?: () => void;
     /** Sprint 27 — opens another tab/view of Detail Proyek ("Lengkapi →", "Buka →"). */
@@ -269,7 +267,6 @@ export function ProjectExecutionTab({
                         execution={execution}
                         milestones={milestones}
                         canManageTimeline={canManageMilestones}
-                        materialOptions={materialOptions}
                     />
                 );
                 break;
@@ -675,11 +672,12 @@ function TargetVsActualCard({
     );
 }
 
-// Mirrors RescheduleTargetRequest (swap form) + TaskService's working-day rule.
+// Mirrors RescheduleTargetRequest (swap form). Whether a target would land on a
+// non-working day depends on which day holds targets — TaskService::swapDays() checks it.
 const swapSchema = z
     .object({
-        from_date: z.string().min(1, 'Tanggal pertama wajib diisi.').refine(isWorkDay, NON_WORK_DAY_MESSAGE),
-        to_date: z.string().min(1, 'Tanggal kedua wajib diisi.').refine(isWorkDay, NON_WORK_DAY_MESSAGE),
+        from_date: z.string().min(1, 'Tanggal pertama wajib diisi.'),
+        to_date: z.string().min(1, 'Tanggal kedua wajib diisi.'),
         assignee_id: z.string().optional(),
     })
     .refine((values) => values.from_date !== values.to_date, { message: 'Pilih dua tanggal yang berbeda.', path: ['to_date'] });
@@ -696,6 +694,7 @@ function SwapDaysDialog({
     projectId: number;
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
 }) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<z.infer<typeof swapSchema>>({ resolver: zodResolver(swapSchema), defaultValues: { from_date: '', to_date: '', assignee_id: '' } });
 
     function onSubmit(values: z.infer<typeof swapSchema>) {
@@ -703,7 +702,10 @@ function SwapDaysDialog({
             route('projects.targets.swap', { project: projectId }),
             { ...values, assignee_id: values.assignee_id ? Number(values.assignee_id) : null },
             {
-                preserveScroll: true,
+                // A bulk move whose message says how many targets swapped — keeps the pop-up; reloads the targets only.
+                ...projectVisit(RELOAD.tasks),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onSuccess: () => {
                     form.reset();
                     onOpenChange(false);
@@ -780,7 +782,8 @@ function SwapDaysDialog({
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 Tukar
                             </Button>
                         </DialogFooter>

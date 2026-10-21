@@ -7,11 +7,11 @@ Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-penga
 
 | # | Sub | Bergantung | Status |
 |---|---|---|---|
-| 01 | [Kecepatan simpan Detail Proyek + form bahan tanpa menunggu](01-kecepatan-simpan.md) | — | belum |
-| 02 | [Pengecekan mingguan sebelum Jumat](02-pengecekan-sebelum-jumat.md) | 01 | belum |
-| 03 | [TM Selesai tanpa bagian Pengawas](03-tm-selesai.md) | 01 | belum |
-| 04 | [Daily target: approval & centang Pengawas](04-daily-target-pengawas.md) | 01 | belum |
-| 05 | [Geser & tukar task bebas](05-geser-bebas.md) | 01 | belum |
+| 01 | [Kecepatan simpan Detail Proyek + form bahan tanpa menunggu](01-kecepatan-simpan.md) | — | kode selesai — tunggu cek browser |
+| 02 | [Pengecekan mingguan sebelum Jumat](02-pengecekan-sebelum-jumat.md) | 01 | kode selesai — tunggu cek browser |
+| 03 | [TM Selesai tanpa bagian Pengawas](03-tm-selesai.md) | 01 | kode selesai — tunggu cek browser |
+| 04 | [Daily target: approval & centang Pengawas](04-daily-target-pengawas.md) | 01 | kode selesai (Admin Proyek menyusul Sub 07) — tunggu cek browser |
+| 05 | [Geser & tukar task bebas](05-geser-bebas.md) | 01 | kode selesai — tunggu cek browser |
 | 06 | [Banyak Pengawas](06-banyak-pengawas.md) | 01 | belum |
 | 07 | [Admin Proyek](07-admin-proyek.md) | 06 | belum |
 | 08 | [Upah Tukang per item RAB](08-upah-tukang.md) | 06, 07 | belum |

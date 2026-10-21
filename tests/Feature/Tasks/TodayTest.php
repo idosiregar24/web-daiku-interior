@@ -111,7 +111,8 @@ test('the sheet save records status and daily form once', function () {
         ->post(route('daily-forms.store', $task), ['status' => 'DONE'])
         ->assertSessionHasErrors('task_id');
 
-    expect($task->fresh()->status)->toBe(TaskStatus::Done)
+    // Sprint 29 Sub 04 — "Selesai" from the Tukang = menunggu dicek Pengawas.
+    expect($task->fresh()->status)->toBe(TaskStatus::Pengecekan)
         ->and(DailyTaskForm::where('task_id', $task->id)->count())->toBe(1);
 });
 

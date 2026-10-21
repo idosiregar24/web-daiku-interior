@@ -159,6 +159,8 @@ class ProjectExecutionService
             'currentWeek' => $producing && $active ? [
                 ...$this->weeklyReportService->weekOf($project),
                 'is_report_day' => DailyFormSchedule::now()->dayOfWeek === (int) config('daiku.execution.weekly_report_day', 5),
+                // Sprint 29 Sub 02 — may be sent any day of the week; from the report day on it is due.
+                'is_due' => WeeklyReportService::isDue(),
             ] : null,
             'progress' => $progress,
             'threshold' => ProductionService::departureThreshold(),

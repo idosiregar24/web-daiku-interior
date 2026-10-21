@@ -17,6 +17,7 @@ import { TaskRowMenu } from '@/Components/modules/projects/TaskRowMenu';
 import { TaskStatusDialog } from '@/Components/modules/projects/TaskStatusDialog';
 import { TaskActionSheet } from '@/Components/modules/tasks/TaskActionSheet';
 import { type FieldTask, TaskCard } from '@/Components/modules/tasks/TaskCard';
+import { TASKS_INDEX_RELOAD, useTaskStatusSave } from '@/Components/modules/tasks/taskSave';
 import { AT_LEAST_LG, useMediaQuery } from '@/hooks/useMediaQuery';
 import { TASK_PRIORITY_LABEL, TASK_STATUS_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
@@ -69,6 +70,8 @@ function formatDate(value: string | null) {
  * Task *creation* stays on Projects/Show.tsx's Task tab (project context
  * required); PM can edit/delete from here (Sprint 9), everyone else only
  * reads + updates status.
+ * Sprint 29 L3/L7 — saves reload only `tasks` (TASKS_INDEX_RELOAD); a
+ * Tukang's card shows the new status at once.
  */
 export default function TasksIndex({
     tasks,
@@ -81,6 +84,7 @@ export default function TasksIndex({
     canSubmitDailyForm = false,
 }: TasksIndexProps) {
     const [sheetTask, setSheetTask] = useState<FieldTask | null>(null);
+    const fieldSave = useTaskStatusSave(tasks.data as FieldTask[], TASKS_INDEX_RELOAD);
     // Sprint 13 H4/H8 — a Tukang below `lg` gets cards; the grid (and its
     // TanStack chunk) is only mounted where it's actually shown.
     const wide = useMediaQuery(AT_LEAST_LG);
@@ -209,7 +213,7 @@ export default function TasksIndex({
                 actions={
                     isFieldStaff &&
                     materialRequestProjects.length > 0 && (
-                        <Button size="sm" variant="outline" onClick={() => setRequestOpen(true)}>
+                        <Button size="sm" variant="outline" className="max-lg:h-12 max-lg:px-4" onClick={() => setRequestOpen(true)}>
                             <PackagePlus className="size-4" />
                             Ajukan Barang
                         </Button>
@@ -240,7 +244,7 @@ export default function TasksIndex({
                                     type="button"
                                     onClick={() => applyFilter({ status })}
                                     className={cn(
-                                        'h-9 shrink-0 rounded-full px-4 text-sm font-medium ring-1 transition-colors',
+                                        'h-12 shrink-0 rounded-full px-4 text-sm font-medium ring-1 transition-colors',
                                         selected ? 'bg-daiku-dark text-background ring-daiku-dark' : 'bg-background text-foreground ring-border',
                                     )}
                                 >
@@ -256,13 +260,14 @@ export default function TasksIndex({
                         </p>
                     ) : (
                         <div className="flex flex-col gap-3">
-                            {tasks.data.map((task) => (
+                            {fieldSave.items.map((task) => (
                                 <TaskCard
                                     key={task.id}
-                                    task={task as FieldTask}
+                                    task={task}
                                     onOpen={setSheetTask}
                                     // Sprint 24 D7 — the ✔ is the day's report.
-                                    onCheck={(target) => router.patch(route('tasks.updateStatus', { task: target.id }), { status: 'DONE' }, { preserveScroll: true })}
+                                    onCheck={(target) => fieldSave.save(target, { status: 'DONE' })}
+                                    saving={fieldSave.isSaving(task)}
                                 />
                             ))}
                         </div>
@@ -270,7 +275,7 @@ export default function TasksIndex({
 
                     {tasks.last_page > 1 && (
                         <div className="mt-4 flex items-center justify-between gap-2">
-                            <Button variant="outline" disabled={!tasks.links[0]?.url} asChild={Boolean(tasks.links[0]?.url)}>
+                            <Button variant="outline" className="h-12" disabled={!tasks.links[0]?.url} asChild={Boolean(tasks.links[0]?.url)}>
                                 {tasks.links[0]?.url ? (
                                     <Link href={tasks.links[0].url} preserveState>
                                         Sebelumnya
@@ -282,7 +287,7 @@ export default function TasksIndex({
                             <span className="text-sm text-muted-foreground">
                                 {tasks.current_page} / {tasks.last_page}
                             </span>
-                            <Button variant="outline" disabled={!tasks.links.at(-1)?.url} asChild={Boolean(tasks.links.at(-1)?.url)}>
+                            <Button variant="outline" className="h-12" disabled={!tasks.links.at(-1)?.url} asChild={Boolean(tasks.links.at(-1)?.url)}>
                                 {tasks.links.at(-1)?.url ? (
                                     <Link href={tasks.links.at(-1)!.url!} preserveState>
                                         Berikutnya
@@ -294,7 +299,12 @@ export default function TasksIndex({
                         </div>
                     )}
 
-                    <TaskActionSheet task={sheetTask} canSubmitDailyForm={canSubmitDailyForm} onOpenChange={(open) => !open && setSheetTask(null)} />
+                    <TaskActionSheet
+                        task={sheetTask}
+                        canSubmitDailyForm={canSubmitDailyForm}
+                        onOpenChange={(open) => !open && setSheetTask(null)}
+                        save={fieldSave.save}
+                    />
                 </div>
             )}
 
@@ -394,11 +404,18 @@ export default function TasksIndex({
                 />
             )}
 
-            <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />
+            <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} reload={TASKS_INDEX_RELOAD} />
             {canAssign && (
                 <>
-                    <TaskFormDialog open={formOpen} onOpenChange={setFormOpen} editing={activeTask} milestones={milestones} fieldStaff={fieldStaff} />
-                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} />
+                    <TaskFormDialog
+                        open={formOpen}
+                        onOpenChange={setFormOpen}
+                        editing={activeTask}
+                        milestones={milestones}
+                        fieldStaff={fieldStaff}
+                        reload={TASKS_INDEX_RELOAD}
+                    />
+                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} reload={TASKS_INDEX_RELOAD} />
                 </>
             )}
         </AppLayout>

@@ -1,9 +1,9 @@
 import { Button } from '@/Components/ui/button';
 import { DatePicker } from '@/Components/shared/DatePicker';
+import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import {
     Dialog,
     DialogClose,
-    DialogContent,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -17,11 +17,13 @@ import {
     FormMessage,
 } from '@/Components/ui/form';
 import { Input } from '@/Components/ui/input';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { Milestone } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { format, startOfDay } from 'date-fns';
-import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -47,7 +49,10 @@ interface MilestoneFormDialogProps {
     editing: Milestone | null;
     /** Suggested start for a new timeline — the day after the last one ends (or the project's start). */
     suggestedStart?: Date;
-    /** Keep the host page's state (e.g. an unsaved TM form next to it) when the timeline saves. */
+    /**
+     * Keep the host page's state (e.g. an unsaved TM form next to it) when the timeline saves.
+     * Sprint 29 Sub 01 — every save is now a partial visit that preserves state, so this is always on.
+     */
     preserveState?: boolean;
 }
 
@@ -69,7 +74,8 @@ export function suggestTimelineStart(milestones: Milestone[], projectStart: stri
  * Add/edit modal for a project's Timeline (a milestone in code — Sprint 23
  * K16) — PRD §7.1 "Milestone" row (PM CRUD). K17: start and end date.
  */
-export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, suggestedStart, preserveState = false }: MilestoneFormDialogProps) {
+export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, suggestedStart }: MilestoneFormDialogProps) {
+    const [saving, setSaving] = useState(false);
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: { name: '', start_date: undefined, target_date: undefined },
@@ -92,7 +98,15 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, su
             });
         };
         const onSuccess = () => onOpenChange(false);
-        const options = { onError, onSuccess, preserveState, preserveScroll: preserveState };
+        // Sprint 29 Sub 01 — rendered only on Detail Proyek (Timeline tab, TM card): reload the timeline side only;
+        // quiet — the new / changed bar on the timeline is the feedback.
+        const options = {
+            ...projectVisit(RELOAD.milestones, { quiet: true }),
+            onError,
+            onSuccess,
+            onStart: () => setSaving(true),
+            onFinish: () => setSaving(false),
+        };
         const payload = {
             name: values.name,
             start_date: format(values.start_date, 'yyyy-MM-dd'),
@@ -109,7 +123,7 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, su
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <ResponsiveDialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{editing ? 'Ubah Timeline' : 'Tambah Timeline'}</DialogTitle>
                 </DialogHeader>
@@ -162,13 +176,14 @@ export function MilestoneFormDialog({ open, onOpenChange, projectId, editing, su
                                     Batal
                                 </Button>
                             </DialogClose>
-                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                            <Button type="submit" disabled={saving}>
+                                {saving && <Loader2 className="size-4 animate-spin" />}
                                 Simpan
                             </Button>
                         </DialogFooter>
                     </form>
                 </Form>
-            </DialogContent>
+            </ResponsiveDialogContent>
         </Dialog>
     );
 }

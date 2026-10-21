@@ -13,13 +13,20 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatQty } from '@/lib/format';
 import type { ProjectMaterial } from '@/types';
 import { router } from '@inertiajs/react';
+import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { RequiredMark } from '@/Components/shared/RequiredMark';
+import { useMaterialVisit } from './partialVisit';
 
 interface PmRequestDecisionDialogProps {
     line: ProjectMaterial | null;
     decision: 'approve' | 'reject' | null;
     onOpenChange: (open: boolean) => void;
+    /**
+     * Sprint 29 Sub 01 (L9) — the host page's props to reload after the decision. Omitted on
+     * Detail Proyek = `RELOAD.materials`; omitted elsewhere = full reload.
+     */
+    only?: readonly string[];
 }
 
 /**
@@ -27,10 +34,12 @@ interface PmRequestDecisionDialogProps {
  * goes to Logistics) or rejects it with a reason. Mirrors
  * PmMaterialRequestDecisionRequest.
  */
-export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequestDecisionDialogProps) {
+export function PmRequestDecisionDialog({ line, decision, onOpenChange, only }: PmRequestDecisionDialogProps) {
     const [reason, setReason] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [processing, setProcessing] = useState(false);
+    // A decision — keeps the pop-up, reloads only what it changed.
+    const visit = useMaterialVisit(only);
 
     useEffect(() => {
         setReason('');
@@ -54,7 +63,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
             route('project-materials.pmDecision', { project_material: line.id }),
             { decision, reason: approve ? null : reason.trim() },
             {
-                preserveScroll: true,
+                ...visit,
                 onStart: () => setProcessing(true),
                 onFinish: () => setProcessing(false),
                 onError: (errors) => setError(errors.reason ?? errors.decision ?? 'Gagal menyimpan keputusan.'),
@@ -88,6 +97,7 @@ export function PmRequestDecisionDialog({ line, decision, onOpenChange }: PmRequ
                         </Button>
                     </DialogClose>
                     <Button type="button" variant={approve ? 'default' : 'destructive'} onClick={submit} disabled={processing}>
+                        {processing && <Loader2 className="size-4 animate-spin" />}
                         {approve ? 'Setujui & Teruskan' : 'Tolak Pengajuan'}
                     </Button>
                 </DialogFooter>

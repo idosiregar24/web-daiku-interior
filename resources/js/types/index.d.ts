@@ -2467,7 +2467,8 @@ export interface ProjectExecution {
         decision_note: string | null;
         payment_amount: number | null;
     }[];
-    currentWeek: { week_start: string; week_number: number; is_report_day: boolean } | null;
+    /** `is_due` — Sprint 29 Sub 02: from the report day (Friday) on; it may be sent any day. */
+    currentWeek: { week_start: string; week_number: number; is_report_day: boolean; is_due: boolean } | null;
     progress: number;
     threshold: number;
     departure: { approved_at: string; approver: string | null } | null;

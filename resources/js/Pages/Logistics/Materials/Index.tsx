@@ -380,6 +380,7 @@ export default function MaterialIndex({ materials, filters, categories, summary,
                         material={movement?.material ?? null}
                         type={movement?.type ?? 'IN'}
                         projects={projects}
+                        only={['materials', 'summary']}
                     />
                 </>
             )}

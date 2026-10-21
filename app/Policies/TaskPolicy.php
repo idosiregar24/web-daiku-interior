@@ -47,6 +47,12 @@ class TaskPolicy
         return $user->hasRole('FIELD_STAFF') && (int) $task->assignee_id === (int) $user->id;
     }
 
+    /** Sprint 29 Sub 04 — Setujui / Kembalikan / Centang a daily target: whoever plans it (Pengawas proyek, PM, Asisten PM). */
+    public function review(User $user, Task $task): bool
+    {
+        return $this->update($user, $task);
+    }
+
     /** Sprint 24 D6 — the project's Pengawas (QA/QC) plans and checks its daily targets. */
     private function supervises(User $user, Task $task): bool
     {

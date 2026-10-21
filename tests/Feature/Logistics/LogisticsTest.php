@@ -2,6 +2,7 @@
 
 use App\Enums\ProjectStatus;
 use App\Enums\StockMovementType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Asset;
 use App\Models\Material;
 use App\Models\Notification;
@@ -272,6 +273,90 @@ test('planning the same material from the same source twice updates instead of d
 
     expect(ProjectMaterial::count())->toBe(2)
         ->and(ProjectMaterial::where('source', 'GUDANG')->sole()->qty_planned)->toBe(9.0);
+});
+
+// ── Sprint 29 Sub 01 — "Simpan semua" + partial reload ──────────────────
+
+test('several lines are planned in one request by the roles that plan one', function (string $role) {
+    $user = logisticsUser($role);
+    $project = Project::factory()->create($role === 'PM' ? ['pm_id' => $user->id] : []);
+    [$semen, $cat] = Material::factory()->count(2)->create()->all();
+
+    $this->actingAs($user)->post(route('projects.materials.storeMany', $project), ['lines' => [
+        ['material_id' => $semen->id, 'source' => 'GUDANG', 'qty_planned' => 12.5],
+        ['material_id' => $cat->id, 'source' => 'PEMBELIAN', 'qty_planned' => 3],
+    ]])->assertRedirect()->assertSessionHasNoErrors()->assertSessionHas('success', '2 kebutuhan material disimpan.');
+
+    expect(ProjectMaterial::where('project_id', $project->id)->count())->toBe(2)
+        ->and(ProjectMaterial::where('material_id', $semen->id)->sole()->qty_planned)->toBe(12.5);
+})->with(['ESTIMATOR', 'PM', 'LOGISTICS']);
+
+test('"Simpan semua" keeps the gates of a single line: role and the project\'s own PM', function () {
+    $project = Project::factory()->create();
+    $line = ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 1];
+
+    $this->actingAs(logisticsUser('FINANCE'))->post(route('projects.materials.storeMany', $project), ['lines' => [$line]])->assertForbidden();
+    $this->actingAs(logisticsUser('PM'))->post(route('projects.materials.storeMany', $project), ['lines' => [$line]])->assertForbidden();
+
+    expect(ProjectMaterial::count())->toBe(0);
+});
+
+test('one refused line saves none of the batch', function () {
+    $project = Project::factory()->create();
+    $logistics = logisticsUser('LOGISTICS');
+    [$semen, $cat] = Material::factory()->count(2)->create()->all();
+
+    // Validation: the second line has no quantity.
+    $this->actingAs($logistics)->post(route('projects.materials.storeMany', $project), ['lines' => [
+        ['material_id' => $semen->id, 'source' => 'GUDANG', 'qty_planned' => 2],
+        ['material_id' => $cat->id, 'source' => 'GUDANG', 'qty_planned' => ''],
+    ]])->assertSessionHasErrors(['lines.1.qty_planned' => 'Baris 2: jumlah kebutuhan wajib diisi.']);
+
+    // Service rule: the same item from the same source twice.
+    $this->actingAs($logistics)->post(route('projects.materials.storeMany', $project), ['lines' => [
+        ['material_id' => $semen->id, 'source' => 'GUDANG', 'qty_planned' => 2],
+        ['material_id' => $cat->id, 'source' => 'GUDANG', 'qty_planned' => 1],
+        ['material_id' => $semen->id, 'source' => 'GUDANG', 'qty_planned' => 5],
+    ]])->assertSessionHasErrors('lines.2.material_id');
+
+    // A closed project refuses inside the transaction — nothing kept.
+    $project->update(['status' => ProjectStatus::Completed->value]);
+    $this->actingAs($logistics)->post(route('projects.materials.storeMany', $project), ['lines' => [
+        ['material_id' => $semen->id, 'source' => 'GUDANG', 'qty_planned' => 2],
+    ]])->assertSessionHasErrors();
+
+    expect(ProjectMaterial::count())->toBe(0);
+});
+
+test('a save with `only` reloads just the props it asked for; the catalog is optional (Sub 01 K1/K2)', function () {
+    $pm = logisticsUser('PM');
+    $project = Project::factory()->create(['pm_id' => $pm->id]);
+    $material = Material::factory()->create();
+    $inertia = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) app(HandleInertiaRequests::class)->version(request())];
+
+    // A full visit never carries the catalog…
+    $this->actingAs($pm)->get(route('projects.show', $project))
+        ->assertInertia(fn (Assert $page) => $page->has('tasks')->has('projectMaterials')->missing('materialOptions')->missing('catalogOptions'));
+
+    // …a material form asks for it once.
+    $catalog = $this->actingAs($pm)->withHeaders($inertia + ['X-Inertia-Partial-Component' => 'Projects/Show', 'X-Inertia-Partial-Data' => 'materialOptions'])
+        ->get(route('projects.show', $project))->json('props');
+    expect($catalog)->toHaveKey('materialOptions')->not->toHaveKey('tasks')
+        ->and(collect($catalog['materialOptions'])->pluck('id'))->toContain($material->id);
+
+    // The save's redirect answers with the requested props only (+ the always-sent errors).
+    $props = $this->actingAs($pm)
+        ->withHeaders($inertia + ['X-Inertia-Partial-Component' => 'Projects/Show', 'X-Inertia-Partial-Data' => 'projectMaterials,execution,flash,navBadges'])
+        ->from(route('projects.show', $project))
+        ->followingRedirects()
+        ->post(route('projects.materials.storeMany', $project), ['lines' => [['material_id' => $material->id, 'source' => 'GUDANG', 'qty_planned' => 4]]])
+        ->assertOk()
+        ->json('props');
+
+    expect($props)->toHaveKeys(['projectMaterials', 'flash'])
+        ->not->toHaveKeys(['tasks', 'termins', 'budget', 'milestones', 'materialOptions', 'activityTarget'])
+        ->and($props['projectMaterials'])->toHaveCount(1)
+        ->and($props['flash']['success'])->toBe('1 kebutuhan material disimpan.');
 });
 
 test('CUSTOM lines cannot be planned directly', function () {

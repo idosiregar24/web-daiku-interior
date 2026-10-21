@@ -1,4 +1,5 @@
 import { formatDateTime, formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { TASK_PRIORITY_LABEL } from '@/lib/taskLabels';
 import { projectWaitingOn } from '@/lib/waitingOn';
 import { PageHeader } from '@/Components/shared/PageHeader';
@@ -157,8 +158,7 @@ interface ProjectShowProps {
     projectMaterials: ProjectMaterial[];
     canViewMaterials: boolean;
     materialPermissions: MaterialPermissions;
-    materialOptions: Pick<Material, 'id' | 'code' | 'name' | 'unit_id' | 'unit' | 'stock' | 'cost_price'>[];
-    catalogOptions: Pick<Material, 'id' | 'name' | 'unit_id'>[];
+    // materialOptions / catalogOptions — Sprint 29 Sub 01: `Inertia::optional()`, read through useProjectCatalog().
     vendors: VendorOption[];
     units: UnitOption[];
     materialCategories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
@@ -262,8 +262,9 @@ function MilestoneTab({
     function runConfirmed() {
         if (!confirming) return;
 
+        // Sprint 29 Sub 01 — a confirmed step: keeps the success pop-up, reloads only the timeline side.
         const options = {
-            preserveScroll: true,
+            ...projectVisit(RELOAD.milestones),
             onStart: () => setConfirmBusy(true),
             onFinish: () => {
                 setConfirmBusy(false);
@@ -607,7 +608,7 @@ function TaskTab({
                             <TaskKanbanBoard tasks={tasks} milestones={milestones} onCardClick={canManage ? openStatus : undefined} />
                         ) : (
                             // Sprint 24 D9 — drag a daily target to another day (inside its timeline).
-                            <TaskWeekBoard tasks={tasks} milestones={milestones} canMove={canEdit} />
+                            <TaskWeekBoard tasks={tasks} milestones={milestones} canMove={canEdit} canReview={canEdit} reload={RELOAD.tasks} />
                         )}
                     </>
                 )}
@@ -622,12 +623,13 @@ function TaskTab({
                         editing={editingTask}
                         milestones={milestones}
                         fieldStaff={fieldStaff}
+                        reload={RELOAD.tasks}
                     />
-                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} />
-                    <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} />
+                    <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} reload={RELOAD.tasks} />
+                    <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} reload={RELOAD.tasks} />
                 </>
             )}
-            {isTargetView && <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} />}
+            {isTargetView && <TaskStatusDialog open={statusOpen} onOpenChange={setStatusOpen} task={activeTask} reload={RELOAD.tasks} />}
         </div>
     );
 }
@@ -724,7 +726,8 @@ function FinanceTab({
             route('finance.termins.markPaid', { termin: markingPaid.id }),
             {},
             {
-                preserveScroll: true,
+                // A payment decision — keeps the pop-up; reloads termins / invoices only.
+                ...projectVisit(RELOAD.billing),
                 onStart: () => setMarkPaidBusy(true),
                 onFinish: () => {
                     setMarkPaidBusy(false);
@@ -1090,9 +1093,9 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         case 'GAMBAR_KERJA':
             return { text: 'Gambar kerja sedang disiapkan tim desain · Kepala Desain / Arsitek.', target: { tab: 'execution', anchor: 'gambar-kerja' } };
         case 'TM':
-            return { text: 'Jadwalkan Technical Meeting, susun Timeline & jasa pengawas, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
+            return { text: 'Jadwalkan Technical Meeting, susun Timeline & Tanggal Selesai, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
         case 'PERSIAPAN':
-            return { text: 'Lengkapi bahan, upah & daily target lalu ajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
+            return { text: 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
     }
 
     if (milestones.length === 0) {
@@ -1203,8 +1206,6 @@ export default function ProjectShow({
     projectMaterials,
     canViewMaterials,
     materialPermissions,
-    materialOptions,
-    catalogOptions,
     vendors,
     units,
     materialCategories,
@@ -1438,7 +1439,6 @@ export default function ProjectShow({
                             milestones={milestones}
                             fieldStaff={fieldStaff}
                             canManageMilestones={canManageMilestones}
-                            materialOptions={materialOptions}
                             onOpenActivityTarget={activityTarget ? () => openTarget({ tab: 'task', view: 'activity-target' }) : undefined}
                             onOpen={openTarget}
                             canOpen={canOpenTarget}
@@ -1488,8 +1488,6 @@ export default function ProjectShow({
                             items={projectMaterials}
                             canView={canViewMaterials}
                             permissions={materialPermissions}
-                            materialOptions={materialOptions}
-                            catalogOptions={catalogOptions}
                             vendors={vendors}
                             units={units}
                             materialCategories={materialCategories}

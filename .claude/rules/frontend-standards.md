@@ -127,6 +127,18 @@ pola `NAV_GROUPS` di `AppLayout.tsx` (field `routeName` opsional).
 - Tidak ada React Query/SWR di stack ini — Inertia sudah berperan sebagai
   data layer (partial reload via `router.reload({ only: [...] })` kalau
   butuh refresh sebagian data tanpa full page visit).
+- **Simpan sebagian (Sprint 29 Sub 01).** `ProjectController::show()`
+  menghitung semua prop secara lazy (closure), jadi simpan di Detail Proyek
+  memakai `router.post(url, data, { ...projectVisit(RELOAD.materials, { quiet: true }), … })`
+  dari `lib/projectReload.ts` — `only` = prop yang berubah + `flash` +
+  `navBadges`; redirect `back()` sesudah POST tetap menghormati `only`.
+  Peta "aksi → prop" (`RELOAD`) ditulis sekali di helper itu: form baru
+  memilih entri yang ada atau menambah satu, jangan menulis daftar `only`
+  sendiri. Komponen yang dipakai di lebih dari satu halaman menerima kunci
+  reload dari pemanggilnya (kunci `only` harus ada di halaman itu).
+- **Katalog material** di Detail Proyek adalah `Inertia::optional()` — baca
+  lewat `useProjectCatalog()` dan panggil `load()` saat form bahan dibuka
+  (sekali; kunjungan sebagian berikutnya mempertahankannya).
 
 ## 8. TypeScript
 

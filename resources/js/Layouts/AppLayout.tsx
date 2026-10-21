@@ -244,7 +244,8 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Task',
                 icon: ListChecks,
                 routeName: 'tasks.index',
-                roles: ['CEO', 'PM', 'FIELD_STAFF'],
+                // Sprint 29 Sub 04 (F6) — + QA: the targets of the projects it supervises.
+                roles: ['CEO', 'PM', 'QA', 'FIELD_STAFF'],
                 roleLabels: { FIELD_STAFF: 'Tugas' },
             },
             {

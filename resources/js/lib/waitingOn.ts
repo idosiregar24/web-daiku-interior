@@ -109,11 +109,11 @@ const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
         OVERDUE: 'PM',
     },
     // TaskService — the assignee moves it (an OVER task too, until DONE);
-    // "Minta dicek" waits for the project's PM / Asisten PM (TaskPolicy::updateStatus).
+    // "Menunggu dicek" waits for the project's Pengawas (Sprint 29 Sub 04 — TaskPolicy::review(); PM / Asisten PM may too).
     task: {
         PENDING: 'Tukang',
         ONPROGRESS: 'Tukang',
-        PENGECEKAN: 'PM / Asisten PM',
+        PENGECEKAN: 'Pengawas (QA/QC)',
         OVER: 'Tukang',
     },
     // QaFormService — QA reviews; a rejection is fixed and re-sent by the

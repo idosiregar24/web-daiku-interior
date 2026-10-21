@@ -12,6 +12,7 @@ use App\Enums\SupervisorPaymentStatus;
 use App\Enums\TaskStatus;
 use App\Enums\WeeklyReportStatus;
 use App\Enums\WorkingDrawingStatus;
+use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\DailyTaskForm;
 use App\Models\FinanceTransaction;
@@ -251,6 +252,36 @@ test('TM: the PM records it, the Pengawas plans materials, "TM Selesai" needs ev
     expect($project->fresh()->phase)->toBe(ProjectPhase::Persiapan)
         ->and($project->fresh()->end_date->toDateString())->toBe('2026-10-31')
         ->and(notified($this->qa, 'technical_meeting_completed'))->toBe(1);
+});
+
+test('"TM Selesai" needs only the PM part — no materials, no fee; the DP conditions still ask for them (Sprint 29 Sub 03)', function () {
+    $project = execProject($this, ProjectPhase::Tm, ['end_date' => null]);
+    $timeline = execTimeline($project);
+
+    // Date & minutes, an attendee, a timeline, Tanggal Selesai — no fee, no material.
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [
+        'meeting_date' => '2026-10-14',
+        'notes' => 'Urutan kerja disepakati.',
+        'attendees' => [['user_id' => $this->qa->id]],
+        'fee_total' => '',
+        'dp_percent' => 10,
+        'end_date' => '2026-10-31',
+    ])->assertSessionHasNoErrors();
+
+    $this->actingAs($this->pm)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
+        ->where('execution.meetingRequirements', fn ($rows) => collect($rows)->pluck('key')->all() === ['notes', 'attendees', 'timeline', 'end_date']
+            && collect($rows)->every(fn ($row) => $row['done'])));
+
+    $this->actingAs($this->pm)->post(route('projects.technical-meeting.complete', $project))->assertSessionHasNoErrors();
+    expect($project->fresh()->phase)->toBe(ProjectPhase::Persiapan)
+        ->and(SupervisorFee::where('project_id', $project->id)->exists())->toBeFalse();
+
+    // PERSIAPAN: the Pengawas's part (+ the fee) still holds the DP.
+    execTarget($project, $timeline, $this->tukang, ['rate_per_task' => 150_000]);
+    $this->actingAs($this->qa)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
+        ->where('execution.dpRequirements', fn ($rows) => collect($rows)->pluck('done', 'key')->all() === ['materials' => false, 'wages' => true, 'targets' => true, 'fee' => false]));
+    $this->actingAs($this->qa)->post(route('projects.supervisor-payments.dp', $project))->assertSessionHasErrors();
+    expect(SupervisorPayment::where('project_id', $project->id)->exists())->toBeFalse();
 });
 
 test('TM: the RAB items sit beside the materials — only the PM and the project Pengawas, never prices', function () {
@@ -616,19 +647,42 @@ test('Saturday rolls to the next working day, never to Sunday', function () {
     expect($task->fresh()->due_date->toDateString())->toBe('2026-10-19');
 });
 
-test('geser: the Pengawas moves a target inside its timeline only; the Tukang never', function () {
+test('geser: the Pengawas moves a target to any working day; the Tukang never', function () {
     $project = execProject($this, ProjectPhase::Produksi);
     $task = execTarget($project, execTimeline($project), $this->tukang);
 
     $this->actingAs($this->tukang)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-16'])->assertForbidden();
     $this->actingAs($this->otherQa)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-16'])->assertForbidden();
-    $this->actingAs($this->qa)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-30'])->assertSessionHasErrors('due_date');
     $this->actingAs($this->qa)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-16', 'note' => 'Bahan telat'])->assertSessionHasNoErrors();
 
     expect($task->fresh()->due_date->toDateString())->toBe('2026-10-16')
         ->and($task->fresh()->planned_date->toDateString())->toBe('2026-10-14')
         ->and(TaskScheduleChange::where('task_id', $task->id)->where('kind', 'GESER')->value('note'))->toBe('Bahan telat')
         ->and(notified($this->tukang, 'task_updated'))->toBe(1);
+});
+
+test('geser outside its timeline follows the timeline of the new day; the history says so (Sprint 29 Sub 05, Q29)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $first = execTimeline($project, '2026-10-12', '2026-10-17');
+    $second = execTimeline($project, '2026-10-19', '2026-10-31');
+    $first->update(['name' => 'Rangka', 'order' => 1]);
+    $second->update(['name' => 'Finishing', 'order' => 2]);
+    $task = execTarget($project, $first, $this->tukang);
+
+    $this->actingAs($this->qa)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-21'])
+        ->assertSessionHasNoErrors()->assertSessionHas('success', 'Tanggal target digeser — dipindah ke timeline Finishing.');
+    expect($task->fresh()->milestone_id)->toBe($second->id)
+        ->and(TaskScheduleChange::where('task_id', $task->id)->sole()->note)->toBe('Pindah timeline: Rangka → Finishing');
+
+    // A swap across the two timelines moves each target into the other one.
+    $other = execTarget($project, $first, $this->tukang, ['due_date' => '2026-10-15']);
+    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-15', 'to_date' => '2026-10-21'])->assertSessionHasNoErrors();
+    expect($other->fresh()->milestone_id)->toBe($second->id)
+        ->and($task->fresh()->milestone_id)->toBe($first->id)
+        ->and($task->fresh()->due_date->toDateString())->toBe('2026-10-15');
+
+    // The midnight roll-over now bounds it by its new timeline.
+    expect($other->fresh()->milestone->target_date->toDateString())->toBe('2026-10-31');
 });
 
 test('geser onto a Sunday is refused — not a working day (Sprint 28 K13)', function () {
@@ -643,7 +697,7 @@ test('geser onto a Sunday is refused — not a working day (Sprint 28 K13)', fun
         ->and(TaskScheduleChange::where('task_id', $task->id)->exists())->toBeFalse();
 });
 
-test('tukar: two days of targets swap, refused as a whole when one would leave its timeline', function () {
+test('tukar: two days of targets swap, also across timelines (Sprint 29 Sub 05)', function () {
     $project = execProject($this, ProjectPhase::Produksi);
     $milestone = execTimeline($project, '2026-10-12', '2026-10-20');
     $a = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-15']);
@@ -653,20 +707,23 @@ test('tukar: two days of targets swap, refused as a whole when one would leave i
     expect($a->fresh()->due_date->toDateString())->toBe('2026-10-16')
         ->and($b->fresh()->due_date->toDateString())->toBe('2026-10-15');
 
-    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-15', 'to_date' => '2026-10-23'])->assertSessionHasErrors('to_date');
-    expect($b->fresh()->due_date->toDateString())->toBe('2026-10-15');
+    // Fri 23 is past the timeline (12 → 20): accepted now; no timeline covers it, so it keeps its own.
+    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-15', 'to_date' => '2026-10-23'])->assertSessionHasNoErrors();
+    expect($b->fresh()->due_date->toDateString())->toBe('2026-10-23')
+        ->and($b->fresh()->milestone_id)->toBe($milestone->id);
 
     $this->actingAs($this->marketing)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-15', 'to_date' => '2026-10-16'])->assertForbidden();
 });
 
-test('tukar onto a Sunday is refused as a whole (Sprint 28 K13)', function () {
+test('tukar is refused as a whole when a target would land on a Sunday (Sprint 28 K13)', function () {
     $project = execProject($this, ProjectPhase::Produksi);
     $milestone = execTimeline($project, '2026-10-12', '2026-10-24');
     $a = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-16']);
     $b = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-17']);
 
+    // Friday's target would go to Sunday 18 — whichever field holds the Sunday.
     $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-16', 'to_date' => '2026-10-18'])
-        ->assertSessionHasErrors(['to_date' => 'Hari Minggu bukan hari kerja — pilih Senin–Sabtu.']);
+        ->assertSessionHasErrors(['to_date' => "Target \"{$a->title}\" akan pindah ke hari Minggu — bukan hari kerja, tukar dibatalkan."]);
     $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-18', 'to_date' => '2026-10-17'])
         ->assertSessionHasErrors('from_date');
 
@@ -675,7 +732,51 @@ test('tukar onto a Sunday is refused as a whole (Sprint 28 K13)', function () {
         ->and(TaskScheduleChange::count())->toBe(0);
 });
 
+test('tukar may move a target left on a Sunday off it (Sprint 28 K13, loosened)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $milestone = execTimeline($project, '2026-10-12', '2026-10-24');
+    $sunday = execTarget($project, $milestone, $this->tukang, ['due_date' => '2026-10-18']);
+
+    // Monday 19 is empty: only the Sunday target moves, onto a working day.
+    $this->actingAs($this->qa)->post(route('projects.targets.swap', $project), ['from_date' => '2026-10-18', 'to_date' => '2026-10-19'])
+        ->assertSessionHasNoErrors();
+
+    expect($sunday->fresh()->due_date->toDateString())->toBe('2026-10-19')
+        ->and(TaskScheduleChange::count())->toBe(1);
+});
+
 // ── Sub 08: Laporan mingguan ─────────────────────────────────────────────
+
+test('the weekly report may be sent before Friday; the Pengawas is queued from Thursday until it is sent (Sprint 29 Sub 02)', function () {
+    $project = execProject($this, ProjectPhase::Produksi, ['production_started_at' => '2026-10-05 08:00:00']);
+    $other = execProject($this, ProjectPhase::Produksi, ['production_started_at' => '2026-10-05 08:00:00']);
+    $queue = fn () => collect(app(ActionInboxService::class)->for($this->qa, fresh: true))->firstWhere('key', 'weekly-report-due');
+
+    // Tuesday: accepted, and no queue yet.
+    Carbon::setTestNow(Carbon::parse('2026-10-13 09:00:00', 'Asia/Jakarta'));
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Rangka partisi terpasang'])->assertSessionHasNoErrors();
+    expect(WeeklyReport::where('project_id', $project->id)->sole()->week_number)->toBe(2)
+        ->and($queue())->toBeNull();
+    $this->actingAs($this->qa)->get(route('projects.show', ['project' => $other, 'tab' => 'execution']))
+        ->assertInertia(fn (Assert $page) => $page->where('execution.currentWeek.is_due', false));
+
+    // Thursday: only the project without a report this week, once.
+    Carbon::setTestNow(Carbon::parse('2026-10-15 09:00:00', 'Asia/Jakarta'));
+    $group = $queue();
+    expect($group['count'])->toBe(1)
+        ->and($group['items'][0]['title'])->toBe($other->name)
+        ->and($group['items'][0]['subtitle'])->toBe('Minggu ke-2');
+
+    // Friday it is due; sending it empties the queue.
+    Carbon::setTestNow(Carbon::parse('2026-10-16 09:00:00', 'Asia/Jakarta'));
+    $this->actingAs($this->qa)->get(route('projects.show', ['project' => $other, 'tab' => 'execution']))
+        ->assertInertia(fn (Assert $page) => $page->where('execution.currentWeek.is_due', true));
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $other), ['notes' => 'Mural 50%'])->assertSessionHasNoErrors();
+    expect($queue())->toBeNull();
+
+    // Another Pengawas never sees it.
+    expect(collect(app(ActionInboxService::class)->for($this->otherQa, fresh: true))->pluck('key'))->not->toContain('weekly-report-due');
+});
 
 test('weekly report: the Pengawas sends it, the PM rejects with a reason or approves with a payment', function () {
     $project = execProject($this, ProjectPhase::Produksi, ['production_started_at' => '2026-10-05 08:00:00']);
@@ -722,6 +823,97 @@ test('the Friday reminder reaches a Pengawas without this week\'s report, once a
         ->and(notified($this->otherQa, 'weekly_report_reminder'))->toBe(0);
 });
 
+// ── Sprint 29 Sub 04: approval & centang Pengawas ───────────────────────
+
+test('the Tukang "Selesai" waits for the Pengawas, who approves it — completed when the Tukang marked it', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $task = execTarget($project, execTimeline($project), $this->tukang);
+
+    Carbon::setTestNow(Carbon::parse('2026-10-14 15:30:00', 'Asia/Jakarta'));
+    $this->actingAs($this->tukang)->patch(route('tasks.updateStatus', $task), ['status' => 'DONE'])->assertSessionHasNoErrors();
+    expect($task->fresh()->status)->toBe(TaskStatus::Pengecekan)
+        ->and(DailyTaskForm::where('task_id', $task->id)->sole()->status_update)->toBe(TaskStatus::Pengecekan);
+
+    // Only whoever plans the targets of this project decides.
+    $this->actingAs($this->otherQa)->post(route('tasks.approve', $task))->assertForbidden();
+    $this->actingAs($this->tukang)->post(route('tasks.approve', $task))->assertForbidden();
+
+    Carbon::setTestNow(Carbon::parse('2026-10-14 18:00:00', 'Asia/Jakarta'));
+    $this->actingAs($this->qa)->post(route('tasks.approve', $task))->assertSessionHasNoErrors();
+    expect($task->fresh()->status)->toBe(TaskStatus::Done)
+        ->and($task->fresh()->completed_at->timezone('Asia/Jakarta')->format('H:i'))->toBe('15:30')
+        ->and(AuditLog::where('action', 'task.approved')->count())->toBe(1);
+
+    $this->actingAs($this->qa)->post(route('tasks.approve', $task))->assertSessionHasErrors('status');
+});
+
+test('"Kembalikan" needs a reason, puts the target back to Dikerjakan and tells the Tukang', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $task = execTarget($project, execTimeline($project), $this->tukang, ['status' => TaskStatus::Pengecekan->value]);
+
+    $this->actingAs($this->otherQa)->post(route('tasks.return', $task), ['note' => 'Belum rapi'])->assertForbidden();
+    $this->actingAs($this->qa)->post(route('tasks.return', $task), ['note' => ''])->assertSessionHasErrors('note');
+    $this->actingAs($this->qa)->post(route('tasks.return', $task), ['note' => 'Sambungan HPL belum rapi'])->assertSessionHasNoErrors();
+
+    expect($task->fresh()->status)->toBe(TaskStatus::OnProgress)
+        ->and(Notification::where('user_id', $this->tukang->id)->where('title', 'Target Dikembalikan')->value('message'))->toContain('Sambungan HPL belum rapi')
+        ->and(AuditLog::where('action', 'task.returned')->sole()->new_values['note'])->toBe('Sambungan HPL belum rapi');
+});
+
+test('the Pengawas ticks an untouched target done for the Tukang — counted as the day report, no penalty (F3, Q30)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $task = execTarget($project, execTimeline($project), $this->tukang);
+
+    $this->actingAs($this->otherQa)->post(route('tasks.checkOff', $task))->assertForbidden();
+    $this->actingAs($this->qa)->post(route('tasks.checkOff', $task))->assertSessionHasNoErrors();
+
+    $form = DailyTaskForm::where('task_id', $task->id)->sole();
+    expect($task->fresh()->status)->toBe(TaskStatus::Done)
+        ->and($form->staff_id)->toBe($this->tukang->id)
+        ->and($form->work_date->toDateString())->toBe('2026-10-14')
+        ->and(Task::awaitingDailyForm($this->tukang, '2026-10-14')->count())->toBe(0)
+        ->and(AuditLog::where('action', 'task.checked_by_supervisor')->sole()->user_id)->toBe($this->qa->id);
+});
+
+test('"Daily target menunggu dicek" queues for the project Pengawas; "Setujui semua" empties it', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $timeline = execTimeline($project);
+    $a = execTarget($project, $timeline, $this->tukang, ['status' => TaskStatus::Pengecekan->value]);
+    $b = execTarget($project, $timeline, $this->tukang, ['status' => TaskStatus::Pengecekan->value]);
+    $queue = fn (User $user) => collect(app(ActionInboxService::class)->for($user, fresh: true))->firstWhere('key', 'targets-to-check');
+
+    expect($queue($this->qa)['items'][0]['subtitle'])->toBe('2 target menunggu dicek')
+        ->and($queue($this->otherQa))->toBeNull();
+
+    // The Pengawas's Tugas menu lists them (its projects only).
+    $this->actingAs($this->qa)->get(route('tasks.index', ['status' => 'PENGECEKAN']))->assertOk()
+        ->assertInertia(fn (Assert $page) => $page->where('tasks.total', 2));
+    $this->actingAs($this->otherQa)->get(route('tasks.index'))->assertInertia(fn (Assert $page) => $page->where('tasks.total', 0));
+
+    $this->actingAs($this->qa)->post(route('tasks.approveMany', $project), ['task_ids' => [$a->id, $b->id]])
+        ->assertSessionHas('success', '2 target disetujui selesai.');
+    expect($queue($this->qa))->toBeNull();
+});
+
+test('one target for several tukang × the working days of a range, refused as a whole outside the timeline (K5)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $timeline = execTimeline($project, '2026-10-12', '2026-10-24');
+    $second = User::factory()->create(['is_active' => true]);
+    $second->assignRole('FIELD_STAFF');
+    $payload = ['milestone_id' => $timeline->id, 'title' => 'Pasang rangka plafon', 'assignee_ids' => [$this->tukang->id, $second->id], 'rate_per_task' => 150_000];
+
+    // Thu 15 → Mon 19: Thu, Fri, Sat, Mon (Sunday skipped) × 2 tukang.
+    $this->actingAs($this->qa)->post(route('tasks.storeMany', $project), [...$payload, 'date_from' => '2026-10-15', 'date_to' => '2026-10-19'])
+        ->assertSessionHasNoErrors()->assertSessionHas('success', '8 daily target berhasil ditambahkan.');
+    expect(Task::where('title', 'Pasang rangka plafon')->whereDate('due_date', '2026-10-18')->exists())->toBeFalse()
+        ->and(Task::where('title', 'Pasang rangka plafon')->where('assignee_id', $second->id)->count())->toBe(4);
+
+    $this->actingAs($this->qa)->post(route('tasks.storeMany', $project), [...$payload, 'title' => 'Lewat', 'date_from' => '2026-10-23', 'date_to' => '2026-10-27'])
+        ->assertSessionHasErrors();
+    $this->actingAs($this->otherQa)->post(route('tasks.storeMany', $project), [...$payload, 'date_from' => '2026-10-15', 'date_to' => '2026-10-15'])->assertForbidden();
+    expect(Task::where('title', 'Lewat')->exists())->toBeFalse();
+});
+
 // ── Sub 09: 70 % & berangkat ─────────────────────────────────────────────
 
 test('70 % actual activity tells the PM once and unlocks "Berangkat ke Lokasi" → PEMASANGAN', function () {
@@ -734,6 +926,8 @@ test('70 % actual activity tells the PM once and unlocks "Berangkat ke Lokasi" �
 
     $this->actingAs($this->tukang)->patch(route('tasks.updateStatus', $tasks[6]), ['status' => 'DONE']);
     $this->actingAs($this->tukang)->patch(route('tasks.updateStatus', $tasks[7]), ['status' => 'DONE']);
+    // Sprint 29 Sub 04 — the Pengawas approves what the Tukang reported done.
+    $this->actingAs($this->qa)->post(route('tasks.approveMany', $project), ['task_ids' => [$tasks[6]->id, $tasks[7]->id]])->assertSessionHasNoErrors();
 
     expect($project->fresh()->actualProgress())->toBe(80)
         ->and(notified($this->pm, 'project_progress_reached'))->toBe(1);
@@ -775,6 +969,7 @@ test('findings at PEMASANGAN become repair tasks and hold the timeline\'s QA unt
         ->and($repair->milestone_id)->toBe($milestone->id);
 
     $this->actingAs($this->tukang)->patch(route('tasks.updateStatus', $repair), ['status' => 'DONE'])->assertSessionHasNoErrors();
+    $this->actingAs($this->qa)->post(route('tasks.approve', $repair))->assertSessionHasNoErrors();
     expect($finding->fresh()->status)->toBe(SiteFindingStatus::Selesai);
 
     app(QaFormService::class)->review($form->fresh(), 'approve', [], null, $this->qa);

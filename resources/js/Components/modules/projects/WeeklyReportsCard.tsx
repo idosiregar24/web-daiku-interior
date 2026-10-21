@@ -5,10 +5,11 @@ import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { ProjectExecution } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { CalendarCheck2, ExternalLink } from 'lucide-react';
+import { CalendarCheck2, ExternalLink, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -23,7 +24,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 /**
- * Sprint 24 D10 — "Pengecekan mingguan (Jumat)": the Pengawas reports the
+ * Sprint 24 D10 — "Pengecekan mingguan" (Sprint 29 Sub 02: any day, by Friday): the Pengawas reports the
  * week (notes + links, one per line); the PM approves — optionally with
  * this week's Jasa Pengawas payment, straight to Finance — or rejects with
  * a reason (the Pengawas fixes and re-sends).
@@ -31,6 +32,7 @@ type FormValues = z.infer<typeof schema>;
 export function WeeklyReportsCard({ projectId, execution }: { projectId: number; execution: ProjectExecution }) {
     const { weeklyReports, currentWeek, can, fee } = execution;
     const [deciding, setDeciding] = useState<ExecutionDecisionTarget | null>(null);
+    const [saving, setSaving] = useState(false);
     const thisWeek = currentWeek ? weeklyReports.find((report) => report.week_start === currentWeek.week_start) : undefined;
     const canSend = can.submitWeekly && currentWeek && (!thisWeek || thisWeek.status === 'DITOLAK');
     const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: { notes: thisWeek?.notes ?? '', links: (thisWeek?.links ?? []).join('\n') } });
@@ -50,7 +52,10 @@ export function WeeklyReportsCard({ projectId, execution }: { projectId: number;
                     .filter(Boolean),
             },
             {
-                preserveScroll: true,
+                // Sent to the PM — a step, so it keeps the pop-up; reloads the Eksekusi side only.
+                ...projectVisit(RELOAD.supervision),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
                 onError: (errors) =>
                     Object.entries(errors).forEach(([key, message]) => form.setError(key.startsWith('links') ? 'links' : (key as keyof FormValues), { message })),
             },
@@ -60,7 +65,7 @@ export function WeeklyReportsCard({ projectId, execution }: { projectId: number;
     return (
         <SectionCard
             title="Laporan Mingguan"
-            description={currentWeek ? `Minggu ke-${currentWeek.week_number} (mulai ${formatDate(currentWeek.week_start)}) — diisi Pengawas tiap Jumat, disetujui PM.` : undefined}
+            description={currentWeek ? `Minggu ke-${currentWeek.week_number} (mulai ${formatDate(currentWeek.week_start)}) — diisi Pengawas kapan saja minggu ini, paling lambat Jumat; disetujui PM.` : undefined}
             icon={CalendarCheck2}
         >
             {canSend && (
@@ -95,7 +100,8 @@ export function WeeklyReportsCard({ projectId, execution }: { projectId: number;
                                 </FormItem>
                             )}
                         />
-                        <Button type="submit" className="w-full sm:w-auto" disabled={form.formState.isSubmitting}>
+                        <Button type="submit" className="w-full sm:w-auto" disabled={saving}>
+                            {saving && <Loader2 className="size-4 animate-spin" />}
                             Kirim Laporan ke PM
                         </Button>
                     </form>

@@ -2,7 +2,7 @@ import { StatusChip } from '@/Components/shared/StatusChip';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Task } from '@/types';
-import { Check, CircleCheck, CircleX, ChevronRight } from 'lucide-react';
+import { Check, CircleCheck, CircleX, ChevronRight, Loader2 } from 'lucide-react';
 
 /** A Tukang's task as the phone screens show it (+ today's form mark where known). */
 export type FieldTask = Pick<Task, 'id' | 'title' | 'status' | 'kendala' | 'note' | 'due_date' | 'project' | 'milestone'> & {
@@ -18,16 +18,30 @@ const TODAY = () => new Date().toISOString().slice(0, 10);
  * daily form is in. The whole card is the button (≥ 48px touch target).
  * Sprint 24 D7 — `onCheck` adds the big ✔ "Selesai" beside it: the check
  * IS the day's actual activity (no separate daily form).
+ * Sprint 29 L3 — `saving`: the card already shows the new status
+ * (optimistic, see useTaskStatusSave) and stays locked, the ✔ spinning,
+ * until the server answers.
  */
-export function TaskCard({ task, onOpen, onCheck }: { task: FieldTask; onOpen: (task: FieldTask) => void; onCheck?: (task: FieldTask) => void }) {
+export function TaskCard({
+    task,
+    onOpen,
+    onCheck,
+    saving = false,
+}: {
+    task: FieldTask;
+    onOpen: (task: FieldTask) => void;
+    onCheck?: (task: FieldTask) => void;
+    saving?: boolean;
+}) {
     const overdue = task.status === 'OVER' || (task.due_date !== null && task.due_date.slice(0, 10) < TODAY() && task.status !== 'DONE');
 
     return (
-        <div className="flex w-full items-stretch gap-2">
+        <div className="flex w-full items-stretch gap-2" aria-busy={saving || undefined}>
         <button
             type="button"
             onClick={() => onOpen(task)}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl bg-card p-4 text-left shadow-xs ring-1 ring-border transition-colors active:bg-daiku-yellow-light/60"
+            disabled={saving}
+            className="flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl bg-card p-4 text-left shadow-xs ring-1 ring-border transition-colors active:bg-daiku-yellow-light/60 disabled:opacity-80"
         >
             <span className="min-w-0 flex-1">
                 <span className="block font-medium text-foreground">{task.title}</span>
@@ -56,17 +70,23 @@ export function TaskCard({ task, onOpen, onCheck }: { task: FieldTask; onOpen: (
                     </span>
                 )}
             </span>
-            <ChevronRight className="size-5 shrink-0 text-muted-foreground/60" />
+            {saving ? (
+                <Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" aria-label="Menyimpan" />
+            ) : (
+                <ChevronRight className="size-5 shrink-0 text-muted-foreground/60" />
+            )}
         </button>
-        {onCheck && task.status !== 'DONE' && (
+        {/* Sprint 29 Sub 04 — once sent ("Menunggu dicek") the Pengawas decides; no second tap. */}
+        {onCheck && ((task.status !== 'DONE' && task.status !== 'PENGECEKAN') || saving) && (
             <button
                 type="button"
                 onClick={() => onCheck(task)}
-                aria-label={`Tandai "${task.title}" selesai`}
-                className="flex w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-success/10 text-xs font-medium text-success-ink ring-1 ring-success/30 transition-colors active:bg-success/20"
+                disabled={saving}
+                aria-label={saving ? `Menyimpan "${task.title}"` : `Tandai "${task.title}" selesai`}
+                className="flex min-h-12 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-xl bg-success/10 text-xs font-medium text-success-ink ring-1 ring-success/30 transition-colors active:bg-success/20 disabled:opacity-70"
             >
-                <Check className="size-6" />
-                Selesai
+                {saving ? <Loader2 className="size-6 animate-spin" /> : <Check className="size-6" />}
+                {saving ? 'Simpan…' : 'Selesai'}
             </button>
         )}
         </div>

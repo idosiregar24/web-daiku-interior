@@ -30,6 +30,19 @@ class WeeklyReportService
     ) {}
 
     /**
+     * Sprint 29 Sub 02 — the report may be sent any day of its week; from
+     * the report day (config daiku.execution.weekly_report_day, Friday) to
+     * the week's Sunday it is due. `$daysBefore` = how early a reminder
+     * starts (the Perlu Tindakan queue: 1 = from Thursday).
+     */
+    public static function isDue(int $daysBefore = 0, ?Carbon $date = null): bool
+    {
+        $reportDay = (int) config('daiku.execution.weekly_report_day', 5);
+
+        return ($date ?? DailyFormSchedule::now())->dayOfWeekIso >= $reportDay - $daysBefore;
+    }
+
+    /**
      * The production week a date falls in: its Monday and its number
      * (week 1 = the week production started).
      *
@@ -85,6 +98,9 @@ class WeeklyReportService
             $report = $report
                 ? tap($report)->update($attributes)
                 : WeeklyReport::create([...$attributes, 'project_id' => $project->id, ...$week]);
+
+            // Sprint 29 Sub 02 — "Pengecekan mingguan belum diisi" leaves the Pengawas's queue at once.
+            DB::afterCommit(fn () => ActionInboxService::forget($actor));
 
             $this->auditLogService->record('weekly_report.submitted', $report, null, [
                 'week_number' => $report->week_number,

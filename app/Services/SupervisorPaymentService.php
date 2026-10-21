@@ -63,6 +63,8 @@ class SupervisorPaymentService
             ->get(['id', 'title', 'planned_date', 'due_date']);
         $empty = $milestones->filter(fn ($milestone) => $milestone->tasks_count === 0)->values();
         $hasMaterials = $this->technicalMeetingService->plannedMaterials($project)->exists();
+        $fee = $project->supervisorFee()->first();
+        $hasFee = $fee !== null && (float) $fee->total_amount > 0;
 
         $wagesMissing = $withTaskTitles
             ? $unpaid->take(self::MISSING_SHOWN)->map(fn ($task) => trim($task->title.' · '.(($task->planned_date ?? $task->due_date)?->format('d/m') ?? '')))->all()
@@ -96,6 +98,16 @@ class SupervisorPaymentService
                     : ($empty->isEmpty() ? null : "{$empty->count()} timeline belum punya daily target."),
                 'missing' => $empty->take(self::MISSING_SHOWN)->pluck('name')->values()->all(),
                 'more' => max(0, $empty->count() - self::MISSING_SHOWN),
+            ],
+            // Sprint 29 Sub 03 — no longer required at "TM Selesai"; the DP is
+            // a share of it, so it is checked here (until Sub 08's upah tukang).
+            [
+                'key' => 'fee',
+                'label' => 'Nilai jasa pengawas & DP % · PM',
+                'done' => $hasFee,
+                'detail' => $hasFee ? null : 'PM belum mengisi nilai jasa pengawas (kartu Technical Meeting).',
+                'missing' => [],
+                'more' => 0,
             ],
         ];
     }

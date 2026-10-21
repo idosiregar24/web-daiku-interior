@@ -70,6 +70,36 @@ class ProjectMaterialService
         return $line;
     }
 
+    /**
+     * Sprint 29 Sub 01 (L1/K5) — "Simpan semua": every line through plan(),
+     * one transaction — one refused line saves none. The same catalog item
+     * from the same source twice in one batch is refused (plan() would
+     * silently keep only the last quantity).
+     *
+     * @param  list<array{material_id: int, source: string, qty_planned: float|string, vendor_id?: int|null}>  $lines
+     * @return list<ProjectMaterial>
+     */
+    public function planMany(Project $project, array $lines, User $actor): array
+    {
+        $seen = [];
+
+        foreach (array_values($lines) as $index => $line) {
+            $key = $line['material_id'].'|'.$line['source'];
+
+            if (isset($seen[$key])) {
+                $name = Material::whereKey($line['material_id'])->value('name');
+
+                throw ValidationException::withMessages([
+                    "lines.{$index}.material_id" => 'Baris '.($index + 1)." — \"{$name}\" dari sumber yang sama sudah ada di baris ".($seen[$key] + 1).'. Gabungkan jumlahnya.',
+                ]);
+            }
+
+            $seen[$key] = $index;
+        }
+
+        return DB::transaction(fn () => array_map(fn (array $line) => $this->plan($project, $line, $actor), array_values($lines)));
+    }
+
     public function updatePlan(ProjectMaterial $line, array $data): ProjectMaterial
     {
         $line->update([
