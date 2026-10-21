@@ -43,6 +43,6 @@ class SupervisorPaymentController extends Controller
     {
         $service->pay($supervisorPayment, $request->integer('bank_account_id'), $request->user());
 
-        return back()->with('success', 'Pembayaran jasa pengawas dicatat.');
+        return back()->with('success', 'Pembayaran upah tukang dicatat.');
     }
 }

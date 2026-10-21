@@ -61,6 +61,7 @@ use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\ProjectExecutionController;
 use App\Http\Controllers\Projects\ProjectOpeningController;
 use App\Http\Controllers\Projects\TaskController;
+use App\Http\Controllers\Projects\WorkItemController;
 use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\QA\QaDashboardController;
@@ -366,7 +367,7 @@ Route::middleware('auth')->prefix('quotations')->name('quotations.')->group(func
 // their own assigned tasks inside ProjectController@index (matrix's R*).
 Route::middleware('auth')->prefix('projects')->name('projects.')->group(function () {
     Route::get('/', [ProjectController::class, 'index'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF|ADMIN_PROYEK')
         ->name('index');
 
     // Monitor Proyek — PRD §4.4 "Overdue Monitor: Dashboard khusus PM".
@@ -378,7 +379,7 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
         ->name('dashboard');
 
     Route::get('/{project}', [ProjectController::class, 'show'])
-        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF')
+        ->middleware('role:CEO|MARKETING|DESIGNER|ESTIMATOR|PM|ASISTEN_PM|QA|FINANCE|LOGISTICS|FIELD_STAFF|ADMIN_PROYEK')
         ->name('show');
 
     // "Buka Proyek" (the only way a project is created since Sprint 12
@@ -413,8 +414,9 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
     // each to the project's PM / Asisten PM / Pengawas on top of the role).
     Route::middleware('throttle:60,1')->group(function () {
         // D3 — Technical Meeting: the project's PM or Asisten PM.
+        // Sprint 29 Sub 07 — + Admin Proyek (input only; "TM Selesai" below stays PM / Asisten PM).
         Route::put('{project}/technical-meeting', [ProjectExecutionController::class, 'saveMeeting'])
-            ->middleware('role:PM|ASISTEN_PM')
+            ->middleware('role:PM|ASISTEN_PM|ADMIN_PROYEK')
             ->name('technical-meeting.save');
         Route::post('{project}/technical-meeting/complete', [ProjectExecutionController::class, 'completeMeeting'])
             ->middleware('role:PM|ASISTEN_PM')
@@ -436,11 +438,11 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
             ->name('departure.approve');
         // D12 — finishing findings on site.
         Route::post('{project}/site-findings', [ProjectExecutionController::class, 'storeFinding'])
-            ->middleware('role:QA')
+            ->middleware('role:QA|ADMIN_PROYEK')
             ->name('site-findings.store');
         // D9 — "Tukar" two days of targets.
         Route::post('{project}/targets/swap-days', [ProjectExecutionController::class, 'swapDays'])
-            ->middleware('role:PM|ASISTEN_PM|QA')
+            ->middleware('role:PM|ASISTEN_PM|QA|ADMIN_PROYEK')
             ->name('targets.swap');
     });
 
@@ -459,7 +461,14 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
 // matching the Project store precedent above). Nested under project for
 // store, flat for update/destroy since Milestone already carries its
 // project_id.
-Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM'])->group(function () {
+// Sprint 29 Sub 08 — Upah Tukang per item RAB: the Pengawas or the Admin Proyek (ProjectPolicy::setWages()).
+Route::middleware(['auth', 'role:QA|ADMIN_PROYEK', 'throttle:120,1'])->group(function () {
+    Route::put('project-work-items/{workItem}', [WorkItemController::class, 'update'])->name('projects.work-items.update');
+    Route::post('projects/{project}/work-items/team-lead', [WorkItemController::class, 'assignTeamLead'])->name('projects.work-items.teamLead');
+});
+
+// Sprint 29 Sub 07 — the Admin Proyek builds timelines; "Tandai Selesai" (→ QA) stays the PM side.
+Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM|ADMIN_PROYEK'])->group(function () {
     Route::post('projects/{project}/milestones', [MilestoneController::class, 'store'])
         ->name('milestones.store');
 
@@ -468,7 +477,9 @@ Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM'])->group(function () {
 
     Route::delete('milestones/{milestone}', [MilestoneController::class, 'destroy'])
         ->name('milestones.destroy');
+});
 
+Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM'])->group(function () {
     Route::post('milestones/{milestone}/mark-done', [MilestoneController::class, 'markDone'])
         ->name('milestones.markDone');
 });
@@ -484,7 +495,7 @@ Route::middleware(['auth', 'throttle:60,1'])->group(function () {
         ->middleware('role:PM')
         ->name('weekly-reports.decide');
     Route::post('site-findings/{siteFinding}/repair-task', [ProjectExecutionController::class, 'repairTask'])
-        ->middleware('role:PM|ASISTEN_PM|QA')
+        ->middleware('role:PM|ASISTEN_PM|QA|ADMIN_PROYEK')
         ->name('site-findings.repair-task');
     Route::post('site-findings/{siteFinding}/resolve', [ProjectExecutionController::class, 'resolveFinding'])
         ->middleware('role:PM|QA')
@@ -495,7 +506,7 @@ Route::middleware(['auth', 'throttle:60,1'])->group(function () {
 // ProjectController::show()'s `progressLogs` prop, no separate index
 // route), PM CRUD (create only implemented — logs are append-only).
 Route::post('projects/{project}/progress-logs', [ProgressLogController::class, 'store'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|ADMIN_PROYEK'])
     ->name('progress-logs.store');
 
 // Dashboard QA (QA's "Analytics – Per Divisi", §7.1 `P`) — CEO + QA, no
@@ -519,21 +530,21 @@ Route::put('qa-forms/{qa_form}', [QaFormController::class, 'update'])
 // Update Status" (PM U, Field Staff U† own task only — enforced by
 // TaskPolicy, see AppServiceProvider's SUPERADMIN Gate::before bypass).
 // Sprint 29 Sub 04 (F6) — + QA: the targets of the projects it supervises (TaskController::index()).
-Route::middleware(['auth', 'role:CEO|PM|QA|FIELD_STAFF'])->prefix('tasks')->name('tasks.')->group(function () {
+Route::middleware(['auth', 'role:CEO|PM|QA|FIELD_STAFF|ADMIN_PROYEK'])->prefix('tasks')->name('tasks.')->group(function () {
     Route::get('/', [TaskController::class, 'index'])->name('index');
 });
 
 // Sprint 24 D6 — + the project's Pengawas (QA, ProjectPolicy::manageTargets()).
 Route::post('projects/{project}/tasks', [TaskController::class, 'store'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|ADMIN_PROYEK'])
     ->name('tasks.store');
 // Sprint 29 Sub 04 (K5) — several tukang × days in one request (same roles & policy as store).
 Route::post('projects/{project}/tasks/batch', [TaskController::class, 'storeMany'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|ADMIN_PROYEK'])
     ->name('tasks.storeMany');
 
 // Sprint 29 Sub 04 (F2–F4) — the Pengawas / PM checks the Tukang's targets (TaskPolicy::review()).
-Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA', 'throttle:60,1'])->group(function () {
+Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA|ADMIN_PROYEK', 'throttle:60,1'])->group(function () {
     Route::post('tasks/{task}/approve', [TaskController::class, 'approve'])->name('tasks.approve');
     Route::post('tasks/{task}/return', [TaskController::class, 'returnToStaff'])->name('tasks.return');
     Route::post('tasks/{task}/check', [TaskController::class, 'checkOff'])->name('tasks.checkOff');
@@ -541,19 +552,19 @@ Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA', 'throttle:60,1'])->group(fun
 });
 
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|FIELD_STAFF', 'throttle:60,1'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|FIELD_STAFF|ADMIN_PROYEK', 'throttle:60,1'])
     ->name('tasks.updateStatus');
 
 // Sprint 24 D9 — "Geser" one target inside its timeline (TaskPolicy::reschedule()).
 Route::patch('tasks/{task}/schedule', [TaskController::class, 'reschedule'])
-    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA', 'throttle:60,1'])
+    ->middleware(['auth', 'role:PM|ASISTEN_PM|QA|ADMIN_PROYEK', 'throttle:60,1'])
     ->name('tasks.reschedule');
 
 // Sprint 9 — full edit / delete: PM only ("Task – Create/Edit" CRUD).
 // Field Staff get 403 (task immutability, CLAUDE.md golden rule #6).
 // Sprint 12 #22 — the Asisten PM on the projects assigned to them (TaskPolicy).
 // Sprint 24 D6 — + the project's Pengawas (TaskPolicy).
-Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA'])->group(function () {
+Route::middleware(['auth', 'role:PM|ASISTEN_PM|QA|ADMIN_PROYEK'])->group(function () {
     Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 });
@@ -857,18 +868,18 @@ Route::middleware('auth')->prefix('logistics')->name('logistics.')->group(functi
 // Material tab (ProjectController::show()).
 // Sprint 24 D3 — + the project's Pengawas (QA) fills "bahan yang digunakan" (ProjectPolicy::planMaterials()).
 Route::post('projects/{project}/materials', [ProjectMaterialController::class, 'store'])
-    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
+    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA|ADMIN_PROYEK'])
     ->name('projects.materials.store');
 // Sprint 29 Sub 01 — several lines in one "Simpan semua" (same roles & policy as store).
 Route::post('projects/{project}/materials/batch', [ProjectMaterialController::class, 'storeMany'])
-    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA'])
+    ->middleware(['auth', 'role:ESTIMATOR|PM|LOGISTICS|QA|ADMIN_PROYEK'])
     ->name('projects.materials.storeMany');
 // Sprint 24 — + the project's Pengawas revises their plan before production (ProjectPolicy::reviseMaterialPlan()).
 Route::put('project-materials/{project_material}', [ProjectMaterialController::class, 'update'])
-    ->middleware(['auth', 'role:PM|LOGISTICS|QA'])
+    ->middleware(['auth', 'role:PM|LOGISTICS|QA|ADMIN_PROYEK'])
     ->name('project-materials.update');
 Route::delete('project-materials/{project_material}', [ProjectMaterialController::class, 'destroy'])
-    ->middleware(['auth', 'role:LOGISTICS|QA'])
+    ->middleware(['auth', 'role:LOGISTICS|QA|ADMIN_PROYEK'])
     ->name('project-materials.destroy');
 
 // Sprint 11 Sub 4 — "Pengajuan Barang" outside the catalog (decision #13).
@@ -882,7 +893,7 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('throttle:60,1')->group(function () {
         Route::post('projects/{project}/material-requests', [MaterialRequestController::class, 'store'])
-            ->middleware('role:ESTIMATOR|PM|ASISTEN_PM|FIELD_STAFF')
+            ->middleware('role:ESTIMATOR|PM|ASISTEN_PM|FIELD_STAFF|ADMIN_PROYEK')
             ->name('projects.material-requests.store');
         Route::post('project-materials/{project_material}/pm-decision', [MaterialRequestController::class, 'pmDecision'])
             ->middleware('role:PM|ASISTEN_PM')

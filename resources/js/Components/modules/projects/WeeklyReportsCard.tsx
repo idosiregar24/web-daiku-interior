@@ -132,7 +132,7 @@ export function WeeklyReportsCard({ projectId, execution }: { projectId: number;
                                                 title: `Laporan Minggu ke-${report.week_number}`,
                                                 description: 'Setujui (isi nominal bila minggu ini dibayar — langsung ke antrean Finance) atau tolak dengan alasan.',
                                                 amount: null,
-                                                amountLabel: 'Bayar jasa pengawas minggu ini',
+                                                amountLabel: 'Bayar upah tukang minggu ini',
                                                 amountRequired: false,
                                                 remaining: fee?.remaining ?? null,
                                             })

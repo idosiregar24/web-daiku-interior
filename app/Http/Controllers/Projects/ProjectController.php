@@ -102,20 +102,22 @@ class ProjectController extends Controller
         // ASISTEN_PM (Sprint 12 Sub 1) reads every tab the PM reads; its write
         // actions arrive in Sub 4 (RAB) and Sub 11 (its assigned projects).
         // Sprint 12 #30: Marketing follows milestones and progress too.
-        $canViewMilestones = $user->hasAnyRole(['CEO', 'MARKETING', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
+        $canViewMilestones = $user->hasAnyRole(['CEO', 'MARKETING', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN', 'ADMIN_PROYEK']);
+        // Sprint 29 Sub 07 — the Admin Proyek inputs on every project (never its money: termins, documents, budget stay off).
+        $administers = $project->isAdministeredBy($user);
         // Sprint 12 #22: the Asisten PM of this project works like its PM
         // (milestones, tasks, progress) — not on allocation / realisation.
         $assists = $user->hasRole('ASISTEN_PM') && $project->isManagedBy($user);
-        $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']) || $assists;
-        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists || $supervises;
+        $canManageMilestones = $user->hasAnyRole(['CEO', 'PM', 'SUPERADMIN']) || $assists || $administers;
+        $canManageTasks = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists || $supervises || $administers;
         // Sprint 9 "Edit Proyek": CEO any project, PM their own
         // (ProjectPolicy::update()); COMPLETED/CANCELLED are read-only for
         // everyone, so the action isn't offered at all there.
         $canEditProject = $user->can('update', $project) && ! $project->isClosed();
         $canChangePm = $canEditProject && $user->hasAnyRole(['CEO', 'SUPERADMIN']);
         // PRD §7.1 "Progress Log" row: CEO/DES/PM/QA/FIN read, PM CRUD.
-        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'SUPERADMIN']);
-        $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists;
+        $canViewProgressLogs = $user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'SUPERADMIN', 'ADMIN_PROYEK']);
+        $canManageProgressLogs = $user->hasAnyRole(['PM', 'SUPERADMIN']) || $assists || $administers;
         // PRD §7.1 "Finance – Termin" row: CEO/FIN read, PM create-only —
         // PM sees what they scheduled through this project-scoped prop
         // rather than the Finance-only global list (finance.termins.index).
@@ -137,7 +139,7 @@ class ProjectController extends Controller
         // (see routes/web.php), PM/LOG update, LOG delete. Estimator also
         // reads — create-only access without seeing what's already
         // planned would just produce duplicate requests.
-        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN']) || $supervises;
+        $canViewMaterials = $user->hasAnyRole(['CEO', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN', 'ADMIN_PROYEK']) || $supervises;
         // Sprint 11 §5.6: a PM plans/records only on their own project.
         $isRunning = in_array($project->status, [ProjectStatus::Active, ProjectStatus::OnHold], true);
         $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);
@@ -146,13 +148,13 @@ class ProjectController extends Controller
         // Sprint 13 #3 — Tab QA: the milestone QA forms (status, findings),
         // never task data (security-standards §2). The form page itself is
         // `qa-forms.show` (role:CEO|PM|QA) — the Asisten PM reads it here.
-        $canViewQa = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
+        $canViewQa = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN', 'ADMIN_PROYEK']);
         // Tab Lembur — this project's overtime requests; decided on the
         // Lembur page (overtime.index, role:CEO|PM|FINANCE).
         $canViewOvertime = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'FINANCE', 'SUPERADMIN']);
 
         // Sprint 23 K15 — Kepala Tim (user or typed name) and Pengawas on the overview.
-        $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name', 'teamLead:id,name', 'supervisor:id,name']);
+        $project->load(['pm:id,name', 'assistantPm:id,name', 'lead:id,client_name', 'teamLead:id,name', 'supervisors:id,name']);
 
         // Sprint 29 Sub 01 (K1) — every prop that queries is a closure: a save that
         // reloads only what it changed (`only`, lib/projectReload.ts) computes
@@ -196,6 +198,8 @@ class ProjectController extends Controller
                     ->latest()
                     ->get(),
             'canViewTasks' => $taskVisibility !== 'none',
+            // Sprint 29 Sub 08 (B8) — wages are per RAB item: the daily target form has no "Upah".
+            'usesWorkItems' => fn () => $project->workItems()->exists(),
             // `is_active` lets the task form offer only active tukang while
             // still showing a deactivated current assignee.
             'fieldStaff' => fn () => $canManageTasks ? User::role('FIELD_STAFF')->orderBy('name')->get(['id', 'name', 'is_active']) : [],

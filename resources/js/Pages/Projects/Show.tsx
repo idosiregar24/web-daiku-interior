@@ -368,6 +368,7 @@ function TaskAssigneeTable({
     onDeleteClick: (task: Task) => void;
     onRescheduleClick: (task: Task) => void;
 }) {
+    const usesWorkItems = usePage<PageProps<{ usesWorkItems?: boolean }>>().props.usesWorkItems ?? false;
     const doneCount = tasks.filter((t) => t.status === 'DONE').length;
 
     // Sprint 26 H8b — the status chip itself opens "Ubah Status" (was a separate button).
@@ -392,7 +393,7 @@ function TaskAssigneeTable({
                 )}
                 {task.status === 'DONE' && task.is_wage_paid && <StatusChip status="PAID" label="Upah dibayar" />}
                 {/* Sprint 27 P1b — the DP condition "Upah" points here; an empty rate shows on its row. */}
-                {canEdit && !(Number(task.rate_per_task) > 0) && <StatusChip status="NO_RATE" tone="warning" label="Upah belum diisi" />}
+                {canEdit && !usesWorkItems && !(Number(task.rate_per_task) > 0) && <StatusChip status="NO_RATE" tone="warning" label="Upah belum diisi" />}
             </div>
         );
     }
@@ -514,6 +515,8 @@ function TaskTab({
     canOpenOvertimeList: boolean;
     canViewTasks: boolean;
 }) {
+    // Sprint 29 Sub 08 (B8) — wages per RAB item: the target form has no "Upah".
+    const usesWorkItems = usePage<PageProps<{ usesWorkItems?: boolean }>>().props.usesWorkItems ?? false;
     const [formOpen, setFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -624,6 +627,7 @@ function TaskTab({
                         milestones={milestones}
                         fieldStaff={fieldStaff}
                         reload={RELOAD.tasks}
+                        hideWage={usesWorkItems}
                     />
                     <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} reload={RELOAD.tasks} />
                     <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} reload={RELOAD.tasks} />
@@ -1095,7 +1099,7 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         case 'TM':
             return { text: 'Jadwalkan Technical Meeting, susun Timeline & Tanggal Selesai, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
         case 'PERSIAPAN':
-            return { text: 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
+            return { text: 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP upah tukang · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
     }
 
     if (milestones.length === 0) {

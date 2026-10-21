@@ -178,8 +178,8 @@ class WeeklyReportService
         Project::query()
             ->active()
             ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value])
-            ->whereNotNull('supervisor_id')
-            ->with('supervisor')
+            ->whereHas('supervisors')
+            ->with('supervisors')
             ->each(function (Project $project) use ($date, &$sent) {
                 $week = $this->weekOf($project, $date);
                 $sentThisWeek = WeeklyReport::where('project_id', $project->id)
@@ -187,19 +187,25 @@ class WeeklyReportService
                     ->where('status', '!=', WeeklyReportStatus::Ditolak->value)
                     ->exists();
 
-                if ($sentThisWeek || ! $project->supervisor?->is_active
-                    || $this->notificationService->alreadySentToday($project->supervisor, NotificationType::WeeklyReportReminder, 'project_id', $project->id)) {
+                if ($sentThisWeek) {
                     return;
                 }
 
-                $this->notificationService->notify(
-                    $project->supervisor,
-                    NotificationType::WeeklyReportReminder,
-                    "Laporan Mingguan Belum Diisi · Minggu ke-{$week['week_number']}",
-                    "Isi laporan pengecekan mingguan proyek \"{$project->name}\" hari ini.",
-                    ['project_id' => $project->id],
-                );
-                $sent++;
+                // Sprint 29 Sub 06 — every Pengawas of the project (one report per week, any of them).
+                foreach ($project->supervisors as $supervisor) {
+                    if (! $supervisor->is_active || $this->notificationService->alreadySentToday($supervisor, NotificationType::WeeklyReportReminder, 'project_id', $project->id)) {
+                        continue;
+                    }
+
+                    $this->notificationService->notify(
+                        $supervisor,
+                        NotificationType::WeeklyReportReminder,
+                        "Laporan Mingguan Belum Diisi · Minggu ke-{$week['week_number']}",
+                        "Isi laporan pengecekan mingguan proyek \"{$project->name}\" hari ini.",
+                        ['project_id' => $project->id],
+                    );
+                    $sent++;
+                }
             });
 
         return $sent;

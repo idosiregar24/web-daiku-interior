@@ -46,10 +46,10 @@ class WorkingDrawingController extends Controller
         $this->authorize('view', $workingDrawing);
         $user = $request->user();
         $workingDrawing->load([
-            'project:id,name,lead_id,pm_id,supervisor_id,phase,start_date,end_date',
+            'project:id,name,lead_id,pm_id,phase,start_date,end_date',
             'project.lead:id,client_name',
             'project.pm:id,name',
-            'project.supervisor:id,name',
+            'project.supervisors:id,name',
             'pic:id,name',
             'staff:id,name',
             'assigner:id,name',

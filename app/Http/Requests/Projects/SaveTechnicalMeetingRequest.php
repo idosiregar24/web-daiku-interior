@@ -18,7 +18,7 @@ class SaveTechnicalMeetingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('runMeeting', $this->route('project'));
+        return $this->user()->can('editMeeting', $this->route('project'));
     }
 
     public function rules(): array
@@ -32,7 +32,8 @@ class SaveTechnicalMeetingRequest extends FormRequest
             'attendees' => ['nullable', 'array', 'max:50'],
             'attendees.*.user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'attendees.*.name' => ['nullable', 'string', 'max:120', 'required_without:attendees.*.user_id'],
-            'fee_total' => [Rule::requiredIf(fn () => $project->supervisorFee()->exists()), 'nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
+            // Sprint 29 Sub 08 — with work items the total is Σ upah per item, not typed here.
+            'fee_total' => [Rule::requiredIf(fn () => $project->supervisorFee()->exists() && ! $project->workItems()->exists()), 'nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
             'dp_percent' => ['required', 'numeric', 'min:0', 'max:100'],
             'end_date' => ['nullable', 'date', ...($project->start_date ? ['after_or_equal:'.$project->start_date->toDateString()] : [])],
         ];
@@ -45,8 +46,8 @@ class SaveTechnicalMeetingRequest extends FormRequest
             'notes.max' => 'Notulen terlalu panjang.',
             'attendees.max' => 'Maksimal 50 peserta.',
             'attendees.*.name.required_without' => 'Isi nama peserta atau pilih dari daftar.',
-            'fee_total.required' => 'Nilai jasa pengawas wajib diisi.',
-            'fee_total.numeric' => 'Nilai jasa pengawas harus berupa angka.',
+            'fee_total.required' => 'Nilai upah tukang wajib diisi.',
+            'fee_total.numeric' => 'Nilai upah tukang harus berupa angka.',
             'dp_percent.required' => 'DP % wajib diisi.',
             'dp_percent.max' => 'DP maksimal 100%.',
             'end_date.after_or_equal' => 'Tanggal Selesai proyek tidak boleh sebelum Tanggal Mulai.',

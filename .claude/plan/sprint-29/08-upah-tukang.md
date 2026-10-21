@@ -1,7 +1,7 @@
 # Sprint 29 · 08 — Upah Tukang per Item RAB (ganti nama Jasa Pengawas)
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Jasa Pengawas → Upah Tukang", "Pengawas yang menentukan upah" · Keputusan B1–B3, B8, D3 · Rumus §2 (File A)
-> Status: **belum dikerjakan** · Bergantung: Sub 06, 07
+> Status: **kode selesai 2026-10-21** — backfill: `php artisan daiku:work-items` sekali di server; tab lama per-task jadi "Upah per Task"; tersisa cek browser (HP: kartu per item) · Bergantung: Sub 06, 07
 
 ## Keputusan user
 > "Jasa Pengawas → Upah Tukang itu penamaannya saja yang diganti, jadi satu
@@ -40,10 +40,10 @@
   punya item kerja (B8, Q14d).
 
 ## Checklist
-- [ ] **[DB]** `project_work_items` + backfill command
-- [ ] **[Backend]** `WorkItemService` (rumus), pembuatan otomatis (Buka Proyek, RAB Tambahan), sinkron total ke `supervisor_fees`, route simpan upah & Kepala Tim (+ Policy Pengawas / Admin Proyek)
-- [ ] **[Backend]** Ganti nama di notifikasi, antrean, label kategori; `dpRequirements()` upah dari item
-- [ ] **[UI]** `WorkItemWageCard` (tabel File A), ganti nama di `SupervisorFeeCard` / Finance; form daily target tanpa upah untuk proyek baru
+- [x] **[DB]** `project_work_items` + backfill command
+- [x] **[Backend]** `WorkItemService` (rumus), pembuatan otomatis (Buka Proyek, RAB Tambahan), sinkron total ke `supervisor_fees`, route simpan upah & Kepala Tim (+ Policy Pengawas / Admin Proyek)
+- [x] **[Backend]** Ganti nama di notifikasi, antrean, label kategori; `dpRequirements()` upah dari item
+- [x] **[UI]** `WorkItemWageCard` (tabel File A), ganti nama di `SupervisorFeeCard` / Finance; form daily target tanpa upah untuk proyek baru
 - [ ] **[UX]** Simpan per baris instan (Sub 01), Tab/Enter pindah ke baris berikutnya, total langsung terhitung di layar, HP: kartu per item
-- [ ] **[Test]** Pest: angka File A (Dapur Bersih total Rp 7.705.000; bobot dari nilai RAB); RBAC isi (Pengawas, Admin Proyek ya; PM, Marketing 403); harga RAB tidak dikirim ke Marketing/Tukang
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Test]** Pest: angka File A (Dapur Bersih total Rp 7.705.000; bobot dari nilai RAB); RBAC isi (Pengawas, Admin Proyek ya; PM, Marketing 403); harga RAB tidak dikirim ke Marketing/Tukang
+- [x] **[Build]** `npm run build`, Pint

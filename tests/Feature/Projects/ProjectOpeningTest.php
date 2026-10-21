@@ -171,7 +171,7 @@ test('opening creates the project with its team and dates and copies the scheme 
         'assistant_pm_id' => $assistant->id,
         'team_lead_id' => $tukang->id,
         'team_lead_name' => null,
-        'supervisor_id' => $qa->id,
+        'supervisor_ids' => [$qa->id],
         'end_date' => '2026-12-20',
     ]))->assertSessionHasNoErrors();
 
@@ -180,13 +180,13 @@ test('opening creates the project with its team and dates and copies the scheme 
         ->and($project->assistant_pm_id)->toBe($assistant->id)
         ->and($project->team_lead_id)->toBe($tukang->id)
         ->and($project->team_lead_name)->toBeNull()
-        ->and($project->supervisor_id)->toBe($qa->id)
+        ->and($project->supervisors()->pluck('users.id')->all())->toBe([$qa->id])
         ->and($project->opened_on->toDateString())->toBe('2026-10-05')
         ->and($project->start_date->toDateString())->toBe('2026-10-10')
         ->and($project->end_date->toDateString())->toBe('2026-12-20')
         ->and((float) $project->contract_value)->toBe(100_000_000.0)
         ->and(ProjectOpening::sole()->only(['status', 'project_id', 'opened_by']))->toBe(['status' => 'DIBUKA', 'project_id' => $project->id, 'opened_by' => $this->pm->id])
-        ->and(AuditLog::where('action', 'project.opened')->sole()->new_values)->toMatchArray(['team_lead_id' => $tukang->id, 'supervisor_id' => $qa->id, 'opened_on' => '2026-10-05']);
+        ->and(AuditLog::where('action', 'project.opened')->sole()->new_values)->toMatchArray(['team_lead_id' => $tukang->id, 'supervisor_ids' => [$qa->id], 'opened_on' => '2026-10-05']);
 
     // The CEO only hears about it (K13); the Pengawas and the Kepala Tim are told too.
     foreach ([$this->ceo, $qa, $tukang] as $user) {
@@ -250,7 +250,7 @@ test('the Buka Proyek form validates people and dates (K14)', function (array $o
     'Kepala Tim kosong' => [['team_lead_name' => null], 'team_lead_id'],
     'Kepala Tim dua-duanya' => [fn () => ['team_lead_id' => openingUser('FIELD_STAFF')->id], 'team_lead_name'],
     'Kepala Tim nonaktif' => [fn () => ['team_lead_name' => null, 'team_lead_id' => User::factory()->create(['is_active' => false])->id], 'team_lead_id'],
-    'Pengawas bukan QA' => [fn () => ['supervisor_id' => openingUser('FINANCE')->id], 'supervisor_id'],
+    'Pengawas bukan QA' => [fn () => ['supervisor_ids' => [openingUser('FINANCE')->id]], 'supervisor_ids.0'],
     'Tanggal Buka kosong' => [['opened_on' => null], 'opened_on'],
     'Mulai sebelum Buka' => [['opened_on' => '2026-10-11'], 'start_date'],
     'Selesai sebelum Mulai' => [['end_date' => '2026-10-09'], 'end_date'],

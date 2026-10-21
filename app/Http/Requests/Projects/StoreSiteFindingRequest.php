@@ -9,7 +9,7 @@ class StoreSiteFindingRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('supervise', $this->route('project'));
+        return $this->user()->can('recordFindings', $this->route('project'));
     }
 
     public function rules(): array

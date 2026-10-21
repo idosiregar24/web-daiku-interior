@@ -65,6 +65,8 @@ class SupervisorPaymentService
         $hasMaterials = $this->technicalMeetingService->plannedMaterials($project)->exists();
         $fee = $project->supervisorFee()->first();
         $hasFee = $fee !== null && (float) $fee->total_amount > 0;
+        $perItem = app(WorkItemService::class)->hasWorkItems($project);
+        $wageTotal = $perItem ? app(WorkItemService::class)->totalWage($project) : 0;
 
         $wagesMissing = $withTaskTitles
             ? $unpaid->take(self::MISSING_SHOWN)->map(fn ($task) => trim($task->title.' · '.(($task->planned_date ?? $task->due_date)?->format('d/m') ?? '')))->all()
@@ -79,7 +81,15 @@ class SupervisorPaymentService
                 'missing' => [],
                 'more' => 0,
             ],
-            [
+            // Sprint 29 Sub 08 (D3) — a project with work items: "upah ✓" = ≥ 1 RAB item with a Satuan Upah.
+            $perItem ? [
+                'key' => 'wages',
+                'label' => 'Upah Tukang (minimal satu item RAB berupah)',
+                'done' => $wageTotal > 0,
+                'detail' => $wageTotal > 0 ? null : 'Belum ada item RAB yang diberi satuan upah.',
+                'missing' => [],
+                'more' => 0,
+            ] : [
                 'key' => 'wages',
                 'label' => 'Upah (semua daily target punya upah)',
                 'done' => $taskCount > 0 && $unpaid->isEmpty(),
@@ -99,16 +109,16 @@ class SupervisorPaymentService
                 'missing' => $empty->take(self::MISSING_SHOWN)->pluck('name')->values()->all(),
                 'more' => max(0, $empty->count() - self::MISSING_SHOWN),
             ],
-            // Sprint 29 Sub 03 — no longer required at "TM Selesai"; the DP is
-            // a share of it, so it is checked here (until Sub 08's upah tukang).
-            [
+            // Sprint 29 Sub 03 — the old Jasa Pengawas value (projects without work
+            // items); with work items the total is Σ upah per item (the row above).
+            ...($perItem ? [] : [[
                 'key' => 'fee',
-                'label' => 'Nilai jasa pengawas & DP % · PM',
+                'label' => 'Nilai upah tukang & DP % · PM',
                 'done' => $hasFee,
-                'detail' => $hasFee ? null : 'PM belum mengisi nilai jasa pengawas (kartu Technical Meeting).',
+                'detail' => $hasFee ? null : 'PM belum mengisi nilai upah tukang (kartu Technical Meeting).',
                 'missing' => [],
                 'more' => 0,
-            ],
+            ]]),
         ];
     }
 
@@ -117,7 +127,7 @@ class SupervisorPaymentService
     {
         return DB::transaction(function () use ($project, $actor) {
             $project = Project::lockForUpdate()->findOrFail($project->id);
-            $this->phaseService->ensurePhase($project, ProjectPhase::Persiapan, 'DP pengawas diajukan saat proyek di tahap Persiapan (setelah TM selesai).');
+            $this->phaseService->ensurePhase($project, ProjectPhase::Persiapan, 'DP upah tukang diajukan saat proyek di tahap Persiapan (setelah TM selesai).');
             $fee = $this->feeOf($project);
 
             $missing = collect($this->dpRequirements($project))->reject(fn (array $row) => $row['done'])->pluck('label');
@@ -127,7 +137,7 @@ class SupervisorPaymentService
             }
 
             if ($fee->payments()->where('kind', SupervisorPaymentKind::Dp->value)->whereIn('status', SupervisorPaymentStatus::committedValues())->exists()) {
-                throw ValidationException::withMessages(['dp' => 'DP pengawas proyek ini sudah diajukan.']);
+                throw ValidationException::withMessages(['dp' => 'DP upah tukang proyek ini sudah diajukan.']);
             }
 
             return $this->createRequest($project, $fee, SupervisorPaymentKind::Dp, $fee->dpAmount(), $actor);
@@ -141,7 +151,7 @@ class SupervisorPaymentService
             $project = Project::lockForUpdate()->findOrFail($project->id);
 
             if ($project->status !== ProjectStatus::Completed) {
-                throw ValidationException::withMessages(['settlement' => 'Pelunasan jasa pengawas diajukan setelah proyek selesai.']);
+                throw ValidationException::withMessages(['settlement' => 'Pelunasan upah tukang diajukan setelah proyek selesai.']);
             }
 
             $fee = $this->feeOf($project);
@@ -235,7 +245,7 @@ class SupervisorPaymentService
 
         $payment = $fee->payments()->create([
             'project_id' => $project->id,
-            'supervisor_id' => $report->supervisor_id ?? $project->supervisor_id,
+            'supervisor_id' => $report->supervisor_id ?? $project->supervisors()->value('users.id'),
             'kind' => SupervisorPaymentKind::Mingguan->value,
             'amount' => $amount,
             'status' => SupervisorPaymentStatus::DisetujuiPm->value,
@@ -273,7 +283,7 @@ class SupervisorPaymentService
                 'type' => FinanceTransactionType::Expense->value,
                 'kategori' => FinanceCategory::JasaPengawas->value,
                 'amount' => $payment->amount,
-                'description' => "Jasa Pengawas {$payment->label} — {$payment->supervisor?->name}",
+                'description' => "Upah Tukang {$payment->label} — {$payment->supervisor?->name}",
                 'reference_id' => $payment->id,
                 'date' => now('Asia/Jakarta')->toDateString(),
             ], $actor, 'finance.supervisor_paid');
@@ -289,7 +299,7 @@ class SupervisorPaymentService
             $this->notificationService->notifyMany(
                 [$payment->supervisor],
                 NotificationType::SupervisorPaymentPaid,
-                'Jasa Pengawas Dibayar',
+                'Upah Tukang Dibayar',
                 "{$payment->label} sebesar Rp ".$this->rupiah($payment->amount).' sudah dibayar Finance.',
                 ['project_id' => $payment->project_id],
             );
@@ -332,8 +342,10 @@ class SupervisorPaymentService
 
         $this->notificationService->notifyMany(
             User::role('LOGISTICS')->where('is_active', true)->get()
-                ->push($project->supervisor, $project->teamLead, $project->assistantPm)
-                ->filter(fn (?User $user) => $user && $user->id !== $actor->id),
+                ->concat($project->supervisors()->get())
+                ->push($project->teamLead, $project->assistantPm)
+                ->filter(fn (?User $user) => $user && $user->id !== $actor->id)
+                ->unique('id'),
             NotificationType::ProductionStarted,
             'Start Produksi',
             "Produksi proyek \"{$project->name}\" dimulai — Logistik: pesan bahan sesuai rencana material proyek.",
@@ -347,7 +359,8 @@ class SupervisorPaymentService
 
         $payment = $fee->payments()->create([
             'project_id' => $project->id,
-            'supervisor_id' => $project->supervisor_id,
+            // Sprint 29 Sub 06 (A4) — the Pengawas who asked.
+            'supervisor_id' => $project->isSupervisedBy($actor) ? $actor->id : $project->supervisors()->value('users.id'),
             'kind' => $kind->value,
             'amount' => $amount,
             'status' => SupervisorPaymentStatus::Diajukan->value,
@@ -363,7 +376,7 @@ class SupervisorPaymentService
         $this->notificationService->notifyMany(
             [$project->pm],
             NotificationType::SupervisorPaymentRequested,
-            'Pengajuan Jasa Pengawas',
+            'Pengajuan Upah Tukang',
             "{$actor->name} mengajukan {$payment->label} sebesar Rp ".$this->rupiah($amount).' — setujui atau tolak di tab Eksekusi.',
             ['project_id' => $project->id],
         );
@@ -374,7 +387,7 @@ class SupervisorPaymentService
     private function feeOf(Project $project): SupervisorFee
     {
         return $project->supervisorFee()->first()
-            ?? throw ValidationException::withMessages(['fee' => 'Nilai jasa pengawas belum ditetapkan di Technical Meeting.']);
+            ?? throw ValidationException::withMessages(['fee' => 'Nilai upah tukang belum ditetapkan di Technical Meeting.']);
     }
 
     private function ensureWithinFee(SupervisorFee $fee, float $amount, ?int $exceptPaymentId = null): void
@@ -387,7 +400,7 @@ class SupervisorPaymentService
 
         if ($amount - $left > 0.001) {
             throw ValidationException::withMessages([
-                'amount' => 'Nominal melebihi sisa jasa pengawas (sisa Rp '.$this->rupiah(max(0, $left)).').',
+                'amount' => 'Nominal melebihi sisa upah tukang (sisa Rp '.$this->rupiah(max(0, $left)).').',
             ]);
         }
     }
@@ -408,7 +421,7 @@ class SupervisorPaymentService
         $this->notificationService->notifyRoles(
             ['FINANCE'],
             NotificationType::SupervisorPaymentToPay,
-            "Bayar Pengawas: {$payment->label}",
+            "Bayar Upah Tukang: {$payment->label}",
             "Rp {$this->rupiah($payment->amount)} untuk {$payment->supervisor?->name} — disetujui PM, siap dibayar.",
             ['supervisor_payment_id' => $payment->id, 'project_id' => $payment->project_id],
         );

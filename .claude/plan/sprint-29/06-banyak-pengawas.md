@@ -1,7 +1,7 @@
 # Sprint 29 · 06 — Banyak Pengawas per Proyek
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Pengawas bisa lebih dari 1" · Keputusan A1–A4
-> Status: **belum dikerjakan** · Bergantung: Sub 01 · Dikerjakan sebelum Sub 07–09
+> Status: **kode selesai 2026-10-21** — Pengawas tetap opsional di form (seperti sebelumnya; TM tetap mensyaratkan ≥ 1); demo: proyek pertama dua Pengawas (`qa2`); tersisa cek HP 390 px · Bergantung: Sub 01 · Dikerjakan sebelum Sub 07–09
 
 ## Keputusan user
 > "Setara (menu opsional)" — semua Pengawas sama haknya; Pengawas tambahan
@@ -39,9 +39,9 @@ Satu kolom `projects.supervisor_id`, dipakai ±21 file: `Project`
 - Seed demo: satu proyek dengan dua Pengawas.
 
 ## Checklist
-- [ ] **[DB]** Migrasi pivot + salin data + hapus kolom, `down()` reversibel
-- [ ] **[Backend]** Model & scope lewat pivot; semua pemakai `supervisor_id` / `->supervisor` (daftar di atas); `ValidatesProjectPeople` array `supervisor_ids` (min 1, role QA aktif)
-- [ ] **[UI]** `ProjectTeamFields` multi; nama Pengawas berupa daftar di semua tampilan
+- [x] **[DB]** Migrasi pivot + salin data + hapus kolom, `down()` reversibel
+- [x] **[Backend]** Model & scope lewat pivot; semua pemakai `supervisor_id` / `->supervisor` (daftar di atas); `ValidatesProjectPeople` array `supervisor_ids` (min 1, role QA aktif)
+- [x] **[UI]** `ProjectTeamFields` multi; nama Pengawas berupa daftar di semua tampilan
 - [ ] **[UX]** Satu Pengawas tetap tampil seperti sekarang (tidak menambah langkah); HP 390 px form proyek
-- [ ] **[Test]** Pest: dua Pengawas sama-sama boleh (task, QA, laporan, bahan), QA lain 403; notifikasi ke keduanya; migrasi data lama; test lama yang memakai `supervisor_id` disesuaikan
-- [ ] **[Build]** `npm run build`, Pint, suite penuh
+- [x] **[Test]** Pest: dua Pengawas sama-sama boleh (task, QA, laporan, bahan), QA lain 403; notifikasi ke keduanya; migrasi data lama; test lama yang memakai `supervisor_id` disesuaikan
+- [x] **[Build]** `npm run build`, Pint, suite penuh

@@ -144,7 +144,7 @@ export default function WorkingDrawingShow({ drawing, canAssign, canWork, archit
                             )}
                         </DetailItem>
                         <DetailItem label="Project Manager">{drawing.project?.pm?.name ?? '—'}</DetailItem>
-                        <DetailItem label="Pengawas (QA/QC)">{drawing.project?.supervisor?.name ?? '—'}</DetailItem>
+                        <DetailItem label="Pengawas (QA/QC)">{drawing.project?.supervisors?.map((person) => person.name).join(', ') || '—'}</DetailItem>
                         <DetailItem label="PIC Arsitek">{drawing.pic?.name ?? 'Belum ditugaskan'}</DetailItem>
                         <DetailItem label="Asisten">{drawing.staff?.map((member) => member.name).join(', ') || '—'}</DetailItem>
                         <DetailItem label="Mulai · Deadline">

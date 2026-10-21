@@ -45,7 +45,7 @@ class QaFormController extends Controller
 
     public function show(QaForm $qaForm): Response
     {
-        $qaForm->load(['project:id,name,supervisor_id', 'milestone:id,project_id,name,order,status', 'reviewer:id,name']);
+        $qaForm->load(['project:id,name', 'milestone:id,project_id,name,order,status', 'reviewer:id,name']);
 
         return Inertia::render('QA/Show', [
             'qaForm' => $qaForm,

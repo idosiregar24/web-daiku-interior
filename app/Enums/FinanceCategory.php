@@ -89,7 +89,8 @@ enum FinanceCategory: string
             self::PenaltyCollect => 'Penalty Collect',
             self::PendapatanSurvey => 'Pendapatan Jasa Survey',
             self::PendapatanDesain => 'Pendapatan Jasa Desain',
-            self::JasaPengawas => 'Jasa Pengawas',
+            // Sprint 29 Sub 08 (B1) — renamed; the code stays (append-only history).
+            self::JasaPengawas => 'Upah Tukang',
             self::Lainnya => 'Lainnya',
         };
     }

@@ -86,7 +86,7 @@ export function DpRequirementsCard({
 
     return (
         <SectionCard
-            title="Syarat DP Pengawas"
+            title="Syarat DP Upah Tukang"
             description={`${doneCount} dari ${items.length} syarat lengkap · lengkap semua → Ajukan DP → PM menyetujui = Start Produksi.`}
             icon={ClipboardCheck}
             flush
@@ -105,7 +105,7 @@ export function DpRequirementsCard({
                         }
                     >
                         {busy && <Loader2 className="size-4 animate-spin" />}
-                        Ajukan DP Pengawas{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
+                        Ajukan DP Upah Tukang{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
                     </Button>
                 ) : asked ? (
                     <p className="text-sm text-muted-foreground">DP sudah diajukan — disetujui PM = Start Produksi.</p>

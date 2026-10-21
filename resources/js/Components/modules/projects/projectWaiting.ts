@@ -110,7 +110,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
     }
 
     const can = execution?.can;
-    const isSupervisor = project.supervisor_id != null && project.supervisor_id === currentUserId;
+    const isSupervisor = project.supervisors?.some((person) => person.id === currentUserId) ?? false;
 
     switch (project.phase) {
         case 'GAMBAR_KERJA': {
@@ -159,7 +159,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     {
                         key: 'phase-dp',
                         label: 'Persiapan',
-                        detail: 'Bahan, upah & daily target disiapkan, lalu DP pengawas diajukan',
+                        detail: 'Bahan, upah & daily target disiapkan, lalu DP upah tukang diajukan',
                         holder: waitingOn('projectPhase', 'PERSIAPAN'),
                         mine: isSupervisor,
                         tone: 'info',
@@ -175,8 +175,8 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                 return [
                     {
                         key: 'phase-dp',
-                        label: 'DP Pengawas',
-                        detail: `DP pengawas ${formatRupiah(dp.amount)} diajukan — keputusan PM membuka Produksi`,
+                        label: 'DP Upah Tukang',
+                        detail: `DP upah tukang ${formatRupiah(dp.amount)} diajukan — keputusan PM membuka Produksi`,
                         holder: waitingOn('supervisorPayment', 'DIAJUKAN'),
                         mine: can?.decide ?? false,
                         tone: 'warning',
@@ -196,12 +196,12 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
             return [
                 {
                     key: 'phase-dp',
-                    label: 'DP Pengawas',
+                    label: 'DP Upah Tukang',
                     detail: ready
-                        ? 'Syarat DP lengkap — DP pengawas belum diajukan'
+                        ? 'Syarat DP lengkap — DP upah tukang belum diajukan'
                         : requirements.length > 0
                           ? `Syarat DP belum lengkap · ${done}/${requirements.length} (jasa, bahan, upah & daily target)`
-                          : 'Bahan, upah & daily target disiapkan, lalu DP pengawas diajukan',
+                          : 'Bahan, upah & daily target disiapkan, lalu DP upah tukang diajukan',
                     holder: 'Pengawas (QA/QC)',
                     mine: ready ? (can?.requestDp ?? false) : Boolean(can?.requestDp || can?.manageTargets || isSupervisor),
                     tone: 'warning',
@@ -269,8 +269,8 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
     if (payments.length > 0) {
         rows.push({
             key: 'supervisor-payments',
-            label: `${payments.length} jasa pengawas`,
-            detail: 'Pengajuan jasa pengawas menunggu keputusan PM',
+            label: `${payments.length} upah tukang`,
+            detail: 'Pengajuan upah tukang menunggu keputusan PM',
             holder: waitingOn('supervisorPayment', 'DIAJUKAN'),
             mine: can.decide,
             tone: 'warning',
@@ -323,7 +323,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
     const { project, qaForms, overtimeRequests, projectMaterials, termins, materialPermissions, currentUserId } = input;
     const rows: WaitingRow[] = [];
     const managesProject = project.pm_id === currentUserId || (project.assistant_pm_id != null && project.assistant_pm_id === currentUserId);
-    const isSupervisor = project.supervisor_id != null && project.supervisor_id === currentUserId;
+    const isSupervisor = project.supervisors?.some((person) => person.id === currentUserId) ?? false;
 
     const qaRejected = qaForms.filter((form) => form.status === 'REJECTED').length;
     const qaPending = qaForms.filter((form) => form.status === 'PENDING').length;

@@ -128,7 +128,7 @@ export function ExecutionDecisionDialog({ target, onOpenChange }: { target: Exec
                                             <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
                                         </FormControl>
                                         {target?.remaining !== null && target?.remaining !== undefined && (
-                                            <p className="text-xs text-muted-foreground">Sisa jasa pengawas {formatRupiah(target.remaining)}.</p>
+                                            <p className="text-xs text-muted-foreground">Sisa upah tukang {formatRupiah(target.remaining)}.</p>
                                         )}
                                         <FormMessage />
                                     </FormItem>

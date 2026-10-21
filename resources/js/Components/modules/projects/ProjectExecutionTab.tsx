@@ -46,13 +46,14 @@ import type { ProjectTabTarget } from './projectWaiting';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
+import { WorkItemWageCard } from './WorkItemWageCard';
 import { WeeklyReportsCard } from './WeeklyReportsCard';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric' });
 
 const PHASE_ORDER: ProjectPhase[] = ['GAMBAR_KERJA', 'TM', 'PERSIAPAN', 'PRODUKSI', 'PEMASANGAN'];
 
-type ExecutionCard = 'workingDrawing' | 'meeting' | 'dpRequirements' | 'qc' | 'materialOrders' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
+type ExecutionCard = 'workingDrawing' | 'meeting' | 'wages' | 'dpRequirements' | 'qc' | 'materialOrders' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
 
 /**
  * Sprint 26 H2a — the one place that says which cards a phase works with.
@@ -62,12 +63,13 @@ type ExecutionCard = 'workingDrawing' | 'meeting' | 'dpRequirements' | 'qc' | 'm
  */
 const PHASE_CARDS: Record<ProjectPhase, ExecutionCard[]> = {
     GAMBAR_KERJA: ['workingDrawing'],
-    TM: ['meeting'],
+    // Sprint 29 Sub 08 — Upah Tukang per item: filled from the TM on, read-only (but for new items) after Start Produksi.
+    TM: ['meeting', 'wages'],
     // Sprint 26 — the Pengawas plans daily targets in Persiapan, so Target vs Actual (Tukar Hari) shows from here.
-    PERSIAPAN: ['dpRequirements', 'materialPlan', 'fee', 'targetVsActual'],
+    PERSIAPAN: ['dpRequirements', 'wages', 'materialPlan', 'fee', 'targetVsActual'],
     // Sprint 27 P2 — the whiteboard's QC branch first, then the cards it points to.
-    PRODUKSI: ['qc', 'materialOrders', 'targetVsActual', 'departure', 'weekly', 'fee'],
-    PEMASANGAN: ['qc', 'findings', 'weekly', 'fee'],
+    PRODUKSI: ['qc', 'materialOrders', 'targetVsActual', 'departure', 'weekly', 'fee', 'wages'],
+    PEMASANGAN: ['qc', 'findings', 'weekly', 'fee', 'wages'],
 };
 
 /** H2f / Sub 03 — card ids used by the header's step link, Perlu Tindakan and notifications. */
@@ -75,6 +77,7 @@ const CARD_ANCHORS: Record<ExecutionCard, string[]> = {
     workingDrawing: ['gambar-kerja'],
     // `#tm-bahan` is rendered by the TM card itself, and only while TM is the running phase.
     meeting: ['tm'],
+    wages: ['upah-tukang'],
     dpRequirements: ['syarat-dp'],
     qc: ['qc-pengawas'],
     materialOrders: ['pemesanan-bahan'],
@@ -90,11 +93,11 @@ const CARD_ANCHORS: Record<ExecutionCard, string[]> = {
 function nextStepText(next: ProjectPhase | null, threshold: number): string {
     switch (next) {
         case 'TM':
-            return 'PM memimpin Technical Meeting: timeline, jasa pengawas, tanggal selesai — Pengawas merencanakan bahan.';
+            return 'PM memimpin Technical Meeting: timeline, upah tukang, tanggal selesai — Pengawas merencanakan bahan.';
         case 'PERSIAPAN':
-            return 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas.';
+            return 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP upah tukang.';
         case 'PRODUKSI':
-            return 'DP pengawas disetujui PM = Start Produksi; tukang mengerjakan daily target.';
+            return 'DP upah tukang disetujui PM = Start Produksi; tukang mengerjakan daily target.';
         case 'PEMASANGAN':
             return `PM menyetujui berangkat ke lokasi setelah actual activity mencapai ${threshold}%.`;
         default:
@@ -125,7 +128,7 @@ function phaseDoneSummary(phase: ProjectPhase, execution: ProjectExecution, mile
             ].join(' · ');
         case 'PERSIAPAN': {
             const dp = execution.payments.find((payment) => payment.kind === 'DP' && (payment.status === 'DISETUJUI_PM' || payment.status === 'DIBAYAR'));
-            return dp?.decided_at ? `Persiapan selesai · DP pengawas disetujui ${formatDate(dp.decided_at)}` : 'Persiapan selesai';
+            return dp?.decided_at ? `Persiapan selesai · DP upah tukang disetujui ${formatDate(dp.decided_at)}` : 'Persiapan selesai';
         }
         case 'PRODUKSI':
             return departure
@@ -220,6 +223,8 @@ export function ProjectExecutionTab({
                 return execution.workingDrawing !== null;
             case 'meeting':
                 return execution.meeting !== null;
+            case 'wages':
+                return Boolean(execution.workItems?.sections.length);
             case 'dpRequirements':
                 return execution.dpRequirements.length > 0;
             case 'materialOrders':
@@ -272,6 +277,9 @@ export function ProjectExecutionTab({
                 break;
             case 'qc':
                 body = <QcPanelCard execution={execution} />;
+                break;
+            case 'wages':
+                body = execution.workItems && <WorkItemWageCard projectId={project.id} execution={execution} fieldStaff={fieldStaff} />;
                 break;
             case 'materialOrders':
                 body = projectMaterials && <MaterialOrdersCard lines={projectMaterials} onOpen={onOpen} canOpen={canOpen} />;

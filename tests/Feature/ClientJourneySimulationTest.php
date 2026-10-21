@@ -39,6 +39,7 @@ use App\Models\Termin;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Services\TerminService;
+use App\Services\WorkItemService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -358,7 +359,7 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
         'pm_id' => $pm->id,
         'assistant_pm_id' => $asistenPm->id,
         'team_lead_name' => 'Pak Darto',
-        'supervisor_id' => $qa->id,
+        'supervisor_ids' => [$qa->id],
         'opened_on' => '2026-10-19',
         'start_date' => '2026-10-19',
     ];
@@ -369,7 +370,7 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     $termins = Termin::where('project_id', $project->id)->orderBy('termin_number')->get();
     expect($project->status)->toBe(ProjectStatus::Active)
         ->and($project->phase)->toBe(ProjectPhase::GambarKerja)
-        ->and($project->supervisor_id)->toBe($qa->id)
+        ->and($project->supervisors()->pluck('users.id')->all())->toBe([$qa->id])
         ->and((float) $project->contract_value)->toBe(51_860_000.0)
         ->and($termins->map(fn (Termin $t) => (float) $t->amount)->all())->toBe([25_930_000.0, 15_558_000.0, 10_372_000.0]);
     foreach ([$ceo, $this->finance, $logistics, $this->marketing, $qa] as $user) {
@@ -462,6 +463,12 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
         $targets[$title] = Task::where('project_id', $project->id)->where('title', $title)->sole();
     }
 
+    // Sprint 29 Sub 08 — the Pengawas sets the Satuan Upah per RAB item (Upah Tukang card).
+    foreach ($project->workItems()->get() as $workItem) {
+        $this->actingAs($qa)->put(route('projects.work-items.update', $workItem), ['unit_wage' => 100_000])->assertSessionHasNoErrors();
+    }
+    $wageTotal = app(WorkItemService::class)->totalWage($project);
+
     // Ajukan DP Pengawas → PM Setujui = Start Produksi → Finance Bayar.
     $this->actingAs($qa)->post(route('projects.supervisor-payments.dp', $project))->assertSessionHasNoErrors();
     $dpPayment = SupervisorPayment::where('project_id', $project->id)->sole();
@@ -475,7 +482,8 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     $this->actingAs($this->finance)->post(route('finance.supervisor-payments.pay', $dpPayment), ['bank_account_id' => $this->bca->id])
         ->assertSessionHasNoErrors();
     expect($dpPayment->fresh()->status)->toBe(SupervisorPaymentStatus::Dibayar)
-        ->and((float) $dpPayment->fresh()->amount)->toBe(500_000.0);
+        // DP 10 % of the Upah Tukang (Σ satuan upah × volume), no longer a typed Jasa Pengawas.
+        ->and((float) $dpPayment->fresh()->amount)->toBe(round($wageTotal * 0.1));
 
     // Langkah 23 · Tukang (phone) on the target's day: status + kendala = the day's report.
     journeyAt('2026-10-22', '16:00:00');

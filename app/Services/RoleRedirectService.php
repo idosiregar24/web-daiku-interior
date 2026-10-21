@@ -47,6 +47,8 @@ class RoleRedirectService
         // decides (User::primaryRoleName()) — mapped anyway for a lone one.
         'ASISTEN_PM' => 'projects.dashboard',
         'KEPALA_DESAIN' => 'design.dashboard',
+        // Sprint 29 Sub 07 — Admin Proyek starts on what waits for its input.
+        'ADMIN_PROYEK' => 'inbox.index',
     ];
 
     /**

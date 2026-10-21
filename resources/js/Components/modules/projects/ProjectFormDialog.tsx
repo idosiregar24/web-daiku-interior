@@ -1,7 +1,7 @@
 import {
     ProjectTeamFields,
     refineTeamLead,
-    TEAM_ERROR_FIELD,
+    teamErrorField,
     teamDefaults,
     teamFieldsShape,
     teamPayload,
@@ -163,8 +163,9 @@ export function ProjectFormDialog({
     function onSubmit(values: FormValues) {
         const onError = (errors: Record<string, string>) => {
             Object.entries(errors).forEach(([field, message]) => {
-                if (TEAM_ERROR_FIELD[field]) {
-                    form.setError(TEAM_ERROR_FIELD[field], { message });
+                const teamField = teamErrorField(field);
+                if (teamField) {
+                    form.setError(teamField, { message });
                 } else if (FIELDS.includes(field)) {
                     form.setError(field as keyof FormValues, { message });
                 } else {

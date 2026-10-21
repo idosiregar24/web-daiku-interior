@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -25,7 +26,6 @@ class Project extends Model
         'assistant_pm_id',
         'team_lead_id',
         'team_lead_name',
-        'supervisor_id',
         'opened_on',
         'status',
         'phase',
@@ -82,16 +82,35 @@ class Project extends Model
         return $this->belongsTo(User::class, 'team_lead_id');
     }
 
-    /** Sprint 23 K14/K15 — the Pengawas (QA/QC), a user with role QA; its work is Sprint 24's (D3–D12). */
-    public function supervisor(): BelongsTo
+    /**
+     * Sprint 29 Sub 06 (A1/A2) — the Pengawas (QA/QC) of the project, users
+     * with role QA, all equal (was one `supervisor_id`, Sprint 23 K15). In
+     * the order they were added — the first is the one a single name shows.
+     */
+    public function supervisors(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'supervisor_id');
+        return $this->belongsToMany(User::class, 'project_supervisors')
+            ->withPivot('assigned_by')
+            ->withTimestamps()
+            ->orderBy('project_supervisors.id');
     }
 
-    /** Sprint 24 D14 — the user is this project's Pengawas (QA/QC). */
+    /** Sprint 24 D14 / Sprint 29 Sub 06 — the user is one of this project's Pengawas (QA/QC). */
     public function isSupervisedBy(User $user): bool
     {
-        return $this->supervisor_id !== null && (int) $this->supervisor_id === (int) $user->id && $user->hasRole('QA');
+        if (! $user->hasRole('QA')) {
+            return false;
+        }
+
+        return $this->relationLoaded('supervisors')
+            ? $this->supervisors->contains('id', $user->id)
+            : $this->supervisors()->where('users.id', $user->id)->exists();
+    }
+
+    /** "Andi, Budi" — every place that prints the Pengawas. */
+    public function supervisorNames(): string
+    {
+        return $this->supervisors->pluck('name')->implode(', ');
     }
 
     /**
@@ -101,13 +120,15 @@ class Project extends Model
      */
     public function isQaReviewableBy(User $user): bool
     {
-        return $this->supervisor_id === null ? $user->hasRole('QA') : $this->isSupervisedBy($user);
+        $hasSupervisor = $this->relationLoaded('supervisors') ? $this->supervisors->isNotEmpty() : $this->supervisors()->exists();
+
+        return $hasSupervisor ? $this->isSupervisedBy($user) : $user->hasRole('QA');
     }
 
     /** Query twin of isQaReviewableBy(): projects this Pengawas checks. */
     public function scopeQaReviewableBy(Builder $query, User $user): Builder
     {
-        return $query->where(fn (Builder $q) => $q->where('supervisor_id', $user->id)->orWhereNull('supervisor_id'));
+        return $query->where(fn (Builder $q) => $q->supervisedBy($user)->orWhereDoesntHave('supervisors'));
     }
 
     /** Sprint 24 D2 — the project's Gambar Kerja (null on projects opened before Sprint 24). */
@@ -122,7 +143,13 @@ class Project extends Model
         return $this->hasOne(TechnicalMeeting::class);
     }
 
-    /** Sprint 24 D4 — Jasa Pengawas (set at the TM). */
+    /** Sprint 29 Sub 08 — the RAB items as work: Satuan Upah + Kepala Tim (WorkItemService). */
+    public function workItems(): HasMany
+    {
+        return $this->hasMany(ProjectWorkItem::class);
+    }
+
+    /** Sprint 24 D4 — Jasa Pengawas, since Sprint 29 Sub 08 "Upah Tukang" (its total = Σ upah per item). */
     public function supervisorFee(): HasOne
     {
         return $this->hasOne(SupervisorFee::class);
@@ -239,6 +266,17 @@ class Project extends Model
      * yang dikelola"). Allocation & realisation stay with the PM alone
      * (ProjectPolicy::manageBudget()).
      */
+    /**
+     * Sprint 29 Sub 07 (H1–H4) — the Admin Proyek inputs on every project
+     * (TM, bahan, daily target, status, temuan, catatan) on behalf of the PM /
+     * Pengawas, audited as itself; never decides (TM Selesai, DP, Berangkat,
+     * QA, payments) and never sees the money of the client or the budget.
+     */
+    public function isAdministeredBy(User $user): bool
+    {
+        return $user->hasRole('ADMIN_PROYEK');
+    }
+
     public function isManagedBy(User $user): bool
     {
         return ((int) $this->pm_id === (int) $user->id && $user->hasRole('PM'))
@@ -344,7 +382,7 @@ class Project extends Model
     /** Sprint 27 P6a — the query twin of isSupervisedBy(): "Yang saya awasi". */
     public function scopeSupervisedBy(Builder $query, User $user): Builder
     {
-        return $query->where('supervisor_id', $user->id);
+        return $query->whereHas('supervisors', fn (Builder $supervisor) => $supervisor->where('users.id', $user->id));
     }
 
     /** Only ACTIVE projects feed the automation (penalties, overdue flags) — ON_HOLD/closed ones are paused. */

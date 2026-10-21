@@ -21,7 +21,9 @@ export type Role =
     | 'HR'
     // Sprint 12 (outside the PRD): the PM's assistant; Kepala Desain is stacked on DESIGNER.
     | 'ASISTEN_PM'
-    | 'KEPALA_DESAIN';
+    | 'KEPALA_DESAIN'
+    // Sprint 29 Sub 07 (outside the PRD): inputs on every project, never decides.
+    | 'ADMIN_PROYEK';
 
 export interface User {
     id: number;
@@ -759,9 +761,8 @@ export interface Project {
     team_lead_id?: number | null;
     team_lead_name?: string | null;
     team_lead?: Pick<User, 'id' | 'name'> | null;
-    /** Sprint 23 K15 — Pengawas (QA/QC), a user with role QA. */
-    supervisor_id?: number | null;
-    supervisor?: Pick<User, 'id' | 'name'> | null;
+    /** Sprint 29 Sub 06 — the Pengawas (QA/QC), one or more users with role QA, all equal (was `supervisor_id`). */
+    supervisors?: Pick<User, 'id' | 'name'>[];
     /** Sprint 23 K15 — Tanggal Buka Proyek (start_date is never before it). */
     opened_on?: string | null;
     status: ProjectStatus;
@@ -2364,7 +2365,7 @@ export interface WorkingDrawing {
     project?: Pick<Project, 'id' | 'name' | 'phase' | 'start_date' | 'end_date'> & {
         lead?: Pick<Lead, 'id' | 'client_name'>;
         pm?: Pick<User, 'id' | 'name'> | null;
-        supervisor?: Pick<User, 'id' | 'name'> | null;
+        supervisors?: Pick<User, 'id' | 'name'>[];
     };
     status: WorkingDrawingStatus;
     pic_id: number | null;
@@ -2401,9 +2402,34 @@ export interface SupervisorPayment {
     paid_at: string | null;
 }
 
+/** Sprint 29 Sub 08 — one RAB item of the Upah Tukang card (WorkItemService::overview()). */
+export interface WorkItemRow {
+    id: number;
+    description: string;
+    volume: number;
+    volume_label: string;
+    unit: string | null;
+    unit_price: number;
+    rab_subtotal: number;
+    unit_wage: number | null;
+    wage_subtotal: number;
+    /** % of the RAB value of the items with a wage; null without a wage. */
+    weight: number | null;
+    team_lead_id: number | null;
+    team_lead_name: string | null;
+    team_lead: string | null;
+}
+
 /** Sprint 24 — ProjectExecutionService::overview(), the project's "Eksekusi" tab. */
 export interface ProjectExecution {
     phase: ProjectPhase;
+    /** Sprint 29 Sub 08 — wages per RAB item (the total is no longer typed at the TM). */
+    usesWorkItems: boolean;
+    /** Sprint 29 Sub 08 — the Upah Tukang card (null for viewers who don't see RAB prices). */
+    workItems: {
+        sections: { id: string; title: string; items: WorkItemRow[] }[];
+        summary: { total_wage: number; items: number; paid_items: number; unpaid_items: number; per_team_lead: { label: string; total: number; items: number }[] };
+    } | null;
     phases: { value: ProjectPhase; label: string; state: 'done' | 'current' | 'upcoming' }[];
     isLegacy: boolean;
     workingDrawing: {
@@ -2490,6 +2516,8 @@ export interface ProjectExecution {
     deadline: { end_date: string | null; warn_from: string | null; warning: boolean; days_left: number | null };
     can: {
         saveMeeting: boolean;
+        /** Sprint 29 Sub 08 — the project's Pengawas or the Admin Proyek fills the Upah Tukang card. */
+        setWages: boolean;
         completeMeeting: boolean;
         requestDp: boolean;
         decide: boolean;

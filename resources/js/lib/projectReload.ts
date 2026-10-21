@@ -53,6 +53,8 @@ export const RELOAD = {
     progressLogs: ['progressLogs'],
     /** Anggaran: pos, alokasi, realisasi, overrun. */
     budget: ['budget'],
+    /** Sprint 29 Sub 08 — Upah Tukang per item (the card, the DP conditions and the fee live in `execution`). */
+    wages: ['execution'],
     /** Termin & invoice. */
     billing: ['termins', 'documents', 'statusNote'],
 } as const satisfies Record<string, readonly ProjectProp[]>;

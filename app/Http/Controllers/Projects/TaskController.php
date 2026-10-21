@@ -50,7 +50,7 @@ class TaskController extends Controller
         $tasks = Task::query()
             ->with(['project:id,name,status', 'milestone:id,name', 'assignee:id,name'])
             ->when($isFieldStaff, fn ($query) => $query->where('assignee_id', $user->id))
-            ->when($isSupervisor, fn ($query) => $query->whereHas('project', fn ($project) => $project->where('supervisor_id', $user->id)))
+            ->when($isSupervisor, fn ($query) => $query->whereHas('project', fn ($project) => $project->supervisedBy($user)))
             ->when($isFieldStaff && $formDay, fn ($query) => $query->withExists([
                 'dailyTaskForms as has_form_today' => fn ($form) => $form->where('staff_id', $user->id)->forDate($now->toDateString()),
             ]))

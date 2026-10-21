@@ -104,7 +104,21 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
   pemeriksaan QA timeline juga hanya oleh Pengawas proyek itu
   (`QaFormPolicy::review`); proyek tanpa Pengawas tetap terbuka untuk semua
   user role QA.
-- **Jasa Pengawas** (Sprint 24 D4): keputusan PM proyek itu saja
+- **Admin Proyek** (Sprint 29 Sub 07, role `ADMIN_PROYEK`): boleh
+  **menginput** di semua proyek (TM, timeline, bahan, daily target &
+  pemeriksaannya, temuan, catatan) — `role:` hanya ditambahkan di route
+  input; **tidak pernah** TM Selesai, DP/pencairan, Berangkat ke Lokasi,
+  Tandai Selesai timeline, QA, Anggaran, Buka Proyek, RAB, pembayaran (403
+  oleh route + Policy). Props termin, dokumen & anggaran tidak dikirim.
+- **Upah Tukang per item RAB** (Sprint 29 Sub 08, B3): kartu Upah Tukang
+  **membuka harga RAB ke Pengawas proyek** (keputusan user — Sprint 24 U4
+  dulu sengaja tanpa harga). Diisi hanya Pengawas proyek / Admin Proyek
+  (`ProjectPolicy::setWages`, route `role:QA|ADMIN_PROYEK`); prop
+  `execution.workItems` hanya untuk yang melihat uang (CEO/PM/Finance/
+  Pengawas proyek) + Admin Proyek — tidak untuk Logistik, Marketing, Tukang.
+  Upah yang sudah diisi terkunci setelah Start Produksi; total tidak pernah
+  di bawah yang sudah diajukan/dibayar.
+- **Jasa Pengawas** (Sprint 24 D4 — sejak Sprint 29 berlabel "Upah Tukang"): keputusan PM proyek itu saja
   (`ProjectPolicy::approveExecution`, juga laporan mingguan & "Berangkat ke
   Lokasi"), pembayaran **hanya Finance** (`finance.supervisor-payments.pay`),
   tidak pernah melebihi nilai jasa, tanpa route hapus. Nilai jasa &

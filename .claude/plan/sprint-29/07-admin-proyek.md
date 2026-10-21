@@ -1,7 +1,7 @@
 # Sprint 29 · 07 — Role Admin Proyek
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Ronde 4 "seorang admin yang mengurus semua proses khusus di bagian projek" · Keputusan H1–H4 · Q32
-> Status: **belum dikerjakan** · Bergantung: Sub 06
+> Status: **kode selesai 2026-10-21** — pengecekan % (draf) & upah per item menyusul Sub 08/09; tersisa cek HP 390 px · Bergantung: Sub 06
 
 ## Keputusan user
 > "Saya mau ada seorang admin yang mengurus semua proses khusus di bagian
@@ -28,10 +28,10 @@
   target belum dibuat, pengecekan belum diisi) — tanpa grup Keuangan.
 
 ## Checklist
-- [ ] **[Backend]** Role + seeder + akun demo; `isAdministeredBy()`; route `role:` ditambah `ADMIN_PROYEK` hanya pada route input; Policy per aksi
-- [ ] **[Backend]** Props keuangan/anggaran tidak dikirim ke Admin Proyek
-- [ ] **[UI]** Label role, menu (`NAV_GROUPS`, `ROLE_GROUP_ORDER`), tombol keputusan tersembunyi (server tetap 403)
+- [x] **[Backend]** Role + seeder + akun demo; `isAdministeredBy()`; route `role:` ditambah `ADMIN_PROYEK` hanya pada route input; Policy per aksi
+- [x] **[Backend]** Props keuangan/anggaran tidak dikirim ke Admin Proyek
+- [x] **[UI]** Label role, menu (`NAV_GROUPS`, `ROLE_GROUP_ORDER`), tombol keputusan tersembunyi (server tetap 403)
 - [ ] **[UX]** Halaman awal Admin Proyek = Perlu Tindakan / daftar proyek; HP 390 px
-- [ ] **[Test]** Pest RBAC: tiap route input 200/302, tiap route keputusan 403, props keuangan kosong
-- [ ] **[Dok]** `CLAUDE.md` golden rule baru (Admin Proyek), `security-standards.md` §4
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[Test]** Pest RBAC: tiap route input 200/302, tiap route keputusan 403, props keuangan kosong
+- [x] **[Dok]** `CLAUDE.md` golden rule baru (Admin Proyek), `security-standards.md` §4
+- [x] **[Build]** `npm run build`, Pint

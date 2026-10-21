@@ -115,7 +115,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                 <DetailItem label="Tanggal TM">{formatDate(meeting.meeting_date)}</DetailItem>
                 <DetailItem label="Peserta">{meeting.attendees.map((row) => row.label).join(', ') || '—'}</DetailItem>
                 {fee && (
-                    <DetailItem label="Jasa Pengawas">
+                    <DetailItem label="Upah Tukang">
                         {formatRupiah(fee.total_amount)} · DP {fee.dp_percent}% ({formatRupiah(fee.dp_amount)})
                     </DetailItem>
                 )}
@@ -188,7 +188,7 @@ export function CompleteMeetingButton({
                 onOpenChange={setConfirming}
                 icon={ClipboardCheck}
                 title="Selesaikan Technical Meeting?"
-                description="Proyek pindah ke tahap Persiapan. Pengawas diberi tahu untuk melengkapi bahan, upah & daily target, lalu mengajukan DP pengawas."
+                description="Proyek pindah ke tahap Persiapan. Pengawas diberi tahu untuk melengkapi bahan, upah & daily target, lalu mengajukan DP upah tukang."
                 confirmLabel="Ya, TM Selesai"
                 busy={busy}
                 onConfirm={complete}
@@ -488,18 +488,26 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
 
                     <TmStep
                         number={3}
-                        title="Tanggal Selesai & Jasa Pengawas"
+                        title="Tanggal Selesai & Upah Tukang"
                         holder="PM"
                         done={isDone('end_date')}
-                        description="Tanggal Selesai wajib untuk TM Selesai (dasar pengingat H-30%). Nilai jasa pengawas boleh diisi nanti — dibutuhkan sebelum Pengawas mengajukan DP."
+                        description="Tanggal Selesai wajib untuk TM Selesai (dasar pengingat H-30%). Nilai upah tukang boleh diisi nanti — dibutuhkan sebelum Pengawas mengajukan DP."
                     >
                         <div className="grid gap-4 sm:grid-cols-3">
+                            {execution.usesWorkItems ? (
+                                // Sprint 29 Sub 08 — Σ satuan upah × volume, filled by the Pengawas in the Upah Tukang card.
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium">Nilai Upah Tukang</p>
+                                    <p className="text-sm tabular-nums">{formatRupiah(fee?.total_amount ?? 0)}</p>
+                                    <p className="text-xs text-muted-foreground">Dari upah per item RAB (kartu Upah Tukang, diisi Pengawas).</p>
+                                </div>
+                            ) : (
                             <FormField
                                 control={form.control}
                                 name="fee_total"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel required={fee !== null}>Nilai Jasa Pengawas</FormLabel>
+                                        <FormLabel required={fee !== null}>Nilai Upah Tukang</FormLabel>
                                         <FormControl>
                                             <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
                                         </FormControl>
@@ -507,12 +515,13 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                                     </FormItem>
                                 )}
                             />
+                            )}
                             <FormField
                                 control={form.control}
                                 name="dp_percent"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel required>DP Pengawas (%)</FormLabel>
+                                        <FormLabel required>DP Upah Tukang (%)</FormLabel>
                                         <FormControl>
                                             <Input type="number" min={0} max={100} step="0.5" inputMode="decimal" {...field} />
                                         </FormControl>
@@ -563,7 +572,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
             <div id="tm-bahan" className="mt-5 scroll-mt-24 rounded-lg border border-dashed border-border p-4">
                 <p className="text-sm font-semibold text-foreground">Bagian Pengawas</p>
                 <p className="mb-4 text-xs text-muted-foreground">
-                    Bahan, upah & daily target diisi {project.supervisor?.name ?? 'Pengawas proyek'} — boleh setelah TM, sebelum Start Produksi. Tidak
+                    Bahan, upah & daily target diisi {project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'} — boleh setelah TM, sebelum Start Produksi. Tidak
                     menahan TM Selesai.
                 </p>
                 <TmStep

@@ -238,14 +238,14 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Proyek',
                 icon: FolderKanban,
                 routeName: 'projects.index',
-                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF'],
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'QA', 'FINANCE', 'LOGISTICS', 'FIELD_STAFF', 'ADMIN_PROYEK'],
             },
             {
                 label: 'Task',
                 icon: ListChecks,
                 routeName: 'tasks.index',
-                // Sprint 29 Sub 04 (F6) — + QA: the targets of the projects it supervises.
-                roles: ['CEO', 'PM', 'QA', 'FIELD_STAFF'],
+                // Sprint 29 Sub 04 (F6) — + QA: the targets of the projects it supervises; Sub 07 — + Admin Proyek (every project).
+                roles: ['CEO', 'PM', 'QA', 'FIELD_STAFF', 'ADMIN_PROYEK'],
                 roleLabels: { FIELD_STAFF: 'Tugas' },
             },
             {
@@ -306,12 +306,13 @@ const NAV_GROUPS: NavGroup[] = [
                 label: 'Pembayaran Staf',
                 icon: WalletCards,
                 tabs: [
-                    { label: 'Upah Tukang', icon: Banknote, routeName: 'finance.staffPayments.index', roles: ['CEO', 'PM', 'FINANCE'] },
+                    // Sprint 29 Sub 08 (B8) — the old per-task wages; "Upah Tukang" is now the project's (per RAB item).
+                    { label: 'Upah per Task', icon: Banknote, routeName: 'finance.staffPayments.index', roles: ['CEO', 'PM', 'FINANCE'] },
                     // Salaries are confidential — not PM (sprint-09 decision #7).
                     { label: 'Penggajian', icon: WalletCards, routeName: 'finance.payroll.index', roles: ['CEO', 'FINANCE'] },
                     { label: 'Pinjaman Tukang', icon: HandCoins, routeName: 'finance.staffLoans.index', roles: ['CEO', 'PM', 'FINANCE'] },
                     // Sprint 24 D4 — the Pengawas's fee, approved by the PM, paid by Finance.
-                    { label: 'Jasa Pengawas', icon: HardHat, routeName: 'finance.supervisor-payments.index', roles: ['CEO', 'FINANCE'] },
+                    { label: 'Upah Tukang', icon: HardHat, routeName: 'finance.supervisor-payments.index', roles: ['CEO', 'FINANCE'] },
                     { label: 'Penalti', icon: AlertOctagon, routeName: 'penalties.index', roles: ['CEO', 'PM', 'FINANCE', 'FIELD_STAFF'] },
                 ],
             },
@@ -496,6 +497,8 @@ const ROLE_GROUP_ORDER: Partial<Record<Role, string[]>> = {
     ASISTEN_PM: ['Utama', 'Eksekusi', 'Presales', 'Logistik'],
     FIELD_STAFF: ['Utama', 'Eksekusi', 'Logistik', 'Keuangan'],
     QA: ['Utama', 'Eksekusi', 'Presales', 'Keuangan'],
+    // Sprint 29 Sub 07 — no Keuangan group at all.
+    ADMIN_PROYEK: ['Utama', 'Eksekusi', 'Logistik'],
     ESTIMATOR: ['Utama', 'Presales', 'Logistik'],
 };
 
@@ -515,6 +518,7 @@ export const ROLE_LABEL: Record<Role, string> = {
     HR: 'SDM',
     ASISTEN_PM: 'Asisten PM',
     KEPALA_DESAIN: 'Kepala Desain',
+    ADMIN_PROYEK: 'Admin Proyek',
 };
 
 /**

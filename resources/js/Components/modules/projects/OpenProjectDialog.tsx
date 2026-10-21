@@ -1,7 +1,7 @@
 import {
     ProjectTeamFields,
     refineTeamLead,
-    TEAM_ERROR_FIELD,
+    teamErrorField,
     teamDefaults,
     teamFieldsShape,
     teamPayload,
@@ -106,7 +106,7 @@ export function OpenProjectDialog({ open, onOpenChange, opening, options, second
             {
                 onError: (errors) =>
                     Object.entries(errors).forEach(([field, message]) => {
-                        const target = TEAM_ERROR_FIELD[field] ?? ((FIELDS as readonly string[]).includes(field) ? (field as keyof FormValues) : 'name');
+                        const target = teamErrorField(field) ?? ((FIELDS as readonly string[]).includes(field) ? (field as keyof FormValues) : 'name');
                         form.setError(target, { message });
                     }),
                 onSuccess: () => onOpenChange(false),

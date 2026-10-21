@@ -18,7 +18,7 @@ class TaskPolicy
     /** Full edit (title/description/due_date/priority/milestone/assignee/rate) — PM only, no ownership scoping (matches Project/Milestone's non-scoped PM CRUD). */
     public function update(User $user, Task $task): bool
     {
-        return $user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task);
+        return $user->hasAnyRole(['PM', 'ADMIN_PROYEK']) || $this->assists($user, $task) || $this->supervises($user, $task);
     }
 
     /** Sprint 24 D9 — "Geser" a target inside its timeline: whoever plans it. */
@@ -34,13 +34,13 @@ class TaskPolicy
      */
     public function delete(User $user, Task $task): bool
     {
-        return $user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task);
+        return $user->hasAnyRole(['PM', 'ADMIN_PROYEK']) || $this->assists($user, $task) || $this->supervises($user, $task);
     }
 
     /** Status/kendala/note — PM (any task) or the task's own assignee. */
     public function updateStatus(User $user, Task $task): bool
     {
-        if ($user->hasRole('PM') || $this->assists($user, $task) || $this->supervises($user, $task)) {
+        if ($user->hasAnyRole(['PM', 'ADMIN_PROYEK']) || $this->assists($user, $task) || $this->supervises($user, $task)) {
             return true;
         }
 

@@ -73,15 +73,15 @@ export default function SupervisorPaymentsIndex({ payments, filters, canPay, ban
 
     return (
         <AppLayout>
-            <Head title="Jasa Pengawas" />
-            <PageHeader title="Jasa Pengawas" icon={HardHat} description="Pembayaran jasa pengawas (DP, mingguan, pelunasan) yang sudah disetujui PM proyeknya." />
+            <Head title="Upah Tukang" />
+            <PageHeader title="Upah Tukang" icon={HardHat} description="Pembayaran upah tukang (DP, mingguan, pelunasan) yang sudah disetujui PM proyeknya." />
             <ModuleTabs />
 
             <DataTable
                 columns={columns}
                 data={payments.data}
                 pagination={payments}
-                emptyMessage={toPay ? 'Tidak ada jasa pengawas yang menunggu dibayar.' : 'Belum ada pembayaran.'}
+                emptyMessage={toPay ? 'Tidak ada upah tukang yang menunggu dibayar.' : 'Belum ada pembayaran.'}
                 toolbar={
                     <Tabs value={filters.status} onValueChange={(value) => router.get(route('finance.supervisor-payments.index'), value === 'paid' ? { status: 'paid' } : {})}>
                         <TabsList>
@@ -141,9 +141,9 @@ function PayDialog({ payment, bankAccounts, onOpenChange }: { payment: Superviso
         <Dialog open={payment !== null} onOpenChange={onOpenChange}>
             <ResponsiveDialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Bayar Pengawas: {shown?.label}</DialogTitle>
+                    <DialogTitle>Bayar Upah Tukang: {shown?.label}</DialogTitle>
                     <DialogDescription>
-                        {formatRupiah(shown?.amount)} untuk {shown?.supervisor?.name} — dicatat sebagai pengeluaran "Jasa Pengawas".
+                        {formatRupiah(shown?.amount)} untuk {shown?.supervisor?.name} — dicatat sebagai pengeluaran "Upah Tukang".
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>

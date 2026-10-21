@@ -210,6 +210,12 @@ class ActionInboxService
             $groups[] = $this->targetsToCheck($user);
         }
 
+        // Sprint 29 Sub 07 — the Admin Proyek's input queues, on every project.
+        if ($user->hasRole('ADMIN_PROYEK')) {
+            $groups[] = $this->projectsAwaitingInput();
+            $groups[] = $this->targetsToCheck($user);
+        }
+
         if ($user->hasRole('HR')) {
             $groups[] = $this->returnedReviews();
             $groups[] = $this->missingKpiScores();
@@ -747,7 +753,7 @@ class ActionInboxService
         $threshold = ProductionService::departureThreshold();
 
         return $this->group(
-            'execution-pm', 'Proyek menunggu keputusan PM', 'Technical Meeting, pengajuan jasa pengawas, laporan mingguan, atau berangkat ke lokasi.', 'project', 'projects.index',
+            'execution-pm', 'Proyek menunggu keputusan PM', 'Technical Meeting, pengajuan upah tukang, laporan mingguan, atau berangkat ke lokasi.', 'project', 'projects.index',
             route('projects.index'),
             Project::query()
                 ->active()
@@ -784,7 +790,7 @@ class ActionInboxService
             route('projects.index'),
             Project::query()
                 ->active()
-                ->where('supervisor_id', $user->id)
+                ->supervisedBy($user)
                 ->where('phase', ProjectPhase::Tm->value)
                 ->with('technicalMeeting:id,project_id,meeting_date')
                 ->withCount(['projectMaterials as planned_materials_count' => fn (Builder $line) => $line
@@ -813,7 +819,7 @@ class ActionInboxService
             route('projects.index'),
             Project::query()
                 ->active()
-                ->where('supervisor_id', $user->id)
+                ->supervisedBy($user)
                 ->where(fn (Builder $q) => $q
                     ->where(fn (Builder $prep) => $prep
                         ->where('phase', ProjectPhase::Persiapan->value)
@@ -825,7 +831,7 @@ class ActionInboxService
             fn (Project $project) => [
                 'id' => $project->id,
                 'title' => $project->name,
-                'subtitle' => $project->phase === ProjectPhase::Persiapan ? 'Syarat produksi & DP pengawas' : 'Laporan mingguan ditolak PM',
+                'subtitle' => $project->phase === ProjectPhase::Persiapan ? 'Syarat produksi & DP upah tukang' : 'Laporan mingguan ditolak PM',
                 'at' => $project->phase_changed_at,
                 'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
             ],
@@ -852,7 +858,7 @@ class ActionInboxService
             route('projects.index'),
             Project::query()
                 ->active()
-                ->where('supervisor_id', $user->id)
+                ->supervisedBy($user)
                 ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value])
                 ->whereDoesntHave('weeklyReports', fn (Builder $report) => $report->whereDate('week_start', $monday))
                 ->oldest('production_started_at'),
@@ -877,7 +883,8 @@ class ActionInboxService
             route('tasks.index', ['status' => TaskStatus::Pengecekan->value]),
             Project::query()
                 ->active()
-                ->where('supervisor_id', $user->id)
+                // The Admin Proyek checks on every project (Sprint 29 Sub 07).
+                ->when(! $user->hasRole('ADMIN_PROYEK'), fn (Builder $q) => $q->supervisedBy($user))
                 ->whereHas('tasks', fn (Builder $task) => $task->where('status', TaskStatus::Pengecekan->value))
                 ->withCount(['tasks as awaiting_check_count' => fn (Builder $task) => $task->where('status', TaskStatus::Pengecekan->value)])
                 ->orderBy('name'),
@@ -887,6 +894,39 @@ class ActionInboxService
                 'subtitle' => "{$project->awaiting_check_count} target menunggu dicek",
                 'at' => null,
                 'href' => route('projects.show', ['project' => $project, 'tab' => 'task']),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 29 Sub 07 — what the Admin Proyek can fill in: projects at the
+     * Technical Meeting, and at Persiapan before the Pengawas asked the DP
+     * (bahan, upah, daily target) — the same projects meetingsForSupervisor()
+     * / executionForSupervisor() queue, on every project.
+     */
+    private function projectsAwaitingInput(): ?array
+    {
+        return $this->group(
+            'admin-input', 'Proyek menunggu input', 'Lengkapi isian TM, atau bahan, upah & daily target sebelum Start Produksi.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->where(fn (Builder $q) => $q
+                    ->where('phase', ProjectPhase::Tm->value)
+                    ->orWhere(fn (Builder $prep) => $prep
+                        ->where('phase', ProjectPhase::Persiapan->value)
+                        ->whereDoesntHave('supervisorPayments', fn (Builder $payment) => $payment
+                            ->where('kind', SupervisorPaymentKind::Dp->value)
+                            ->whereIn('status', SupervisorPaymentStatus::committedValues()))))
+                ->oldest('phase_changed_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => $project->phase === ProjectPhase::Tm
+                    ? 'Technical Meeting — jadwal, notulen, peserta, timeline, Tanggal Selesai'
+                    : 'Persiapan — bahan, upah & daily target',
+                'at' => $project->phase_changed_at,
+                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
             ],
         );
     }
@@ -903,7 +943,7 @@ class ActionInboxService
                 ->oldest('decided_at'),
             fn (SupervisorPayment $payment) => [
                 'id' => $payment->id,
-                'title' => "Bayar Pengawas: {$payment->label}",
+                'title' => "Bayar Upah Tukang: {$payment->label}",
                 'subtitle' => $this->rupiah($payment->amount),
                 'at' => $payment->decided_at,
                 'href' => route('finance.supervisor-payments.index'),

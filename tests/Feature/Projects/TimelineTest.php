@@ -81,7 +81,10 @@ test('the Sprint 23 migrations backfill timeline starts and project opening date
     $milestones = require database_path('migrations/2026_10_14_000007_add_start_date_to_milestones_table.php');
     $projects = require database_path('migrations/2026_10_13_235942_add_opening_details_to_projects_table.php');
     $openings = require database_path('migrations/2026_10_14_000032_add_opener_to_project_openings_table.php');
+    // Sprint 29 Sub 06 moved `projects.supervisor_id` to a pivot — undone first, redone last.
+    $supervisors = require database_path('migrations/2026_10_21_080822_create_project_supervisors_table.php');
 
+    $supervisors->down();
     $openings->down();
     $milestones->down();
     $projects->down();
@@ -108,4 +111,8 @@ test('the Sprint 23 migrations backfill timeline starts and project opening date
     expect($starts)->toBe(['2026-09-01', '2026-09-11', '2026-09-20'])
         // Opened on its created day, but never after the start date.
         ->and(substr(DB::table('projects')->where('id', $old)->value('opened_on'), 0, 10))->toBe('2026-09-01');
+
+    // Back to today's schema (after the checks — SQLite rebuilds `projects` again).
+    $supervisors->up();
+    expect(Schema::hasTable('project_supervisors'))->toBeTrue();
 });

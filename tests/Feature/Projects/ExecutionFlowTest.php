@@ -23,6 +23,7 @@ use App\Models\Notification;
 use App\Models\Penalty;
 use App\Models\Project;
 use App\Models\ProjectOpening;
+use App\Models\ProjectWorkItem;
 use App\Models\QaForm;
 use App\Models\Quotation;
 use App\Models\QuotationApproval;
@@ -43,10 +44,14 @@ use App\Services\ProductionService;
 use App\Services\ProjectService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
+use App\Services\RoleRedirectService;
 use App\Services\TaskService;
 use App\Services\WeeklyReportService;
+use App\Services\WorkItemService;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 
@@ -87,14 +92,21 @@ function execUser(string $role): User
 /** A project of $test->pm with $test->qa as Pengawas, at `$phase`, running 12 → 31 Oct. */
 function execProject(object $test, ProjectPhase $phase, array $overrides = []): Project
 {
+    // Sprint 29 Sub 06 — the Pengawas sit in project_supervisors (`supervisor_id` override = that one, null = none).
+    $supervisorId = array_key_exists('supervisor_id', $overrides) ? $overrides['supervisor_id'] : $test->qa->id;
+    unset($overrides['supervisor_id']);
+
     $project = Project::factory()->create([
         'pm_id' => $test->pm->id,
-        'supervisor_id' => $test->qa->id,
         'phase' => $phase->value,
         'start_date' => '2026-10-12',
         'end_date' => '2026-10-31',
         ...$overrides,
     ]);
+
+    if ($supervisorId) {
+        $project->supervisors()->attach($supervisorId);
+    }
 
     if ($phase === ProjectPhase::GambarKerja) {
         WorkingDrawing::create(['project_id' => $project->id, 'status' => WorkingDrawingStatus::MenungguPenugasan->value]);
@@ -150,7 +162,7 @@ test('Buka Proyek starts the project at Gambar Kerja, in the Kepala Desain queue
     $service->clientApprove(shareLinkFor($quotation->fresh(), $this->marketing), true, '10.0.0.1', 'Test');
 
     $project = app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
-        'name' => 'Proyek Uji', 'pm_id' => $this->pm->id, 'team_lead_name' => 'Tim A', 'supervisor_id' => $this->qa->id,
+        'name' => 'Proyek Uji', 'pm_id' => $this->pm->id, 'team_lead_name' => 'Tim A', 'supervisor_ids' => [$this->qa->id],
         'opened_on' => '2026-10-14', 'start_date' => '2026-10-15',
     ], $this->pm);
 
@@ -1032,12 +1044,238 @@ test('changing the Pengawas in Ubah Proyek tells the new and the previous one', 
 
     app(ProjectService::class)->update($project, [
         'name' => $project->name, 'start_date' => '2026-10-12', 'end_date' => '2026-10-31',
-        'contract_value' => $project->contract_value, 'status' => 'ACTIVE', 'supervisor_id' => $this->otherQa->id,
+        'contract_value' => $project->contract_value, 'status' => 'ACTIVE', 'supervisor_ids' => [$this->otherQa->id],
     ], $this->pm);
 
-    expect($project->fresh()->supervisor_id)->toBe($this->otherQa->id)
+    expect($project->supervisors()->pluck('users.id')->all())->toBe([$this->otherQa->id])
         ->and(notified($this->otherQa, 'project_supervisor_assigned'))->toBe(1)
         ->and(notified($this->qa, 'project_supervisor_unassigned'))->toBe(1);
+});
+
+test('two Pengawas are equal — targets, QA, reports, materials; another QA is refused; both are told (Sprint 29 Sub 06)', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $second = User::factory()->create(['is_active' => true]);
+    $second->assignRole('QA');
+    $outsider = User::factory()->create(['is_active' => true]);
+    $outsider->assignRole('QA');
+
+    // Ubah Proyek: + a second Pengawas — only the new one is told.
+    app(ProjectService::class)->update($project, [
+        'name' => $project->name, 'start_date' => '2026-10-12', 'end_date' => '2026-10-31',
+        'contract_value' => $project->contract_value, 'status' => 'ACTIVE', 'supervisor_ids' => [$this->qa->id, $second->id],
+    ], $this->pm);
+    expect($project->supervisors()->pluck('users.id')->all())->toBe([$this->qa->id, $second->id])
+        ->and(notified($second, 'project_supervisor_assigned'))->toBe(1)
+        ->and(notified($this->qa, 'project_supervisor_assigned'))->toBe(0);
+
+    $timeline = execTimeline($project);
+    $task = execTarget($project, $timeline, $this->tukang, ['status' => TaskStatus::Pengecekan->value]);
+
+    // The second Pengawas may do what the first does; another QA may not.
+    $this->actingAs($outsider)->post(route('tasks.approve', $task))->assertForbidden();
+    $this->actingAs($second)->post(route('tasks.approve', $task))->assertSessionHasNoErrors();
+    $this->actingAs($second)->post(route('tasks.store', $project), [
+        'milestone_id' => $timeline->id, 'title' => 'Pasang list', 'assignee_id' => $this->tukang->id, 'due_date' => '2026-10-15',
+    ])->assertSessionHasNoErrors();
+    $this->actingAs($second)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Rangka terpasang'])->assertSessionHasNoErrors();
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Lagi'])->assertSessionHasErrors('notes');
+
+    expect($project->isSupervisedBy($second))->toBeTrue()
+        ->and($project->isSupervisedBy($outsider))->toBeFalse()
+        ->and(Project::supervisedBy($second)->pluck('id')->all())->toBe([$project->id])
+        ->and(WeeklyReport::where('project_id', $project->id)->sole()->supervisor_id)->toBe($second->id);
+
+    // The Detail Proyek lists both names.
+    $this->actingAs($this->pm)->get(route('projects.show', $project))
+        ->assertInertia(fn (Assert $page) => $page->where('project.supervisors', fn ($rows) => collect($rows)->pluck('id')->all() === [$this->qa->id, $second->id]));
+
+    // Removing one tells them; the other stays.
+    app(ProjectService::class)->update($project->fresh(), [
+        'name' => $project->name, 'start_date' => '2026-10-12', 'end_date' => '2026-10-31',
+        'contract_value' => $project->contract_value, 'status' => 'ACTIVE', 'supervisor_ids' => [$second->id],
+    ], $this->pm);
+    expect(notified($this->qa, 'project_supervisor_unassigned'))->toBe(1)
+        ->and($project->fresh()->isSupervisedBy($this->qa))->toBeFalse();
+});
+
+test('the supervisor_id → project_supervisors migration keeps the Pengawas and rolls back', function () {
+    $project = execProject($this, ProjectPhase::Produksi);
+    $migration = require database_path('migrations/2026_10_21_080822_create_project_supervisors_table.php');
+
+    $migration->down();
+    expect(DB::table('projects')->where('id', $project->id)->value('supervisor_id'))->toBe($this->qa->id);
+
+    $migration->up();
+    expect($project->supervisors()->pluck('users.id')->all())->toBe([$this->qa->id])
+        ->and(Schema::hasColumn('projects', 'supervisor_id'))->toBeFalse();
+});
+
+// ── Sprint 29 Sub 08: Upah Tukang per item RAB (File A) ─────────────────
+
+/** File A "Dapur Bersih": [uraian, volume, harga RAB, satuan upah|null]. */
+function fileAProject(object $test, ProjectPhase $phase = ProjectPhase::Persiapan): Project
+{
+    $quotation = Quotation::factory()->create(['type' => 'PROYEK']);
+    foreach ([
+        ['Kabinet bawah', 3.16, 3_300_000],
+        ['Kabinet atas kanan', 2.45, 2_850_000],
+        ['Kabinet atas kiri', 1.75, 2_850_000],
+        ['Cover kulkas', 4.25, 2_850_000],
+        ['Cover atas HPL', 4.4, 1_800_000],
+        ['Meja bar', 1.3, 3_800_000],
+        ['Rak piring, LED, power supply, saklar', 1, 2_000_000],
+    ] as $i => [$description, $qty, $price]) {
+        QuotationItem::factory()->create([
+            'quotation_id' => $quotation->id, 'description' => $description, 'qty' => $qty,
+            'unit_price' => $price, 'total_price' => round($qty * $price, 2), 'sort_order' => $i,
+        ]);
+    }
+
+    $project = execProject($test, $phase, ['quotation_id' => $quotation->id, 'team_lead_name' => 'Putra']);
+    app(WorkItemService::class)->ensureForProject($project);
+
+    return $project;
+}
+
+function wageItem(Project $project, string $description): ProjectWorkItem
+{
+    return $project->workItems()->whereHas('quotationItem', fn ($q) => $q->where('description', $description))->sole();
+}
+
+test('Upah Tukang per item: satuan upah × volume, total Rp 7.705.000, bobot from the RAB value (File A)', function () {
+    $project = fileAProject($this);
+    $wages = ['Kabinet bawah' => 500_000, 'Kabinet atas kanan' => 500_000, 'Kabinet atas kiri' => 500_000, 'Cover kulkas' => 300_000, 'Cover atas HPL' => 300_000, 'Meja bar' => 1_100_000];
+
+    foreach ($wages as $description => $wage) {
+        $this->actingAs($this->qa)->put(route('projects.work-items.update', wageItem($project, $description)), ['unit_wage' => $wage])->assertSessionHasNoErrors();
+    }
+
+    $overview = app(WorkItemService::class)->overview($project);
+    $rows = collect($overview['sections'])->flatMap(fn ($section) => $section['items'])->keyBy('description');
+
+    expect($rows['Kabinet bawah']['wage_subtotal'])->toBe(1_580_000.0)
+        ->and($rows['Cover kulkas']['wage_subtotal'])->toBe(1_275_000.0)
+        ->and($rows['Meja bar']['wage_subtotal'])->toBe(1_430_000.0)
+        ->and($rows['Rak piring, LED, power supply, saklar']['wage_subtotal'])->toBe(0.0)
+        ->and($rows['Rak piring, LED, power supply, saklar']['weight'])->toBeNull()
+        // 10.428.000 ÷ 47.370.500 (RAB of the items with a wage) × 100.
+        ->and($rows['Kabinet bawah']['weight'])->toBe(22.01)
+        ->and($rows['Kabinet bawah']['team_lead'])->toBe('Putra')
+        ->and($overview['summary']['total_wage'])->toBe(7_705_000.0)
+        ->and($overview['summary']['unpaid_items'])->toBe(1)
+        ->and($overview['summary']['per_team_lead'][0])->toMatchArray(['label' => 'Putra', 'total' => 7_705_000.0])
+        // The Sprint 24 payment flow reads the same total; DP 10 % by default.
+        ->and((float) SupervisorFee::where('project_id', $project->id)->sole()->total_amount)->toBe(7_705_000.0)
+        ->and(SupervisorFee::where('project_id', $project->id)->sole()->dpAmount())->toBe(770_500.0);
+
+    // Syarat DP: "upah ✓" from the items.
+    $this->actingAs($this->qa)->get(route('projects.show', $project))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.dpRequirements', fn ($rows) => collect($rows)->firstWhere('key', 'wages')['done'] === true
+            && ! collect($rows)->contains('key', 'fee'))
+        ->where('execution.workItems.summary.total_wage', 7_705_000)
+        ->where('usesWorkItems', true));
+});
+
+test('Upah Tukang: the Pengawas and the Admin Proyek fill it; the PM, Marketing and another QA cannot; Logistik never gets RAB prices', function () {
+    $project = fileAProject($this);
+    $item = wageItem($project, 'Meja bar');
+
+    $this->actingAs($this->pm)->put(route('projects.work-items.update', $item), ['unit_wage' => 1])->assertForbidden();
+    $this->actingAs($this->marketing)->put(route('projects.work-items.update', $item), ['unit_wage' => 1])->assertForbidden();
+    $this->actingAs($this->otherQa)->put(route('projects.work-items.update', $item), ['unit_wage' => 1])->assertForbidden();
+    $this->actingAs(execUser('ADMIN_PROYEK'))->put(route('projects.work-items.update', $item), ['unit_wage' => 1_100_000, 'team_lead_name' => 'Evan'])
+        ->assertSessionHasNoErrors();
+    expect((float) $item->fresh()->unit_wage)->toBe(1_100_000.0)->and($item->fresh()->team_lead_name)->toBe('Evan');
+
+    // "Terapkan ke bagian ini".
+    $this->actingAs($this->qa)->post(route('projects.work-items.teamLead', $project), ['item_ids' => $project->workItems()->pluck('id')->all(), 'team_lead_name' => 'Yusup'])
+        ->assertSessionHas('success', 'Kepala Tim diterapkan ke 7 item.');
+
+    $this->actingAs($this->pm)->get(route('projects.show', $project))->assertInertia(fn (Assert $page) => $page->has('execution.workItems.sections'));
+    $this->actingAs($this->logistics)->get(route('projects.show', $project))->assertInertia(fn (Assert $page) => $page->where('execution.workItems', null));
+});
+
+test('after Start Produksi a set wage is locked; an item without a wage (RAB Tambahan) may still get one', function () {
+    $project = fileAProject($this, ProjectPhase::Produksi);
+    $this->actingAs($this->qa)->put(route('projects.work-items.update', wageItem($project, 'Kabinet bawah')), ['unit_wage' => 500_000])->assertSessionHasNoErrors();
+
+    $this->actingAs($this->qa)->put(route('projects.work-items.update', wageItem($project, 'Kabinet bawah')), ['unit_wage' => 600_000])
+        ->assertSessionHasErrors(['unit_wage' => 'Upah item ini dikunci setelah Start Produksi.']);
+    $this->actingAs($this->qa)->put(route('projects.work-items.update', wageItem($project, 'Meja bar')), ['unit_wage' => 1_100_000])->assertSessionHasNoErrors();
+
+    expect(app(WorkItemService::class)->totalWage($project))->toBe(1_580_000.0 + 1_430_000.0);
+});
+
+// ── Sprint 29 Sub 07: Admin Proyek ───────────────────────────────────────
+
+test('the Admin Proyek inputs on any project: TM, timeline, bahan, targets, status, temuan, catatan (H2)', function () {
+    $admin = execUser('ADMIN_PROYEK');
+    $tm = execProject($this, ProjectPhase::Tm, ['end_date' => null, 'pm_id' => $this->otherPm->id]);
+
+    $this->actingAs($admin)->put(route('projects.technical-meeting.save', $tm), [
+        'meeting_date' => '2026-10-14', 'notes' => 'Diketik admin', 'attendees' => [['user_id' => $this->qa->id]],
+        'fee_total' => '', 'dp_percent' => 10, 'end_date' => '2026-10-31',
+    ])->assertSessionHasNoErrors();
+    $this->actingAs($admin)->post(route('milestones.store', $tm), ['name' => 'Rangka', 'start_date' => '2026-10-12', 'target_date' => '2026-10-24'])
+        ->assertSessionHasNoErrors();
+    $this->actingAs($admin)->post(route('projects.materials.store', $tm), ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 3])
+        ->assertSessionHasNoErrors();
+
+    $project = execProject($this, ProjectPhase::Produksi);
+    $timeline = execTimeline($project);
+    $this->actingAs($admin)->post(route('tasks.store', $project), [
+        'milestone_id' => $timeline->id, 'title' => 'Pasang rangka', 'assignee_id' => $this->tukang->id, 'due_date' => '2026-10-15', 'rate_per_task' => 150_000,
+    ])->assertSessionHasNoErrors();
+    $task = Task::where('title', 'Pasang rangka')->sole();
+    $this->actingAs($admin)->patch(route('tasks.reschedule', $task), ['due_date' => '2026-10-16'])->assertSessionHasNoErrors();
+    $this->actingAs($admin)->post(route('tasks.checkOff', $task))->assertSessionHasNoErrors();
+    $this->actingAs($admin)->post(route('progress-logs.store', $project), ['description' => 'Rangka 50%'])->assertSessionHasNoErrors();
+
+    $site = execProject($this, ProjectPhase::Pemasangan);
+    $this->actingAs($admin)->post(route('projects.site-findings.store', $site), ['description' => 'Sambungan HPL renggang'])->assertSessionHasNoErrors();
+
+    expect($task->fresh()->status)->toBe(TaskStatus::Done)
+        ->and(AuditLog::where('action', 'task.checked_by_supervisor')->sole()->user_id)->toBe($admin->id);
+});
+
+test('the Admin Proyek never decides: TM Selesai, DP, Berangkat, Tandai Selesai, QA, budget, Buka Proyek (H3)', function () {
+    $admin = execUser('ADMIN_PROYEK');
+    $tm = execProject($this, ProjectPhase::Tm);
+    $project = execProject($this, ProjectPhase::Produksi);
+    $timeline = execTimeline($project);
+    $fee = SupervisorFee::create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'total_amount' => 2_000_000, 'dp_percent' => 10]);
+    $payment = $fee->payments()->create(['project_id' => $project->id, 'supervisor_id' => $this->qa->id, 'kind' => 'DP', 'amount' => 200_000, 'status' => 'DIAJUKAN']);
+
+    $this->actingAs($admin)->post(route('projects.technical-meeting.complete', $tm))->assertForbidden();
+    $this->actingAs($admin)->post(route('supervisor-payments.decide', $payment), ['decision' => 'approve'])->assertForbidden();
+    $this->actingAs($admin)->post(route('projects.supervisor-payments.dp', $project))->assertForbidden();
+    $this->actingAs($admin)->post(route('projects.departure.approve', $project))->assertForbidden();
+    $this->actingAs($admin)->post(route('milestones.markDone', $timeline))->assertForbidden();
+    $this->actingAs($admin)->post(route('projects.weekly-reports.store', $project), ['notes' => 'x'])->assertForbidden();
+    $this->actingAs($admin)->post(route('projects.budget.posts.store', $project), ['name' => 'Interior'])->assertForbidden();
+
+    // Detail Proyek: the work, never the client's money nor the PM's budget.
+    $this->actingAs($admin)->get(route('projects.show', $project))->assertOk()->assertInertia(fn (Assert $page) => $page
+        ->where('canViewTasks', true)
+        ->where('canManageTasks', true)
+        ->where('termins', [])
+        ->where('documents', null)
+        ->where('budget', null)
+        ->where('canViewFinanceSummary', false)
+        ->where('execution.can.completeMeeting', false));
+    $this->actingAs($admin)->get(route('projects.show', $tm))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.can.saveMeeting', true)
+        ->where('execution.can.completeMeeting', false));
+});
+
+test('the Admin Proyek lands on Perlu Tindakan with the projects waiting for input', function () {
+    $admin = execUser('ADMIN_PROYEK');
+    $tm = execProject($this, ProjectPhase::Tm);
+    execProject($this, ProjectPhase::Produksi);
+
+    $group = collect(app(ActionInboxService::class)->for($admin, fresh: true))->firstWhere('key', 'admin-input');
+    expect(collect($group['items'])->pluck('title')->all())->toBe([$tm->name])
+        ->and(app(RoleRedirectService::class)->routeNameFor($admin))->toBe('inbox.index');
 });
 
 // ── D14: Pengawas = QA = QC — the project's Pengawas checks its timelines ──

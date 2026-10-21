@@ -83,7 +83,8 @@ class ProductionService
 
             $this->notificationService->notifyMany(
                 User::role('LOGISTICS')->where('is_active', true)->get()
-                    ->push($project->supervisor, $project->teamLead, $project->assistantPm)
+                    ->concat($project->supervisors()->get())
+                    ->push($project->teamLead, $project->assistantPm)
                     ->filter(fn (?User $user) => $user && $user->id !== $actor->id),
                 NotificationType::SiteDepartureApproved,
                 'Berangkat ke Lokasi',

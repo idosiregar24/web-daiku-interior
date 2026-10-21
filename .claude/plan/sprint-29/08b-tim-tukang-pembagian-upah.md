@@ -1,7 +1,7 @@
 # Sprint 29 · 08b — Tim Tukang & Pembagian Upah per Orang
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Untuk pembagian upah yang bisa dicairkan itu ada perhitungannya" · File D `Upah Tim Interior DAIKU.xlsx` · Keputusan B9 · Q34–Q36
-> Status: **belum dikerjakan** · Bergantung: Sub 08 · Dikerjakan sebelum Sub 09
+> Status: **dibatalkan 2026-10-21** — keputusan user: "Tukang sekarang hanya untuk input tugas kalau ada; upah tidak usah sampai ke tukang, per simple saja." Upah berhenti di Kepala Tim per item RAB (Sub 08 — ringkasan "Per Kepala Tim"). Kode 08b (tim, tingkatan karir, pembagian per orang, slip) dicabut sebelum commit.
 
 ## Dari Excel (File D)
 - Master bobot **Tingkatan Karir**: Ketua Tim 24 · Tukang 1 17 · Tukang 2 15 ·

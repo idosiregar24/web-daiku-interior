@@ -32,13 +32,14 @@ class ProjectExecutionService
         private TechnicalMeetingService $technicalMeetingService,
         private SupervisorPaymentService $supervisorPaymentService,
         private WeeklyReportService $weeklyReportService,
+        private WorkItemService $workItemService,
         private ProductionService $productionService,
     ) {}
 
     /** Who gets the tab at all. */
     public static function canView(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['CEO', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'SUPERADMIN'])) {
+        if ($user->hasAnyRole(['CEO', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'SUPERADMIN', 'ADMIN_PROYEK'])) {
             return true;
         }
 
@@ -194,14 +195,18 @@ class ProjectExecutionService
                 ]
                 : null,
             'deadline' => $this->deadline($project),
+            'usesWorkItems' => $this->workItemService->hasWorkItems($project),
+            // Sprint 29 Sub 08 — Upah Tukang per item: RAB prices + wages, for who sees the money or fills it.
+            'workItems' => $seesMoney || $project->isAdministeredBy($user) ? $this->workItemService->overview($project) : null,
             'can' => [
-                'saveMeeting' => $active && $phase === ProjectPhase::Tm && $runsMeeting,
+                'setWages' => $user->can('setWages', $project),
+                'saveMeeting' => $active && $phase === ProjectPhase::Tm && $user->can('editMeeting', $project),
                 'completeMeeting' => $active && $phase === ProjectPhase::Tm && $runsMeeting,
                 'requestDp' => $active && $phase === ProjectPhase::Persiapan && $supervises,
                 'decide' => $approves,
                 'submitWeekly' => $active && $producing && $supervises,
                 'approveDeparture' => $active && $phase === ProjectPhase::Produksi && $approves,
-                'recordFinding' => $active && $phase === ProjectPhase::Pemasangan && $supervises,
+                'recordFinding' => $active && $phase === ProjectPhase::Pemasangan && $user->can('recordFindings', $project),
                 'resolveFinding' => ! $project->isClosed() && ($supervises || $approves),
                 'manageTargets' => $managesTargets && $phase->allowsTargets(),
                 'requestSettlement' => $project->status === ProjectStatus::Completed && $supervises,

@@ -77,9 +77,9 @@ class QaFormService
      */
     private function notifyQaTeam(QaForm $qaForm, Milestone $milestone, string $state): void
     {
-        $supervisor = $milestone->project->supervisor;
-        $recipients = $supervisor
-            ? collect([$supervisor])->filter(fn (User $user) => $user->is_active)
+        $supervisors = $milestone->project->supervisors()->get();
+        $recipients = $supervisors->isNotEmpty()
+            ? $supervisors->filter(fn (User $user) => $user->is_active)
             : User::role('QA')->where('is_active', true)->get();
 
         $this->notificationService->notifyMany(

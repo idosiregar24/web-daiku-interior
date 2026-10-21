@@ -174,7 +174,7 @@ class WorkingDrawingService
             }
 
             $this->notificationService->notifyMany(
-                collect([$project->pm, $project->assistantPm, $project->supervisor]),
+                $project->supervisors()->get()->push($project->pm, $project->assistantPm)->filter()->unique('id'),
                 NotificationType::WorkingDrawingCompleted,
                 'Gambar Kerja Selesai',
                 "Gambar kerja proyek \"{$project->name}\" selesai ({$actor->name}) — jadwalkan Technical Meeting.",

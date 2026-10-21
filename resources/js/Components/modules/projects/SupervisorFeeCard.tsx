@@ -37,7 +37,7 @@ export function SupervisorFeeCard({ projectId, execution }: { projectId: number;
 
     return (
         <SectionCard
-            title="Jasa Pengawas"
+            title="Upah Tukang"
             description={fee ? `Total ${formatRupiah(fee.total_amount)} · DP ${fee.dp_percent}% · dibayar ${formatRupiah(fee.paid)} · sisa ${formatRupiah(fee.remaining)}` : undefined}
             icon={HardHat}
         >

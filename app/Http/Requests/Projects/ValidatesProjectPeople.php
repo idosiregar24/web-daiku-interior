@@ -12,13 +12,16 @@ use Closure;
  *
  * - Kepala Tim: an active user (`team_lead_id`) **or** a typed name
  *   (`team_lead_name` — an outsider/vendor), exactly one of the two.
- * - Pengawas (QA/QC): optional, an active user with role QA.
+ * - Pengawas (QA/QC): optional, one or more active users with role QA
+ *   (`supervisor_ids`, Sprint 29 Sub 06 — all equal).
  *
  * On Edit Proyek a person who is already on the project passes unchanged
  * even if since deactivated — only a change has to pick an active one.
  */
 trait ValidatesProjectPeople
 {
+    public const MAX_SUPERVISORS = 5;
+
     /** @return array<string, list<mixed>> */
     protected function teamRules(): array
     {
@@ -34,7 +37,16 @@ trait ValidatesProjectPeople
                 },
             ],
             'team_lead_name' => ['nullable', 'string', 'max:255', 'required_without:team_lead_id', 'prohibits:team_lead_id'],
-            'supervisor_id' => ['nullable', 'integer', $this->holdsRole('QA', 'Pengawas harus user aktif dengan role QA.', keep: 'supervisor_id')],
+            'supervisor_ids' => ['nullable', 'array', 'max:'.self::MAX_SUPERVISORS],
+            'supervisor_ids.*' => ['integer', 'distinct', function (string $attribute, mixed $value, Closure $fail) {
+                if ($this->isCurrentSupervisor($value)) {
+                    return;
+                }
+
+                if (! User::role('QA')->where('is_active', true)->whereKey($value)->exists()) {
+                    $fail('Pengawas harus user aktif dengan role QA.');
+                }
+            }],
         ];
     }
 
@@ -47,7 +59,10 @@ trait ValidatesProjectPeople
             'team_lead_name.required_without' => 'Kepala Tim wajib diisi — pilih karyawan atau ketik namanya.',
             'team_lead_name.prohibits' => 'Isi Kepala Tim salah satu saja: pilih karyawan atau ketik nama.',
             'team_lead_name.max' => 'Nama Kepala Tim maksimal 255 karakter.',
-            'supervisor_id.integer' => 'Pengawas tidak valid.',
+            'supervisor_ids.array' => 'Pengawas tidak valid.',
+            'supervisor_ids.max' => 'Maksimal '.self::MAX_SUPERVISORS.' Pengawas per proyek.',
+            'supervisor_ids.*.integer' => 'Pengawas tidak valid.',
+            'supervisor_ids.*.distinct' => 'Pengawas yang sama dipilih dua kali.',
         ];
     }
 
@@ -63,6 +78,14 @@ trait ValidatesProjectPeople
                 $fail($message);
             }
         };
+    }
+
+    /** A Pengawas already on the edited project passes unchanged even if since deactivated. */
+    private function isCurrentSupervisor(mixed $value): bool
+    {
+        $project = $this->route('project');
+
+        return $project instanceof Project && $project->supervisors()->where('users.id', (int) $value)->exists();
     }
 
     /** The value the edited project already has in `$column` (never at Buka Proyek — no `{project}` there). */

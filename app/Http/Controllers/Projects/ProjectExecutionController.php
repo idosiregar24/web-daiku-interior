@@ -55,7 +55,7 @@ class ProjectExecutionController extends Controller
         $this->authorize('supervise', $project);
         $service->requestDp($project, $request->user());
 
-        return back()->with('success', 'DP pengawas diajukan ke PM.');
+        return back()->with('success', 'DP upah tukang diajukan ke PM.');
     }
 
     public function requestSettlement(Request $request, Project $project, SupervisorPaymentService $service): RedirectResponse
@@ -63,7 +63,7 @@ class ProjectExecutionController extends Controller
         $this->authorize('supervise', $project);
         $service->requestSettlement($project, $request->user());
 
-        return back()->with('success', 'Pelunasan jasa pengawas diajukan ke PM.');
+        return back()->with('success', 'Pelunasan upah tukang diajukan ke PM.');
     }
 
     public function decidePayment(DecideExecutionRequest $request, SupervisorPayment $supervisorPayment, SupervisorPaymentService $service): RedirectResponse

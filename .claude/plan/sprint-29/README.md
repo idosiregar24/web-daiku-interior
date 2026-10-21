@@ -12,11 +12,11 @@ Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-penga
 | 03 | [TM Selesai tanpa bagian Pengawas](03-tm-selesai.md) | 01 | kode selesai — tunggu cek browser |
 | 04 | [Daily target: approval & centang Pengawas](04-daily-target-pengawas.md) | 01 | kode selesai (Admin Proyek menyusul Sub 07) — tunggu cek browser |
 | 05 | [Geser & tukar task bebas](05-geser-bebas.md) | 01 | kode selesai — tunggu cek browser |
-| 06 | [Banyak Pengawas](06-banyak-pengawas.md) | 01 | belum |
-| 07 | [Admin Proyek](07-admin-proyek.md) | 06 | belum |
-| 08 | [Upah Tukang per item RAB](08-upah-tukang.md) | 06, 07 | belum |
-| 08b | [Tim Tukang & pembagian upah per orang](08b-tim-tukang-pembagian-upah.md) | 08 | belum |
-| 09 | [DP & pencairan upah dari pengecekan %](09-dp-pencairan-upah.md) | 02, 08b | belum |
+| 06 | [Banyak Pengawas](06-banyak-pengawas.md) | 01 | kode selesai — tunggu cek browser |
+| 07 | [Admin Proyek](07-admin-proyek.md) | 06 | kode selesai — tunggu cek browser |
+| 08 | [Upah Tukang per item RAB](08-upah-tukang.md) | 06, 07 | kode selesai — tunggu cek browser |
+| 08b | [Tim Tukang & pembagian upah per orang](08b-tim-tukang-pembagian-upah.md) | 08 | **dibatalkan** (upah sampai Kepala Tim saja) |
+| 09 | [DP & pencairan upah dari pengecekan %](09-dp-pencairan-upah.md) | 02, 08 | belum |
 | 10 | [Progres proyek berbobot](10-progres-berbobot.md) | 09 | belum |
 | 11 | [Bahan custom → Logistik + status pemesanan](11-bahan-logistik-status.md) | 01 | belum |
 | 12 | [QA per item RAB](12-qa-per-item.md) | 09 | belum |

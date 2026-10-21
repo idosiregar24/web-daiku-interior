@@ -41,6 +41,8 @@ class RoleSeeder extends Seeder
         'HR',
         'ASISTEN_PM',
         'KEPALA_DESAIN',
+        // Sprint 29 Sub 07 (outside the PRD) — inputs on every project, never decides.
+        'ADMIN_PROYEK',
     ];
 
     /**

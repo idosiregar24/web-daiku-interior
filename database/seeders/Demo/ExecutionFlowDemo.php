@@ -15,6 +15,7 @@ use App\Services\ProjectMaterialService;
 use App\Services\SupervisorPaymentService;
 use App\Services\TechnicalMeetingService;
 use App\Services\WorkingDrawingService;
+use App\Services\WorkItemService;
 
 /**
  * Sprint 24 — demo helpers for the execution flow. `skipToProduction()`
@@ -64,7 +65,7 @@ final class ExecutionFlowDemo
      */
     public static function holdMeeting(Project $project, User $pm, bool $complete = true): Project
     {
-        $supervisor = $project->supervisor()->firstOrFail();
+        $supervisor = $project->supervisors()->firstOrFail();
         $lastEnd = $project->milestones()->max('target_date');
 
         app(ProjectMaterialService::class)->plan($project, [
@@ -72,6 +73,12 @@ final class ExecutionFlowDemo
             'source' => 'GUDANG',
             'qty_planned' => 4,
         ], $supervisor);
+
+        // Sprint 29 Sub 08 — the Pengawas sets the Satuan Upah per RAB item (here ≈ 15 % of its price, rounded).
+        $wages = app(WorkItemService::class);
+        $project->workItems()->with('quotationItem')->get()->each(fn ($item) => $wages->update($item, [
+            'unit_wage' => max(1000, round((float) $item->quotationItem->unit_price * 0.15, -3)),
+        ], $supervisor));
 
         $service = app(TechnicalMeetingService::class);
         $service->save($project, [
@@ -98,7 +105,7 @@ final class ExecutionFlowDemo
     public static function requestDp(Project $project, User $pm, bool $approve = true): Project
     {
         $service = app(SupervisorPaymentService::class);
-        $payment = $service->requestDp($project, $project->supervisor()->firstOrFail());
+        $payment = $service->requestDp($project, $project->supervisors()->firstOrFail());
 
         if ($approve) {
             $service->decide($payment, true, null, null, $pm);

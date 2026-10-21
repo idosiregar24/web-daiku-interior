@@ -28,6 +28,8 @@ class DatabaseSeeder extends Seeder
         'HR' => ['name' => 'HR Daiku Interior', 'username' => 'hr', 'email' => 'hr@daikuinterior.com'],
         // Sprint 12 — Kepala Desain is stacked on DESIGNER (User::rolesFor()).
         'ASISTEN_PM' => ['name' => 'Asisten PM Daiku Interior', 'username' => 'asistenpm', 'email' => 'asistenpm@daikuinterior.com'],
+        // Sprint 29 Sub 07 — Admin Proyek: the project inputs, on every project.
+        'ADMIN_PROYEK' => ['name' => 'Admin Proyek Daiku Interior', 'username' => 'adminproyek', 'email' => 'adminproyek@daikuinterior.com'],
         'KEPALA_DESAIN' => ['name' => 'Kepala Desain Daiku Interior', 'username' => 'kepaladesain', 'email' => 'kepaladesain@daikuinterior.com'],
     ];
 

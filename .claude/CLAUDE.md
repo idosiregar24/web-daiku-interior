@@ -222,7 +222,7 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     timeline, minutes, fee — and the Pengawas's material plan, beside the
     RAB items without prices, live in the Eksekusi tab's TM card; the
     Pengawas may revise its plan until PRODUKSI, `reviseMaterialPlan`) → the
-    Pengawas (QA/QC = `projects.supervisor_id`, `Project::isSupervisedBy()`)
+    Pengawas (QA/QC — one or more, all equal: `project_supervisors`, `Project::supervisors()` / `isSupervisedBy()`, Sprint 29 Sub 06)
     plans daily targets and asks the DP → the PM approving it is Start
     Produksi. A task is a **daily target**: always in a timeline, its day
     inside the timeline (`TaskService::ensureWithinTimeline`), `planned_date`
@@ -251,6 +251,20 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     the project's Pengawas (`QaFormPolicy::review`,
     `Project::isQaReviewableBy()`); only a project without a Pengawas is open
     to every QA user.
+18. **Admin Proyek (Sprint 29 Sub 07 — `plan/sprint-29/07-admin-proyek.md`, outside the PRD).**
+    Role `ADMIN_PROYEK` (like SUPERADMIN/HR: non-PRD) **inputs on every
+    project, never decides**: `Project::isAdministeredBy()`, abilities
+    `editMeeting` / `recordFindings` (split from `runMeeting` / `supervise`
+    so "TM Selesai" and the Pengawas's money stay theirs), plus
+    `manageWork` / `manageTargets` / `planMaterials` / `reviseMaterialPlan`
+    and `TaskPolicy::update|review`. Its `role:` is added **only** on input
+    routes (TM save, timeline add/edit/delete, bahan & pengajuan barang,
+    daily target incl. Setujui/Kembalikan/Centang, geser/tukar, temuan,
+    catatan progres) — never on TM Selesai, DP / pembayaran, Berangkat,
+    Tandai Selesai timeline, QA, Anggaran, Buka Proyek, RAB. Detail Proyek
+    never sends it termins, documents or budget. Lands on Perlu Tindakan
+    ("Proyek menunggu input", "Daily target menunggu dicek"). Actions are
+    audited under its own name.
 
 ## Local environment
 

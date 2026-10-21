@@ -38,7 +38,7 @@ class TechnicalMeetingService
             $project = Project::lockForUpdate()->findOrFail($project->id);
             $this->phaseService->ensurePhase($project, ProjectPhase::Tm, 'Technical Meeting hanya bisa diisi saat proyek di tahap TM.');
 
-            if (! $project->supervisor_id) {
+            if (! $project->supervisors()->exists()) {
                 throw ValidationException::withMessages(['fee_total' => 'Tentukan Pengawas (QA/QC) proyek lewat Ubah Proyek dulu.']);
             }
 
@@ -61,10 +61,17 @@ class TechnicalMeetingService
                 ->unique(fn (array $row) => $row['user_id'] ? "u{$row['user_id']}" : 'n'.mb_strtolower($row['name']))
                 ->each(fn (array $row) => $meeting->attendees()->create($row));
 
-            // Empty only while no fee exists yet (SaveTechnicalMeetingRequest) — the TM's schedule saved first.
-            if (filled($data['fee_total'] ?? null)) {
+            // Sprint 29 Sub 08 — with work items the total is Σ upah per item; the TM keeps only the DP %.
+            if ($project->workItems()->exists()) {
+                $fee = app(WorkItemService::class)->syncFee($project, $actor);
+
+                if ($fee && array_key_exists('dp_percent', $data)) {
+                    $fee->update(['dp_percent' => round((float) $data['dp_percent'], 2)]);
+                }
+            } elseif (filled($data['fee_total'] ?? null)) {
+                // Empty only while no fee exists yet (SaveTechnicalMeetingRequest) — the TM's schedule saved first.
                 SupervisorFee::updateOrCreate(['project_id' => $project->id], [
-                    'supervisor_id' => $project->supervisor_id,
+                    'supervisor_id' => $project->supervisors()->value('users.id'),
                     'total_amount' => round((float) $data['fee_total'], 2),
                     'dp_percent' => round((float) $data['dp_percent'], 2),
                     'set_by' => $actor->id,
@@ -123,10 +130,10 @@ class TechnicalMeetingService
             $this->phaseService->advance($project, ProjectPhase::Tm, ProjectPhase::Persiapan, $actor);
 
             $this->notificationService->notifyMany(
-                collect([$project->supervisor, $project->assistantPm])->filter(fn (?User $user) => $user && $user->id !== $actor->id),
+                $project->supervisors()->get()->push($project->assistantPm)->filter(fn (?User $user) => $user && $user->id !== $actor->id)->unique('id'),
                 NotificationType::TechnicalMeetingCompleted,
                 'TM Selesai — Lengkapi Syarat Produksi',
-                "Technical Meeting proyek \"{$project->name}\" selesai. Pengawas: lengkapi bahan, upah & daily target, lalu ajukan DP pengawas.",
+                "Technical Meeting proyek \"{$project->name}\" selesai. Pengawas: lengkapi bahan, upah & daily target, lalu ajukan DP upah tukang.",
                 ['project_id' => $project->id],
             );
 
@@ -142,7 +149,7 @@ class TechnicalMeetingService
     {
         $date = $meeting->meeting_date->locale('id')->translatedFormat('l, j F Y');
         $recipients = $meeting->attendees->pluck('user')
-            ->push($project->supervisor)
+            ->concat($project->supervisors()->get())
             ->filter(fn (?User $user) => $user && $user->id !== $actor->id)
             ->unique('id');
 

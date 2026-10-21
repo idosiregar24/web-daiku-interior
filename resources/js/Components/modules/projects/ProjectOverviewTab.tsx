@@ -322,7 +322,7 @@ function TeamCard({ project, execution }: { project: Project; execution: Project
     } else if (project.team_lead_name) {
         members.push({ key: 'lead', name: project.team_lead_name, role: 'Kepala Tim · luar perusahaan' });
     }
-    if (project.supervisor?.name) members.push({ key: 'supervisor', name: project.supervisor.name, role: 'Pengawas (QA/QC)' });
+    project.supervisors?.forEach((person) => members.push({ key: `supervisor-${person.id}`, name: person.name, role: 'Pengawas (QA/QC)' }));
 
     const drawing = execution?.workingDrawing;
 

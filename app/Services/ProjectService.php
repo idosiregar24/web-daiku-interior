@@ -93,7 +93,7 @@ class ProjectService
      * termins copied from the payment scheme the client approved. The
      * only way a project is created since Sprint 12 Sub 7.
      *
-     * @param  array{name: string, pm_id: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_id?: int|string|null, opened_on?: string|null, start_date: string, end_date?: string|null}  $data
+     * @param  array{name: string, pm_id: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_ids?: list<int|string>|null, opened_on?: string|null, start_date: string, end_date?: string|null}  $data
      */
     public function openFromQuotation(ProjectOpening $opening, array $data, User $actor): Project
     {
@@ -112,13 +112,16 @@ class ProjectService
                 'pm_id' => $data['pm_id'],
                 'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
                 ...$this->teamLeadColumns($data),
-                'supervisor_id' => filled($data['supervisor_id'] ?? null) ? $data['supervisor_id'] : null,
+                'supervisor_ids' => $data['supervisor_ids'] ?? [],
                 'opened_on' => $data['opened_on'] ?? now()->toDateString(),
                 'start_date' => $data['start_date'],
                 'end_date' => $data['end_date'] ?? null,
                 'contract_value' => $quotation->total_amount,
                 'quotation_id' => $quotation->id,
-            ]);
+            ], $actor);
+
+            // Sprint 29 Sub 08 — every RAB item becomes a work item (Satuan Upah set by the Pengawas).
+            app(WorkItemService::class)->ensureForProject($project);
 
             // Sprint 24 D1/D2 — a new project starts at Gambar Kerja, in the design team's queue.
             $project->update(['phase' => ProjectPhase::GambarKerja->value, 'phase_changed_at' => now()]);
@@ -144,7 +147,7 @@ class ProjectService
                 'assistant_pm_id' => $project->assistant_pm_id,
                 'team_lead_id' => $project->team_lead_id,
                 'team_lead_name' => $project->team_lead_name,
-                'supervisor_id' => $project->supervisor_id,
+                'supervisor_ids' => $project->supervisors()->pluck('users.id')->all(),
                 'opened_on' => $project->opened_on?->toDateString(),
                 'start_date' => $data['start_date'],
                 'end_date' => $project->end_date?->toDateString(),
@@ -162,7 +165,7 @@ class ProjectService
      * its own any more). The "one project per lead" / status-eligibility
      * rules live here.
      */
-    public function createFromLead(Lead $lead, array $data): Project
+    public function createFromLead(Lead $lead, array $data, ?User $actor = null): Project
     {
         if (! in_array($lead->status, [LeadStatus::DealDesain, LeadStatus::Closing], true)) {
             throw ValidationException::withMessages([
@@ -192,12 +195,13 @@ class ProjectService
             'assistant_pm_id' => $data['assistant_pm_id'] ?? null,
             'team_lead_id' => $data['team_lead_id'] ?? null,
             'team_lead_name' => $data['team_lead_name'] ?? null,
-            'supervisor_id' => $data['supervisor_id'] ?? null,
             'opened_on' => $data['opened_on'] ?? now()->toDateString(),
             'start_date' => $data['start_date'],
             'end_date' => $data['end_date'] ?? null,
             'contract_value' => $data['contract_value'],
         ]);
+        // Sprint 29 Sub 06 — the Pengawas (one or more) live in project_supervisors; before the "Proyek Dibuka" notification below.
+        $this->syncSupervisors($project, $data['supervisor_ids'] ?? [], $actor);
 
         // PRD §4.9 "Deal dikonfirmasi → PM, CEO, Finance, Logistics" — the
         // project's own PM (and Asisten PM) plus the divisions that act on
@@ -207,7 +211,8 @@ class ProjectService
         // Pengawas and a Kepala Tim with an account learn they're on it.
         $this->notificationService->notifyMany(
             User::role(['CEO', 'FINANCE', 'LOGISTICS'])->where('is_active', true)->get()
-                ->push($project->pm, $project->assistantPm, $lead->assignee, $project->supervisor, $project->teamLead)
+                ->push($project->pm, $project->assistantPm, $lead->assignee, $project->teamLead)
+                ->concat($project->supervisors()->get())
                 ->filter()
                 ->unique('id'),
             NotificationType::ProjectOpened,
@@ -240,7 +245,7 @@ class ProjectService
      * Sprint 23 K15 — also Tanggal Buka, Kepala Tim (user or typed name)
      * and Pengawas, each only when the form sends it.
      *
-     * @param  array{name: string, opened_on?: string, start_date: string, end_date?: ?string, contract_value: numeric-string|int|float, status: string, note?: ?string, pm_id?: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_id?: int|string|null}  $data
+     * @param  array{name: string, opened_on?: string, start_date: string, end_date?: ?string, contract_value: numeric-string|int|float, status: string, note?: ?string, pm_id?: int|string, assistant_pm_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null, supervisor_ids?: list<int|string>|null}  $data
      */
     public function update(Project $project, array $data, User $actor): Project
     {
@@ -287,8 +292,12 @@ class ProjectService
                 // Sprint 23 K15 — Tanggal Buka, Kepala Tim, Pengawas (when the form sends them).
                 ...(array_key_exists('opened_on', $data) ? ['opened_on' => $data['opened_on']] : []),
                 ...(array_key_exists('team_lead_id', $data) || array_key_exists('team_lead_name', $data) ? $this->teamLeadColumns($data) : []),
-                ...(array_key_exists('supervisor_id', $data) ? ['supervisor_id' => filled($data['supervisor_id']) ? $data['supervisor_id'] : null] : []),
             ]);
+
+            // Sprint 29 Sub 06 — the Pengawas list when the form sends it.
+            $supervisorChange = array_key_exists('supervisor_ids', $data)
+                ? $this->syncSupervisors($locked, $data['supervisor_ids'] ?? [], $actor)
+                : ['attached' => [], 'detached' => []];
 
             if ($assistantChanges) {
                 $this->recordAssistantChange($locked, $previousAssistant, $actor);
@@ -297,12 +306,19 @@ class ProjectService
             $after = $this->snapshot($locked);
             $changed = array_keys(array_diff_assoc($after, $before));
 
-            if ($changed === []) {
+            $supervisorsChanged = $supervisorChange['attached'] !== [] || $supervisorChange['detached'] !== [];
+
+            if ($changed === [] && ! $supervisorsChanged) {
                 return $locked;
             }
 
             $old = array_intersect_key($before, array_flip($changed));
             $new = array_intersect_key($after, array_flip($changed));
+
+            if ($supervisorsChanged) {
+                $old['supervisors_removed'] = $supervisorChange['detached'];
+                $new['supervisors_added'] = $supervisorChange['attached'];
+            }
             $newPm = null;
 
             if (in_array('pm_id', $changed, true)) {
@@ -327,8 +343,8 @@ class ProjectService
 
             // Sprint 24 (left over from Sprint 23 Sub 07) — the new Pengawas learns
             // they run this project's execution flow; the previous one that they don't.
-            if (in_array('supervisor_id', $changed, true)) {
-                $this->notifySupervisorChange($locked, $before['supervisor_id'], $actor);
+            if ($supervisorsChanged) {
+                $this->notifySupervisorChange($locked, $supervisorChange['attached'], $supervisorChange['detached'], $actor);
             }
 
             return $locked;
@@ -508,6 +524,8 @@ class ProjectService
         $project->update(['contract_value' => round((float) $project->contract_value + (float) $addendum->total_amount, 2)]);
         $termins = $this->terminService->createFromPaymentTerms($project, $addendum->loadMissing('paymentTerms'), now()->toDateString());
         $this->terminService->remindInvoices($project);
+        // Sprint 29 Sub 08 — its items become work items too (wage editable even after Start Produksi).
+        app(WorkItemService::class)->ensureForProject($project);
 
         $this->auditLogService->record('project.addendum_added', $project, ['contract_value' => $before], [
             'contract_value' => number_format((float) $project->contract_value, 2, '.', ''),
@@ -591,25 +609,54 @@ class ProjectService
         }
     }
 
-    private function notifySupervisorChange(Project $project, ?int $previousId, User $actor): void
+    /**
+     * Sprint 29 Sub 06 (A3) — put the project's Pengawas list to `$ids`, in
+     * the given order (the first stays the one a single name shows).
+     *
+     * @param  array<int, int|string>  $ids
+     * @return array{attached: list<int>, detached: list<int>}
+     */
+    public function syncSupervisors(Project $project, array $ids, ?User $actor): array
+    {
+        $ids = array_values(array_unique(array_map('intval', array_filter($ids, 'filled'))));
+        $current = $project->supervisors()->pluck('users.id')->map(fn ($id) => (int) $id)->all();
+        $attached = array_values(array_diff($ids, $current));
+        $detached = array_values(array_diff($current, $ids));
+
+        if ($detached !== []) {
+            $project->supervisors()->detach($detached);
+        }
+
+        foreach ($attached as $id) {
+            $project->supervisors()->attach($id, ['assigned_by' => $actor?->id]);
+        }
+
+        $project->unsetRelation('supervisors');
+
+        return ['attached' => $attached, 'detached' => $detached];
+    }
+
+    /**
+     * @param  list<int>  $attached
+     * @param  list<int>  $detached
+     */
+    private function notifySupervisorChange(Project $project, array $attached, array $detached, User $actor): void
     {
         $this->notificationService->notifyMany(
-            [$project->supervisor()->first()],
+            User::whereIn('id', $attached)->get(),
             NotificationType::ProjectSupervisorAssigned,
             'Ditunjuk sebagai Pengawas (QA/QC)',
             "Anda ditunjuk sebagai Pengawas proyek \"{$project->name}\" oleh {$actor->name} — cek tab Eksekusi.",
             ['project_id' => $project->id],
         );
 
-        if ($previousId && ($previous = User::find($previousId))) {
-            $this->notificationService->notify(
-                $previous,
-                NotificationType::ProjectSupervisorUnassigned,
-                'Pergantian Pengawas',
-                "Anda bukan lagi Pengawas proyek \"{$project->name}\".",
-                ['project_id' => $project->id],
-            );
-        }
+        $this->notificationService->notifyMany(
+            User::whereIn('id', $detached)->get(),
+            NotificationType::ProjectSupervisorUnassigned,
+            'Pergantian Pengawas',
+            "Anda bukan lagi Pengawas proyek \"{$project->name}\".",
+            ['project_id' => $project->id],
+        );
     }
 
     /** PRD §4.9-style heads-up to both sides of a PM hand-over. */
@@ -647,7 +694,6 @@ class ProjectService
             'contract_value' => number_format((float) $project->contract_value, 2, '.', ''),
             'team_lead_id' => $project->team_lead_id === null ? null : (int) $project->team_lead_id,
             'team_lead_name' => $project->team_lead_name,
-            'supervisor_id' => $project->supervisor_id === null ? null : (int) $project->supervisor_id,
         ];
     }
 

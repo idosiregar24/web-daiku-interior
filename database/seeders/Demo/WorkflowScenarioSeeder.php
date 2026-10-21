@@ -538,7 +538,7 @@ class WorkflowScenarioSeeder extends Seeder
             // Sprint 23 K14 — the approving PM opens; Kepala Tim typed (an outside team).
             'team_lead_name' => 'Tim Pak Darto',
             // Sprint 24 — the Pengawas (QA/QC) runs the execution flow.
-            'supervisor_id' => $this->qa->id,
+            'supervisor_ids' => [$this->qa->id],
             'opened_on' => now()->subDays(max($startedDaysAgo, 0))->toDateString(),
             'start_date' => now()->subDays($startedDaysAgo)->toDateString(),
         ], $this->pm);

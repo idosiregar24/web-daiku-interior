@@ -109,6 +109,8 @@ interface TaskFormDialogProps {
      * `RELOAD.tasks`, Tugas: `TASKS_INDEX_RELOAD`); omitted = full reload.
      */
     reload?: TaskReload;
+    /** Sprint 29 Sub 08 (B8) — the project pays per RAB item (Upah Tukang card): no per-target wage. */
+    hideWage?: boolean;
 }
 
 /**
@@ -121,7 +123,7 @@ interface TaskFormDialogProps {
  * priority and upah kept, the day moved to the next working day inside the
  * timeline, and the cursor back in Judul. "Simpan" saves and closes.
  */
-export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff, reload }: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff, reload, hideWage = false }: TaskFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
@@ -466,19 +468,21 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 )}
                             />
                         </div>
-                        <FormField
-                            control={form.control}
-                            name="rate_per_task"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Upah (Rp)</FormLabel>
-                                    <FormControl>
-                                        <MoneyInput decimals={2} disabled={isLocked('rate_per_task')} {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        {!hideWage && (
+                            <FormField
+                                control={form.control}
+                                name="rate_per_task"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Upah (Rp)</FormLabel>
+                                        <FormControl>
+                                            <MoneyInput decimals={2} disabled={isLocked('rate_per_task')} {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
                         {savedTitles.length > 0 && (
                             <p role="status" className="flex items-start gap-1.5 text-sm text-success-ink">
                                 <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden />

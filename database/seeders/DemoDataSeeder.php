@@ -84,6 +84,9 @@ class DemoDataSeeder extends Seeder
 
     private User $qa;
 
+    /** Sprint 29 Sub 06 — a second Pengawas, sharing the first demo project. */
+    private User $qa2;
+
     /** @var Collection<int, User> */
     private $fieldStaff;
 
@@ -96,6 +99,11 @@ class DemoDataSeeder extends Seeder
         $this->pm = User::role('PM')->firstOrFail();
         $this->finance = User::role('FINANCE')->firstOrFail();
         $this->qa = User::role('QA')->firstOrFail();
+        $this->qa2 = User::firstOrCreate(
+            ['email' => 'qa2@daikuinterior.com'],
+            ['name' => 'Pengawas Kedua', 'username' => 'qa2', 'password' => Hash::make('password')],
+        );
+        $this->qa2->assignRole('QA');
 
         $this->fieldStaff = collect(['Rudi Hartono', 'Slamet Wijaya', 'Yanto Kurniawan'])
             ->map(function (string $name) {
@@ -524,7 +532,8 @@ class DemoDataSeeder extends Seeder
                 // Sprint 23 K14 — the approving PM opens: Kepala Tim (a tukang, or a vendor by name), Pengawas, dates.
                 'team_lead_id' => $i === 0 ? $this->fieldStaff[0]->id : null,
                 'team_lead_name' => $i === 0 ? null : 'CV Mitra Kayu Jati',
-                'supervisor_id' => $this->qa->id,
+                // Sprint 29 Sub 06 — the first demo project has two Pengawas, both equal.
+                'supervisor_ids' => $i === 0 ? [$this->qa->id, $this->qa2->id] : [$this->qa->id],
                 'opened_on' => now()->subDays(9)->toDateString(),
                 'start_date' => now()->subDays(7)->toDateString(),
             ], $this->pm);

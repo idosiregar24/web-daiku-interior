@@ -17,7 +17,7 @@ class ProjectPolicy
 {
     public function view(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS'])) {
+        if ($user->hasAnyRole(['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'ADMIN_PROYEK'])) {
             return true;
         }
 
@@ -53,7 +53,7 @@ class ProjectPolicy
      */
     public function planMaterials(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['ESTIMATOR', 'LOGISTICS'])) {
+        if ($user->hasAnyRole(['ESTIMATOR', 'LOGISTICS', 'ADMIN_PROYEK'])) {
             return true;
         }
 
@@ -81,7 +81,7 @@ class ProjectPolicy
     public function reviseMaterialPlan(User $user, Project $project): bool
     {
         return $project->status === ProjectStatus::Active
-            && $project->isSupervisedBy($user)
+            && ($project->isSupervisedBy($user) || $project->isAdministeredBy($user))
             && ! $project->currentPhase()->isProducing();
     }
 
@@ -92,7 +92,7 @@ class ProjectPolicy
      */
     public function manageWork(User $user, Project $project): bool
     {
-        if ($user->hasAnyRole(['CEO', 'PM'])) {
+        if ($user->hasAnyRole(['CEO', 'PM', 'ADMIN_PROYEK'])) {
             return true;
         }
 
@@ -106,7 +106,7 @@ class ProjectPolicy
      */
     public function manageTargets(User $user, Project $project): bool
     {
-        if ($user->hasRole('PM')) {
+        if ($user->hasAnyRole(['PM', 'ADMIN_PROYEK'])) {
             return true;
         }
 
@@ -127,6 +127,29 @@ class ProjectPolicy
      * (Pengawas payments, weekly reports, "Berangkat ke Lokasi"): the
      * project's own PM, like the budget (#22 — not the Asisten PM).
      */
+    /** Sprint 29 Sub 07 — fill the TM (date, minutes, attendees, fee, Tanggal Selesai): runMeeting() or the Admin Proyek; "TM Selesai" stays runMeeting(). */
+    public function editMeeting(User $user, Project $project): bool
+    {
+        return $this->runMeeting($user, $project) || $project->isAdministeredBy($user);
+    }
+
+    /** Sprint 29 Sub 07 — record a finishing finding: the Pengawas or the Admin Proyek. */
+    public function recordFindings(User $user, Project $project): bool
+    {
+        return $this->supervise($user, $project) || $project->isAdministeredBy($user);
+    }
+
+    /**
+     * Sprint 29 Sub 08 (B3) — the Upah Tukang card: Satuan Upah + Kepala Tim
+     * per RAB item — the project's Pengawas or the Admin Proyek, while the
+     * project runs (what is locked after Start Produksi: WorkItemService).
+     */
+    public function setWages(User $user, Project $project): bool
+    {
+        return $project->status === ProjectStatus::Active
+            && ($this->supervise($user, $project) || $project->isAdministeredBy($user));
+    }
+
     public function approveExecution(User $user, Project $project): bool
     {
         return $this->ownsAsPm($user, $project);
@@ -175,7 +198,8 @@ class ProjectPolicy
     public function taskVisibility(User $user, ?Project $project = null): string
     {
         // ASISTEN_PM reads what the PM reads (Sprint 12 Sub 1).
-        if ($user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'SUPERADMIN'])) {
+        // Sprint 29 Sub 07 — the Admin Proyek inputs the daily targets of every project.
+        if ($user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'SUPERADMIN', 'ADMIN_PROYEK'])) {
             return 'all';
         }
 

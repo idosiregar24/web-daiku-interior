@@ -23,7 +23,8 @@ class ProjectMaterialPolicy
      */
     public function request(User $user, Project $project): bool
     {
-        if ($user->hasRole('ESTIMATOR')) {
+        // Sprint 29 Sub 07 — the Admin Proyek also asks Logistik for out-of-catalog goods.
+        if ($user->hasAnyRole(['ESTIMATOR', 'ADMIN_PROYEK'])) {
             return true;
         }
 

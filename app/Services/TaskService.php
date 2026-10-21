@@ -475,7 +475,7 @@ class TaskService
     /** Whoever checks targets (Pengawas / PM / Asisten PM) — their own DONE is final. */
     private function checksTargets(User $actor): bool
     {
-        return $actor->hasAnyRole(['PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN']);
+        return $actor->hasAnyRole(['PM', 'ASISTEN_PM', 'QA', 'SUPERADMIN', 'ADMIN_PROYEK']);
     }
 
     /**
@@ -529,7 +529,7 @@ class TaskService
             ->where('status', '!=', TaskStatus::Over->value)
             // Sprint 24 D1 — targets of a project that isn't producing yet wait for Start Produksi.
             ->whereHas('project', fn ($query) => $query->active()->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value]))
-            ->with(['project.pm', 'project.supervisor', 'assignee:id,name', 'milestone:id,start_date,target_date'])
+            ->with(['project.pm', 'project.supervisors', 'assignee:id,name', 'milestone:id,start_date,target_date'])
             ->get();
 
         if ($late->isEmpty()) {
@@ -576,7 +576,7 @@ class TaskService
 
             // Sprint 24 — the Pengawas plans the targets, so they hear it too.
             $this->notificationService->notifyMany(
-                [$project->pm, $project->supervisor],
+                $project->supervisors()->get()->push($project->pm)->filter()->unique('id'),
                 NotificationType::TaskOverdue,
                 'Task Melewati Deadline',
                 "{$tasks->count()} task di proyek \"{$project->name}\" melewati deadline: {$titles}{$more}.",
