@@ -19,6 +19,7 @@ import { formatQty, formatRupiah } from '@/lib/format';
 import { type ProjectProp, projectVisit, RELOAD, type ReturnCatalogMaterial, useProjectCatalog } from '@/lib/projectReload';
 import { parseQty, quantityField } from '@/lib/quantity';
 import { MaterialCategorySelect } from '@/Components/modules/logistics/MaterialCategorySelect';
+import { partialVisit } from '@/Components/modules/logistics/partialVisit';
 import { SimilarMaterialsPanel } from '@/Components/modules/logistics/SimilarMaterialsPanel';
 import { useSimilarMaterials } from '@/hooks/useSimilarMaterials';
 import type { MaterialCategory, ProjectMaterial, VendorOption } from '@/types';
@@ -86,6 +87,8 @@ interface ProjectMaterialActionDialogProps {
     vendors: VendorOption[];
     /** Material categories for registering a custom leftover as a new catalog item (Logistics). */
     categories: Pick<MaterialCategory, 'id' | 'name' | 'code_prefix'>[];
+    /** Sprint 29 Sub 11 — opened outside Detail Proyek (Pemesanan Bahan): the host page's props to reload. */
+    only?: readonly string[];
 }
 
 const ROUTE: Record<MaterialAction, string> = {
@@ -110,7 +113,7 @@ const RELOAD_FOR: Record<MaterialAction, readonly ProjectProp[]> = {
     handOver: [...RELOAD.materials, 'project', 'statusNote'],
 };
 
-export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendors, categories }: ProjectMaterialActionDialogProps) {
+export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendors, categories, only }: ProjectMaterialActionDialogProps) {
     // Catalog items a CUSTOM line can be mapped onto when returned (Logistics) — loaded on demand.
     const catalog = useProjectCatalog();
     const [busy, setBusy] = useState(false);
@@ -225,7 +228,7 @@ export function ProjectMaterialActionDialog({ line, action, onOpenChange, vendor
         if (action === 'handOver') Object.assign(payload, { note });
 
         router.post(route(ROUTE[action], { project_material: line.id }), payload, {
-            ...projectVisit(RELOAD_FOR[action]),
+            ...(only ? partialVisit(only) : projectVisit(RELOAD_FOR[action])),
             onStart: () => setBusy(true),
             onFinish: () => setBusy(false),
             onError: (errors: Record<string, string>) =>

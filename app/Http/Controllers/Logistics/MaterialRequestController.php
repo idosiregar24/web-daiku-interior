@@ -39,7 +39,8 @@ class MaterialRequestController extends Controller
         $status = in_array($request->query('status'), self::STATUS_FILTERS, true) ? $request->query('status') : 'pending';
         $canReview = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
 
-        $scoped = fn () => ProjectMaterial::query()->requested()->visibleTo($user);
+        // Sprint 29 Sub 11 — the Pengawas's Rencana Bahan has its own page (Pemesanan Bahan).
+        $scoped = fn () => ProjectMaterial::query()->requested()->notFromPlan()->visibleTo($user);
 
         $requests = $scoped()
             ->with([

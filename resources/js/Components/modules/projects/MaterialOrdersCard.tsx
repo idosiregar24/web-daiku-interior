@@ -5,6 +5,7 @@ import { formatQty } from '@/lib/format';
 import type { ProjectMaterial } from '@/types';
 import { ArrowRight, Truck } from 'lucide-react';
 import { summarizeArrivals } from './materialArrival';
+import { MaterialStatusChip } from './MaterialStatusChip';
 import type { ProjectTabTarget } from './projectWaiting';
 
 /** Lines named under the bar — the rest is "dan n lainnya". */
@@ -56,14 +57,18 @@ export function MaterialOrdersCard({
                         bahan lengkap datang
                         {summary.partial > 0 && <span className="text-warning-ink"> · {summary.partial} sebagian</span>}
                         {summary.waiting > 0 && <span className="text-warning-ink"> · {summary.waiting} belum datang</span>}
+                        {summary.ordered > 0 && <span className="text-info-ink"> ({summary.ordered} sudah dipesan)</span>}
                         {summary.request > 0 && <span className="text-muted-foreground"> · {summary.request} pengajuan menunggu</span>}
                     </p>
                     <ProgressBar value={percent} tone={percent === 100 ? 'success' : 'default'} label="Bahan yang sudah lengkap datang" />
                     {summary.open.length > 0 && (
                         <ul className="space-y-1 text-sm">
                             {summary.open.slice(0, SHOWN).map((line) => (
-                                <li key={line.id} className="flex justify-between gap-3">
-                                    <span className="min-w-0 truncate text-foreground">{line.display_name}</span>
+                                <li key={line.id} className="flex items-start justify-between gap-3">
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-foreground">{line.display_name}</span>
+                                        <MaterialStatusChip line={line} unit={line.unit?.code} inline />
+                                    </span>
                                     <span className="shrink-0 text-muted-foreground tabular-nums">
                                         {formatQty(line.qty_received)} / {formatQty(line.qty_planned)} {line.unit?.code ?? ''}
                                     </span>

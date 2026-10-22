@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Logistics;
 
 use App\Enums\ProjectMaterialSource;
+use App\Services\ProjectMaterialService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,7 +26,7 @@ class StoreProjectMaterialsRequest extends FormRequest
         return [
             'lines' => ['required', 'array', 'min:1', 'max:'.self::MAX_LINES],
             'lines.*.material_id' => ['required', 'integer', 'exists:materials,id'],
-            'lines.*.source' => ['required', Rule::in([ProjectMaterialSource::Gudang->value, ProjectMaterialSource::Pembelian->value])],
+            'lines.*.source' => [$this->sourceRule(), Rule::in([ProjectMaterialSource::Gudang->value, ProjectMaterialSource::Pembelian->value])],
             'lines.*.qty_planned' => ['required', 'numeric', 'decimal:0,2', 'min:0.01', 'max:1000000'],
             'lines.*.vendor_id' => ['nullable', 'integer', Rule::exists('vendors', 'id')->where('is_active', true)],
         ];
@@ -48,5 +49,17 @@ class StoreProjectMaterialsRequest extends FormRequest
             'lines.*.qty_planned.decimal' => 'Baris :position: jumlah maksimal 2 angka di belakang koma.',
             'lines.*.vendor_id.exists' => 'Baris :position: vendor tidak ditemukan atau sudah nonaktif.',
         ];
+    }
+
+    /**
+     * Sprint 29 Sub 11 (E1) — the Pengawas / Admin Proyek don't pick the
+     * source of a Rencana Bahan line (they don't see the stock): the server
+     * does, so it is ignored when sent.
+     */
+    private function sourceRule(): string
+    {
+        $project = $this->route('project');
+
+        return $project && app(ProjectMaterialService::class)->plansThroughLogistics($project, $this->user()) ? 'nullable' : 'required';
     }
 }

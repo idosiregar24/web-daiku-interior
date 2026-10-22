@@ -233,6 +233,24 @@ class MaterialRequestService
             );
 
             $line->load(['material:id,name,unit_id', 'unit:id,code']);
+
+            // Sprint 29 Sub 11 (E3) — a custom line of the Pengawas's Rencana Bahan: they hear a
+            // rejection; an approval shows on the line (and they hear "Dipesan" / "Lengkap" later).
+            if ($line->request_channel === ProjectMaterial::CHANNEL_RENCANA) {
+                if (! $approved) {
+                    $this->notificationService->notifyMany(
+                        [...$line->project->supervisors()->get()->all(), $line->requester],
+                        NotificationType::MaterialPlanRejected,
+                        'Bahan Ditolak Logistik',
+                        "Logistik menolak {$line->custom_name} untuk proyek \"{$line->project->name}\": {$line->reject_reason}",
+                        ['project_id' => $line->project_id, 'project_material_ids' => [$line->id]],
+                    );
+                    $this->projectService->completeIfFinished($line->project);
+                }
+
+                return $line;
+            }
+
             $this->notifyRequester(
                 $line,
                 $approved ? 'Pengajuan Barang Disetujui' : 'Pengajuan Barang Ditolak',
@@ -269,6 +287,8 @@ class MaterialRequestService
         $due = ProjectMaterial::query()
             ->with(['project:id,name,pm_id,assistant_pm_id', 'project.pm:id,name,is_active', 'project.assistantPm:id,name,is_active', 'requester:id,name'])
             ->pendingRequest()
+            // Sprint 29 Sub 11 — a submitted Rencana Bahan waits on Pemesanan Bahan, not Pengajuan Barang.
+            ->notFromPlan()
             ->where(fn ($q) => $q
                 ->where(fn ($q) => $q->where('request_status', MaterialRequestStatus::Diajukan->value)->where('submitted_at', '<=', $cutoff))
                 ->orWhere(fn ($q) => $q->where('request_status', MaterialRequestStatus::MenungguPm->value)->where('created_at', '<=', $cutoff)))

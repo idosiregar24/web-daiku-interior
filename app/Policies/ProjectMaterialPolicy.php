@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Enums\MaterialRequestStatus;
+use App\Enums\ProjectStatus;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\User;
@@ -47,5 +49,27 @@ class ProjectMaterialPolicy
     public function review(User $user, ProjectMaterial $line): bool
     {
         return $user->hasRole('LOGISTICS');
+    }
+
+    /**
+     * Sprint 29 Sub 11 (E5) — a line of the Rencana Bahan is its planners'
+     * draft (the project's Pengawas, the Admin Proyek) until "Ajukan ke
+     * Logistik"; from DIAJUKAN on only Logistik changes or removes it.
+     */
+    public function revisePlan(User $user, ProjectMaterial $line): bool
+    {
+        if ($line->request_channel !== ProjectMaterial::CHANNEL_RENCANA) {
+            return false;
+        }
+
+        if ($user->hasRole('LOGISTICS')) {
+            return true;
+        }
+
+        $project = $line->project;
+
+        return $line->request_status === MaterialRequestStatus::Direncanakan
+            && in_array($project->status, [ProjectStatus::Active, ProjectStatus::OnHold], true)
+            && ($project->isSupervisedBy($user) || $project->isAdministeredBy($user));
     }
 }

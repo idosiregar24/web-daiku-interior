@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MaterialOrderStatus;
 use App\Enums\MaterialRequestStatus;
 use App\Enums\ProjectMaterialSource;
 use App\Support\Quantity;
@@ -48,6 +49,13 @@ class ProjectMaterial extends Model
 
     public const CHANNEL_TUKANG = 'TUKANG';
 
+    /**
+     * Sprint 29 Sub 11 (E2/E3) — a line of the Pengawas's / Admin Proyek's
+     * "Rencana Bahan" (catalog or custom): DIRENCANAKAN until "Ajukan ke
+     * Logistik", then decided on Logistik's Pemesanan Bahan page.
+     */
+    public const CHANNEL_RENCANA = 'RENCANA';
+
     /** Sub 4 — Logistics' four decisions on a request (decision #13). */
     public const DECISION_PAKAI_KATALOG = 'PAKAI_KATALOG';
 
@@ -59,7 +67,7 @@ class ProjectMaterial extends Model
 
     public const DECISIONS = [self::DECISION_PAKAI_KATALOG, self::DECISION_DAFTAR_KATALOG, self::DECISION_CUSTOM, self::DECISION_TOLAK];
 
-    protected $appends = ['display_name', 'leftover'];
+    protected $appends = ['display_name', 'leftover', 'order_status'];
 
     protected function casts(): array
     {
@@ -79,6 +87,8 @@ class ProjectMaterial extends Model
             'pm_reviewed_at' => 'datetime',
             'reviewed_at' => 'datetime',
             'reminded_at' => 'datetime',
+            'ordered_at' => 'datetime',
+            'expected_at' => 'date:Y-m-d',
         ];
     }
 
@@ -120,6 +130,11 @@ class ProjectMaterial extends Model
         return $this->belongsTo(User::class, 'reviewed_by');
     }
 
+    public function orderer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ordered_by');
+    }
+
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);
@@ -131,6 +146,38 @@ class ProjectMaterial extends Model
         return Attribute::get(fn (): string => $this->material_id
             ? (string) $this->material?->name
             : trim($this->custom_name.($this->custom_spec ? " ({$this->custom_spec})" : '')));
+    }
+
+    /**
+     * Sprint 29 Sub 11 (E4) — the one reading of where this line stands
+     * (MaterialOrderStatus); the UI's materialStatus() only words it.
+     */
+    public function orderStatus(): MaterialOrderStatus
+    {
+        $status = $this->request_status ?? MaterialRequestStatus::Disetujui;
+
+        if ($status !== MaterialRequestStatus::Disetujui) {
+            return MaterialOrderStatus::from($status->value);
+        }
+
+        $received = Quantity::toHundredths($this->qty_received);
+        $planned = Quantity::toHundredths($this->qty_planned);
+
+        if ($received > 0) {
+            if ($planned > 0 && $received < $planned) {
+                return MaterialOrderStatus::Sebagian;
+            }
+
+            return $this->source === ProjectMaterialSource::Gudang ? MaterialOrderStatus::DariGudang : MaterialOrderStatus::Lengkap;
+        }
+
+        return $this->ordered_at !== null ? MaterialOrderStatus::Dipesan : MaterialOrderStatus::Disetujui;
+    }
+
+    /** Appended `order_status` (a classic accessor — orderStatus() is the method above). */
+    public function getOrderStatusAttribute(): string
+    {
+        return $this->orderStatus()->value;
     }
 
     /** received − used − returned − wasted − handed over (decision #12). */
@@ -188,6 +235,33 @@ class ProjectMaterial extends Model
         }
 
         return $query->where('requested_by', $user->id);
+    }
+
+    /** Sprint 29 Sub 11 — lines of a Pengawas's / Admin Proyek's Rencana Bahan. */
+    public function scopeFromPlan(Builder $query): Builder
+    {
+        return $query->where('request_channel', self::CHANNEL_RENCANA);
+    }
+
+    /** Everything but the Rencana Bahan — the Pengajuan Barang page and its queue (the plan has Pemesanan Bahan). */
+    public function scopeNotFromPlan(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q->whereNull('request_channel')->orWhere('request_channel', '!=', self::CHANNEL_RENCANA));
+    }
+
+    /**
+     * "Bahan yang digunakan": catalog lines planned directly, approved
+     * requests, and every line of the Rencana Bahan — rejected ones only
+     * with `$withRejected` (the planner lists them with the reason).
+     */
+    public function scopePlanned(Builder $query, bool $withRejected = false): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->whereNull('request_status')
+            ->orWhere('request_status', MaterialRequestStatus::Disetujui->value)
+            ->orWhere(fn (Builder $plan) => $plan
+                ->where('request_channel', self::CHANNEL_RENCANA)
+                ->when(! $withRejected, fn (Builder $q) => $q->where('request_status', '!=', MaterialRequestStatus::Ditolak->value))));
     }
 
     /** Lines that went through a request (anything a person asked for rather than planned from the catalog). */

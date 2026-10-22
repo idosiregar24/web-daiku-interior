@@ -1,7 +1,9 @@
 import { MaterialRequestDialog } from '@/Components/modules/logistics/MaterialRequestDialog';
 import { PmRequestDecisionDialog } from '@/Components/modules/logistics/PmRequestDecisionDialog';
 import { type MaterialAction, ProjectMaterialActionDialog } from '@/Components/modules/projects/ProjectMaterialActionDialog';
+import { MaterialStatusChip } from '@/Components/modules/projects/MaterialStatusChip';
 import { type PendingMaterialLine, ProjectMaterialBatchDialog } from '@/Components/modules/projects/ProjectMaterialBatchDialog';
+import { TmMaterialPlanner } from '@/Components/modules/projects/TmMaterialPlanner';
 import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { Notice } from '@/Components/shared/Notice';
@@ -24,7 +26,7 @@ import { formatQty, formatRupiah } from '@/lib/format';
 import { type CatalogMaterial, projectVisit, RELOAD, type ReturnCatalogMaterial, useProjectCatalog } from '@/lib/projectReload';
 import { parseQty, quantityField } from '@/lib/quantity';
 import { cn } from '@/lib/utils';
-import type { MaterialCategory, Project, ProjectMaterial, ProjectMaterialSource, UnitOption, VendorOption } from '@/types';
+import type { MaterialCategory, Project, ProjectExecution, ProjectMaterial, ProjectMaterialSource, UnitOption, VendorOption } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import {
@@ -40,6 +42,7 @@ import {
     Plus,
     ShoppingCart,
     Trash2,
+    Truck,
     Undo2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -65,6 +68,34 @@ export interface MaterialPermissions {
     pmDecide: boolean;
     /** Sub 4 — Logistics decides requests on the Pengajuan Barang page. */
     review: boolean;
+    /** Sprint 29 Sub 11 (E1) — stock & cost columns; never for the Pengawas / Admin Proyek. */
+    seeCost: boolean;
+    /** Sprint 29 Sub 11 (E2/E3) — this viewer plans through Logistik (Rencana Bahan). */
+    planThroughLogistics: boolean;
+    /** Sprint 29 Sub 11 — the link to Pemesanan Bahan (CEO, PM / Asisten PM, Logistik). */
+    openOrders: boolean;
+}
+
+/** A Rencana Bahan line in the planner's shape (the TM card's `meetingMaterials`). */
+function plannerLine(line: ProjectMaterial): ProjectExecution['meetingMaterials'][number] {
+    const unit = line.unit?.code ?? null;
+
+    return {
+        id: line.id,
+        material_id: line.material_id,
+        name: line.display_name,
+        qty: `${formatQty(line.qty_planned)} ${unit ?? ''}`.trim(),
+        qty_planned: Number(line.qty_planned),
+        qty_received: Number(line.qty_received),
+        unit,
+        source: line.source,
+        channel: line.request_channel,
+        order_status: line.order_status,
+        reject_reason: line.reject_reason,
+        expected_at: line.expected_at ?? null,
+        // E5 — the planners' draft until "Ajukan ke Logistik".
+        editable: line.order_status === 'DIRENCANAKAN',
+    };
 }
 
 interface ProjectMaterialsPanelProps {
@@ -138,7 +169,10 @@ export function ProjectMaterialsPanel({
 
     // Requests nobody approved yet (or rejected) live in their own section, outside the cost tables.
     const approvedItems = useMemo(() => items.filter((item) => item.request_status === 'DISETUJUI'), [items]);
-    const requestItems = items.filter((item) => item.request_status !== 'DISETUJUI');
+    // Sprint 29 Sub 11 — the Pengawas's Rencana Bahan has its own section (a draft is not a request yet).
+    const planItems = items.filter((item) => item.request_channel === 'RENCANA');
+    const openPlanItems = planItems.filter((item) => item.request_status !== 'DISETUJUI');
+    const requestItems = items.filter((item) => item.request_status !== 'DISETUJUI' && item.request_channel !== 'RENCANA');
     const pendingRequests = requestItems.filter((item) => item.request_status === 'MENUNGGU_PM' || item.request_status === 'DIAJUKAN');
 
     // K3 — a pending line for a catalog item + source already planned replaces that row's amount
@@ -223,17 +257,22 @@ export function ProjectMaterialsPanel({
     return (
         <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="inline-flex flex-wrap items-center gap-x-1 rounded-lg bg-daiku-gray/70 px-3 py-2 text-sm text-daiku-muted ring-1 ring-border ring-inset">
-                    Biaya material: <span className="font-medium text-daiku-dark">{formatRupiah(totalCost)}</span>
-                    {groups.map((group) => (
-                        <span key={group.value}>
-                            {' · '}
-                            {group.label} <span className="font-medium text-daiku-dark">{formatRupiah(group.cost)}</span>
-                        </span>
-                    ))}
-                </p>
-                {/* §5.5 Lapis 4 — search the catalog first; requesting an item is offered from there. */}
-                {permissions.create && (
+                {permissions.seeCost ? (
+                    <p className="inline-flex flex-wrap items-center gap-x-1 rounded-lg bg-daiku-gray/70 px-3 py-2 text-sm text-daiku-muted ring-1 ring-border ring-inset">
+                        Biaya material: <span className="font-medium text-daiku-dark">{formatRupiah(totalCost)}</span>
+                        {groups.map((group) => (
+                            <span key={group.value}>
+                                {' · '}
+                                {group.label} <span className="font-medium text-daiku-dark">{formatRupiah(group.cost)}</span>
+                            </span>
+                        ))}
+                    </p>
+                ) : (
+                    <span />
+                )}
+                {/* §5.5 Lapis 4 — search the catalog first; requesting an item is offered from there.
+                    Sprint 29 Sub 11 — the Pengawas / Admin Proyek plan in the Rencana Bahan below instead. */}
+                {permissions.create && !permissions.planThroughLogistics && (
                     <Button
                         size="sm"
                         className="max-md:h-11"
@@ -260,6 +299,78 @@ export function ProjectMaterialsPanel({
                         ` masih ada pengajuan barang yang belum diputuskan: ${pendingRequests.map((line) => line.display_name).join(', ')}`}
                     .
                 </Notice>
+            )}
+
+            {permissions.planThroughLogistics && project.status !== 'COMPLETED' && project.status !== 'CANCELLED' && (
+                <section className="space-y-2">
+                    <h3 className="text-sm font-semibold text-daiku-dark">
+                        Rencana Bahan <span className="font-normal text-daiku-muted">· katalog atau bahan lain, lalu ajukan ke Logistik</span>
+                    </h3>
+                    <TmMaterialPlanner
+                        projectId={project.id}
+                        lines={planItems.map(plannerLine)}
+                        canUpdate
+                        canRemove
+                        throughLogistics
+                    />
+                </section>
+            )}
+
+            {!permissions.planThroughLogistics && openPlanItems.length > 0 && (
+                <section className="space-y-2">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-daiku-dark">
+                            Rencana Bahan <span className="font-normal text-daiku-muted">· dari Pengawas, diproses Logistik</span>
+                        </h3>
+                        {permissions.openOrders && (
+                            <Button size="sm" variant="outline" className="max-md:h-11" asChild>
+                                <Link href={route('logistics.material-orders.index', { project_id: project.id })}>
+                                    <Truck className="size-4" />
+                                    Pemesanan Bahan
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
+                    <TableCard>
+                        <ul className="divide-y divide-border md:hidden">
+                            {openPlanItems.map((line) => (
+                                <li key={line.id} className="space-y-1 px-4 py-3 text-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <p className="font-medium text-daiku-dark">{line.display_name}</p>
+                                        <span className="shrink-0 tabular-nums">
+                                            {formatQty(line.qty_planned)} {line.unit?.code ?? ''}
+                                        </span>
+                                    </div>
+                                    <MaterialStatusChip line={line} unit={line.unit?.code} inline />
+                                </li>
+                            ))}
+                        </ul>
+                        <table className="hidden w-full text-sm md:table">
+                            <thead className={TABLE_HEAD_CLASS}>
+                                <tr>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Barang</th>
+                                    <th className="px-4 py-2.5 text-right font-semibold">Jumlah</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Perencana</th>
+                                    <th className="px-4 py-2.5 text-left font-semibold">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {openPlanItems.map((line) => (
+                                    <tr key={line.id} className="border-t border-border align-top">
+                                        <td className="px-4 py-3 font-medium text-daiku-dark">{line.display_name}</td>
+                                        <td className="px-4 py-3 text-right tabular-nums">
+                                            {formatQty(line.qty_planned)} {line.unit?.code ?? ''}
+                                        </td>
+                                        <td className="px-4 py-3">{line.requester?.name ?? '—'}</td>
+                                        <td className="px-4 py-3">
+                                            <MaterialStatusChip line={line} unit={line.unit?.code} />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </TableCard>
+                </section>
             )}
 
             {requestItems.length > 0 && (
@@ -335,9 +446,11 @@ export function ProjectMaterialsPanel({
                                 <h3 className="text-sm font-semibold text-daiku-dark">
                                     {group.label} <span className="font-normal text-daiku-muted">· {group.hint}</span>
                                 </h3>
-                                <span className="text-sm text-daiku-muted">
-                                    Biaya <span className="font-medium text-daiku-dark">{formatRupiah(group.cost)}</span>
-                                </span>
+                                {permissions.seeCost && (
+                                    <span className="text-sm text-daiku-muted">
+                                        Biaya <span className="font-medium text-daiku-dark">{formatRupiah(group.cost)}</span>
+                                    </span>
+                                )}
                             </div>
                             <TableCard>
                                 <table className="w-full text-sm">
@@ -349,7 +462,7 @@ export function ProjectMaterialsPanel({
                                             <th className="px-4 py-2.5 text-right font-semibold">Terpakai</th>
                                             <th className="px-4 py-2.5 text-right font-semibold">Sisa</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Dibereskan</th>
-                                            <th className="px-4 py-2.5 text-right font-semibold">Biaya</th>
+                                            {permissions.seeCost && <th className="px-4 py-2.5 text-right font-semibold">Biaya</th>}
                                             <th className="w-12 px-4 py-2.5" />
                                         </tr>
                                     </thead>
@@ -372,15 +485,17 @@ export function ProjectMaterialsPanel({
                                                         <p className="text-xs text-daiku-muted">
                                                             {[
                                                                 line.vendor?.name,
-                                                                line.unit_price && line.source !== 'GUDANG' && `${formatRupiah(line.unit_price)}/${unit}`,
-                                                                line.source === 'GUDANG' && line.material && `stok gudang ${formatQty(line.material.stock)} ${unit}`,
+                                                                permissions.seeCost && line.unit_price && line.source !== 'GUDANG' && `${formatRupiah(line.unit_price)}/${unit}`,
+                                                                permissions.seeCost &&
+                                                                    line.source === 'GUDANG' &&
+                                                                    line.material?.stock !== undefined &&
+                                                                    `stok gudang ${formatQty(line.material.stock)} ${unit}`,
                                                             ]
                                                                 .filter(Boolean)
                                                                 .join(' · ')}
                                                         </p>
-                                                        {line.request_status !== 'DISETUJUI' && (
-                                                            <StatusChip domain="materialRequest" status={line.request_status} className="mt-1" />
-                                                        )}
+                                                        {/* Sprint 29 Sub 11 (E4) — Disetujui · Dipesan · Diterima sebagian · Lengkap · Dari gudang. */}
+                                                        <MaterialStatusChip line={line} unit={unit} inline className="mt-1" />
                                                     </td>
                                                     <td className="px-4 py-3 text-right tabular-nums text-daiku-muted">
                                                         {formatQty(line.qty_planned)} {unit}
@@ -405,7 +520,7 @@ export function ProjectMaterialsPanel({
                                                     <td className="px-4 py-3 text-xs text-daiku-muted">
                                                         {settled.length > 0 ? settled.join(' · ') : '—'}
                                                     </td>
-                                                    <td className="px-4 py-3 text-right tabular-nums">{formatRupiah(line.cost_total)}</td>
+                                                    {permissions.seeCost && <td className="px-4 py-3 text-right tabular-nums">{formatRupiah(line.cost_total)}</td>}
                                                     <td className="px-4 py-3">
                                                         {anyAction && (
                                                             <DropdownMenu>
@@ -485,7 +600,7 @@ export function ProjectMaterialsPanel({
                                                 <td className="px-4 py-3 text-right tabular-nums">
                                                     {formatQty(line.qty_planned)} {line.unit}
                                                 </td>
-                                                <td colSpan={6} />
+                                                <td colSpan={permissions.seeCost ? 6 : 5} />
                                             </tr>
                                         ))}
                                     </tbody>

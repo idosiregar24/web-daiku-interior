@@ -8,9 +8,14 @@ namespace App\Enums;
  * start DIAJUKAN (PM/Estimator) or MENUNGGU_PM (Tukang — the project's PM
  * approves before Logistics sees it, Sub 4) until Logistics decides. Only
  * DISETUJUI lines can be received, used or settled.
+ *
+ * Sprint 29 Sub 11 (E3) — a line the Pengawas / Admin Proyek plans waits
+ * as DIRENCANAKAN (their draft, still editable) until "Ajukan ke Logistik"
+ * makes it DIAJUKAN; where it stands after that is MaterialOrderStatus.
  */
 enum MaterialRequestStatus: string
 {
+    case Direncanakan = 'DIRENCANAKAN';
     case MenungguPm = 'MENUNGGU_PM';
     case Diajukan = 'DIAJUKAN';
     case Disetujui = 'DISETUJUI';
@@ -25,6 +30,7 @@ enum MaterialRequestStatus: string
     public function label(): string
     {
         return match ($this) {
+            self::Direncanakan => 'Direncanakan',
             self::MenungguPm => 'Menunggu PM',
             self::Diajukan => 'Menunggu Logistik',
             self::Disetujui => 'Disetujui',

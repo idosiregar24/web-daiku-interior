@@ -26,9 +26,11 @@ class ProjectMaterialController extends Controller
     {
         $this->authorize('planMaterials', $project);
 
-        $service->plan($project, $request->validated(), $request->user());
+        $line = $service->plan($project, $request->validated(), $request->user());
 
-        return back()->with('success', 'Kebutuhan material disimpan.');
+        return back()->with('success', $line->request_channel === ProjectMaterial::CHANNEL_RENCANA
+            ? 'Bahan masuk Rencana Bahan — ajukan ke Logistik bila sudah lengkap.'
+            : 'Kebutuhan material disimpan.');
     }
 
     /** Sprint 29 Sub 01 — "Simpan semua" of the multi-line material form; same gate as store(). */
@@ -52,7 +54,7 @@ class ProjectMaterialController extends Controller
 
     public function destroy(Request $request, ProjectMaterial $projectMaterial, ProjectMaterialService $service): RedirectResponse
     {
-        if (! $request->user()->hasRole('LOGISTICS')) {
+        if (! $request->user()->hasRole('LOGISTICS') || $projectMaterial->request_channel === ProjectMaterial::CHANNEL_RENCANA) {
             $this->authorizeRevision($request, $projectMaterial, null);
         }
 
@@ -124,6 +126,13 @@ class ProjectMaterialController extends Controller
      */
     private function authorizeRevision(Request $request, ProjectMaterial $line, ?string $ability): void
     {
+        // Sprint 29 Sub 11 (E5) — a Rencana Bahan line: its planners' until submitted, then Logistik's.
+        if ($line->request_channel === ProjectMaterial::CHANNEL_RENCANA) {
+            $this->authorize('revisePlan', $line);
+
+            return;
+        }
+
         if ($ability !== null && $request->user()->can($ability, $line->project)) {
             return;
         }
