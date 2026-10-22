@@ -1,6 +1,7 @@
 import { DepartureButton } from '@/Components/modules/projects/DepartureButton';
 import type { MaterialPermissions } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { type ProjectTabTarget, projectWaiting, type WaitingRow } from '@/Components/modules/projects/projectWaiting';
+import { DecidePaymentButton } from '@/Components/modules/projects/SupervisorFeeCard';
 import { CompleteMeetingButton } from '@/Components/modules/projects/TechnicalMeetingCard';
 import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { EmptyState } from '@/Components/shared/EmptyState';
@@ -84,6 +85,10 @@ function MyTurnCard({
     function actionOf(row: WaitingRow) {
         if (row.action === 'completeMeeting' && execution) {
             return <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} className="w-full sm:w-auto" />;
+        }
+
+        if (row.action === 'decidePayment' && execution) {
+            return <DecidePaymentButton execution={execution} size="sm" className="w-full sm:w-auto" />;
         }
 
         if (row.action === 'approveDeparture' && execution) {

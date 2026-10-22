@@ -44,6 +44,7 @@ import { ProjectOvertimeTab } from '@/Components/modules/projects/ProjectOvertim
 import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
 import { WorkItemQaPanel } from '@/Components/modules/projects/WorkItemQaPanel';
 import { WorkItemWageCard } from '@/Components/modules/projects/WorkItemWageCard';
+import { DecidePaymentButton, waitingPayments } from '@/Components/modules/projects/SupervisorFeeCard';
 import { WageSplitPanel } from '@/Components/modules/projects/WageSplitPanel';
 import { WorkStepsPanel } from '@/Components/modules/projects/WorkStepsPanel';
 import { WorkProgressSheet } from '@/Components/modules/projects/WorkProgressSheet';
@@ -1388,6 +1389,8 @@ export default function ProjectShow({
                         {execution?.can.completeMeeting && (
                             <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved />
                         )}
+                        {/* Sprint 34 — a DP / pelunasan waiting on this PM, decided from the top of the page. */}
+                        {execution && <DecidePaymentButton execution={execution} />}
                         {/* Sprint 26 H4c — once actual activity reaches the threshold (also on the Eksekusi card). */}
                         {execution && execution.progress >= execution.threshold && <DepartureButton project={project} execution={execution} />}
                         {/* Sprint 23 K4b — was on the Dokumen tab's RAB Tambahan card. */}
@@ -1411,8 +1414,14 @@ export default function ProjectShow({
                     onOpen={openTarget}
                     canOpen={canOpenTarget}
                     actions={
-                        execution?.can.completeMeeting
-                            ? { completeMeeting: <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved /> }
+                        execution
+                            ? {
+                                  ...(execution.can.completeMeeting
+                                      ? { completeMeeting: <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved /> }
+                                      : {}),
+                                  // Only for whom the request waits on — others keep the step's "Buka".
+                                  ...(waitingPayments(execution).length > 0 ? { decidePayment: <DecidePaymentButton execution={execution} size="sm" className="w-full" /> } : {}),
+                              }
                             : undefined
                     }
                 />

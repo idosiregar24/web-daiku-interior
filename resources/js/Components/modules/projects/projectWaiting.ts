@@ -27,7 +27,7 @@ export interface WaitingRow {
     tone: 'warning' | 'error' | 'info';
     target: ProjectTabTarget;
     /** A one-click action that already has its own component (H6d, Q6). */
-    action?: 'completeMeeting' | 'approveDeparture';
+    action?: 'completeMeeting' | 'approveDeparture' | 'decidePayment';
 }
 
 export interface ProjectWaitingInput {
@@ -190,6 +190,8 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                         mine: can?.decide ?? false,
                         tone: 'warning',
                         target: { tab: 'execution', anchor: 'dp' },
+                        // Sprint 34 — decided right from Ringkasan, like TM Selesai.
+                        action: can?.decide ? 'decidePayment' : undefined,
                     },
                 ];
             }

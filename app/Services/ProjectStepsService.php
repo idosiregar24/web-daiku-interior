@@ -158,7 +158,8 @@ class ProjectStepsService
                 ['tab' => 'execution', 'anchor' => 'syarat-dp'], $supervises),
             $this->step('dp-approve', 'Setujui DP = Start Produksi', 'PM', false,
                 $dp ? 'Menunggu keputusan PM.' : 'Setelah Pengawas mengajukan DP.',
-                ['tab' => 'execution', 'anchor' => 'dp'], $approves, attention: $dp?->status === SupervisorPaymentStatus::Diajukan),
+                ['tab' => 'execution', 'anchor' => 'dp'], $approves, attention: $dp?->status === SupervisorPaymentStatus::Diajukan,
+                action: $dp?->status === SupervisorPaymentStatus::Diajukan ? 'decidePayment' : null),
         ];
     }
 

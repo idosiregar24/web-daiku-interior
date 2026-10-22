@@ -2655,7 +2655,7 @@ export interface WorkSteps {
         mine: boolean;
         state: WorkStepState;
         /** A step done by one button of its own instead of opening a card (e.g. `completeMeeting`). */
-        action: 'completeMeeting' | null;
+        action: 'completeMeeting' | 'decidePayment' | null;
     }[];
     done: number;
     total: number;
