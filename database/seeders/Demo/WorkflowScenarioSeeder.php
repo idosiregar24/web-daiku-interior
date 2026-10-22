@@ -12,6 +12,7 @@ use App\Models\City;
 use App\Models\Design;
 use App\Models\Invoice;
 use App\Models\Lead;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectOpening;
 use App\Models\QaForm;
@@ -294,15 +295,15 @@ class WorkflowScenarioSeeder extends Seeder
 
         // Milestones: one waiting for QA, one past its target (→ OVERDUE).
         $milestones = app(MilestoneService::class);
-        $late = $milestones->create($project, ['name' => 'Persiapan & Bongkar', 'start_date' => now()->subDays(20)->toDateString(), 'target_date' => now()->subDays(8)->toDateString()]);
-        $production = $milestones->create($project, ['name' => 'Produksi Furnitur', 'start_date' => now()->subDays(7)->toDateString(), 'target_date' => now()->addDays(10)->toDateString()]);
+        $late = $milestones->create($project, ['name' => 'Bongkar & Rangka Plafon', 'start_date' => now()->subDays(20)->toDateString(), 'target_date' => now()->subDays(8)->toDateString()]);
+        $production = $milestones->create($project, ['name' => 'Produksi Kitchen Set & Partisi', 'start_date' => now()->subDays(7)->toDateString(), 'target_date' => now()->addDays(10)->toDateString()]);
         $milestones->update($production, ['name' => $production->name, 'target_date' => $production->target_date, 'status' => MilestoneStatus::InProgress->value]);
         $milestones->markDone($production);
 
         // Tasks: one being checked, one past due (→ OVER).
         $tasks = app(TaskService::class);
         $checking = $tasks->create($project, [
-            'milestone_id' => $production->id, 'title' => 'Bongkar plafon lama', 'assignee_id' => $this->tukang->id,
+            'milestone_id' => $production->id, 'title' => 'Rakit kabinet kitchen set', 'assignee_id' => $this->tukang->id,
             'due_date' => now()->addDay()->toDateString(), 'priority' => 'HIGH', 'rate_per_task' => 200_000,
         ], $this->pm);
         $tasks->updateStatus($checking, ['status' => 'PENGECEKAN'], $this->tukang);
@@ -476,100 +477,152 @@ class WorkflowScenarioSeeder extends Seeder
 
     // ── Sprint 24: the execution flow, one project per phase ────────────
 
+    /**
+     * Sprint 37 — every phase on the same RAB (Kitchen Set Custom · Partisi
+     * Ruangan · Instalasi Listrik & Lampu) and the same work plan
+     * (ExecutionFlowDemo::workPlan(): timelines holding their RAB items,
+     * daily targets of the real Tukang, a Kepala Tim per item), placed at a
+     * different moment: each step dated on its own day (Gambar Kerja → TM →
+     * DP → targets → pengecekan on Friday / Saturday → Berangkat).
+     */
     private function executionFlow(): void
     {
-        $tasks = app(TaskService::class);
-        $target = fn (Project $project, int $milestoneId, string $title, int $dueOffset) => $tasks->create($project, [
-            'milestone_id' => $milestoneId, 'title' => $title, 'assignee_id' => $this->tukang->id,
-            'due_date' => now()->addDays($dueOffset)->toDateString(), 'priority' => 'MEDIUM', 'rate_per_task' => 175_000,
-        ], $this->qa);
+        $payments = app(SupervisorPaymentService::class);
+        $reports = app(WeeklyReportService::class);
+        $bank = BankAccount::where('is_active', true)->firstOrFail()->id;
+        $today = now()->startOfDay();
+        $at = fn (int $day, int $hour = 10) => Carbon::setTestNow($today->copy()->addDays($day)->setTime($hour, 0));
+        // The Tukang reports every target dated in [from, to) "Selesai" on its day; the Pengawas approves those before `$checkedBefore`.
+        $work = function (array $planned, int $from, int $to, int $checkedBefore) use ($today) {
+            foreach ($planned as ['task' => $task, 'date' => $date]) {
+                $day = (int) $today->diffInDays($date, false);
+
+                if ($day >= $from && $day < $to) {
+                    ExecutionFlowDemo::finishTarget($task, $date, $this->qa, approve: $day < $checkedBefore);
+                }
+            }
+        };
+        // The Pengawas's pengecekan: + % per RAB item, then the PM approves and Finance pays (`decide` false leaves it waiting).
+        $check = function (Project $project, string $notes, array $percents, bool $decide = true) use ($reports, $payments, $bank) {
+            $items = ExecutionFlowDemo::itemIds($project);
+            $report = $reports->submit($project, [
+                'notes' => $notes,
+                'links' => ['https://drive.google.com/drive/folders/demo-foto-pengecekan'],
+                'progress' => collect($percents)->map(fn (int $percent, string $item) => ['item_id' => $items[$item], 'percent' => $percent])->values()->all(),
+            ], $this->qa);
+
+            if ($decide) {
+                $report = $reports->decide($report, true, null, null, $this->pm);
+                $payments->pay($report->payment()->firstOrFail(), $bank, $this->finance);
+            }
+        };
+
+        // The PM's "Tandai Selesai" on a finished timeline, on its last day (QA per item: it simply closes).
+        $close = function (Milestone $timeline) use ($today, $at) {
+            $at((int) $today->diffInDays($timeline->target_date, false), 17);
+            app(MilestoneService::class)->markDone($timeline->fresh());
+        };
 
         // 1. Just opened — its Gambar Kerja waits for the Kepala Desain.
         $this->openedProject('Rina Marlina', startedDaysAgo: 0, running: false);
 
-        // 2. Gambar Kerja done — the PM runs the Technical Meeting.
-        $meeting = $this->openedProject('Bambang Sutrisno', startedDaysAgo: 0, running: false);
-        $meeting = ExecutionFlowDemo::finishWorkingDrawing($meeting);
-        ExecutionFlowDemo::timeline($meeting, 'Produksi Kabinet', 5, 20);
+        // 2. Gambar Kerja done — the PM runs the Technical Meeting (timelines already drafted, starting in a week).
+        $meeting = $this->openedProject('Bambang Sutrisno', startedDaysAgo: 6, running: false);
+        $at(-1);
+        ExecutionFlowDemo::finishWorkingDrawing($meeting);
+        Carbon::setTestNow();
+        ExecutionFlowDemo::workPlan($meeting, 7);
 
         // 3. TM done, daily targets planned by the Pengawas, DP asked — waiting for the PM.
-        $preparing = $this->openedProject('Siska Amelia', startedDaysAgo: 0, running: false);
-        $preparing = ExecutionFlowDemo::finishWorkingDrawing($preparing);
-        $wardrobe = ExecutionFlowDemo::timeline($preparing, 'Produksi Lemari', 0, 12);
+        $preparing = $this->openedProject('Siska Amelia', startedDaysAgo: 10, running: false);
+        $plan = ExecutionFlowDemo::workPlan($preparing, 3);
+        $at(-5);
+        ExecutionFlowDemo::finishWorkingDrawing($preparing);
+        $at(-1);
         $preparing = ExecutionFlowDemo::holdMeeting($preparing, $this->pm);
-        $target($preparing, $wardrobe->id, 'Potong panel lemari', 1);
-        $target($preparing, $wardrobe->id, 'Rakit badan lemari', 3);
+        ExecutionFlowDemo::assignLeads($preparing, $this->qa);
+        ExecutionFlowDemo::plannedTargets($preparing, $plan, $today->copy()->addDays(3), $this->qa);
+        Carbon::setTestNow();
         ExecutionFlowDemo::requestDp($preparing, $this->pm, approve: false);
 
-        // 4. In production: targets checked off, one sent back, two Kepala Tim, two timelines (Sprint 29).
-        $producing = $this->openedProject('Hendra Gunawan', startedDaysAgo: 10, running: false);
-        $producing = ExecutionFlowDemo::finishWorkingDrawing($producing);
-        $furniture = ExecutionFlowDemo::timeline($producing, 'Produksi Furnitur', -10, 10);
+        // 4. In production for 10 days: DP paid, last week's pengecekan approved & paid
+        // (Sprint 36 — sent on Friday); targets checked off, the latest ones waiting to
+        // be checked; this week's pengecekan is a draft (PengawasPreviewSeeder sends
+        // one target back). Partisi is behind its timeline. Two Pengawas (Sprint 29 Sub 06).
+        $producing = $this->openedProject('Hendra Gunawan', startedDaysAgo: 20, running: false);
+        $plan = ExecutionFlowDemo::workPlan($producing, -10);
+        $at(-15);
+        ExecutionFlowDemo::finishWorkingDrawing($producing);
+        $at(-11);
         $producing = ExecutionFlowDemo::holdMeeting($producing, $this->pm);
-        $done = [
-            $target($producing, $furniture->id, 'Potong multiplek meja', -3),
-            $target($producing, $furniture->id, 'Rakit rangka meja', -2),
-        ];
-        $target($producing, $furniture->id, 'Lapis HPL meja', 0);
-        $target($producing, $furniture->id, 'Pasang laci & engsel', 2);
-        // Sprint 29 Sub 05 — a second timeline: targets move freely between them.
-        $installation = ExecutionFlowDemo::timeline($producing, 'Pemasangan Furnitur', 11, 20);
-        $target($producing, $installation->id, 'Pasang meja & lemari di lokasi', 12);
-        // Sprint 29 Sub 08/09 — two Kepala Tim: every Upah Tukang payment is split between them.
-        $wageItems = $producing->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
-        $half = (int) ceil($wageItems->count() / 2);
-        app(WorkItemService::class)->assignTeamLead($producing, $wageItems->take($half)->all(), null, 'Tim Putra', $this->qa);
-        app(WorkItemService::class)->assignTeamLead($producing, $wageItems->slice($half)->values()->all(), null, 'Tim Yusuf', $this->qa);
-        // Sprint 29 — production started last week: DP paid, week 1's pengecekan
-        // (50 % per item) approved & paid; this week's (+25 % → 75 %, past the
-        // 70 % of "Berangkat ke Lokasi") is a draft the Pengawas can still
-        // change and send (PengawasPreviewSeeder).
-        // Sprint 36 — a pengecekan is sent on Friday / Saturday: last week's Friday.
-        Carbon::setTestNow(now()->subWeek()->startOfWeek(Carbon::MONDAY)->addDays(4)->setTime(10, 0));
+        ExecutionFlowDemo::assignLeads($producing, $this->qa);
+        $planned = ExecutionFlowDemo::plannedTargets($producing, $plan, $today->copy()->subDays(10), $this->qa);
+        $at(-10, 8);
         $producing = ExecutionFlowDemo::requestDp($producing, $this->pm);
-        $payments = app(SupervisorPaymentService::class);
-        $bank = BankAccount::where('is_active', true)->firstOrFail()->id;
         $payments->pay($producing->supervisorPayments()->firstOrFail(), $bank, $this->finance);
-        $report = app(WeeklyReportService::class)->submit($producing, [
-            'notes' => 'Rangka meja selesai sesuai gambar kerja; HPL mulai dilapis. Bahan cukup sampai minggu depan.',
-            'links' => ['https://drive.google.com/drive/folders/demo-laporan-mingguan'],
-            'progress' => $producing->workItems()->where('unit_wage', '>', 0)->pluck('id')->map(fn ($id) => ['item_id' => $id, 'percent' => 50])->all(),
-        ], $this->qa);
-        $report = app(WeeklyReportService::class)->decide($report, true, null, null, $this->pm);
-        $payments->pay($report->payment()->firstOrFail(), $bank, $this->finance);
-        Carbon::setTestNow();
 
-        // Sprint 29 Sub 06 — two Pengawas, both equal (`qa2` / `password`).
+        $friday = (int) $today->diffInDays($today->copy()->subWeek()->startOfWeek(Carbon::MONDAY)->addDays(4), false);
+        $work($planned, -10, $friday, $friday);
+        $at($friday);
+        $check($producing, 'Badan kabinet bawah kitchen set selesai dirakit, rangka & panel partisi terpasang. Bahan cukup sampai minggu depan.', [
+            'Kitchen Set Custom' => 30,
+            'Partisi Ruangan' => 60,
+        ]);
+        $work($planned, $friday, 0, -3);
+        $close($plan['prep']);
+        Carbon::setTestNow();
+        app(WorkItemService::class)->saveDraft($producing, [
+            'progress' => [
+                ['item_id' => ExecutionFlowDemo::itemIds($producing)['Kitchen Set Custom'], 'percent' => 25, 'note' => 'Kabinet atas terpasang, pintu & engsel sebagian.'],
+                ['item_id' => ExecutionFlowDemo::itemIds($producing)['Partisi Ruangan'], 'percent' => 30, 'note' => null],
+            ],
+            'notes' => 'Kabinet atas kitchen set selesai; partisi tinggal finishing tepi.',
+        ], $this->qa);
         $producing->supervisors()->syncWithoutDetaching([User::where('username', 'qa2')->firstOrFail()->id]);
 
-        // Sprint 29 Sub 04 — the Tukang's "Selesai" waits for the Pengawas ("Daily target menunggu dicek").
-        foreach ($done as $task) {
-            $tasks->updateStatus($task, ['status' => 'DONE'], $this->tukang);
-        }
-
-        // 5. Sprint 29 Sub 12 — every item at 100 %: QA per item RAB (Timeline & QC › QC Item).
-        $finishing = $this->openedProject('Dewi Lestari', startedDaysAgo: 20, running: false);
-        $finishing = ExecutionFlowDemo::finishWorkingDrawing($finishing);
-        $kitchen = ExecutionFlowDemo::timeline($finishing, 'Produksi & Pemasangan Kitchen Set', -20, 3);
+        // 5. Sprint 29 Sub 12 — everything installed and at 100 %: QA per item RAB.
+        // Production (from a Monday) reached 71 % at the pengecekan on the Saturday
+        // of the week before the last Friday / Saturday → the PM sent the team to
+        // the site; installed in the days after; the last pengecekan (→ 100 %)
+        // waits for the PM.
+        $sendDay = in_array($today->dayOfWeekIso, [5, 6], true) ? 0 : (int) $today->diffInDays($today->copy()->previous(Carbon::FRIDAY), false);
+        $departure = (int) $today->diffInDays($today->copy()->addDays($sendDay)->subWeek()->startOfWeek(Carbon::MONDAY)->addDays(5), false);
+        $start = $departure - 12;
+        $finishing = $this->openedProject('Dewi Lestari', startedDaysAgo: 10 - $start, running: false);
+        $plan = ExecutionFlowDemo::workPlan($finishing, $start);
+        $at($start - 5);
+        ExecutionFlowDemo::finishWorkingDrawing($finishing);
+        $at($start - 1);
         $finishing = ExecutionFlowDemo::holdMeeting($finishing, $this->pm);
-        $target($finishing, $kitchen->id, 'Pasang kitchen set', 1);
-        // Sprint 36 — sent on the last Friday (or today when it is Friday / Saturday).
-        Carbon::setTestNow(in_array(now()->dayOfWeekIso, [5, 6], true) ? now() : now()->previous(Carbon::FRIDAY)->setTime(10, 0));
+        ExecutionFlowDemo::assignLeads($finishing, $this->qa);
+        $planned = ExecutionFlowDemo::plannedTargets($finishing, $plan, $today->copy()->addDays($start), $this->qa);
+        $at($start, 8);
         $finishing = ExecutionFlowDemo::requestDp($finishing, $this->pm);
-        $itemIds = $finishing->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
-        app(WeeklyReportService::class)->submit($finishing, [
-            'notes' => 'Semua pekerjaan terpasang, siap diperiksa per item.',
-            'progress' => $itemIds->map(fn ($id) => ['item_id' => $id, 'percent' => 100])->all(),
-        ], $this->qa);
-        Carbon::setTestNow();
-        // 100 % ≥ 70 % — the PM sent the team to the site (PEMASANGAN: Temuan Finishing open).
-        app(ProductionService::class)->approveDeparture($finishing, $this->pm);
+        $payments->pay($finishing->supervisorPayments()->firstOrFail(), $bank, $this->finance);
 
-        $itemQa = app(WorkItemQaService::class);
-        if ($itemIds->count() >= 3) {
-            $itemQa->decide($finishing, ['decision' => 'LOLOS', 'item_ids' => $itemIds->slice(0, -2)->values()->all(), 'note' => 'Rapi, sesuai gambar kerja.'], null, $this->qa);
-            $itemQa->decide($finishing, ['decision' => 'PERBAIKAN', 'item_ids' => [$itemIds->last()], 'note' => 'Hasil belum rapi di sisi kanan — rapikan sebelum serah terima.'], null, $this->qa);
+        $work($planned, $start, $departure, PHP_INT_MAX);
+        $at($departure);
+        $check($finishing, 'Kitchen set & partisi selesai diproduksi di workshop, siap dikirim ke lokasi.', [
+            'Kitchen Set Custom' => 80,
+            'Partisi Ruangan' => 100,
+        ]);
+        $at($departure, 14);
+        app(ProductionService::class)->approveDeparture($finishing, $this->pm);
+        $work($planned, $departure, $sendDay, PHP_INT_MAX);
+        $at($sendDay);
+        $check($finishing, 'Kitchen set & partisi terpasang di lokasi, instalasi listrik & lampu selesai — siap diperiksa per item.', [
+            'Kitchen Set Custom' => 20,
+            'Instalasi Listrik & Lampu' => 100,
+        ], decide: false);
+        foreach (['prep', 'partisi', 'kitchen', 'install'] as $key) {
+            $close($plan[$key]);
         }
+        Carbon::setTestNow();
+
+        $items = ExecutionFlowDemo::itemIds($finishing);
+        $itemQa = app(WorkItemQaService::class);
+        $itemQa->decide($finishing, ['decision' => 'LOLOS', 'item_ids' => [$items['Kitchen Set Custom'], $items['Instalasi Listrik & Lampu']], 'note' => 'Rapi, sesuai gambar kerja.'], null, $this->qa);
+        $itemQa->decide($finishing, ['decision' => 'PERBAIKAN', 'item_ids' => [$items['Partisi Ruangan']], 'note' => 'Sambungan panel partisi kedua belum rapi di sisi kanan — rapikan sebelum serah terima.'], null, $this->qa);
     }
 
     /**
@@ -587,8 +640,8 @@ class WorkflowScenarioSeeder extends Seeder
         $project = app(ProjectService::class)->openFromQuotation(ProjectOpening::where('quotation_id', $quotation->id)->sole(), [
             'name' => 'Proyek '.$client,
             'pm_id' => $this->pm->id,
-            // Sprint 23 K14 — the approving PM opens; Kepala Tim typed (an outside team).
-            'team_lead_name' => 'Tim Pak Darto',
+            // Sprint 23 K14 — the approving PM opens; Kepala Tim = the demo Tukang Budi.
+            'team_lead_id' => User::where('username', 'budi')->value('id'),
             // Sprint 24 — the Pengawas (QA/QC) runs the execution flow.
             'supervisor_ids' => [$this->qa->id],
             'opened_on' => now()->subDays(max($startedDaysAgo, 0))->toDateString(),

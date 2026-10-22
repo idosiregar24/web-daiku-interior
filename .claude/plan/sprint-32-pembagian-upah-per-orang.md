@@ -25,12 +25,12 @@ upah berhenti di Kepala Tim. 2026-10-22 user meminta kembali dalam bentuk
 - [x] **[Backend]** RBAC: ⚙ Pengaturan › **Tim Tukang** (`work-teams.*`, `role:CEO|PM|QA|ADMIN_PROYEK`), bobot tingkatan **CEO saja** (`work-teams.levels.update`); pembagian proyek = Pengawas proyek / Admin Proyek (`projects.wage-splits.save`, `role:QA|ADMIN_PROYEK` + `ProjectPolicy::splitWages`); prop `execution.wageSplit` hanya untuk yang melihat Upah Tukang (CEO/PM/Finance/Pengawas proyek + Admin Proyek), template hanya untuk pengisi
 - [x] **[UI]** Halaman **Tim Tukang**: kartu per tim (anggota, bobot, %), kartu Bobot Tingkatan (CEO mengubah), dialog tim — tombol cepat "+ Ketua Tim / + Tukang 1 / …" (bobot terisi sendiri), % langsung terlihat, baris Perusahaan
 - [x] **[UI]** Detail Proyek › Item RAB › **Pembagian Upah**: anggota per Kepala Tim (Atur Anggota → pilih template → sesuaikan, pratinjau rupiah dari pencairan terakhir), **Slip per pencairan** (DP / mingguan / pelunasan, tanpa yang ditolak) per orang + **Salin untuk WhatsApp**
-- [x] **[Seed]** Template File D: Tim Putra (Σ 77), Tim Evan (Σ 72), Tim Yusup (Σ 76) — nama anggota karangan; Proyek Hendra: "Tim Putra" sudah dibagi, "Tim Yusuf" sengaja kosong (dicoba Pengawas)
+- [x] **[Seed]** Template per Kepala Tim demo (bobot File D): Tim Budi, Tim Slamet, Tim Yanto; Proyek Hendra: Budi Tukang & Slamet Wijaya sudah dibagi, Yanto Kurniawan sengaja kosong (dicoba Pengawas)
 - [x] **[Test]** `WageSplitTest`: bobot File D & hanya CEO, RBAC template (Finance/Logistik/Marketing 403), salinan proyek & penyesuaian, label Kepala Tim asing ditolak, angka DP 770.500 → 240.156 · 170.110 · 170.110 · 140.091 · 50.033, prop per role
 
 ## 3. Cara cek (akun `qa` / `password`)
 
-1. Sidebar bawah › **Tim Tukang** — tiga tim File D; ubah satu, tambah orang dengan tombol tingkatan.
-2. Proyek Hendra Gunawan › **Item RAB › Pembagian Upah** — Tim Putra sudah terbagi; **Atur Anggota** di Tim Yusuf → pilih "Tim Yusup" → Simpan.
+1. Sidebar bawah › **Tim Tukang** — Tim Budi, Tim Slamet, Tim Yanto; ubah satu, tambah orang dengan tombol tingkatan.
+2. Proyek Hendra Gunawan › **Item RAB › Pembagian Upah** — Budi Tukang & Slamet Wijaya sudah terbagi; **Atur Anggota** di Yanto Kurniawan → pilih "Tim Yanto" → Simpan.
 3. Di **Slip Pembagian per Pencairan** — bagian tiap orang per pencairan; **Salin untuk WhatsApp**.
 4. Login `ceo` → Tim Tukang → ubah Bobot Tingkatan (tim lama tidak berubah).

@@ -34,13 +34,13 @@ class TodayDemoSeeder extends Seeder
 
         $now = DailyFormSchedule::now();
         // Sprint 24 D6 — targets sit inside a timeline that covers this week.
-        $milestone = ExecutionFlowDemo::timeline($project, 'Pekerjaan Minggu Ini', -1, 10);
+        $milestone = ExecutionFlowDemo::timeline($project, 'Finishing Kitchen Set & Partisi', -1, 10);
 
         $specs = [
-            ['title' => 'Pasang rangka plafon gypsum', 'status' => TaskStatus::OnProgress, 'due' => $now],
-            ['title' => 'Finishing HPL meja dapur', 'status' => TaskStatus::OnProgress, 'due' => $now],
-            ['title' => 'Rapikan instalasi lampu LED', 'status' => TaskStatus::Pending, 'due' => $now],
-            ['title' => 'Pasang kaca cermin kamar mandi', 'status' => TaskStatus::Pending, 'due' => $now->copy()->next('Wednesday')],
+            ['title' => 'Pasang pintu kabinet kitchen set', 'status' => TaskStatus::OnProgress, 'due' => $now],
+            ['title' => 'Tempel HPL partisi ruangan', 'status' => TaskStatus::OnProgress, 'due' => $now],
+            ['title' => 'Touch up cat dinding dapur', 'status' => TaskStatus::Pending, 'due' => $now],
+            ['title' => 'Pasang handle & rel laci kitchen set', 'status' => TaskStatus::Pending, 'due' => $now->copy()->next('Wednesday')],
         ];
 
         $tasks = collect($specs)->map(function (array $spec) use ($taskService, $project, $milestone, $tukang, $pm) {

@@ -4,7 +4,6 @@ namespace Database\Seeders\Demo;
 
 use App\Enums\DailyActivityReviewStatus;
 use App\Models\Material;
-use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Models\Task;
@@ -12,7 +11,6 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\DailyActivityService;
-use App\Services\MilestoneService;
 use App\Services\ProjectMaterialService;
 use App\Services\TaskService;
 use App\Services\WageSplitService;
@@ -30,14 +28,14 @@ use Illuminate\Support\Carbon;
  * - Bambang (TM): part of the Upah Tukang filled, a Rencana Bahan draft
  *   (catalog + custom) → "Ajukan ke Logistik (2 bahan)".
  * - Siska / Hendra / Dewi: the Rencana Bahan at Diajukan / Dipesan / Disetujui.
- * - Hendra: last week's pengecekan (50 %) approved & paid; this week's is
- *   filled as a draft and sent on Friday / Saturday (Sprint 36 — once a
- *   week; typing +20 % on every item → 70 % unlocks "Berangkat ke Lokasi");
- *   one daily target sent back to the Tukang ("Kembalikan"), two waiting.
- * - Sprint 32 — Tim Tukang templates of File D (Tim Putra, Tim Evan, Tim
- *   Yusup); Hendra's "Tim Putra" splits per person, "Tim Yusuf" is left for
- *   the Pengawas to pick a template.
- * - Sprint 35: the wage items sit in the projects' timelines (their schedule).
+ * - Hendra: last week's pengecekan (Kitchen Set 30 %, Partisi 60 %) approved
+ *   & paid; this week's is a draft (+25 % / +30 %) sent on Friday / Saturday
+ *   (Sprint 36 — once a week); today's target sent back to the Tukang
+ *   ("Kembalikan"), the latest ones waiting to be checked.
+ * - Sprint 32 — Tim Tukang templates of the demo Kepala Tim (Tim Budi, Tim
+ *   Slamet, Tim Yanto; bobot as in File D); on Hendra, Budi's and Slamet's
+ *   wages are split per person, Yanto's is left for the Pengawas to pick a
+ *   template.
  * - Aktivitas Harian of `qa`: every working day of last month (two left
  *   empty, one clarification — KpiDemoSeeder computes its KPI), today, the
  *   previous working day (HR asks a clarification) and the day before (Sesuai).
@@ -64,8 +62,8 @@ class PengawasPreviewSeeder extends Seeder
             ->filter(fn (ProjectWorkItem $item, int $index) => $index % 2 === 0)
             ->each(fn (ProjectWorkItem $item) => $wages->update($item, [
                 'unit_wage' => max(1000, round((float) $item->quotationItem->unit_price * 0.15, -3)),
-                'team_lead_name' => 'Tim Pak Darto',
             ], $qa));
+        ExecutionFlowDemo::assignLeads($bambang, $qa);
         $catalog = Material::active()->orderBy('id')->skip(1)->firstOrFail();
         $materials->plan($bambang, ['material_id' => $catalog->id, 'source' => 'GUDANG', 'qty_planned' => 6], $qa);
         $materials->planCustom($bambang, [
@@ -95,29 +93,14 @@ class PengawasPreviewSeeder extends Seeder
             }
         }
 
-        // ── Sprint 35 — each item's schedule is its timeline: the wage items go into the projects' timelines (round robin) ──
-        $milestoneService = app(MilestoneService::class);
-        foreach (['Hendra Gunawan', 'Siska Amelia', 'Dewi Lestari'] as $client) {
-            $timelines = $project($client)->milestones()->reorder()->orderBy('order')->get();
-            $items = $project($client)->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
-
-            if ($timelines->isEmpty()) {
-                continue;
-            }
-
-            $timelines->each(fn (Milestone $timeline, int $index) => $milestoneService->update($timeline, [
-                'work_item_ids' => $items->filter(fn (int $id, int $position) => $position % $timelines->count() === $index)->values()->all(),
-            ]));
-        }
-
         // ── Hendra: last week's pengecekan approved (WorkflowScenarioSeeder); this week's is filled as a
         // draft and sent on Friday / Saturday (Sprint 36). One target sent back to the Tukang. ──
         $hendra = $project('Hendra Gunawan');
 
         $tasks = app(TaskService::class);
-        $hpl = Task::where('project_id', $hendra->id)->where('title', 'Lapis HPL meja')->firstOrFail();
-        $tasks->updateStatus($hpl, ['status' => 'DONE', 'kendala' => 'HPL sisi depan sudah, samping besok.'], $tukang);
-        $tasks->returnToStaff($hpl->fresh(), 'Sisi samping meja belum dilapis — lanjutkan sampai rapi, lalu tandai Selesai lagi.', $qa);
+        $hpl = Task::where('project_id', $hendra->id)->where('title', 'Finishing HPL & cek kerataan kitchen set')->firstOrFail();
+        $tasks->updateStatus($hpl, ['status' => 'DONE', 'kendala' => 'HPL pintu depan sudah, sisi samping kabinet besok.'], $tukang);
+        $tasks->returnToStaff($hpl->fresh(), 'Sisi samping kabinet belum dilapis HPL — lanjutkan sampai rapi, lalu tandai Selesai lagi.', $qa);
 
         // ── Aktivitas Harian of the Pengawas ──
         $activities = app(DailyActivityService::class);
@@ -128,11 +111,11 @@ class PengawasPreviewSeeder extends Seeder
 
         foreach ([
             [$dayBefore, [
-                ['Cek progres rangka meja & laci di workshop', $hendra->id],
+                ['Cek progres kitchen set & partisi di workshop', $hendra->id],
                 ['Koordinasi bahan HPL dengan Logistik', null],
             ]],
             [$yesterday, [
-                ['QA item kitchen set di lokasi — 1 item perlu perbaikan', $dewi->id],
+                ['QA item RAB di lokasi — partisi perlu perbaikan', $dewi->id],
                 ['Isi pengecekan % per item minggu ini', $hendra->id],
             ]],
         ] as [$day, $entries]) {
@@ -172,29 +155,33 @@ class PengawasPreviewSeeder extends Seeder
             'user_id' => $qa->id,
             'date' => $yesterday->toDateString(),
             'status' => DailyActivityReviewStatus::PerluKlarifikasi->value,
-            'note' => 'Item mana yang perlu perbaikan di proyek Dewi? Mohon sebutkan di aktivitas.',
+            'note' => 'Bagian partisi mana yang perlu perbaikan di proyek Dewi? Mohon sebutkan di aktivitas.',
         ], $hr);
 
         $this->seedWorkTeams($qa, $project('Hendra Gunawan'));
     }
 
-    /** Sprint 32 — File D's three teams (bobot as in the sheet, names made up) and Hendra's split. */
+    /**
+     * Sprint 32 — a Tim Tukang template per demo Kepala Tim (the item leads of
+     * ExecutionFlowDemo; bobot as in File D, helpers made up) and Hendra's split.
+     */
     private function seedWorkTeams(User $qa, Project $hendra): void
     {
         $splits = app(WageSplitService::class);
         $member = fn (string $name, string $level, int $weight) => ['name' => $name, 'level' => $level, 'weight' => $weight, 'company' => false];
         $company = ['name' => null, 'level' => 'Perusahaan', 'weight' => 5, 'company' => true];
 
-        $putra = $splits->saveTemplate(null, ['name' => 'Tim Putra', 'leader_name' => 'Putra', 'members' => [
-            $member('Putra', 'Ketua Tim', 24), $member('Andi', 'Tukang 1', 17), $member('Bayu', 'Tukang 1', 17), $member('Candra', 'Tukang 2', 14), $company,
+        $budi = $splits->saveTemplate(null, ['name' => 'Tim Budi', 'leader_name' => 'Budi Tukang', 'members' => [
+            $member('Budi Tukang', 'Ketua Tim', 24), $member('Rudi Hartono', 'Tukang 1', 17), $member('Andi', 'Tukang 1', 17), $member('Candra', 'Tukang 2', 14), $company,
         ]], $qa);
-        $splits->saveTemplate(null, ['name' => 'Tim Evan', 'leader_name' => 'Evan', 'members' => [
-            $member('Evan', 'Ketua Tim', 24), $member('Dimas', 'Tukang 1', 18), $member('Eko', 'Tukang 2', 15), $member('Fajar', 'Helper 1', 10), $company,
+        $slamet = $splits->saveTemplate(null, ['name' => 'Tim Slamet', 'leader_name' => 'Slamet Wijaya', 'members' => [
+            $member('Slamet Wijaya', 'Ketua Tim', 24), $member('Dimas', 'Tukang 1', 18), $member('Eko', 'Tukang 2', 15), $member('Fajar', 'Helper 1', 10), $company,
         ]], $qa);
-        $splits->saveTemplate(null, ['name' => 'Tim Yusup', 'leader_name' => 'Yusup', 'members' => [
-            $member('Yusup', 'Ketua Tim', 24), $member('Gilang', 'Tukang 1', 18), $member('Hadi', 'Helper 1', 11), $member('Imam', 'Helper 1', 11), $member('Joko', 'Helper 2', 7), $company,
+        $splits->saveTemplate(null, ['name' => 'Tim Yanto', 'leader_name' => 'Yanto Kurniawan', 'members' => [
+            $member('Yanto Kurniawan', 'Ketua Tim', 24), $member('Gilang', 'Tukang 1', 18), $member('Hadi', 'Helper 1', 11), $member('Joko', 'Helper 2', 7), $company,
         ]], $qa);
 
-        $splits->saveProjectSplit($hendra, ['team_label' => 'Tim Putra', 'work_team_id' => $putra->id], $qa);
+        $splits->saveProjectSplit($hendra, ['team_label' => 'Budi Tukang', 'work_team_id' => $budi->id], $qa);
+        $splits->saveProjectSplit($hendra, ['team_label' => 'Slamet Wijaya', 'work_team_id' => $slamet->id], $qa);
     }
 }

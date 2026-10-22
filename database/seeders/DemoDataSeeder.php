@@ -605,24 +605,29 @@ class DemoDataSeeder extends Seeder
             // final status written directly here — so start every one of
             // them at the migration default (PENDING).
             // Sprint 24 D6 — every daily target sits inside its timeline (start → offset).
+            // Sprint 35 — each timeline holds the RAB items it works on (Kitchen Set ·
+            // Partisi · Pengecatan); "Produksi" is also Termin 2's milestone.
             $milestoneSpecs = $isFirstProject
                 ? [
-                    ['name' => '3D Design', 'start' => -12, 'offset' => -4],
-                    ['name' => 'Produksi', 'start' => -3, 'offset' => 5],
-                    ['name' => 'Instalasi & Finishing', 'start' => 6, 'offset' => 20],
+                    ['name' => 'Persiapan & Pengecatan', 'start' => -12, 'offset' => -4, 'items' => ['Pengecatan Interior']],
+                    ['name' => 'Produksi', 'start' => -3, 'offset' => 5, 'items' => ['Kitchen Set Custom', 'Partisi Ruangan']],
+                    ['name' => 'Instalasi & Finishing', 'start' => 6, 'offset' => 20, 'items' => ['Kitchen Set Custom', 'Partisi Ruangan']],
                 ]
                 : [
-                    ['name' => '3D Design', 'status' => MilestoneStatus::InProgress, 'start' => -6, 'offset' => 3],
-                    ['name' => 'Produksi', 'status' => MilestoneStatus::Pending, 'start' => 4, 'offset' => 15],
+                    ['name' => 'Persiapan & Potong Bahan', 'status' => MilestoneStatus::InProgress, 'start' => -6, 'offset' => 3, 'items' => []],
+                    ['name' => 'Produksi', 'status' => MilestoneStatus::Pending, 'start' => 4, 'offset' => 15, 'items' => ['Kitchen Set Custom', 'Partisi Ruangan', 'Pengecatan Interior']],
                 ];
 
             $milestones = [];
+            $itemIds = $project->workItems()->with('quotationItem:id,description')->get()
+                ->mapWithKeys(fn ($item) => [$item->quotationItem->description => $item->id]);
 
             foreach ($milestoneSpecs as $spec) {
                 $milestone = $milestoneService->create($project, [
                     'name' => $spec['name'],
                     'start_date' => now()->addDays($spec['start'])->toDateString(),
                     'target_date' => now()->addDays($spec['offset'])->toDateString(),
+                    'work_item_ids' => $itemIds->only($spec['items'])->values()->all(),
                 ]);
 
                 if (! $isFirstProject && $spec['status'] !== MilestoneStatus::Pending) {
@@ -638,16 +643,16 @@ class DemoDataSeeder extends Seeder
 
             $taskSpecs = $isFirstProject
                 ? [
-                    ['title' => 'Pasang kitchen set', 'status' => TaskStatus::Done, 'due_offset' => -5, 'milestone' => 0],
-                    ['title' => 'Finishing cat dinding', 'status' => TaskStatus::Done, 'due_offset' => -4, 'milestone' => 0],
-                    ['title' => 'Rakit lemari pakaian', 'status' => TaskStatus::OnProgress, 'due_offset' => 2, 'milestone' => 1],
-                    ['title' => 'Pasang partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 4, 'milestone' => 1],
-                    ['title' => 'Cek kualitas instalasi listrik', 'status' => TaskStatus::Pending, 'due_offset' => -1, 'milestone' => 1], // overdue on purpose
+                    ['title' => 'Ukur ulang lokasi & cocokkan gambar kerja', 'status' => TaskStatus::Done, 'due_offset' => -5, 'milestone' => 0],
+                    ['title' => 'Pengecatan dinding interior', 'status' => TaskStatus::Done, 'due_offset' => -4, 'milestone' => 0],
+                    ['title' => 'Rakit kabinet kitchen set', 'status' => TaskStatus::OnProgress, 'due_offset' => 2, 'milestone' => 1],
+                    ['title' => 'Rakit rangka partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 4, 'milestone' => 1],
+                    ['title' => 'Potong panel partisi', 'status' => TaskStatus::Pending, 'due_offset' => -1, 'milestone' => 1], // overdue on purpose
                 ]
                 : [
-                    ['title' => 'Survey lokasi awal', 'status' => TaskStatus::Done, 'due_offset' => -2, 'milestone' => 0],
-                    ['title' => 'Pasang partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 3, 'milestone' => 0],
-                    ['title' => 'Pengecatan interior', 'status' => TaskStatus::Pending, 'due_offset' => 10, 'milestone' => 1],
+                    ['title' => 'Ukur lokasi & cocokkan gambar kerja', 'status' => TaskStatus::Done, 'due_offset' => -2, 'milestone' => 0],
+                    ['title' => 'Potong bahan partisi ruangan', 'status' => TaskStatus::OnProgress, 'due_offset' => 3, 'milestone' => 0],
+                    ['title' => 'Rakit kitchen set', 'status' => TaskStatus::Pending, 'due_offset' => 10, 'milestone' => 1],
                 ];
 
             foreach ($taskSpecs as $taskIndex => $spec) {
@@ -663,7 +668,12 @@ class DemoDataSeeder extends Seeder
                 ], $this->pm);
 
                 if ($spec['status'] !== TaskStatus::Pending) {
-                    $taskService->updateStatus($task, ['status' => $spec['status']->value], $assignee);
+                    $task = $taskService->updateStatus($task, ['status' => $spec['status']->value], $assignee);
+                }
+
+                // Sprint 29 Sub 04 — the Tukang's "Selesai" waits for a check; these were checked.
+                if ($spec['status'] === TaskStatus::Done && $task->status === TaskStatus::Pengecekan) {
+                    $taskService->approve($task, $this->pm);
                 }
 
                 if ($spec['status'] === TaskStatus::OnProgress) {
@@ -766,8 +776,8 @@ class DemoDataSeeder extends Seeder
         $milestoneService->markDone($second);
         $secondQaForm = QaForm::where('milestone_id', $second->id)->firstOrFail();
         $qaFormService->review($secondQaForm, 'reject', [
-            ['label' => 'Hasil pekerjaan sesuai spesifikasi/desain', 'passed' => false, 'note' => 'Sambungan masih terlihat'],
-        ], 'Instalasi belum rapi — tolong diperbaiki dan ajukan ulang.', $this->qa);
+            ['label' => 'Hasil pekerjaan sesuai spesifikasi/desain', 'passed' => false, 'note' => 'Sambungan panel partisi masih terlihat'],
+        ], 'Sambungan partisi belum rapi — tolong diperbaiki dan ajukan ulang.', $this->qa);
     }
 
     /**
@@ -839,12 +849,12 @@ class DemoDataSeeder extends Seeder
         $progressLogService = app(ProgressLogService::class);
 
         $progressLogService->create($project, [
-            'description' => 'Kitchen set dan finishing cat dinding selesai (3D Design approved QA).',
+            'description' => 'Persiapan & pengecatan dinding selesai, lolos QA.',
             'log_date' => now()->subDays(4)->toDateString(),
         ], $this->pm);
 
         $progressLogService->create($project, [
-            'description' => 'Produksi berjalan — QA meminta perbaikan instalasi sebelum lanjut ke tahap berikutnya.',
+            'description' => 'Produksi kitchen set & partisi berjalan — QA meminta sambungan partisi dirapikan sebelum lanjut.',
             'ref_urls' => ['https://drive.google.com/demo-progress-produksi'],
             'log_date' => now()->toDateString(),
         ], $this->pm);
