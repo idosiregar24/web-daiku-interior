@@ -105,7 +105,8 @@ export default function WorkingDrawingShow({ drawing, canAssign, canWork, archit
                     <>
                         <StatusChip domain="workingDrawing" status={drawing.status} />
                         {canAssign && (
-                            <Button variant="outline" onClick={() => setAssigning(true)}>
+                            // Not assigned yet = the page's next step → the yellow primary button; reassigning stays secondary.
+                            <Button variant={drawing.pic_id ? 'outline' : 'default'} onClick={() => setAssigning(true)}>
                                 <UserCog className="size-4" />
                                 {drawing.pic_id ? 'Ubah Penugasan' : 'Tugaskan Arsitek'}
                             </Button>
