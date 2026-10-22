@@ -1161,13 +1161,28 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
     return waitingQa > 0 ? { text: `${waitingQa} timeline menunggu Pengawas memeriksa.`, target: { tab: 'milestone', view: 'qc' } } : undefined;
 }
 
-/** Scrolls to a card once the tab that holds it has rendered. */
-function scrollToAnchor(anchor?: string) {
-    if (!anchor) return;
+/** The page-level tab bar — where a target without a card of its own scrolls to. */
+const TABS_ANCHOR = 'tab-proyek';
 
-    requestAnimationFrame(() =>
-        requestAnimationFrame(() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })),
-    );
+/**
+ * Scrolls to a card once the tab that holds it has rendered (waits up to
+ * ~1 s for it to appear); a target without an anchor scrolls to the tab bar,
+ * so "Buka" in Langkah Kerja always lands on what it opened.
+ */
+function scrollToAnchor(anchor: string = TABS_ANCHOR) {
+    let frames = 60;
+
+    const attempt = () => {
+        const element = document.getElementById(anchor) ?? (frames <= 0 ? document.getElementById(TABS_ANCHOR) : null);
+
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (frames-- > 0) {
+            requestAnimationFrame(attempt);
+        }
+    };
+
+    requestAnimationFrame(() => requestAnimationFrame(attempt));
 }
 
 /** Why a non-ACTIVE project looks the way it does — status + (from the audit trail) who/why. */
@@ -1451,7 +1466,7 @@ export default function ProjectShow({
                 />
             )}
 
-            <Tabs value={tab} onValueChange={(next) => setTab(next)}>
+            <Tabs id={TABS_ANCHOR} value={tab} onValueChange={(next) => setTab(next)} className="scroll-mt-20">
                 <UnderlineTabsList>
                     <TabsTrigger value="overview">
                         <LayoutDashboard />
