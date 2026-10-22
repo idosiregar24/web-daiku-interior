@@ -1,3 +1,4 @@
+import { KpiFormulaCard } from '@/Components/modules/hr/KpiFormulaCard';
 import { KpiScoreTable } from '@/Components/modules/hr/KpiScoreTable';
 import { KpiTrendChart } from '@/Components/modules/hr/KpiTrendChart';
 import {
@@ -138,6 +139,8 @@ export function EmployeeKpiTab({ employee, data, canManage, selfView = false }: 
                             })}
                         </ul>
                     </SectionCard>
+
+                    <KpiFormulaCard selfView={selfView} />
                 </>
             )}
 

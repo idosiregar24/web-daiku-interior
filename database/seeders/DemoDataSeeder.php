@@ -1014,6 +1014,18 @@ class DemoDataSeeder extends Seeder
             }
         }
 
+        // Sprint 29 — the demo Pengawas (`qa`), joined at the start of last month:
+        // HR checks its Aktivitas Harian and last month's KPI reads them (PengawasPreviewSeeder).
+        $employees->create([
+            'name' => 'Dodi',
+            'position_id' => OrganizationStructureSeeder::position('Quality Assurance')->id,
+            'base_salary' => 5_000_000,
+            'user_id' => User::where('email', 'qa@daikuinterior.com')->value('id'),
+            'bank_name' => 'BCA',
+            'account_no' => '5200000010',
+            'join_date' => now()->subMonthNoOverflow()->startOfMonth()->toDateString(),
+        ], $this->finance);
+
         $installments = app(AssetInstallmentService::class);
         $pickup = Asset::where('name', 'Mobil Pickup L300')->first();
 

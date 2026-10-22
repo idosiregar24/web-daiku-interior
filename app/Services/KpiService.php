@@ -357,6 +357,14 @@ class KpiService
             ->with(['user', 'position.kpiTemplate.indicators'])
             ->get();
 
+        // Batch-load the month's operational data the AUTO metrics need for everyone at once (Sprint 29 Sub 14).
+        $this->metrics->prime(
+            $employees->pluck('user')->filter()->values(),
+            $employees->flatMap(fn (Employee $employee) => $employee->position->kpiTemplate->indicators->pluck('metric_key'))->filter()->unique()->values()->all(),
+            $from,
+            $to,
+        );
+
         $existing = KpiScore::query()->where('kpi_period_id', $period->id)->get();
         $byKey = $existing->keyBy(fn (KpiScore $score) => $score->employee_id.':'.$score->kpi_indicator_id);
         $cache = [];
@@ -387,20 +395,27 @@ class KpiService
 
                 if ($indicator->source === KpiIndicatorSource::Auto) {
                     $actual = null;
+                    $detail = null;
 
                     if ($employee->user) {
                         $key = $employee->user->id.':'.$indicator->metric_key;
-                        $cache[$key] ??= ['value' => $this->metrics->compute($indicator->metric_key, $employee->user, $from, $to)];
+                        $cache[$key] ??= [
+                            'value' => $this->metrics->compute($indicator->metric_key, $employee->user, $from, $to),
+                            'detail' => $this->metrics->detail($indicator->metric_key, $employee->user, $from, $to),
+                        ];
                         $actual = $cache[$key]['value'];
+                        $detail = $cache[$key]['detail'];
                     }
 
-                    $score->fill(['actual' => $actual, 'input_by' => null]);
+                    $score->fill(['actual' => $actual, 'detail' => $detail, 'input_by' => null]);
                     $summary['autoMissing'] += $actual === null ? 1 : 0;
                 } else {
                     if (! $wasManual) {
                         // Switched AUTO → MANUAL: the computed value isn't HR's input.
                         $score->fill(['actual' => null, 'input_by' => null]);
                     }
+
+                    $score->fill(['detail' => null]);
 
                     $summary['manualMissing'] += $score->actual === null ? 1 : 0;
                 }
@@ -719,6 +734,8 @@ class KpiService
             'target' => (float) $score->target,
             'weight' => (float) $score->weight,
             'actual' => $score->actual === null ? null : (float) $score->actual,
+            // Sprint 29 Sub 14 — the snapshot breakdown (Aktivitas Harian day list), null for other metrics.
+            'detail' => $score->detail,
             'score' => $score->score === null ? null : (float) $score->score,
             'weightedScore' => $score->weighted_score === null ? null : (float) $score->weighted_score,
         ];

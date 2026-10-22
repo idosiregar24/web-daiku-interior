@@ -114,6 +114,20 @@ class Employee extends Model
             ->orWhereHas('user', fn (Builder $user) => $user->whereDoesntHave('roles', fn (Builder $role) => $role->where('name', 'FIELD_STAFF'))));
     }
 
+    /**
+     * Sprint 29 Sub 13 — whose "Aktivitas Harian" HR checks on `$date`: active
+     * SDM employees with an active account who had joined by then. The one
+     * list behind "Periksa Aktivitas" and its Perlu Tindakan queue.
+     */
+    public function scopeActivityReviewable(Builder $query, string $date): Builder
+    {
+        return $query
+            ->hrEligible()
+            ->active()
+            ->whereHas('user', fn (Builder $user) => $user->where('is_active', true))
+            ->where(fn (Builder $q) => $q->whereNull('join_date')->orWhereDate('join_date', '<=', $date));
+    }
+
     /** Divisions/positions filter used by SDM lists (`?division=`/`?position=`). */
     public function scopeInStructure(Builder $query, ?int $divisionId, ?int $positionId): Builder
     {

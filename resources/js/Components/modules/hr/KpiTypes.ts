@@ -1,4 +1,4 @@
-import type { KpiDirection, KpiIndicatorSource, KpiPeriodStatus } from '@/types';
+import type { DailyActivityReviewStatus, KpiDirection, KpiIndicatorSource, KpiPeriodStatus } from '@/types';
 
 /**
  * SDM (Sprint 10, §3.3) — view models KpiService sends to the KPI pages
@@ -18,9 +18,41 @@ export interface KpiScoreRow {
     target: number;
     weight: number;
     actual: number | null;
+    /** Snapshot breakdown behind an AUTO actual — only the Aktivitas Harian metrics have one (Sprint 29 Sub 14). */
+    detail: KpiActivityDetail | null;
     /** 0–120; null = no actual (weight redistributed). */
     score: number | null;
     weightedScore: number | null;
+}
+
+/** One counted day of "Aktivitas Harian" (KpiMetricRegistry::loadDailyActivityMonths). */
+export interface KpiActivityDay {
+    /** YYYY-MM-DD */
+    date: string;
+    /** false = holiday, listed only when something was written. */
+    workDay: boolean;
+    entries: number;
+    /** HR's newest check; null = not checked. */
+    review: DailyActivityReviewStatus | null;
+}
+
+/** Month breakdown of the two Aktivitas Harian metrics, frozen with the score. */
+export interface KpiActivityDetail {
+    kind: 'daily_activity';
+    /** Inclusive range counted (join date … yesterday); `to` before `from` = nothing yet. */
+    from: string;
+    to: string;
+    fromJoinDate: boolean;
+    workDays: number;
+    filledWorkDays: number;
+    filledHolidays: number;
+    /** Filled days HR checked — the base of "% Sesuai". */
+    reviewed: number;
+    sesuai: number;
+    klarifikasi: number;
+    tidakMengisi: number;
+    unreviewed: number;
+    days: KpiActivityDay[];
 }
 
 /** One employee's month on the KPI page. */

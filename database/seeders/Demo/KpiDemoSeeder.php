@@ -66,8 +66,11 @@ class KpiDemoSeeder extends Seeder
             ['Koordinasi tim', null, 90, 20],
         ],
         'Quality Assurance' => [
-            ['Form QA diproses', 'qa_forms_processed_count', 10, 60],
-            ['Ketelitian inspeksi', null, 90, 40],
+            ['Form QA diproses', 'qa_forms_processed_count', 10, 40],
+            ['Ketelitian inspeksi', null, 90, 20],
+            // Sprint 29 Sub 14 — from Aktivitas Harian & HR's Periksa Aktivitas.
+            ['Mengisi aktivitas harian', 'daily_activity_fill_rate', 95, 20],
+            ['Aktivitas dinilai Sesuai', 'daily_activity_ok_rate', 90, 20],
         ],
         'Admin Finance' => [
             ['Termin tertagih tepat waktu', 'termin_on_time_rate', 90, 60],

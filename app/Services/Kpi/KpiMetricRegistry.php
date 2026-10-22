@@ -2,13 +2,17 @@
 
 namespace App\Services\Kpi;
 
+use App\Enums\DailyActivityReviewStatus;
 use App\Enums\KpiDirection;
 use App\Enums\LeadStatus;
 use App\Enums\MilestoneStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\QaStatus;
 use App\Models\AuditLog;
+use App\Models\DailyActivity;
+use App\Models\DailyActivityReview;
 use App\Models\Design;
+use App\Models\Employee;
 use App\Models\Lead;
 use App\Models\Milestone;
 use App\Models\PipelineLog;
@@ -19,7 +23,9 @@ use App\Models\QuotationApproval;
 use App\Models\QuotationItemReview;
 use App\Models\Termin;
 use App\Models\User;
+use App\Models\WorkItemQaCheck;
 use App\Services\DivisionDashboardService;
+use App\Support\DailyFormSchedule;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -171,7 +177,7 @@ class KpiMetricRegistry
             'direction' => KpiDirection::HigherBetter,
             'roles' => ['QA'],
             'positionHints' => ['quality', 'qa'],
-            'description' => 'Keputusan QA (setuju/tolak) yang diambil karyawan pada bulan ini.',
+            'description' => 'Keputusan QA yang diambil karyawan pada bulan ini: form QA timeline (setuju/tolak) dan item RAB yang diperiksa (lolos/perlu perbaikan).',
         ],
         'termin_on_time_rate' => [
             'label' => '% termin tertagih tepat waktu',
@@ -181,7 +187,38 @@ class KpiMetricRegistry
             'positionHints' => ['finance', 'keuangan'],
             'description' => 'Termin jatuh tempo bulan ini yang lunas paling lambat pada tanggal jadwalnya (angka tim Finance, bukan per orang).',
         ],
+        // Sprint 29 Sub 14 (I3) — from "Aktivitas Harian" and HR's "Periksa Aktivitas" (Sub 13).
+        'daily_activity_fill_rate' => [
+            'label' => '% hari kerja mengisi aktivitas harian',
+            'unit' => '%',
+            'direction' => KpiDirection::HigherBetter,
+            'roles' => self::ACTIVITY_ROLES,
+            'positionHints' => [],
+            'description' => 'Hari kerja (sejak tanggal bergabung, sampai kemarin) yang punya minimal satu aktivitas harian. Hari libur tidak dihitung.',
+        ],
+        'daily_activity_ok_rate' => [
+            'label' => '% aktivitas dinilai Sesuai',
+            'unit' => '%',
+            'direction' => KpiDirection::HigherBetter,
+            'roles' => self::ACTIVITY_ROLES,
+            'positionHints' => [],
+            'description' => 'Dari hari terisi yang sudah diperiksa SDM bulan ini, persentase yang pemeriksaan terakhirnya "Sesuai". Hari yang belum diperiksa tidak dihitung.',
+        ],
     ];
+
+    /** Every role that writes "Aktivitas Harian" — all but a Tukang (Sub 13, I1). */
+    private const ACTIVITY_ROLES = ['CEO', 'MARKETING', 'DESIGNER', 'KEPALA_DESAIN', 'ESTIMATOR', 'PM', 'ASISTEN_PM', 'ADMIN_PROYEK', 'QA', 'FINANCE', 'LOGISTICS', 'HR'];
+
+    /** Metrics read from Sub 13's two tables — they share one monthly load and a day breakdown. */
+    private const ACTIVITY_METRICS = ['daily_activity_fill_rate', 'daily_activity_ok_rate'];
+
+    /**
+     * Daily-activity months loaded by prime(), keyed `user:from:to` — valid
+     * for the one KpiService rebuild that primed them.
+     *
+     * @var array<string, array<string, mixed>|null>
+     */
+    private array $activityMonths = [];
 
     public function __construct(private DivisionDashboardService $dashboards) {}
 
@@ -256,9 +293,52 @@ class KpiMetricRegistry
             'project_delay_count' => $this->projectDelayCount($user, $from, $to, $asOf),
             'qa_forms_processed_count' => $this->qaFormsProcessed($user, $from, $to),
             'termin_on_time_rate' => $this->terminOnTimeRate($from, $asOf),
+            'daily_activity_fill_rate' => $this->dailyActivityFillRate($this->dailyActivityMonth($user, $from, $to)),
+            'daily_activity_ok_rate' => $this->dailyActivityOkRate($this->dailyActivityMonth($user, $from, $to)),
         };
 
         return $value === null ? null : round($value, 2);
+    }
+
+    /**
+     * The breakdown behind a metric's value, stored with the actual
+     * (`kpi_scores.detail`) and frozen with it at close. Only the
+     * Aktivitas Harian metrics have one: the month's working days, filled
+     * days, HR's checks and the day list. Null for every other metric.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function detail(string $key, User $user, CarbonInterface $from, CarbonInterface $to): ?array
+    {
+        if (! in_array($key, self::ACTIVITY_METRICS, true)) {
+            return null;
+        }
+
+        return $this->dailyActivityMonth($user, Carbon::instance($from)->startOfDay(), Carbon::instance($to)->startOfDay());
+    }
+
+    /**
+     * Batch-load what the given metrics need for every user of one month in
+     * a fixed number of queries — KpiService::rebuild() calls this before
+     * its per-employee loop (no N+1). Replaces anything primed before.
+     *
+     * @param  Collection<int, User>  $users
+     * @param  list<string>  $keys  metric keys used by the month's templates
+     */
+    public function prime(Collection $users, array $keys, CarbonInterface $from, CarbonInterface $to): void
+    {
+        $this->activityMonths = [];
+
+        if ($users->isEmpty() || array_intersect($keys, self::ACTIVITY_METRICS) === []) {
+            return;
+        }
+
+        $from = Carbon::instance($from)->startOfDay();
+        $to = Carbon::instance($to)->startOfDay();
+
+        foreach ($this->loadDailyActivityMonths($users, $from, $to) as $userId => $month) {
+            $this->activityMonths[$this->activityKey($userId, $from, $to)] = $month;
+        }
     }
 
     // ── Desain (PIC) ──────────────────────────────────────────────────────
@@ -586,13 +666,22 @@ class KpiMetricRegistry
 
     private function qaFormsProcessed(User $user, CarbonInterface $from, CarbonInterface $to): float
     {
-        return (float) AuditLog::query()
+        $timelineForms = AuditLog::query()
             ->where('model_type', 'QaForm')
             ->whereIn('action', ['qa.approved', 'qa.rejected'])
             ->where('user_id', $user->id)
             ->where('created_at', '>=', $from)
             ->where('created_at', '<', $to)
             ->count();
+
+        // Sprint 29 Sub 12 — QA per item RAB: every item decided counts, like a form.
+        $items = WorkItemQaCheck::query()
+            ->where('checked_by', $user->id)
+            ->where('created_at', '>=', $from)
+            ->where('created_at', '<', $to)
+            ->count();
+
+        return (float) ($timelineForms + $items);
     }
 
     // ── Finance ───────────────────────────────────────────────────────────
@@ -619,5 +708,150 @@ class KpiMetricRegistry
             ->count();
 
         return $onTime / $termins->count() * 100;
+    }
+
+    // ── Aktivitas Harian (Sprint 29 Sub 14) ───────────────────────────────
+
+    /** @param  array<string, mixed>|null  $month */
+    private function dailyActivityFillRate(?array $month): ?float
+    {
+        return $month && $month['workDays'] > 0 ? $month['filledWorkDays'] / $month['workDays'] * 100 : null;
+    }
+
+    /** @param  array<string, mixed>|null  $month */
+    private function dailyActivityOkRate(?array $month): ?float
+    {
+        return $month && $month['reviewed'] > 0 ? $month['sesuai'] / $month['reviewed'] * 100 : null;
+    }
+
+    /** @return array<string, mixed>|null the primed month, or a fresh load for this one user */
+    private function dailyActivityMonth(User $user, Carbon $from, Carbon $to): ?array
+    {
+        $key = $this->activityKey($user->id, $from, $to);
+
+        if (array_key_exists($key, $this->activityMonths)) {
+            return $this->activityMonths[$key];
+        }
+
+        return $this->loadDailyActivityMonths(collect([$user]), $from, $to)[$user->id] ?? null;
+    }
+
+    private function activityKey(int $userId, CarbonInterface $from, CarbonInterface $to): string
+    {
+        return $userId.':'.$from->toDateString().':'.$to->toDateString();
+    }
+
+    /**
+     * One month of "Aktivitas Harian" per user — three queries for all of
+     * them. The counted window runs from the employee's join date up to
+     * yesterday (WIB: today can still be written and isn't checkable yet),
+     * the same days "Periksa Aktivitas" owes (Employee::activityReviewable()).
+     * An inactive account isn't checked by HR, so it has no value (null).
+     *
+     * Per day: working day (DailyFormSchedule) or holiday, number of
+     * entries, HR's newest check (append-only, highest id wins). A holiday
+     * is listed only when it has entries and never counts as a working day.
+     *
+     *   fill rate = working days with ≥ 1 entry ÷ working days
+     *   ok rate   = filled days (holidays included) whose newest check is
+     *               SESUAI ÷ filled days that were checked
+     *
+     * @param  Collection<int, User>  $users
+     * @return array<int, array<string, mixed>|null> user id → month
+     */
+    private function loadDailyActivityMonths(Collection $users, Carbon $from, Carbon $to): array
+    {
+        $today = Carbon::parse(DailyFormSchedule::now()->toDateString())->startOfDay();
+        $until = $today->lt($to) ? $today : $to->copy();
+        $userIds = $users->pluck('id')->all();
+
+        $joinDates = Employee::query()
+            ->whereIn('user_id', $userIds)
+            ->whereNotNull('join_date')
+            ->get(['user_id', 'join_date'])
+            ->mapWithKeys(fn (Employee $employee) => [$employee->user_id => $employee->join_date->toDateString()]);
+
+        $entries = DailyActivity::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<', $until->toDateString())
+            ->selectRaw('user_id, DATE(date) as day, COUNT(*) as entries')
+            ->groupByRaw('user_id, DATE(date)')
+            ->toBase()
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->user_id.':'.Carbon::parse($row->day)->toDateString() => (int) $row->entries]);
+
+        $reviews = DailyActivityReview::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<', $until->toDateString())
+            ->orderBy('id')
+            ->get(['id', 'user_id', 'date', 'status'])
+            ->keyBy(fn (DailyActivityReview $review) => $review->user_id.':'.$review->date->toDateString());
+
+        $months = [];
+
+        foreach ($users as $user) {
+            if (! $user->is_active) {
+                $months[$user->id] = null;
+
+                continue;
+            }
+
+            $joined = $joinDates->get($user->id);
+            $fromJoinDate = $joined !== null && $joined > $from->toDateString();
+            $start = $fromJoinDate ? Carbon::parse($joined)->startOfDay() : $from->copy();
+            $days = [];
+
+            for ($day = $start->copy(); $day->lt($until); $day->addDay()) {
+                $date = $day->toDateString();
+                $count = $entries->get($user->id.':'.$date, 0);
+                $isWorkDay = DailyFormSchedule::isWorkDay($day);
+
+                if (! $isWorkDay && $count === 0) {
+                    continue;
+                }
+
+                $days[] = [
+                    'date' => $date,
+                    'workDay' => $isWorkDay,
+                    'entries' => $count,
+                    'review' => $reviews->get($user->id.':'.$date)?->status->value,
+                ];
+            }
+
+            $months[$user->id] = $this->summarizeActivityDays($days, $start, $until, $fromJoinDate);
+        }
+
+        return $months;
+    }
+
+    /**
+     * @param  list<array{date: string, workDay: bool, entries: int, review: string|null}>  $days
+     * @return array<string, mixed>
+     */
+    private function summarizeActivityDays(array $days, Carbon $start, Carbon $until, bool $fromJoinDate): array
+    {
+        $days = collect($days);
+        $filled = $days->filter(fn (array $day) => $day['entries'] > 0);
+        $workDays = $days->where('workDay', true);
+        $reviewed = $filled->filter(fn (array $day) => $day['review'] !== null);
+
+        return [
+            'kind' => 'daily_activity',
+            // Inclusive range counted; `to` before `from` = nothing counted yet (the 1st of the running month).
+            'from' => $start->toDateString(),
+            'to' => $until->copy()->subDay()->toDateString(),
+            'fromJoinDate' => $fromJoinDate,
+            'workDays' => $workDays->count(),
+            'filledWorkDays' => $workDays->filter(fn (array $day) => $day['entries'] > 0)->count(),
+            'filledHolidays' => $filled->where('workDay', false)->count(),
+            'reviewed' => $reviewed->count(),
+            'sesuai' => $reviewed->where('review', DailyActivityReviewStatus::Sesuai->value)->count(),
+            'klarifikasi' => $days->where('review', DailyActivityReviewStatus::PerluKlarifikasi->value)->count(),
+            'tidakMengisi' => $days->where('review', DailyActivityReviewStatus::TidakMengisi->value)->count(),
+            'unreviewed' => $days->whereNull('review')->count(),
+            'days' => $days->values()->all(),
+        ];
     }
 }

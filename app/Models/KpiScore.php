@@ -30,6 +30,7 @@ class KpiScore extends Model
         'weight',
         'direction',
         'actual',
+        'detail',
         'score',
         'weighted_score',
         'input_by',
@@ -43,6 +44,8 @@ class KpiScore extends Model
             'target' => 'decimal:2',
             'weight' => 'decimal:2',
             'actual' => 'decimal:2',
+            // Sprint 29 Sub 14 — breakdown of an AUTO actual (KpiMetricRegistry::detail()).
+            'detail' => 'array',
             'score' => 'decimal:2',
             'weighted_score' => 'decimal:2',
         ];

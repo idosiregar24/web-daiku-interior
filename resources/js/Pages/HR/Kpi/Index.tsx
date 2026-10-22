@@ -1,3 +1,4 @@
+import { KpiFormulaCard } from '@/Components/modules/hr/KpiFormulaCard';
 import { KpiOpenPeriodDialog } from '@/Components/modules/hr/KpiOpenPeriodDialog';
 import { KpiScoreTable } from '@/Components/modules/hr/KpiScoreTable';
 import { KpiTrendChart } from '@/Components/modules/hr/KpiTrendChart';
@@ -319,6 +320,8 @@ export default function KpiIndex({ periods, selected, board, trend, filters, str
                             <EmptyState title="Belum ada nilai KPI." icon={TrendingUp} />
                         )}
                     </SectionCard>
+
+                    <KpiFormulaCard />
                 </div>
             )}
 

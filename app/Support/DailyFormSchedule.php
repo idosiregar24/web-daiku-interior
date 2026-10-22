@@ -62,6 +62,23 @@ final class DailyFormSchedule
         return $day;
     }
 
+    /**
+     * Sprint 29 Sub 13 — the last working day strictly before `$from`:
+     * what HR checks in "Periksa Aktivitas" (on a Monday that is Saturday,
+     * Sunday is never due).
+     */
+    public static function previousWorkDay(Carbon $from): Carbon
+    {
+        $day = $from->copy()->startOfDay()->subDay();
+
+        // Same guard as nextWorkDay() against a config without working days.
+        for ($i = 0; $i < 7 && ! self::isWorkDay($day); $i++) {
+            $day->subDay();
+        }
+
+        return $day;
+    }
+
     public static function now(): Carbon
     {
         return now(self::TIMEZONE);
