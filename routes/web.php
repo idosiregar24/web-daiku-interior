@@ -468,6 +468,8 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
 // Sprint 29 Sub 08 — Upah Tukang per item RAB: the Pengawas or the Admin Proyek (ProjectPolicy::setWages()).
 Route::middleware(['auth', 'role:QA|ADMIN_PROYEK', 'throttle:120,1'])->group(function () {
     Route::put('project-work-items/{workItem}', [WorkItemController::class, 'update'])->name('projects.work-items.update');
+    // Sprint 33 — the Upah Tukang table saved with one "Simpan".
+    Route::put('projects/{project}/work-items/wages', [WorkItemController::class, 'saveWages'])->name('projects.work-items.wages');
     // Sprint 31 Sub 03 — jadwal per item (ProjectPolicy::scheduleWorkItems()).
     Route::put('project-work-items/{workItem}/schedule', [WorkItemController::class, 'updateSchedule'])->name('projects.work-items.schedule');
     // Sprint 31 Sub 07 — "Jadwalkan berurutan" on the Lembar Progres.

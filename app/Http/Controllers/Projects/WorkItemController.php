@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Projects;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\SaveWorkCheckDraftRequest;
+use App\Http\Requests\Projects\SaveWorkItemWagesRequest;
 use App\Http\Requests\Projects\ScheduleWorkItemsSequenceRequest;
 use App\Http\Requests\Projects\UpdateWorkItemRequest;
 use App\Http\Requests\Projects\UpdateWorkItemScheduleRequest;
@@ -26,6 +27,15 @@ class WorkItemController extends Controller
         $service->update($workItem, $request->validated(), $request->user());
 
         return back()->with('success', 'Upah item tersimpan.');
+    }
+
+    /** Sprint 33 — the Upah Tukang table's one "Simpan" (every changed Satuan Upah). */
+    public function saveWages(SaveWorkItemWagesRequest $request, Project $project, WorkItemService $service): RedirectResponse
+    {
+        $this->authorize('setWages', $project);
+        $changed = $service->saveWages($project, $request->validated('items'), $request->user());
+
+        return back()->with('success', "{$changed} upah item tersimpan.");
     }
 
     /** Sprint 31 Sub 03 — one row of the "Jadwal per Item" card (quiet inline save). */

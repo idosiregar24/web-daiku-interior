@@ -171,6 +171,41 @@ class WorkItemService
     }
 
     /**
+     * Sprint 33 — the Upah Tukang table's "Simpan": several Satuan Upah at
+     * once, each through update() (same lock after Start Produksi, same
+     * audit); all or nothing. An error names the row (`items.N.unit_wage`).
+     *
+     * @param  list<array{id: int|string, unit_wage: numeric-string|int|float|null}>  $rows
+     */
+    public function saveWages(Project $project, array $rows, User $actor): int
+    {
+        return DB::transaction(function () use ($project, $rows, $actor) {
+            $items = ProjectWorkItem::query()->where('project_id', $project->id)->whereIn('id', collect($rows)->pluck('id'))->get()->keyBy('id');
+            $changed = 0;
+
+            foreach (array_values($rows) as $index => $row) {
+                $item = $items->get((int) $row['id']);
+
+                if (! $item) {
+                    throw ValidationException::withMessages(["items.{$index}.unit_wage" => 'Item ini bukan item RAB proyek ini.']);
+                }
+
+                $before = $item->unit_wage === null ? null : (float) $item->unit_wage;
+
+                try {
+                    $saved = $this->update($item, ['unit_wage' => $row['unit_wage']], $actor);
+                } catch (ValidationException $error) {
+                    throw ValidationException::withMessages(["items.{$index}.unit_wage" => $error->errors()['unit_wage'][0] ?? 'Upah tidak bisa disimpan.']);
+                }
+
+                $changed += ($saved->unit_wage === null ? null : (float) $saved->unit_wage) !== $before ? 1 : 0;
+            }
+
+            return $changed;
+        });
+    }
+
+    /**
      * "Terapkan ke bagian ini" — one Kepala Tim for several items at once.
      *
      * @param  list<int>  $itemIds

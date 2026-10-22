@@ -128,3 +128,31 @@ test('TM: "TM Selesai" never waits for the Pengawas — upah & bahan stand besid
         ->and($steps['tm-complete']['state'])->toBe('current')
         ->and($steps['tm-complete']['detail'])->toBe('Semua syarat lengkap — tekan tombol di bawah.');
 });
+
+test('Upah Tukang: one "Simpan" saves every changed row; a locked row refuses the whole save and names that row', function () {
+    [$kabinet, $meja] = $this->project->workItems()->orderBy('id')->get()->all();
+
+    $this->actingAs($this->qa)->put(route('projects.work-items.wages', $this->project), ['items' => [
+        ['id' => $kabinet->id, 'unit_wage' => 300_000],
+        ['id' => $meja->id, 'unit_wage' => 150_000],
+    ]])->assertSessionHasNoErrors()->assertSessionHas('success', '2 upah item tersimpan.');
+
+    expect((float) $kabinet->fresh()->unit_wage)->toBe(300_000.0)->and((float) $meja->fresh()->unit_wage)->toBe(150_000.0);
+
+    // After Start Produksi a wage that was set is locked — nothing of the save is kept.
+    $this->project->update(['phase' => ProjectPhase::Produksi->value]);
+    $this->actingAs($this->qa)->put(route('projects.work-items.wages', $this->project), ['items' => [
+        ['id' => $meja->id, 'unit_wage' => 100_000],
+        ['id' => $kabinet->id, 'unit_wage' => 999_000],
+    ]])->assertSessionHasErrors('items.0.unit_wage');
+    expect((float) $meja->fresh()->unit_wage)->toBe(150_000.0);
+
+    // An item of another project is refused.
+    $quotation = Quotation::factory()->create(['type' => 'PROYEK']);
+    QuotationItem::factory()->create(['quotation_id' => $quotation->id, 'qty' => 1, 'unit_price' => 1_000_000, 'total_price' => 1_000_000]);
+    $otherProject = Project::factory()->create(['quotation_id' => $quotation->id]);
+    app(WorkItemService::class)->ensureForProject($otherProject);
+    $other = $otherProject->workItems()->sole();
+    $this->actingAs($this->qa)->put(route('projects.work-items.wages', $this->project), ['items' => [['id' => $other->id, 'unit_wage' => 1]]])
+        ->assertSessionHasErrors('items.0.unit_wage');
+});

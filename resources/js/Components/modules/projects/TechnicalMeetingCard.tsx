@@ -529,7 +529,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                             title="Upah Tukang per Item RAB"
                             holder="Pengawas"
                             done={execution.workItems.summary.paid_items > 0}
-                            description="Isi satuan upah di kolom kanan tiap item RAB — tersimpan saat pindah kolom / Enter. Totalnya jadi nilai upah tukang proyek."
+                            description="Isi satuan upah di kolom kanan tiap item RAB — lalu tekan Simpan di bawah tabel. Totalnya jadi nilai upah tukang proyek."
                         >
                             <WorkItemWageTable projectId={project.id} execution={execution} fieldStaff={fieldStaff} />
                         </TmStep>
@@ -701,7 +701,7 @@ function SupervisorWages({
             </h3>
             <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
                 {execution.can.setWages
-                    ? 'Isi satuan upah di kolom kanan tiap item RAB — tersimpan saat pindah kolom / Enter. Totalnya jadi nilai upah tukang proyek.'
+                    ? 'Isi satuan upah di kolom kanan tiap item RAB — lalu tekan Simpan di bawah tabel. Totalnya jadi nilai upah tukang proyek.'
                     : `Diisi ${project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'}.`}
             </p>
             <WorkItemWageTable projectId={project.id} execution={execution} fieldStaff={fieldStaff} />

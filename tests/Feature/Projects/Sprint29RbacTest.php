@@ -72,6 +72,7 @@ function sprint29Route(object $test, string $name): array
 {
     return match ($name) {
         'work-items.update' => ['put', route('projects.work-items.update', $test->item), ['unit_wage' => 120_000]],
+        'work-items.wages' => ['put', route('projects.work-items.wages', $test->project), ['items' => [['id' => $test->item->id, 'unit_wage' => 120_000]]]],
         'work-items.teamLead' => ['post', route('projects.work-items.teamLead', $test->project), ['item_ids' => [$test->item->id], 'team_lead_name' => 'Putra']],
         'work-check.draft' => ['put', route('projects.work-check.draft', $test->project), ['progress' => [['item_id' => $test->item->id, 'percent' => 10]]]],
         'weekly-reports.store' => ['post', route('projects.weekly-reports.store', $test->project), ['notes' => 'Pengecekan minggu ini.', 'progress' => [['item_id' => $test->item->id, 'percent' => 10]]]],
@@ -90,7 +91,7 @@ test('Sprint 29 routes refuse the roles that may not use them', function (string
     $this->actingAs($this->users[$role])->{$method}($url, $payload)->assertForbidden();
 })->with([
     // Upah Tukang per item & draf pengecekan — the Pengawas or the Admin Proyek only (Sub 08/09).
-    ...collect(['work-items.update', 'work-items.teamLead', 'work-check.draft'])
+    ...collect(['work-items.update', 'work-items.wages', 'work-items.teamLead', 'work-check.draft'])
         ->crossJoin(['PM', 'QA_LAIN', 'LOGISTICS', 'FINANCE', 'HR', 'FIELD_STAFF', 'MARKETING'])->all(),
     // Sending the pengecekan = asking the money — the Pengawas only, never the Admin Proyek (H3).
     ...collect(['weekly-reports.store'])->crossJoin(['ADMIN_PROYEK', 'PM', 'QA_LAIN', 'LOGISTICS', 'FINANCE', 'HR', 'FIELD_STAFF'])->all(),

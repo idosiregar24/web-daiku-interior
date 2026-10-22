@@ -7,6 +7,7 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatRupiah } from '@/lib/format';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
+import { cn } from '@/lib/utils';
 import type { ProjectExecution, User, WorkItemRow } from '@/types';
 import { router } from '@inertiajs/react';
 import { Check, HardHat, Loader2 } from 'lucide-react';
@@ -18,7 +19,7 @@ const TYPED = 'typed';
  * Sprint 29 Sub 08 (B3, File A) — "Upah Tukang" per RAB item: the Pengawas
  * (or Admin Proyek) types the Satuan Upah beside the RAB price; subtotal,
  * bobot and total come from the server (WorkItemService — never computed
- * here). Each row saves when its field is left (quiet partial reload).
+ * here). Sprint 33: the changed rows are saved together with one "Simpan".
  * Read-only for the PM / CEO / Finance, and once a wage is locked after
  * Start Produksi.
  */
@@ -67,10 +68,73 @@ export function WorkItemWageTable({
     const data = execution.workItems;
     const canEdit = execution.can.setWages;
     const producing = execution.phase === 'PRODUKSI' || execution.phase === 'PEMASANGAN';
+    // Sprint 33 — typed values wait for one "Simpan" (only the rows that were changed).
+    const [draft, setDraft] = useState<Record<number, string>>({});
+    const [errors, setErrors] = useState<Record<number, string>>({});
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
 
     if (!data) return null;
 
     const { summary } = data;
+    const items = data.sections.flatMap((section) => section.items);
+    const serverValue = (item: WorkItemRow) => (item.unit_wage === null ? '' : String(item.unit_wage));
+    const valueOf = (item: WorkItemRow) => draft[item.id] ?? serverValue(item);
+    const asNumber = (value: string) => (value.trim() === '' ? null : Number(value));
+    const changed = items.filter((item) => item.id in draft && asNumber(draft[item.id]) !== item.unit_wage);
+    const editable = (item: WorkItemRow) => canEdit && !(producing && item.unit_wage !== null && item.unit_wage > 0);
+
+    function edit(item: WorkItemRow, value: string) {
+        setDraft((rows) => ({ ...rows, [item.id]: value }));
+        setErrors((rows) => {
+            const { [item.id]: _removed, ...rest } = rows;
+            return rest;
+        });
+        setSaved(false);
+    }
+
+    function save() {
+        if (saving || changed.length === 0) return;
+
+        router.put(
+            route('projects.work-items.wages', { project: projectId }),
+            { items: changed.map((item) => ({ id: item.id, unit_wage: asNumber(draft[item.id]) })) },
+            {
+                ...projectVisit(RELOAD.wages, { quiet: true }),
+                onStart: () => setSaving(true),
+                onFinish: () => setSaving(false),
+                onSuccess: () => {
+                    setDraft({});
+                    setErrors({});
+                    setSaved(true);
+                },
+                onError: (response) => {
+                    const byItem: Record<number, string> = {};
+                    Object.entries(response).forEach(([key, message]) => {
+                        const match = key.match(/^items\.(\d+)\./);
+                        const item = match ? changed[Number(match[1])] : undefined;
+                        if (item) byItem[item.id] = message;
+                    });
+                    setErrors(byItem);
+                },
+            },
+        );
+    }
+
+    function field(item: WorkItemRow) {
+        return (
+            <WageField
+                item={item}
+                editable={editable(item)}
+                value={valueOf(item)}
+                dirty={changed.some((row) => row.id === item.id)}
+                error={errors[item.id]}
+                disabled={saving}
+                onChange={(value) => edit(item, value)}
+                onEnter={save}
+            />
+        );
+    }
 
     return (
         <>
@@ -93,7 +157,7 @@ export function WorkItemWageTable({
                                             {item.team_lead && ` · ${item.team_lead}`}
                                         </p>
                                         <div className="mt-2 flex items-center gap-2">
-                                            <WageField item={item} editable={canEdit && !(producing && item.unit_wage !== null && item.unit_wage > 0)} />
+                                            {field(item)}
                                             <p className="shrink-0 text-right text-sm font-medium tabular-nums">{formatRupiah(item.wage_subtotal)}</p>
                                         </div>
                                     </li>
@@ -122,9 +186,7 @@ export function WorkItemWageTable({
                                                 </td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">{formatRupiah(item.unit_price)}</td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap tabular-nums">{formatRupiah(item.rab_subtotal)}</td>
-                                                <td className="px-3 py-2">
-                                                    <WageField item={item} editable={canEdit && !(producing && item.unit_wage !== null && item.unit_wage > 0)} />
-                                                </td>
+                                                <td className="px-3 py-2">{field(item)}</td>
                                                 <td className="px-3 py-2 text-right font-medium whitespace-nowrap tabular-nums">{item.wage_subtotal > 0 ? formatRupiah(item.wage_subtotal) : '—'}</td>
                                                 <td className="px-3 py-2 text-right whitespace-nowrap text-muted-foreground tabular-nums">
                                                     {item.weight !== null ? `${item.weight.toLocaleString('id-ID')}%` : '—'}
@@ -137,6 +199,42 @@ export function WorkItemWageTable({
                             </TableCard>
                         </div>
                     ))}
+
+                    {canEdit && items.some(editable) && (
+                        <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-lg bg-background p-3 shadow-md ring-1 ring-border sm:flex-row sm:items-center sm:justify-between">
+                            <p className={cn('text-sm', changed.length > 0 ? 'font-medium text-warning-ink' : 'text-muted-foreground')} aria-live="polite">
+                                {changed.length > 0 ? (
+                                    `${changed.length} upah belum disimpan — subtotal & total diperbarui setelah disimpan.`
+                                ) : saved ? (
+                                    <span className="inline-flex items-center gap-1 font-medium text-success-ink">
+                                        Tersimpan
+                                        <Check className="size-4" />
+                                    </span>
+                                ) : (
+                                    'Isi satuan upah tiap item, lalu tekan Simpan.'
+                                )}
+                            </p>
+                            <div className="flex gap-2">
+                                {changed.length > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        disabled={saving}
+                                        onClick={() => {
+                                            setDraft({});
+                                            setErrors({});
+                                        }}
+                                    >
+                                        Batalkan
+                                    </Button>
+                                )}
+                                <Button type="button" className="max-md:h-11 max-md:flex-1" disabled={saving || changed.length === 0} onClick={save}>
+                                    {saving && <Loader2 className="size-4 animate-spin" />}
+                                    {saving ? 'Menyimpan…' : changed.length > 0 ? `Simpan ${changed.length} upah` : 'Simpan'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid gap-3 rounded-lg bg-daiku-gray/60 p-4 sm:grid-cols-3">
                         <div>
@@ -172,56 +270,42 @@ export function WorkItemWageTable({
     );
 }
 
-/** One Satuan Upah: saved when the field is left or Enter is pressed (quiet, only `execution` reloads). */
-function WageField({ item, editable }: { item: WorkItemRow; editable: boolean }) {
-    const [value, setValue] = useState(item.unit_wage === null ? '' : String(item.unit_wage));
-    const [saving, setSaving] = useState(false);
-    const [saved, setSaved] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
+/** One Satuan Upah input; the table's "Simpan" sends it (Enter = Simpan). A changed row is marked. */
+function WageField({
+    item,
+    editable,
+    value,
+    dirty,
+    error,
+    disabled,
+    onChange,
+    onEnter,
+}: {
+    item: WorkItemRow;
+    editable: boolean;
+    value: string;
+    dirty: boolean;
+    error?: string;
+    disabled: boolean;
+    onChange: (value: string) => void;
+    onEnter: () => void;
+}) {
     if (!editable) {
         return <p className="text-right tabular-nums">{item.unit_wage ? formatRupiah(item.unit_wage) : '—'}</p>;
     }
 
-    function save() {
-        const next = value.trim() === '' ? null : Number(value);
-        if (saving || next === item.unit_wage || (next === null && item.unit_wage === null)) return;
-
-        router.put(route('projects.work-items.update', { workItem: item.id }), { unit_wage: next }, {
-            ...projectVisit(RELOAD.wages, { quiet: true }),
-            onStart: () => {
-                setSaving(true);
-                setError(null);
-            },
-            onFinish: () => setSaving(false),
-            onSuccess: () => {
-                setSaved(true);
-                window.setTimeout(() => setSaved(false), 1500);
-            },
-            onError: (errors) => {
-                setError(errors.unit_wage ?? Object.values(errors)[0] ?? 'Gagal disimpan.');
-                setValue(item.unit_wage === null ? '' : String(item.unit_wage));
-            },
-        });
-    }
-
     return (
         <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-                <MoneyInput
-                    value={value}
-                    onChange={setValue}
-                    onBlur={save}
-                    onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), save())}
-                    placeholder="Tanpa upah"
-                    aria-label={`Satuan upah ${item.description}`}
-                    className="text-right max-md:h-11"
-                    disabled={saving}
-                />
-                <span className="w-4 shrink-0" aria-live="polite">
-                    {saving ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : saved && <Check className="size-4 text-success-ink" aria-label="Tersimpan" />}
-                </span>
-            </div>
+            <MoneyInput
+                value={value}
+                onChange={onChange}
+                onKeyDown={(event) => event.key === 'Enter' && (event.preventDefault(), onEnter())}
+                placeholder="Tanpa upah"
+                aria-label={`Satuan upah ${item.description}`}
+                aria-invalid={Boolean(error)}
+                className={cn('text-right max-md:h-11', dirty && 'bg-daiku-yellow-light ring-1 ring-daiku-yellow')}
+                disabled={disabled}
+            />
             {error && <p className="mt-1 text-xs font-medium text-error-ink">{error}</p>}
         </div>
     );
