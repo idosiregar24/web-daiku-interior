@@ -263,7 +263,11 @@ export function WorkItemWageTable({
                                             <th className="px-3 py-2 text-right font-semibold">Subtotal RAB</th>
                                             <th className="w-44 px-3 py-2 text-right font-semibold">Satuan Upah</th>
                                             <th className="px-3 py-2 text-right font-semibold">Subtotal Upah</th>
-                                            <th className="px-3 py-2 text-right font-semibold">Bobot</th>
+                                            <th className="px-3 py-2 text-right font-semibold">
+                                                Bobot
+                                                {/* Same formula as WorkItemService::row(). */}
+                                                <span className="block text-[10px] font-normal tracking-normal normal-case">Subtotal RAB ÷ Σ RAB berupah</span>
+                                            </th>
                                             <th className="w-56 px-3 py-2 text-left font-semibold">Tim / Kepala Tim</th>
                                         </tr>
                                     </thead>

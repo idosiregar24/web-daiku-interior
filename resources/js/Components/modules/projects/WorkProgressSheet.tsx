@@ -270,7 +270,12 @@ function SheetTable({
                             </th>
                         )}
                         {showWeight && (
-                            <th rowSpan={2} style={at.weight} className={cn(HEAD, LEFT, edge('weight'), 'text-right')}>
+                            <th
+                                rowSpan={2}
+                                style={at.weight}
+                                className={cn(HEAD, LEFT, edge('weight'), 'text-right')}
+                                title="Bobot = Nilai RAB item ÷ Σ Nilai RAB item berupah × 100%"
+                            >
                                 Bobot
                             </th>
                         )}
