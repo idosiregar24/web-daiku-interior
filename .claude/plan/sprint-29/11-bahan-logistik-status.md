@@ -1,7 +1,7 @@
 # Sprint 29 · 11 — Bahan Custom → Ajukan ke Logistik + Status Pemesanan
 
 > Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-pengawas-upah-tukang.md) · Revisi "Stok barang tidak usah ditampilkan di Pengawas" + ronde 4 · Keputusan E1–E5
-> Status: **belum dikerjakan** · Bergantung: Sub 01 (form bahan cepat)
+> Status: **selesai (2026-10-21)** — sisa: uji browser 390 px · Bergantung: Sub 01 (form bahan cepat)
 
 ## Keputusan user
 > "Pastikan untuk bahan yang ingin digunakan di proyek yang dimasukkan oleh
@@ -44,9 +44,72 @@
 7. Notifikasi Pengawas saat Ditolak, Dipesan, Diterima lengkap.
 
 ## Checklist
-- [ ] **[DB]** `project_materials`: `plan_status` (DIRENCANAKAN/DIAJUKAN …) atau perluasan `request_status`, `ordered_at`, `ordered_by`, `expected_at`
-- [ ] **[Backend]** `ProjectMaterialService::submitPlan()`, `markOrdered()`; props tanpa stok untuk QA; sumber oleh server; antrean & notifikasi Logistik/Pengawas
-- [ ] **[UI]** Planner (katalog + custom, beberapa baris, Ajukan ke Logistik); halaman antrean Logistik (Setujui semua, Tandai Dipesan + perkiraan tiba); chip status di semua tempat
-- [ ] **[UX]** Tanpa menunggu (Sub 01 K1–K6); Logistik bisa memproses banyak baris sekaligus; HP 390 px (Logistik di gudang, Pengawas di lokasi)
-- [ ] **[Test]** Pest: QA tidak menerima `stock`; alur Direncanakan → Diajukan → Disetujui → Dipesan → Diterima; RBAC (Pengawas ajukan, Logistik proses, QA lain 403); custom lewat review katalog
-- [ ] **[Build]** `npm run build`, Pint
+- [x] **[DB]** `project_materials`: perluasan `request_status` (DIRENCANAKAN) + `request_channel` RENCANA, `ordered_at`, `ordered_by`, `expected_at`, `order_note`
+- [x] **[Backend]** `ProjectMaterialService::submitPlan()`, `markOrdered()`; props tanpa stok untuk QA; sumber oleh server; antrean & notifikasi Logistik/Pengawas
+- [x] **[UI]** Planner (katalog + custom, beberapa baris, Ajukan ke Logistik); halaman antrean Logistik (Setujui semua, Tandai Dipesan + perkiraan tiba); chip status di semua tempat
+- [x] **[UX]** Tanpa menunggu (Sub 01 K1–K6); Logistik bisa memproses banyak baris sekaligus; HP 390 px (Logistik di gudang, Pengawas di lokasi) — kartu HP & panel bawah dibuat, belum dicek di browser
+- [x] **[Test]** Pest: QA tidak menerima `stock`; alur Direncanakan → Diajukan → Disetujui → Dipesan → Diterima; RBAC (Pengawas ajukan, Logistik proses, QA lain 403); custom lewat review katalog
+- [x] **[Build]** Pint; `npx tsc --noEmit` bersih (`npm run build` penuh di akhir sprint — sub lain berjalan bersamaan)
+
+## Hasil (2026-10-21)
+- **Data** (`2026_10_21_182108_add_order_tracking_to_project_materials_table`, reversibel):
+  `ordered_at`, `ordered_by` (FK users, null on delete), `expected_at`, `order_note` +
+  index `(request_channel, request_status)`. Status baru `DIRENCANAKAN` di
+  `request_status` (string), kanal baru `RENCANA` di `request_channel`.
+- **Satu status** — `ProjectMaterial::orderStatus()` → `MaterialOrderStatus`
+  (DIRENCANAKAN · MENUNGGU_PM · DIAJUKAN · DISETUJUI · DITOLAK · DIPESAN · SEBAGIAN ·
+  LENGKAP · DARI_GUDANG), di-append sebagai `order_status`. UI: `materialStatus()`
+  (`materialArrival.ts`, `materialArrival()` kini membacanya) + `<MaterialStatusChip>`
+  (`StatusChip domain="materialOrder"`, pemegang giliran di `waitingOn.ts`:
+  Direncanakan → Pengawas, Diajukan/Disetujui/Dipesan/Sebagian → Logistik). Tampil di
+  planner TM, tab Material (Rencana Bahan + tiap baris tabel sumber), kartu Pemesanan
+  Bahan (Eksekusi, + "n sudah dipesan"), Ringkasan (baris "Rencana bahan belum
+  diajukan ke Logistik"), halaman Logistik Pemesanan Bahan.
+- **Siapa lewat Logistik** — `ProjectMaterialService::plansThroughLogistics()`: Pengawas
+  proyek & Admin Proyek, kecuali yang juga merencanakan langsung (Logistik, PM proyek
+  itu, Estimator). PM / Logistik / Estimator tetap seperti dulu (langsung DISETUJUI).
+- **E1** — Pengawas / Admin Proyek (`seeCost` false: bukan CEO/PM/Asisten PM/Logistik/
+  Estimator/Finance) tidak menerima `stock`/`cost_price` (materialOptions & relasi
+  material) maupun `unit_price`/`cost_total` baris; kolom biaya & stok disembunyikan.
+  Sumber dipilih server (`sourceFor`: stok ≥ jumlah → GUDANG, kurang → PEMBELIAN) saat
+  rencana, saat jumlah diubah, dan diulang saat diajukan; `source` dari mereka diabaikan
+  (Form Request: `nullable`). Logistik boleh mengganti sumber saat Setujui.
+- **E2/E3** — katalog lewat `projects.materials.store/storeMany` (draf; item sama
+  selagi draf = jumlah diganti), custom lewat `projects.material-plans.custom`
+  (`StorePlanCustomMaterialRequest`: nama, spesifikasi, jumlah, satuan master, link foto,
+  catatan; form "Simpan & tambah lagi"). "Ajukan ke Logistik (n bahan)" =
+  `projects.material-plans.submit` → semua draf DIAJUKAN sekaligus, audit
+  `logistics.material_plan_submitted`, satu notifikasi `material_plan_submitted` ke
+  Logistik (lonceng → Pemesanan Bahan proyek itu). Rute: `role:QA|ADMIN_PROYEK` +
+  `ProjectPolicy::planMaterials` + `plansThroughLogistics`.
+- **Antrean** — `ActionInboxService::materialPlans()` (`material-plans`, satu baris per
+  proyek "Pengajuan bahan · Proyek X" / "n bahan", badge menu Pemesanan Bahan). Baris
+  Rencana Bahan dikeluarkan dari Pengajuan Barang (halaman, antrean `material-logistics`,
+  pengingat harian) lewat `scopeNotFromPlan()`. Antrean TM Pengawas menghitung
+  "bahan direncanakan" lewat `scopePlanned()` (termasuk draf).
+- **Logistik** — halaman `logistics.material-orders.index` (`role:CEO|PM|ASISTEN_PM|LOGISTICS`,
+  baris per `ProjectMaterial::visibleTo()`, draf tidak tampil; filter status/proyek,
+  dikelompokkan per proyek, centang + "Setujui (n) / Tolak (n) / Tandai Dipesan (n)",
+  kartu di HP). `logistics.material-orders.decide` (`decidePlan`: Setujui katalog,
+  sumber/vendor opsional; Tolak + alasan, juga untuk custom) dan
+  `logistics.material-orders.order` (`markOrdered`: hanya baris dibeli yang disetujui &
+  belum diterima; perkiraan tiba ≥ hari ini, vendor, catatan; ulang = ubah tanggal) —
+  `role:LOGISTICS`. Custom disetujui hanya lewat review katalog yang ada
+  (`MaterialRequestService::review`, dialog yang sama). Penerimaan lewat `purchase` /
+  `issue` yang sudah ada (dialog aksi kini menerima `only`). Semua keputusan diaudit
+  (`logistics.material_plan_approved/rejected`, `logistics.material_ordered`).
+- **E5** — `ProjectMaterialPolicy::revisePlan`: baris RENCANA diubah/dihapus Pengawas
+  proyek / Admin Proyek selama DIRENCANAKAN (proyek berjalan, fase apa pun); sesudah
+  diajukan hanya Logistik. PM tidak mengubah draf Pengawas.
+- **Notifikasi Pengawas** (+ Admin Proyek yang merencanakan): `material_plan_rejected`
+  (decidePlan / review TOLAK), `material_ordered`, `material_received` (sekali, saat
+  baris jadi Lengkap / Dari gudang — juga baris non-rencana di proyek berpengawas).
+- **Penyelesaian proyek** — baris DIAJUKAN menahan COMPLETED (seperti pengajuan lain);
+  draf DIRENCANAKAN tidak.
+- **Test** — `tests/Feature/Logistics/MaterialPlanTest.php` (6 test): E1 props tanpa
+  stok/harga & sumber oleh server, custom + ajukan + notifikasi + antrean + lonceng,
+  kunci E5, alur Setujui/Tolak/custom review/Dipesan/Sebagian/Lengkap/Dari gudang +
+  notifikasi, RBAC halaman (CEO/PM proyek/Logistik ya, PM lain kosong, QA/Admin/Tukang
+  403), penahan COMPLETED. `ExecutionFlowTest` "Pengawas revises…" disesuaikan ke E5.
+- **Catatan** — syarat DP "materials" (`dpRequirements`) tetap terpenuhi oleh draf
+  Rencana Bahan (scope `planned()`); belum diwajibkan "sudah diajukan".

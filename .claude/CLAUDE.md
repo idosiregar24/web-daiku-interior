@@ -231,14 +231,21 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     per untouched target of today; unfinished targets roll over at midnight
     inside their timeline, else OVER. Jasa Pengawas money only through
     `SupervisorPaymentService` (PM approves, Finance pays → PENGELUARAN
-    `JASA_PENGAWAS`, never above the fee, append-only). Progress = actual
-    activity (`Project::actualProgress()`, lists/dashboards via
-    `Project::withActivityCounts()` — never a typed percentage; a progress
+    `JASA_PENGAWAS`, never above the fee, append-only). Progress =
+    `Project::actualProgress()` / `progressFigure()` (Sprint 29 Sub 10, B7):
+    a project whose RAB items carry a wage → the **progres berbobot** of the
+    Pengawas's pengecekan, Σ (bobot × progres item) ÷ 100, formula only in
+    `WorkItemService` (`weightedProgress()`, lists via `withWeightedSums()`);
+    without (older projects) → actual activity (`activityProgress()`).
+    Lists/dashboards: `Project::withActivityCounts()` + `listedProgress()`
+    (no query per row); the UI names the basis (`lib/progress.ts`). Never a
+    typed percentage; a progress
     log is only a PM note, "Catatan Progress"; daily target vs actual for
-    the whole project is the "Activity Target" tab, built once in
+    the whole project is the "Activity Target" tab ("Actual activity (daily
+    target)", also the penalties' basis), built once in
     `ProductionService::activityTarget()` — numbers only, same definitions
     as `targetVsActual()`); ≥ 70 % unlocks "Berangkat ke
-    Lokasi"; open `site_findings` hold QA and completion. The project's
+    Lokasi" (`checkProgress()` after a task DONE and after a pengecekan); open `site_findings` hold QA and completion. The project's
     "Eksekusi" tab is built once in `ProjectExecutionService::overview()`.
     Sprint 27: the DP conditions say what is missing
     (`dpRequirements()` `detail`/`missing` — task titles only for
@@ -250,7 +257,15 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     (QA/QC)"): a timeline's QA check, its notification and queue belong to
     the project's Pengawas (`QaFormPolicy::review`,
     `Project::isQaReviewableBy()`); only a project without a Pengawas is open
-    to every QA user.
+    to every QA user. **QA per item RAB (Sprint 29 Sub 12):** a project with
+    RAB items carrying a wage and no QaForm yet (`Project::usesItemQa()`) has
+    no timeline QA — "Tandai Selesai" closes the timeline; an item at 100 %
+    waits for the Pengawas (`ProjectPolicy::reviewItemQa`, never the Admin
+    Proyek) → Lolos (several at once) / Perlu perbaikan (a `site_findings`
+    row → repair task; closed → QA again), only through `WorkItemQaService`
+    (append-only `work_item_qa_checks`, the newest row counts; status
+    derived, never stored). It completes when every item with a wage passed
+    and no finding is open (`completeIfFinished`).
 18. **Admin Proyek (Sprint 29 Sub 07 — `plan/sprint-29/07-admin-proyek.md`, outside the PRD).**
     Role `ADMIN_PROYEK` (like SUPERADMIN/HR: non-PRD) **inputs on every
     project, never decides**: `Project::isAdministeredBy()`, abilities
@@ -265,6 +280,49 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     never sends it termins, documents or budget. Lands on Perlu Tindakan
     ("Proyek menunggu input", "Daily target menunggu dicek"). Actions are
     audited under its own name.
+19. **Aktivitas Harian (Sprint 29 Sub 13 — `plan/sprint-29/13-aktivitas-harian.md`).**
+    Every account but a Tukang writes `daily_activities` (several a day,
+    optional running project) through `DailyActivityService` — today only,
+    changed/removed only on its own day (`DailyActivityPolicy`). HR's
+    "Periksa Aktivitas" (CEO & PM read) checks a **person-day**
+    (`daily_activity_reviews.user_id` + `date`, append-only, newest row
+    counts) for `Employee::activityReviewable()`; the default day and the
+    HR queue are `DailyFormSchedule::previousWorkDay()` — a holiday never owes
+    "Tidak mengisi". Routes are `daily-activities.*`, deliberately **not**
+    `hr.*`/`module:hr` (PMs read without the rest of SDM).
+20. **Upah Tukang per item RAB (Sprint 29 Sub 08–10 — `plan/sprint-29/08…10`).**
+    Every RAB item of the project's approved RABs is a `project_work_items`
+    row (Satuan Upah + Kepala Tim), set by the project's Pengawas or the
+    Admin Proyek (`ProjectPolicy::setWages`) and locked once Start Produksi;
+    subtotal = satuan upah × volume, bobot = the item's RAB value share. All
+    wage / progress formulas live only in `WorkItemService` (cents and
+    hundredths, never floats); its total is the project's Upah Tukang
+    (`supervisor_fees.total_amount`). DP = 10 % of it, approved by the PM =
+    Start Produksi; a pengecekan adds % per item (`work_item_progress`,
+    append-only) and sending it asks "cair kali ini" (`payableNow()`) through
+    `SupervisorPaymentService` — never above the total; all items 100 % →
+    pelunasan. The money goes to the Pengawas, split per Kepala Tim only
+    (no per-person payment — Sub 08b cancelled).
+21. **Pembagian Upah per Orang (Sprint 32 — `plan/sprint-32-pembagian-upah-per-orang.md`).**
+    A **help** for the Kepala Tim, never a payment: ⚙ Pengaturan › Tim Tukang
+    (`work_teams` templates; `career_levels` bobot, CEO only) copied per
+    project and Kepala Tim label (`project_wage_splits`, Pengawas / Admin
+    Proyek — `ProjectPolicy::splitWages`). % = bobot ÷ Σ bobot; each person's
+    part of a payment's `breakdown` only in `WageSplitService::split()` (whole
+    rupiah, Σ exact; the "Perusahaan" row is the company's share). Shown only
+    to who sees the Upah Tukang (`execution.wageSplit`).
+22. **Langkah Kerja (Sprint 33 — `plan/sprint-33-langkah-kerja.md`).** The
+    running phase's work, in the order it is filled, is built once in
+    `ProjectStepsService` (`execution.steps`) and shown by `WorkStepsPanel`
+    at the top of Detail Proyek. A new step / reorder goes there — never a
+    second "next step" list in a card; each step's `done` reads the same data
+    as the TM / DP conditions. Sprint 31: a week may hold
+    several pengecekan (`weekly_reports.sequence`, the next once the PM
+    decided the week's last one); each item has a production / installation
+    window (`updateSchedule()` / `scheduleSequence()`, Pengawas or Admin
+    Proyek, late → Perlu Tindakan). The UI is Detail Proyek › **Item RAB**
+    (Lembar Progres = the Excel sheet incl. today's input · Upah Tukang · QC
+    Item) — the Eksekusi tab keeps only the flow cards.
 
 ## Local environment
 

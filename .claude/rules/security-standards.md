@@ -123,6 +123,26 @@ PRD §7.1 dulu. Contoh yang sering salah kalau tidak dicek:
   Lokasi"), pembayaran **hanya Finance** (`finance.supervisor-payments.pay`),
   tidak pernah melebihi nilai jasa, tanpa route hapus. Nilai jasa &
   pembayaran hanya dikirim ke CEO / PM / Finance / Pengawas proyek itu.
+- **Pengecekan % per item** (Sprint 29 Sub 09): mengirim pengecekan =
+  mengajukan uang → hanya Pengawas proyek (`weekly-reports.store`,
+  `role:QA` + `supervise`); Admin Proyek hanya mengisi draf
+  (`fillWorkCheck`). `work_item_progress` append-only (koreksi = baris minus
+  + catatan), Σ per item 0–100.
+- **QA per item RAB** (Sprint 29 Sub 12): keputusan Lolos / Perlu perbaikan
+  hanya Pengawas proyek (`projects.item-qa.decide`, `role:QA` +
+  `ProjectPolicy::reviewItemQa`) — **bukan** Admin Proyek / PM. Foto QA di
+  disk privat (WebP tanpa EXIF), hanya lewat `projects.item-qa.photo`
+  (`viewItemQa` — role Timeline & QC); `work_item_qa_checks` append-only.
+- **Pembagian Upah per Orang** (Sprint 32): template Tim Tukang = `role:CEO|PM|QA|ADMIN_PROYEK`,
+  bobot tingkatan karir **CEO saja**; pembagian di proyek = Pengawas proyek /
+  Admin Proyek (`ProjectPolicy::splitWages`). Slip per orang memuat nominal
+  upah → prop `execution.wageSplit` hanya untuk yang melihat Upah Tukang.
+  Alat bantu saja — tidak ada route yang memindahkan uang.
+- **Aktivitas Harian** (Sprint 29 Sub 13): ditulis sendiri hari itu saja
+  (`DailyActivityPolicy`); pemeriksaan HR per orang-hari append-only; route
+  `daily-activities.*` — bukan `module:hr`.
+
+Matriks 403 untuk route-route Sprint 29: `tests/Feature/Projects/Sprint29RbacTest.php`.
 
 Setiap route ber-role wajib feature test RBAC (PRD §10.3 DoD: "RBAC sudah
 diuji untuk semua role yang relevan") — minimal: 1 test role yang berhak

@@ -16,13 +16,13 @@ Induk: [`../sprint-29-revisi-pengawas-upah-tukang.md`](../sprint-29-revisi-penga
 | 07 | [Admin Proyek](07-admin-proyek.md) | 06 | kode selesai — tunggu cek browser |
 | 08 | [Upah Tukang per item RAB](08-upah-tukang.md) | 06, 07 | kode selesai — tunggu cek browser |
 | 08b | [Tim Tukang & pembagian upah per orang](08b-tim-tukang-pembagian-upah.md) | 08 | **dibatalkan** (upah sampai Kepala Tim saja) |
-| 09 | [DP & pencairan upah dari pengecekan %](09-dp-pencairan-upah.md) | 02, 08 | belum |
-| 10 | [Progres proyek berbobot](10-progres-berbobot.md) | 09 | belum |
-| 11 | [Bahan custom → Logistik + status pemesanan](11-bahan-logistik-status.md) | 01 | belum |
-| 12 | [QA per item RAB](12-qa-per-item.md) | 09 | belum |
-| 13 | [Aktivitas Harian & pemeriksaan HR](13-aktivitas-harian.md) | 01 | belum |
-| 14 | [KPI dari Aktivitas Harian](14-kpi-aktivitas.md) | 13 | belum |
-| 15 | [Uji alur, kecepatan ulang & dokumen](15-uji-dokumen.md) | semua | belum |
+| 09 | [DP & pencairan upah dari pengecekan %](09-dp-pencairan-upah.md) | 02, 08 | kode selesai — tunggu cek browser & /security-review |
+| 10 | [Progres proyek berbobot](10-progres-berbobot.md) | 09 | kode selesai — tunggu cek browser |
+| 11 | [Bahan custom → Logistik + status pemesanan](11-bahan-logistik-status.md) | 01 | kode selesai — tunggu cek browser |
+| 12 | [QA per item RAB](12-qa-per-item.md) | 09 | kode selesai — tunggu cek browser |
+| 13 | [Aktivitas Harian & pemeriksaan HR](13-aktivitas-harian.md) | 01 | kode selesai — tunggu cek browser |
+| 14 | [KPI dari Aktivitas Harian](14-kpi-aktivitas.md) | 13 | kode selesai — tunggu cek browser |
+| 15 | [Uji alur, kecepatan ulang & dokumen](15-uji-dokumen.md) | semua | sebagian — ukur kecepatan, cek browser & /security-review → [Sprint 30](../sprint-30-verifikasi-sprint-29.md) |
 
 Setiap sub punya checklist **[UX]** (standar induk §5c) dan memakai pola simpan
 cepat Sub 01 (induk §5b K1–K7).

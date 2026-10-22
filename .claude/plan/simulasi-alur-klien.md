@@ -60,7 +60,8 @@ Marketing  : Invoice DP (langsung setelah klien setuju, atau sesudah Buka
 PM peng-ACC: Buka Proyek (Kepala Tim, Pengawas, tanggal) → termin dibuat otomatis
 PM         : Anggaran (Keuangan) → Timeline → Daily Target → Realisasi
 Tukang     : Kerjakan task + Form Harian (sebelum 21.00)
-PM         : Tandai timeline selesai → QA: Setujui QA
+PM         : Tandai timeline selesai (tanpa QA Form — Sprint 29 Sub 12)
+Pengawas   : Pengecekan % per item → item 100 % → QC Item: Lolos / Perlu perbaikan
 Marketing  : Invoice termin & pelunasan → Finance verifikasi → Proyek Selesai
 ```
 
@@ -360,8 +361,8 @@ membuatnya **Siap Dikirim**.
   Meeting**; PM & Pengawas mendapat notifikasi.
 
 ### Langkah 22 · PM menjalankan Technical Meeting & membuat timeline
-> Semua isian TM (jadwal, timeline, notulen, peserta, jasa pengawas) dan
-> rencana bahan Pengawas ada di **tab Eksekusi → kartu Technical Meeting**.
+> Semua isian TM (jadwal, timeline, notulen, peserta, DP %) dan rencana
+> bahan Pengawas ada di **tab Eksekusi → kartu Technical Meeting**.
 > Langkah rinci: [`simulasi-eksekusi-proyek.md`](simulasi-eksekusi-proyek.md) Tahap 3.
 
 - Kartu TM langkah **2 · Pembagian Timeline** (atau tab **Timeline & QC**) →
@@ -374,24 +375,27 @@ membuatnya **Siap Dikirim**.
 - Gantt (tab **Timeline & QC**) menggambar batang mulai → selesai; **Tanggal
   Selesai Proyek** otomatis = tanggal selesai timeline terakhir.
 - **Login:** qa (Pengawas) → kartu TM → **Bahan yang Digunakan** (cari
-  barang, jumlah, Enter — acuan item RAB di sebelahnya).
+  barang, jumlah, Enter — acuan item RAB di sebelahnya) → **Ajukan ke
+  Logistik**.
 - **Login:** PM → kartu **Technical Meeting**: tanggal (bisa disimpan lebih
-  dulu sebagai jadwal), notulen, peserta (akun atau ketik nama), **Nilai
-  Jasa Pengawas** `5.000.000`, DP `10`%, Tanggal Selesai Proyek → **Simpan
-  TM** → setelah semua syarat ✓ → **TM Selesai** (hanya di header halaman;
+  dulu sebagai jadwal), notulen, peserta (akun atau ketik nama), DP `10`%,
+  Tanggal Selesai Proyek → **Simpan TM** → setelah semua syarat ✓ → **TM Selesai** (hanya di header halaman;
   kartu TM menulis "Tombol TM Selesai ada di atas halaman" → pop-up
   konfirmasi). **Hasil:** tahap **Persiapan**; chip status proyek menyebut
   pemegang giliran fase (sama dengan stepper), bukan selalu "PM".
-- **Login:** qa (Pengawas) → tab **Daily Target** → **Tambah Daily Target** (wajib
-  timeline, tanggal di dalam rentang timeline, isi **Upah**):
+- **Login:** qa (Pengawas) → tab **Eksekusi** → kartu **Upah Tukang** → isi
+  **Satuan Upah** tiap item RAB (barang jadi dibiarkan kosong) + **Kepala
+  Tim**. Total = nilai Upah Tukang proyek (Sprint 29 Sub 08).
+- **Login:** qa (Pengawas) → tab **Daily Target** → **Tambah Daily Target**
+  (wajib timeline):
   - Judul: `Bongkar plafon lama lantai 1` · Tukang: Field Staff Daiku Interior
-  - Timeline: Persiapan & Bongkar · Tanggal Target: +3 hari · Upah: 250.000
-- Tab **Eksekusi** → **Ajukan DP Pengawas** (aktif bila bahan ✓ · upah ✓ ·
-  tiap timeline punya target). **Login:** PM → **Putuskan → Setujui**.
+  - Timeline: Persiapan & Bongkar · Tanggal Target: +3 hari
+- Tab **Eksekusi** → kartu **Syarat DP Upah Tukang** → **Ajukan DP Upah ·
+  Rp x** (10 % × total upah; aktif bila bahan ✓ · upah ✓ · tiap timeline
+  punya target). **Login:** PM → **Putuskan → Setujui**.
   **Hasil:** **Start Produksi** — timeline pertama (*Persiapan & Bongkar*)
   otomatis **Dikerjakan**; Logistik diminta memesan bahan; Finance
-  melihat "Bayar Pengawas: DP · Proyek …" di **Pembayaran Staf → Jasa
-  Pengawas** → **Bayar**.
+  melihat DP di **Keuangan → Upah Tukang** → **Bayar**.
 
 ### Langkah 23 · Tukang mengerjakan target (dari HP)
 - **Login:** fieldstaff@daikuinterior.com (sebaiknya dari HP / layar kecil)
@@ -407,17 +411,19 @@ membuatnya **Siap Dikirim**.
   timeline; lewat timeline → **Terlambat**.
 - **Pengawas** bisa memindah target di tab **Daily Target → Per Hari**: seret
   kartu, atau ketuk kartu → **Pindah ke sini** di hari tujuan; atau **Tukar
-  Hari** (tab Eksekusi → Target vs Actual). Hanya hari kerja (Senin–Sabtu) di
-  dalam rentang timeline — hari Minggu tidak ditawarkan dan ditolak server.
-- **Jumat:** Pengawas → tab Eksekusi → **Laporan Mingguan** → PM
-  **Putuskan** (setujui + nominal jasa minggu ini, atau tolak + alasan).
-- Actual activity ≥ 70% → PM mendapat notifikasi → **Setujui Berangkat ke
+  Hari** (tab Eksekusi → Target vs Actual). Bebas, tidak dibatasi timeline
+  (Sprint 29 Sub 05) — hari Minggu tidak ditawarkan dan ditolak server.
+- **Paling lambat Jumat:** Pengawas → tab Eksekusi → **Pengecekan Mingguan** →
+  isi **tambahan % per item RAB** → **Kirim Pengecekan · Ajukan Rp x** (= upah
+  yang boleh cair menurut progres) → PM **Putuskan** (setujui, boleh
+  menurunkan, atau tolak + alasan) → Finance **Upah Tukang → Bayar**.
+- **Progres berbobot** (dari pengecekan, ditimbang nilai RAB) ≥ 70% → PM mendapat notifikasi → **Setujui Berangkat ke
   Lokasi** → pop-up konfirmasi (perpindahan fase tidak bisa dibatalkan) →
   **Ya, berangkat** → tahap **Pemasangan**: Pengawas mencatat **Temuan Finishing** →
-  **Jadikan Task Perbaikan**. Temuan terbuka menahan QA timeline.
-- Selesai bekerja → status **Minta dicek** → PM: menu **Tugas** → saring status
-  **Minta dicek** → **Ubah Status** → **Selesai** (pilihan status memakai kata
-  yang sama dengan Tukang).
+  **Jadikan Task Perbaikan**. Temuan terbuka menahan penyelesaian proyek.
+- Selesai bekerja → status **Minta dicek** → Pengawas (atau PM): tab **Daily
+  Target → Per Hari** → **Setujui** / **Kembalikan** (catatan) / **Setujui
+  semua**; tukang yang tidak sempat melapor → **Centang selesai**.
 - **Opsional:** **Ajukan Barang** (nama + jumlah + catatan → ACC PM/Asisten
   PM → Logistik) dan **Pengajuan lembur** (→ PM **Setujui Lembur**).
 - Tukang tidak bisa mengubah judul, deskripsi, atau jatuh tempo task.
@@ -436,36 +442,42 @@ membuatnya **Siap Dikirim**.
 
 ## Tahap 8 — QA & termin berikutnya
 
-### Langkah 25 · PM menyerahkan timeline ke QA
+### Langkah 25 · PM menandai timeline selesai
 - Tab **Timeline & QC** → timeline *Persiapan & Bongkar* → **Tandai Selesai**
   → pop-up konfirmasi. (Sistem belum mensyaratkan semua daily target di
   dalamnya Selesai — keputusan Sprint 28 K17, ditinjau lagi nanti.)
-- **Hasil:** timeline **Belum Diperiksa · QA**; QA Form dibuat otomatis.
+- **Hasil (Sprint 29 Sub 12, G3):** proyek ini memakai Upah Tukang per item
+  RAB, jadi QA dilakukan **per item RAB** — timeline langsung **Selesai**
+  tanpa QA Form, timeline berikutnya otomatis berjalan. (Proyek lama yang
+  timeline-nya sudah pernah lewat QA Form tetap memakai alur QA per timeline.)
 
-### Langkah 26 · QA memeriksa
-- **Login:** qa@daikuinterior.com → menu **QA** → buka QA Form proyek ini
-- Bila masih ada **Temuan Finishing** terbuka, halaman QA langsung menampilkan
-  "N temuan finishing masih terbuka…" + **Lihat Temuan**, dan **Setujui QA**
-  terkunci sampai temuannya selesai.
-- Isi **Checklist Kualitas** (lulus/tidak + catatan) → **Setujui QA**.
-- **Hasil:** timeline **Selesai**; timeline berikutnya otomatis berjalan;
-  PM mendapat notifikasi.
-
-> **Variasi:** **Tolak QA** → timeline kembali ke PM untuk diperbaiki,
-> lalu **Tandai Selesai** lagi. Ditolak ≥ 2× tampil di Dashboard QA.
+### Langkah 26 · Pengawas memeriksa item RAB (QC Item)
+- Item yang mencapai **100 %** di pengecekan Pengawas muncul di **Perlu
+  Tindakan** → "Item menunggu QA · n item · Proyek X" → tab **Timeline & QC →
+  QC Item**.
+- **Lolos banyak sekaligus:** centang item → **Lolos QA (n)** → pop-up
+  konfirmasi.
+- **Periksa satu item:** **Periksa** → **Lolos** / **Perlu Perbaikan** + catatan,
+  foto dari kamera HP, atau link → simpan.
+- **Perlu perbaikan** → temuan tercatat → **Jadikan Task Perbaikan** (Tukang) →
+  setelah task disetujui (atau **Sudah Diperbaiki**), item kembali **Menunggu
+  QA** → **Periksa** lagi.
+- **Hasil:** PM mendapat notifikasi "QA Item RAB". Admin Proyek bisa melihat
+  tetapi tidak bisa memutuskan.
 
 ### Langkah 27 · Termin 2 & pelunasan
-- Ulangi Langkah 22–26 untuk timeline **Pemasangan Interior**. Setelah QA
-  menyetujuinya, Termin 2 jatuh tempo → Marketing mendapat pengingat
+- Ulangi Langkah 22–25 untuk timeline **Pemasangan Interior**. Setelah
+  timeline itu selesai, Termin 2 jatuh tempo → Marketing mendapat pengingat
   "Terbitkan Invoice Termin 2 dari 3 · 30%" → **Terbitkan Invoice** → **Tandai
   Klien Sudah Bayar** → Finance **Verifikasi Pembayaran**. Chip termin ikut
   invoice-nya ("Menunggu Konfirmasi · Finance" setelah bukti dikirim).
 - **Variasi:** Marketing boleh menagih termin sebelum pemicunya tercapai —
   dialog hanya memberi keterangan "Pemicu belum tercapai (…)", tidak memblokir.
-- Selesaikan timeline **Finishing & Serah Terima** → QA **Setujui QA**.
-- **Hasil:** proyek otomatis **Completed** (syarat: semua timeline lolos
-  QA, tidak ada sisa material, tidak ada pengajuan barang yang belum
-  diputuskan). Termin **Pelunasan** jatuh tempo ("Terbitkan Invoice Pelunasan")
+- Selesaikan timeline **Finishing & Serah Terima**, pengecekan terakhir
+  membawa semua item ke 100 % → QC Item: semua item **Lolos QA** (Langkah 26).
+- **Hasil:** proyek otomatis **Completed** (syarat: semua item berupah lolos
+  QA, tidak ada temuan terbuka, tidak ada sisa material, tidak ada pengajuan
+  barang yang belum diputuskan). Termin **Pelunasan** jatuh tempo ("Terbitkan Invoice Pelunasan")
   → invoice → verifikasi Finance.
 
 > **RAB Tambahan (opsional):** klien minta pekerjaan tambah saat proyek
@@ -514,6 +526,6 @@ membuatnya **Siap Dikirim**.
 - [ ] 22. PM: timeline (mulai–selesai) & task
 - [ ] 23. Tukang: kerjakan task + Form Harian
 - [ ] 24. PM: realisasi + overrun → CEO
-- [ ] 25–26. PM: Tandai Selesai → QA: Setujui QA
+- [ ] 25–26. PM: Tandai Selesai → Pengawas: QC Item (Lolos / Perlu perbaikan)
 - [ ] 27. Termin 2, pelunasan, proyek Completed
 - [ ] Pengecekan akhir (Tahap 9)
