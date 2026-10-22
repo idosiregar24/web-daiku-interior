@@ -182,7 +182,7 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
 const HEAD = 'bg-daiku-yellow-light px-2 py-1.5 text-[11px] font-semibold tracking-wide text-daiku-muted uppercase';
 // Kept in view while the days scroll: NO + Uraian on the left, TOTAL % + Kontribusi on the right (like the sheet's frozen panes).
 // Frozen left: NO · Uraian (+ volume) · Nilai · Bobot — offsets in px, the money columns only for who sees them.
-const W = { no: 40, item: 224, value: 104, weight: 64 };
+const W = { no: 40, item: 224, value: 104, weight: 88 };
 const LEFT = 'sticky z-10';
 const RIGHT_TOTAL = 'sticky right-24 z-10 w-20 min-w-20 border-l border-border';
 const RIGHT_SHARE = 'sticky right-0 z-10 w-24 min-w-24';
@@ -277,6 +277,8 @@ function SheetTable({
                                 title="Bobot = Nilai RAB item ÷ Σ Nilai RAB item berupah × 100%"
                             >
                                 Bobot
+                                {/* Same formula as WorkItemService (the sheet's bobot). */}
+                                <span className="block text-[10px] leading-tight font-normal tracking-normal normal-case">Nilai ÷ Σ Nilai berupah</span>
                             </th>
                         )}
                         {months.map((month) => (
