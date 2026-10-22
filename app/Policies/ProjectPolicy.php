@@ -150,6 +150,57 @@ class ProjectPolicy
             && ($this->supervise($user, $project) || $project->isAdministeredBy($user));
     }
 
+    /**
+     * Sprint 31 Sub 03 — the "Jadwal per Item" (production / installation
+     * window per RAB item): the project's Pengawas or the Admin Proyek, while
+     * the project runs — like the Upah Tukang, but never locked (a schedule
+     * moves). The PM reads it; the project's dates stay the PM's.
+     */
+    public function scheduleWorkItems(User $user, Project $project): bool
+    {
+        return $this->setWages($user, $project);
+    }
+
+    /**
+     * Sprint 32 — Pembagian Upah per Orang: the people of each Kepala Tim on
+     * this project (a help for the Kepala Tim; never moves money).
+     */
+    public function splitWages(User $user, Project $project): bool
+    {
+        return $this->setWages($user, $project);
+    }
+
+    /**
+     * Sprint 29 Sub 09 (C1, H2) — fill the draft of the pengecekan % per item
+     * during production: the project's Pengawas or the Admin Proyek. Sending
+     * it (= asking the money) stays supervise().
+     */
+    public function fillWorkCheck(User $user, Project $project): bool
+    {
+        return $project->status === ProjectStatus::Active
+            && $project->currentPhase()->isProducing()
+            && ($this->supervise($user, $project) || $project->isAdministeredBy($user));
+    }
+
+    /**
+     * Sprint 29 Sub 12 (G1, H3) — decide QA per item RAB: the project's
+     * Pengawas (QA/QC), every one of them; a project without a Pengawas →
+     * every QA user (same rule as QaFormPolicy::review). Never the Admin Proyek.
+     */
+    public function reviewItemQa(User $user, Project $project): bool
+    {
+        return $project->isQaReviewableBy($user);
+    }
+
+    /**
+     * Sprint 29 Sub 12 — see the QC Item view and its photos: the roles of the
+     * "Timeline & QC" tab (ProjectController::show() `$canViewQa`).
+     */
+    public function viewItemQa(User $user, Project $project): bool
+    {
+        return $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'QA', 'ADMIN_PROYEK']) && $this->view($user, $project);
+    }
+
     public function approveExecution(User $user, Project $project): bool
     {
         return $this->ownsAsPm($user, $project);

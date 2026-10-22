@@ -30,11 +30,13 @@ class SaveTechnicalMeetingRequest extends FormRequest
             'meeting_date' => ['required', 'date'],
             'notes' => ['nullable', 'string', 'max:10000'],
             'attendees' => ['nullable', 'array', 'max:50'],
-            'attendees.*.user_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
-            'attendees.*.name' => ['nullable', 'string', 'max:120', 'required_without:attendees.*.user_id'],
+            // Sprint 33 — nobody twice (the picker never offers them again either).
+            'attendees.*.user_id' => ['nullable', 'integer', 'distinct', Rule::exists('users', 'id')],
+            'attendees.*.name' => ['nullable', 'string', 'max:120', 'distinct:ignore_case', 'required_without:attendees.*.user_id'],
             // Sprint 29 Sub 08 — with work items the total is Σ upah per item, not typed here.
             'fee_total' => [Rule::requiredIf(fn () => $project->supervisorFee()->exists() && ! $project->workItems()->exists()), 'nullable', 'numeric', 'min:0', 'max:9999999999999.99'],
-            'dp_percent' => ['required', 'numeric', 'min:0', 'max:100'],
+            // Sprint 33 — with work items the DP is 10 % of Σ upah per item, the PM adjusts the amount when approving it.
+            'dp_percent' => [Rule::requiredIf(fn () => ! $project->workItems()->exists()), 'nullable', 'numeric', 'min:0', 'max:100'],
             'end_date' => ['nullable', 'date', ...($project->start_date ? ['after_or_equal:'.$project->start_date->toDateString()] : [])],
         ];
     }
@@ -46,6 +48,8 @@ class SaveTechnicalMeetingRequest extends FormRequest
             'notes.max' => 'Notulen terlalu panjang.',
             'attendees.max' => 'Maksimal 50 peserta.',
             'attendees.*.name.required_without' => 'Isi nama peserta atau pilih dari daftar.',
+            'attendees.*.user_id.distinct' => 'Peserta yang sama tidak boleh ditambahkan dua kali.',
+            'attendees.*.name.distinct' => 'Nama peserta yang sama tidak boleh ditambahkan dua kali.',
             'fee_total.required' => 'Nilai upah tukang wajib diisi.',
             'fee_total.numeric' => 'Nilai upah tukang harus berupa angka.',
             'dp_percent.required' => 'DP % wajib diisi.',

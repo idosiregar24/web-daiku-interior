@@ -25,13 +25,17 @@ use App\Services\InvoiceService;
 use App\Services\LeadService;
 use App\Services\MaterialRequestService;
 use App\Services\MilestoneService;
+use App\Services\ProductionService;
 use App\Services\ProjectBudgetService;
 use App\Services\ProjectService;
 use App\Services\QaFormService;
 use App\Services\QuotationService;
+use App\Services\SupervisorPaymentService;
 use App\Services\TaskService;
 use App\Services\TerminService;
 use App\Services\WeeklyReportService;
+use App\Services\WorkItemQaService;
+use App\Services\WorkItemService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -497,7 +501,7 @@ class WorkflowScenarioSeeder extends Seeder
         $target($preparing, $wardrobe->id, 'Rakit badan lemari', 3);
         ExecutionFlowDemo::requestDp($preparing, $this->pm, approve: false);
 
-        // 4. In production: targets checked off, one rolled, this week's report waiting for the PM.
+        // 4. In production: targets checked off, one sent back, two Kepala Tim, two timelines (Sprint 29).
         $producing = $this->openedProject('Hendra Gunawan', startedDaysAgo: 10, running: false);
         $producing = ExecutionFlowDemo::finishWorkingDrawing($producing);
         $furniture = ExecutionFlowDemo::timeline($producing, 'Produksi Furnitur', -10, 10);
@@ -508,16 +512,60 @@ class WorkflowScenarioSeeder extends Seeder
         ];
         $target($producing, $furniture->id, 'Lapis HPL meja', 0);
         $target($producing, $furniture->id, 'Pasang laci & engsel', 2);
+        // Sprint 29 Sub 05 — a second timeline: targets move freely between them.
+        $installation = ExecutionFlowDemo::timeline($producing, 'Pemasangan Furnitur', 11, 20);
+        $target($producing, $installation->id, 'Pasang meja & lemari di lokasi', 12);
+        // Sprint 29 Sub 08/09 — two Kepala Tim: every Upah Tukang payment is split between them.
+        $wageItems = $producing->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
+        $half = (int) ceil($wageItems->count() / 2);
+        app(WorkItemService::class)->assignTeamLead($producing, $wageItems->take($half)->all(), null, 'Tim Putra', $this->qa);
+        app(WorkItemService::class)->assignTeamLead($producing, $wageItems->slice($half)->values()->all(), null, 'Tim Yusuf', $this->qa);
+        // Sprint 29 — production started last week: DP paid, week 1's pengecekan
+        // (50 % per item) approved & paid; this week's (+25 % → 75 %, past the
+        // 70 % of "Berangkat ke Lokasi") is a draft the Pengawas can still
+        // change and send (PengawasPreviewSeeder).
+        Carbon::setTestNow(now()->subWeek()->setTime(10, 0));
         $producing = ExecutionFlowDemo::requestDp($producing, $this->pm);
+        $payments = app(SupervisorPaymentService::class);
+        $bank = BankAccount::where('is_active', true)->firstOrFail()->id;
+        $payments->pay($producing->supervisorPayments()->firstOrFail(), $bank, $this->finance);
+        $report = app(WeeklyReportService::class)->submit($producing, [
+            'notes' => 'Rangka meja selesai sesuai gambar kerja; HPL mulai dilapis. Bahan cukup sampai minggu depan.',
+            'links' => ['https://drive.google.com/drive/folders/demo-laporan-mingguan'],
+            'progress' => $producing->workItems()->where('unit_wage', '>', 0)->pluck('id')->map(fn ($id) => ['item_id' => $id, 'percent' => 50])->all(),
+        ], $this->qa);
+        $report = app(WeeklyReportService::class)->decide($report, true, null, null, $this->pm);
+        $payments->pay($report->payment()->firstOrFail(), $bank, $this->finance);
+        Carbon::setTestNow();
 
+        // Sprint 29 Sub 06 — two Pengawas, both equal (`qa2` / `password`).
+        $producing->supervisors()->syncWithoutDetaching([User::where('username', 'qa2')->firstOrFail()->id]);
+
+        // Sprint 29 Sub 04 — the Tukang's "Selesai" waits for the Pengawas ("Daily target menunggu dicek").
         foreach ($done as $task) {
             $tasks->updateStatus($task, ['status' => 'DONE'], $this->tukang);
         }
 
-        app(WeeklyReportService::class)->submit($producing, [
-            'notes' => 'Rangka meja selesai sesuai gambar kerja; HPL mulai dilapis. Bahan cukup sampai minggu depan.',
-            'links' => ['https://drive.google.com/drive/folders/demo-laporan-mingguan'],
+        // 5. Sprint 29 Sub 12 — every item at 100 %: QA per item RAB (Timeline & QC › QC Item).
+        $finishing = $this->openedProject('Dewi Lestari', startedDaysAgo: 20, running: false);
+        $finishing = ExecutionFlowDemo::finishWorkingDrawing($finishing);
+        $kitchen = ExecutionFlowDemo::timeline($finishing, 'Produksi & Pemasangan Kitchen Set', -20, 3);
+        $finishing = ExecutionFlowDemo::holdMeeting($finishing, $this->pm);
+        $target($finishing, $kitchen->id, 'Pasang kitchen set', 1);
+        $finishing = ExecutionFlowDemo::requestDp($finishing, $this->pm);
+        $itemIds = $finishing->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
+        app(WeeklyReportService::class)->submit($finishing, [
+            'notes' => 'Semua pekerjaan terpasang, siap diperiksa per item.',
+            'progress' => $itemIds->map(fn ($id) => ['item_id' => $id, 'percent' => 100])->all(),
         ], $this->qa);
+        // 100 % ≥ 70 % — the PM sent the team to the site (PEMASANGAN: Temuan Finishing open).
+        app(ProductionService::class)->approveDeparture($finishing, $this->pm);
+
+        $itemQa = app(WorkItemQaService::class);
+        if ($itemIds->count() >= 3) {
+            $itemQa->decide($finishing, ['decision' => 'LOLOS', 'item_ids' => $itemIds->slice(0, -2)->values()->all(), 'note' => 'Rapi, sesuai gambar kerja.'], null, $this->qa);
+            $itemQa->decide($finishing, ['decision' => 'PERBAIKAN', 'item_ids' => [$itemIds->last()], 'note' => 'Hasil belum rapi di sisi kanan — rapikan sebelum serah terima.'], null, $this->qa);
+        }
     }
 
     /**

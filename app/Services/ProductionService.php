@@ -11,16 +11,20 @@ use App\Models\Task;
 use App\Models\TaskScheduleChange;
 use App\Models\User;
 use App\Support\DailyFormSchedule;
+use App\Support\Quantity;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Sprint 24 D6/D11/D13 — production as the numbers show it: progress from
- * actual activity, the 70 % moment (PM told once, "Setujui Berangkat ke
- * Lokasi" unlocked), the daily "H-30%" reminder to the PM, and the
- * target-vs-actual table per Tukang per day.
+ * Sprint 24 D6/D11/D13 — production as the numbers show it: the 70 %
+ * moment (PM told once, "Setujui Berangkat ke Lokasi" unlocked), the daily
+ * "H-30%" reminder to the PM, and the target-vs-actual table per Tukang per
+ * day. Sprint 29 Sub 10 (B7) — the project progress is
+ * Project::actualProgress(): the progres berbobot of the pengecekan for a
+ * project with items with a wage, actual activity otherwise; the Activity
+ * Target table below stays actual activity.
  */
 class ProductionService
 {
@@ -36,9 +40,21 @@ class ProductionService
     }
 
     /**
-     * Called whenever a task turns DONE: the first time a producing
-     * project's actual activity reaches the threshold, its PM is told
-     * "siap berangkat ke lokasi" (once — progress_70_notified_at).
+     * "progres berbobot 67,7%" / "actual activity 80%" — the progress as the
+     * messages name it.
+     *
+     * @param  array{progress: int|float|null, basis: string}  $figure  Project::progressFigure() / listedProgress()
+     */
+    public static function progressText(array $figure): string
+    {
+        return ($figure['basis'] === Project::PROGRESS_WEIGHTED ? 'progres berbobot ' : 'actual activity ').Quantity::format($figure['progress'] ?? 0).'%';
+    }
+
+    /**
+     * Called whenever the progress may have moved — a task turning DONE, a
+     * pengecekan sent (Sprint 29 Sub 10): the first time a producing
+     * project's progress reaches the threshold, its PM is told "siap
+     * berangkat ke lokasi" (once — progress_70_notified_at).
      */
     public function checkProgress(Project $project): void
     {
@@ -46,9 +62,9 @@ class ProductionService
             return;
         }
 
-        $progress = $project->actualProgress();
+        $figure = $project->progressFigure();
 
-        if ($progress < self::departureThreshold()) {
+        if ($figure['progress'] < self::departureThreshold()) {
             return;
         }
 
@@ -58,7 +74,7 @@ class ProductionService
             [$project->pm],
             NotificationType::ProjectProgressReached,
             'Siap Berangkat ke Lokasi',
-            "Actual activity proyek \"{$project->name}\" sudah {$progress}% — setujui berangkat ke lokasi di tab Eksekusi.",
+            'Proyek "'.$project->name.'" sudah '.self::progressText($figure).' — setujui berangkat ke lokasi di tab Eksekusi.',
             ['project_id' => $project->id],
         );
     }
@@ -70,11 +86,11 @@ class ProductionService
             $project = Project::lockForUpdate()->findOrFail($project->id);
             $this->phaseService->ensurePhase($project, ProjectPhase::Produksi, 'Berangkat ke lokasi hanya bisa disetujui saat proyek di tahap Produksi.');
 
-            $progress = $project->actualProgress();
+            $figure = $project->progressFigure();
 
-            if ($progress < self::departureThreshold()) {
+            if ($figure['progress'] < self::departureThreshold()) {
                 throw ValidationException::withMessages([
-                    'departure' => "Actual activity baru {$progress}% — berangkat ke lokasi terbuka mulai ".self::departureThreshold().'%.',
+                    'departure' => 'Proyek baru '.self::progressText($figure).' — berangkat ke lokasi terbuka mulai '.self::departureThreshold().'%.',
                 ]);
             }
 
@@ -88,7 +104,7 @@ class ProductionService
                     ->filter(fn (?User $user) => $user && $user->id !== $actor->id),
                 NotificationType::SiteDepartureApproved,
                 'Berangkat ke Lokasi',
-                "{$actor->name} menyetujui tim proyek \"{$project->name}\" berangkat ke lokasi (actual activity {$progress}%). Pengawas: cek finishing di lokasi.",
+                "{$actor->name} menyetujui tim proyek \"{$project->name}\" berangkat ke lokasi (".self::progressText($figure).'). Pengawas: cek finishing di lokasi.',
                 ['project_id' => $project->id],
             );
 
@@ -124,6 +140,7 @@ class ProductionService
             ->whereNotNull('start_date')
             ->whereNotNull('end_date')
             ->with('pm')
+            ->withActivityCounts()
             ->each(function (Project $project) use ($today, &$sent) {
                 $from = $this->deadlineWarningFrom($project);
 
@@ -139,7 +156,7 @@ class ProductionService
                     $project->pm,
                     NotificationType::ProjectDeadlineNear,
                     'Proyek Mendekati Tanggal Selesai',
-                    "Proyek \"{$project->name}\" {$when} (Tanggal Selesai {$project->end_date->translatedFormat('d M Y')}) — actual activity {$project->actualProgress()}%.",
+                    "Proyek \"{$project->name}\" {$when} (Tanggal Selesai {$project->end_date->translatedFormat('d M Y')}) — ".self::progressText($project->listedProgress()).'.',
                     ['project_id' => $project->id],
                 );
                 $sent++;
@@ -205,7 +222,7 @@ class ProductionService
      * Sprint 25 — "Activity Target": the whole project, one row per working
      * day (grouped per week): daily targets planned that day vs targets
      * finished that day, plus both cumulated over every target the project
-     * has now — so the last actual figure is Project::actualProgress().
+     * has now — so the last actual figure is Project::activityProgress().
      * Numbers only: no task title, no Tukang name (PRD §4.6).
      *
      * @return array{today: string, summary: array{total: int, done: int, progress: int, planned_to_date: int, target_to_date: int, gap: int, rolled: int}, weeks: list<array<string, mixed>>}

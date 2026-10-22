@@ -38,6 +38,8 @@ class NotificationTarget
         'termin_overdue' => 'finance.termins.index',
         'material_low_stock' => 'logistics.materials.index',
         'account_updated' => 'profile.edit',
+        // Sprint 29 Sub 13 — the clarification shows on the day in the employee's history.
+        'daily_activity_clarification' => 'daily-activities.index',
     ];
 
     /**
@@ -106,17 +108,31 @@ class NotificationTarget
             NotificationType::SupervisorPaymentPaid,
             NotificationType::ProductionStarted,
             NotificationType::WeeklyReportReminder,
-            NotificationType::WeeklyReportSubmitted,
-            NotificationType::WeeklyReportDecided,
             NotificationType::ProjectProgressReached,
             NotificationType::SiteDepartureApproved,
             NotificationType::SiteFindingRecorded,
             NotificationType::ProjectDeadlineNear => $id('project_id')
                 ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'execution'])
                 : null,
+            // Sprint 31 — a pengecekan per item is sent and decided on Item RAB › Lembar Progres.
+            NotificationType::WeeklyReportSubmitted,
+            NotificationType::WeeklyReportDecided => $id('project_id')
+                ? route('projects.show', ['project' => $id('project_id'), ...(($metadata['item_sheet'] ?? false) === true ? ['tab' => 'items', 'view' => 'progres'] : ['tab' => 'execution'])])
+                : null,
+            // Sprint 29 Sub 12 — QC Item of the project (Sprint 31 Sub 07: tab Item RAB).
+            NotificationType::WorkItemQaDecided => $id('project_id')
+                ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'items', 'view' => 'qc'])
+                : null,
             // Sprint 19 — straight into the "Jadwalkan Survey" dialog on the paid RAB.
             NotificationType::SurveyToSchedule => $id('quotation_id')
                 ? route('quotations.show', ['quotation' => $id('quotation_id'), 'survey' => 'new'])
+                : null,
+            // Sprint 29 Sub 11 — Logistik's Pemesanan Bahan for that project; the Pengawas's Material tab.
+            NotificationType::MaterialPlanSubmitted => route('logistics.material-orders.index', $id('project_id') ? ['project_id' => $id('project_id')] : []),
+            NotificationType::MaterialPlanRejected,
+            NotificationType::MaterialOrdered,
+            NotificationType::MaterialReceived => $id('project_id')
+                ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'material'])
                 : null,
             default => null,
         };

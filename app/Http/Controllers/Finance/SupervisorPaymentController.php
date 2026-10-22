@@ -25,7 +25,7 @@ class SupervisorPaymentController extends Controller
         $paid = $request->query('status') === 'paid';
 
         $payments = SupervisorPayment::query()
-            ->with(['project:id,name', 'supervisor:id,name', 'weeklyReport:id,week_number', 'decider:id,name', 'payer:id,name'])
+            ->with(['project:id,name', 'supervisor:id,name', 'weeklyReport:id,week_number,sequence', 'decider:id,name', 'payer:id,name'])
             ->where('status', ($paid ? SupervisorPaymentStatus::Dibayar : SupervisorPaymentStatus::DisetujuiPm)->value)
             ->when($paid, fn ($query) => $query->latest('paid_at'), fn ($query) => $query->oldest('decided_at'))
             ->paginate(20)

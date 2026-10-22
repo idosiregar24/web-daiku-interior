@@ -20,8 +20,10 @@ use App\Services\FinanceAllocationService;
 use App\Services\ProductionService;
 use App\Services\ProjectBudgetService;
 use App\Services\ProjectExecutionService;
+use App\Services\ProjectMaterialService;
 use App\Services\ProjectService;
 use App\Services\SupplierDebtService;
+use App\Services\WorkItemQaService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -44,7 +46,7 @@ class ProjectController extends Controller
 
         $projects = Project::query()
             ->with(['pm:id,name', 'lead:id,client_name'])
-            // Sprint 24 D11 — actual activity (DONE ÷ all targets) on the list.
+            // Sprint 24 D11 / Sprint 29 Sub 10 — the same progress as the project page, no query per row.
             ->withActivityCounts()
             ->byStatus($request->string('status')->value() ?: null)
             ->byPm($request->integer('pm_id') ?: null)
@@ -53,7 +55,13 @@ class ProjectController extends Controller
             ->visibleTo($user)
             ->latest()
             ->paginate(15)
-            ->withQueryString();
+            ->withQueryString()
+            ->through(function (Project $project) {
+                $progress = $project->listedProgress();
+
+                return $project->setAttribute('actual_progress', $progress['progress'])->setAttribute('progress_basis', $progress['basis'])
+                    ->makeHidden(['work_rab_total', 'work_rab_progress']);
+            });
 
         // Approved RAB Proyek waiting for "Buka Proyek" — Sprint 23 K13: the
         // approving PM opens (ProjectOpeningPolicy, per row `can_open`); the
@@ -92,6 +100,7 @@ class ProjectController extends Controller
         ProjectBudgetService $budgetService,
         ProjectExecutionService $executionService,
         ProductionService $productionService,
+        WorkItemQaService $itemQaService,
     ): Response {
         $this->authorize('view', $project);
 
@@ -145,6 +154,10 @@ class ProjectController extends Controller
         $canPlanMaterials = $isRunning && $user->can('planMaterials', $project);
         $canManageMaterials = $user->can('manageMaterials', $project) && $project->status !== ProjectStatus::Completed;
         $isLogistics = $user->hasAnyRole(['LOGISTICS', 'SUPERADMIN']);
+        // Sprint 29 Sub 11 (E1) — the Pengawas / Admin Proyek never get warehouse stock or prices
+        // (the server picks the source); their catalog lines go through Logistik (Rencana Bahan).
+        $seesStock = $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'ESTIMATOR', 'FINANCE', 'SUPERADMIN']);
+        $plansThroughLogistics = $isRunning && $canPlanMaterials && app(ProjectMaterialService::class)->plansThroughLogistics($project, $user);
         // Sprint 13 #3 — Tab QA: the milestone QA forms (status, findings),
         // never task data (security-standards §2). The form page itself is
         // `qa-forms.show` (role:CEO|PM|QA) — the Asisten PM reads it here.
@@ -161,7 +174,12 @@ class ProjectController extends Controller
         // nothing else. The material catalog is optional — loaded once when a
         // material form first needs it (useProjectCatalog()).
         return Inertia::render('Projects/Show', [
-            'project' => fn () => $project->setAttribute('actual_progress', $project->actualProgress()),
+            'project' => function () use ($project) {
+                // Sprint 29 Sub 10 (B7) — progres berbobot or actual activity, and which one.
+                $progress = $project->progressFigure();
+
+                return $project->setAttribute('actual_progress', $progress['progress'])->setAttribute('progress_basis', $progress['basis']);
+            },
             // Sprint 24 — the "Eksekusi" tab (phase, Gambar Kerja, TM, Pengawas, production, QC).
             'execution' => fn () => ProjectExecutionService::canView($user, $project)
                 ? $executionService->overview($project, $user, $request->query('week'))
@@ -217,6 +235,8 @@ class ProjectController extends Controller
                     ->values()
                 : [],
             'canViewQa' => $canViewQa,
+            // Sprint 29 Sub 12 — Timeline & QC › QC Item (QA per item RAB) instead of QC Timeline.
+            'itemQa' => fn () => $canViewQa && $project->usesItemQa() ? $itemQaService->overview($project, $user) : null,
             'canOpenQaForm' => $user->hasAnyRole(['CEO', 'PM', 'QA', 'SUPERADMIN']),
             'overtimeRequests' => fn () => $canViewOvertime
                 ? $project->overtimeRequests()->with('staff:id,name')->latest('work_date')->latest('id')->get()
@@ -256,10 +276,11 @@ class ProjectController extends Controller
             'supplierDebts' => fn () => $canViewFinanceSummary ? $supplierDebtService->outstandingForProject($project) : [],
             'projectMaterials' => fn () => $canViewMaterials
                 ? $project->projectMaterials()
-                    ->with(['material:id,name,unit_id,stock,cost_price', 'unit:id,code,name', 'vendor:id,name', 'requester:id,name'])
+                    ->with([$seesStock ? 'material:id,name,unit_id,stock,cost_price' : 'material:id,name,unit_id', 'unit:id,code,name', 'vendor:id,name', 'requester:id,name'])
                     ->orderBy('source')
                     ->orderBy('id')
                     ->get()
+                    ->each(fn (ProjectMaterial $line) => $seesStock ? $line : $line->makeHidden(['unit_price', 'cost_total']))
                 : [],
             'canViewMaterials' => $canViewMaterials,
             // Sprint 11 Sub 3 — which lifecycle actions the tab offers (re-checked server-side).
@@ -275,9 +296,16 @@ class ProjectController extends Controller
                 'request' => $isRunning && $user->can('request', [ProjectMaterial::class, $project]),
                 'pmDecide' => $user->hasRole('SUPERADMIN') || $project->isManagedBy($user),
                 'review' => $isLogistics,
+                // Sprint 29 Sub 11 — stock & cost columns (E1); the Rencana Bahan: custom lines and
+                // "Ajukan ke Logistik" (E2/E3); Logistik decides it on Pemesanan Bahan.
+                'seeCost' => $seesStock,
+                'planThroughLogistics' => $plansThroughLogistics,
+                'openOrders' => $user->hasAnyRole(['CEO', 'PM', 'ASISTEN_PM', 'LOGISTICS', 'SUPERADMIN']),
             ],
             'units' => fn () => $isRunning && $canViewMaterials ? Unit::options() : [],
-            'materialOptions' => Inertia::optional(fn () => $canPlanMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id', 'stock', 'cost_price']) : []),
+            'materialOptions' => Inertia::optional(fn () => $canPlanMaterials
+                ? Material::active()->orderBy('name')->get($seesStock ? ['id', 'code', 'name', 'unit_id', 'stock', 'cost_price'] : ['id', 'code', 'name', 'unit_id'])
+                : []),
             // Return-to-stock of a CUSTOM line maps it onto a catalog item (Logistics only).
             'catalogOptions' => Inertia::optional(fn () => $isLogistics && $canViewMaterials ? Material::active()->orderBy('name')->get(['id', 'code', 'name', 'unit_id']) : []),
             'vendors' => fn () => $canManageMaterials || $canPlanMaterials ? Vendor::options() : [],

@@ -28,6 +28,22 @@ class AuditLogController extends Controller
         'user' => 'User',
         'analytics' => 'Target',
         'settings' => 'Pengaturan Situs',
+        // Sprint 29 Sub 15 — every prefix AuditLogService callers write.
+        'crm' => 'CRM',
+        'design' => 'Desain',
+        'working_drawing' => 'Gambar Kerja',
+        'technical_meeting' => 'Technical Meeting',
+        'work_item' => 'Upah per Item',
+        'supervisor_payment' => 'Upah Tukang',
+        'wage_split' => 'Pembagian Upah',
+        'weekly_report' => 'Pengecekan',
+        'work_item_qa' => 'QA Item',
+        'site_finding' => 'Temuan',
+        'logistics' => 'Logistik',
+        'hr' => 'SDM',
+        'portfolio' => 'Portofolio',
+        'service_page' => 'Halaman Layanan',
+        'testimonial' => 'Testimoni',
     ];
 
     public function index(Request $request): Response

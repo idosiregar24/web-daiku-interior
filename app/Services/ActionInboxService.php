@@ -23,6 +23,7 @@ use App\Enums\WeeklyReportStatus;
 use App\Enums\WorkingDrawingStatus;
 use App\Models\BudgetOverrunRequest;
 use App\Models\Design;
+use App\Models\Employee;
 use App\Models\Invoice;
 use App\Models\KpiScore;
 use App\Models\Lead;
@@ -159,6 +160,8 @@ class ActionInboxService
             $groups[] = $this->overtime(OvertimeStatus::Pending, 'overtime-pm', 'Lembur menunggu ACC PM');
             // Sprint 24 — TM, Pengawas payments, weekly reports, "Berangkat ke Lokasi".
             $groups[] = $this->executionForPm($user);
+            // Sprint 31 Sub 03 — RAB items past their schedule, on the PM's own projects.
+            $groups[] = $this->itemsBehindSchedule($user, asPm: true);
         }
 
         if ($user->hasRole('ESTIMATOR')) {
@@ -200,10 +203,15 @@ class ActionInboxService
 
         if ($user->hasRole('LOGISTICS')) {
             $groups[] = $this->materialRequests($user, MaterialRequestStatus::Diajukan, 'material-logistics', 'Pengajuan barang menunggu Logistik', 'Cek katalog, setujui atau tolak.');
+            // Sprint 29 Sub 11 — the Pengawas's submitted Rencana Bahan, one row per project.
+            $groups[] = $this->materialPlans($user);
         }
 
         if ($user->hasRole('QA')) {
             $groups[] = $this->pendingQa($user);
+            // Sprint 29 Sub 12 — QA per item RAB, one row per project.
+            $groups[] = $this->itemsAwaitingQa($user);
+            $groups[] = $this->itemsBehindSchedule($user, asPm: false);
             $groups[] = $this->meetingsForSupervisor($user);
             $groups[] = $this->executionForSupervisor($user);
             $groups[] = $this->weeklyReportsDue($user);
@@ -219,6 +227,8 @@ class ActionInboxService
         if ($user->hasRole('HR')) {
             $groups[] = $this->returnedReviews();
             $groups[] = $this->missingKpiScores();
+            // Sprint 29 Sub 13 — the previous working day's Aktivitas Harian.
+            $groups[] = $this->activitiesToReview();
         }
 
         if ($user->hasRole('FIELD_STAFF')) {
@@ -396,6 +406,7 @@ class ActionInboxService
             route('logistics.material-requests.index', ['status' => $status->value]),
             ProjectMaterial::query()
                 ->requested()
+                ->notFromPlan()
                 ->visibleTo($user)
                 ->where('request_status', $status->value)
                 ->with(['project:id,name', 'requester:id,name', 'material:id,name'])
@@ -406,6 +417,33 @@ class ActionInboxService
                 'subtitle' => trim(($line->project?->name ?? '').' · '.($line->requester?->name ?? ''), ' ·'),
                 'at' => $line->submitted_at ?? $line->created_at,
                 'href' => route('logistics.material-requests.index', ['status' => $status->value, 'project_id' => $line->project_id]),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 29 Sub 11 (E3) — "Pengajuan bahan · Proyek X · n bahan": the
+     * projects whose submitted Rencana Bahan waits for Logistik's Setujui /
+     * Tolak (MaterialOrderController@index, ?status=DIAJUKAN&project_id=).
+     */
+    private function materialPlans(User $user): ?array
+    {
+        $waiting = fn (Builder $line) => $line->fromPlan()->visibleTo($user)->where('request_status', MaterialRequestStatus::Diajukan->value);
+
+        return $this->group(
+            'material-plans', 'Pengajuan bahan menunggu Logistik', 'Rencana bahan dari Pengawas — setujui / tolak, lalu pesan.', 'material', 'logistics.material-orders.index',
+            route('logistics.material-orders.index', ['status' => MaterialRequestStatus::Diajukan->value]),
+            Project::query()
+                ->whereHas('projectMaterials', $waiting)
+                ->withCount(['projectMaterials as submitted_plan_count' => $waiting])
+                ->withMin(['projectMaterials as first_submitted_at' => $waiting], 'submitted_at')
+                ->orderBy('first_submitted_at'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => "Pengajuan bahan · {$project->name}",
+                'subtitle' => "{$project->submitted_plan_count} bahan",
+                'at' => $project->first_submitted_at,
+                'href' => route('logistics.material-orders.index', ['status' => MaterialRequestStatus::Diajukan->value, 'project_id' => $project->id]),
             ],
         );
     }
@@ -707,6 +745,62 @@ class ActionInboxService
         );
     }
 
+    /**
+     * Sprint 29 Sub 12 (G1) — "Item menunggu QA · n item · Proyek X": RAB items
+     * at 100 % waiting for the Pengawas (ProjectWorkItem::awaitingQa()), on the
+     * projects this Pengawas checks (QA per item only).
+     */
+    private function itemsAwaitingQa(User $user): ?array
+    {
+        return $this->group(
+            'item-qa-pending', 'Item menunggu QA', 'Item RAB sudah 100 % — periksa: Lolos atau Perlu perbaikan.', 'qa', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->usesItemQa()
+                ->qaReviewableBy($user)
+                ->whereHas('workItems', fn (Builder $item) => $item->awaitingQa())
+                ->withCount(['workItems as items_awaiting_qa' => fn (Builder $item) => $item->awaitingQa()])
+                ->oldest('id'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => "{$project->items_awaiting_qa} item menunggu QA",
+                'at' => null,
+                'href' => route('projects.show', ['project' => $project->id, 'tab' => 'items', 'view' => 'qc']),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 31 Sub 03 — "Item terlambat dari jadwal · n item · Proyek X":
+     * items with a wage whose last window ended below 100 %
+     * (ProjectWorkItem::behindSchedule()) — the PM on its own projects, the
+     * Pengawas on the projects it supervises.
+     */
+    private function itemsBehindSchedule(User $user, bool $asPm): ?array
+    {
+        $today = DailyFormSchedule::now()->toDateString();
+
+        return $this->group(
+            $asPm ? 'items-late-pm' : 'items-late-supervisor', 'Item terlambat dari jadwal', 'Item RAB yang jadwalnya sudah lewat tetapi progresnya belum 100 %.', 'project', 'projects.index',
+            route('projects.index'),
+            Project::query()
+                ->active()
+                ->when($asPm, fn (Builder $q) => $q->where('pm_id', $user->id), fn (Builder $q) => $q->supervisedBy($user))
+                ->whereHas('workItems', fn (Builder $item) => $item->behindSchedule($today))
+                ->withCount(['workItems as items_behind' => fn (Builder $item) => $item->behindSchedule($today)])
+                ->oldest('id'),
+            fn (Project $project) => [
+                'id' => $project->id,
+                'title' => $project->name,
+                'subtitle' => "{$project->items_behind} item terlambat",
+                'at' => null,
+                'href' => route('projects.show', ['project' => $project->id, 'tab' => 'items', 'view' => 'progres']),
+            ],
+        );
+    }
+
     // ── Sprint 24: alur eksekusi proyek ──────────────────────────────────
 
     /** Kepala Desain — a new project's Gambar Kerja waiting for its architect. */
@@ -763,17 +857,25 @@ class ActionInboxService
                     ->orWhereHas('supervisorPayments', fn (Builder $payment) => $payment->where('status', SupervisorPaymentStatus::Diajukan->value))
                     ->orWhereHas('weeklyReports', fn (Builder $report) => $report->where('status', WeeklyReportStatus::Diajukan->value))
                     ->orWhere(fn (Builder $ready) => $ready->where('phase', ProjectPhase::Produksi->value)->whereNotNull('progress_70_notified_at')))
+                // Sprint 31 — a pengecekan per item waiting for the PM is decided on Item RAB › Lembar Progres.
+                ->withExists([
+                    'weeklyReports as check_waiting' => fn (Builder $report) => $report->where('status', WeeklyReportStatus::Diajukan->value),
+                    'workItems as checks_per_item' => fn (Builder $item) => $item->where('unit_wage', '>', 0),
+                ])
                 ->oldest('phase_changed_at'),
             fn (Project $project) => [
                 'id' => $project->id,
                 'title' => $project->name,
                 'subtitle' => match (true) {
                     $project->phase === ProjectPhase::Tm => 'Technical Meeting',
-                    $project->phase === ProjectPhase::Produksi && $project->progress_70_notified_at !== null => "Actual activity ≥ {$threshold}% — berangkat ke lokasi?",
+                    $project->check_waiting && $project->checks_per_item => 'Pengecekan Pengawas menunggu ACC',
+                    $project->phase === ProjectPhase::Produksi && $project->progress_70_notified_at !== null => "Progres ≥ {$threshold}% — berangkat ke lokasi?",
                     default => 'Pengajuan / laporan pengawas',
                 },
                 'at' => $project->phase_changed_at,
-                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']),
+                'href' => $project->check_waiting && $project->checks_per_item
+                    ? route('projects.show', ['project' => $project, 'tab' => 'items', 'view' => 'progres'])
+                    : route('projects.show', ['project' => $project, 'tab' => 'execution']),
             ],
         );
     }
@@ -793,8 +895,8 @@ class ActionInboxService
                 ->supervisedBy($user)
                 ->where('phase', ProjectPhase::Tm->value)
                 ->with('technicalMeeting:id,project_id,meeting_date')
-                ->withCount(['projectMaterials as planned_materials_count' => fn (Builder $line) => $line
-                    ->where(fn (Builder $q) => $q->whereNull('request_status')->orWhere('request_status', MaterialRequestStatus::Disetujui->value))])
+                // Sprint 29 Sub 11 — the same "bahan yang digunakan" as the TM card (Rencana Bahan included).
+                ->withCount(['projectMaterials as planned_materials_count' => fn (Builder $line) => $line->planned()])
                 ->oldest('phase_changed_at'),
             fn (Project $project) => [
                 'id' => $project->id,
@@ -861,13 +963,17 @@ class ActionInboxService
                 ->supervisedBy($user)
                 ->whereIn('phase', [ProjectPhase::Produksi->value, ProjectPhase::Pemasangan->value])
                 ->whereDoesntHave('weeklyReports', fn (Builder $report) => $report->whereDate('week_start', $monday))
+                // Sprint 31 Sub 07 — the pengecekan % per item is filled on the Lembar Progres (tab Item RAB).
+                ->withExists(['workItems as checks_per_item' => fn (Builder $item) => $item->where('unit_wage', '>', 0)])
                 ->oldest('production_started_at'),
             fn (Project $project) => [
                 'id' => $project->id,
                 'title' => $project->name,
                 'subtitle' => 'Minggu ke-'.$weeks->weekOf($project)['week_number'],
                 'at' => null,
-                'href' => route('projects.show', ['project' => $project, 'tab' => 'execution']).'#laporan-mingguan',
+                'href' => $project->checks_per_item
+                    ? route('projects.show', ['project' => $project, 'tab' => 'items', 'view' => 'progres'])
+                    : route('projects.show', ['project' => $project, 'tab' => 'execution']).'#laporan-mingguan',
             ],
         );
     }
@@ -939,7 +1045,7 @@ class ActionInboxService
             route('finance.supervisor-payments.index'),
             SupervisorPayment::query()
                 ->where('status', SupervisorPaymentStatus::DisetujuiPm->value)
-                ->with(['project:id,name', 'weeklyReport:id,week_number'])
+                ->with(['project:id,name', 'weeklyReport:id,week_number,sequence'])
                 ->oldest('decided_at'),
             fn (SupervisorPayment $payment) => [
                 'id' => $payment->id,
@@ -993,6 +1099,35 @@ class ActionInboxService
                 'subtitle' => "{$score->indicator_name} · {$score->period?->period}",
                 'at' => null,
                 'href' => route('hr.kpi.index'),
+            ],
+        );
+    }
+
+    /**
+     * Sprint 29 Sub 13 — employees whose Aktivitas Harian of the previous
+     * working day HR hasn't checked yet (DailyActivityService::unreviewedQuery,
+     * the "Belum diperiksa" of Periksa Aktivitas). "Kemarin" on Tuesday–Saturday,
+     * Saturday on a Monday; a holiday is never owed.
+     */
+    private function activitiesToReview(): ?array
+    {
+        $today = DailyActivityService::today();
+        $date = DailyActivityService::defaultReviewDate();
+        $day = $date->isSameDay($today->copy()->subDay()) ? 'kemarin' : $date->translatedFormat('l, j F');
+        $href = route('daily-activities.review', ['date' => $date->toDateString()]);
+
+        return $this->group(
+            'activity-review', "Aktivitas {$day} belum diperiksa", 'Tandai Sesuai, minta klarifikasi, atau catat yang tidak mengisi.', 'review', 'daily-activities.review',
+            $href,
+            app(DailyActivityService::class)->unreviewedQuery($date->toDateString())
+                ->with('position:id,name')
+                ->orderBy('name'),
+            fn (Employee $employee) => [
+                'id' => $employee->id,
+                'title' => $employee->name,
+                'subtitle' => $employee->position?->name,
+                'at' => null,
+                'href' => $href,
             ],
         );
     }

@@ -6,6 +6,7 @@ use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
 use App\Enums\TaskStatus;
 use App\Enums\TerminStatus;
+use App\Services\WorkItemService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Project extends Model
 {
     use HasFactory;
+
+    /** Sprint 29 Sub 10 — the basis of actualProgress(): progres berbobot / actual activity. */
+    public const PROGRESS_WEIGHTED = 'weighted';
+
+    public const PROGRESS_ACTIVITY = 'activity';
 
     protected $fillable = [
         'lead_id',
@@ -149,6 +155,22 @@ class Project extends Model
         return $this->hasMany(ProjectWorkItem::class);
     }
 
+    /**
+     * Sprint 29 Sub 12 (G2/G3) — QA per item RAB instead of per timeline: a
+     * project with RAB items that carry a wage, on which no timeline went
+     * through QA the old way (projects that already have a QaForm keep it).
+     */
+    public function usesItemQa(): bool
+    {
+        return $this->workItems()->where('unit_wage', '>', 0)->exists() && ! $this->qaForms()->exists();
+    }
+
+    /** Query twin of usesItemQa(). */
+    public function scopeUsesItemQa(Builder $query): Builder
+    {
+        return $query->whereHas('workItems', fn (Builder $item) => $item->where('unit_wage', '>', 0))->whereDoesntHave('qaForms');
+    }
+
     /** Sprint 24 D4 — Jasa Pengawas, since Sprint 29 Sub 08 "Upah Tukang" (its total = Σ upah per item). */
     public function supervisorFee(): HasOne
     {
@@ -163,7 +185,7 @@ class Project extends Model
     /** Sprint 24 D10 — the Pengawas's Friday reports. */
     public function weeklyReports(): HasMany
     {
-        return $this->hasMany(WeeklyReport::class)->orderByDesc('week_start');
+        return $this->hasMany(WeeklyReport::class)->orderByDesc('week_start')->orderByDesc('sequence');
     }
 
     /** Sprint 24 D12 — finishing findings on site. */
@@ -178,10 +200,39 @@ class Project extends Model
     }
 
     /**
-     * Sprint 24 D11/E5 — progress = "actual activity": DONE tasks ÷ all
-     * tasks of the project, every task weighing the same. 0 without tasks.
+     * Project progress, % — the one number of lists, dashboards, the 70 %
+     * "Berangkat ke Lokasi", H-30 %, the stepper and the Ringkasan.
+     * Sprint 29 Sub 10 (B7): a project with RAB items that carry a wage →
+     * the progres berbobot of the Pengawas's pengecekan (WorkItemService,
+     * float, 2 decimals); without (older projects) → actual activity (int).
      */
-    public function actualProgress(): int
+    public function actualProgress(): int|float
+    {
+        return $this->progressFigure()['progress'];
+    }
+
+    /**
+     * actualProgress() and which basis it is ("weighted" = progres berbobot,
+     * "activity" = actual activity of the daily targets).
+     *
+     * @return array{progress: int|float, basis: 'weighted'|'activity'}
+     */
+    public function progressFigure(): array
+    {
+        $weighted = app(WorkItemService::class)->weightedProgress($this);
+
+        return $weighted === null
+            ? ['progress' => $this->activityProgress(), 'basis' => self::PROGRESS_ACTIVITY]
+            : ['progress' => $weighted, 'basis' => self::PROGRESS_WEIGHTED];
+    }
+
+    /**
+     * Sprint 24 D11/E5 — "actual activity": DONE tasks ÷ all tasks of the
+     * project, every task weighing the same. 0 without tasks. Still the
+     * Activity Target tab's figure (and the progress of a project without
+     * items with a wage).
+     */
+    public function activityProgress(): int
     {
         $counts = $this->tasks()
             ->selectRaw('COUNT(*) AS total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS done', [TaskStatus::Done->value])
@@ -191,20 +242,43 @@ class Project extends Model
         return self::activityPercent((int) ($counts->done ?? 0), (int) ($counts->total ?? 0));
     }
 
-    /** actualProgress() from counts already loaded by withActivityCounts(). */
+    /** activityProgress() from counts already loaded by withActivityCounts(). */
     public static function activityPercent(int $done, int $total): int
     {
         return $total === 0 ? 0 : (int) floor($done * 100 / $total);
     }
 
     /**
-     * Sprint 24 D11 — the actual-activity counts for a list (`tasks_count`,
-     * `done_tasks_count`), so every list/dashboard shows the same progress
-     * as the project page without a query per row.
+     * Sprint 24 D11 / Sprint 29 Sub 10 — what a list needs for the same
+     * progress as the project page, without a query per row: the
+     * actual-activity counts (`tasks_count`, `done_tasks_count`) and the
+     * progres berbobot sums (WorkItemService::withWeightedSums()). Read back
+     * with listedProgress().
      */
     public function scopeWithActivityCounts(Builder $query): void
     {
         $query->withCount(['tasks', 'tasks as done_tasks_count' => fn (Builder $tasks) => $tasks->where('status', TaskStatus::Done->value)]);
+        WorkItemService::withWeightedSums($query);
+    }
+
+    /**
+     * progressFigure() of a row loaded with withActivityCounts(). `progress`
+     * is null for an actual-activity project without any daily target yet
+     * (lists show "—").
+     *
+     * @return array{progress: int|float|null, basis: 'weighted'|'activity'}
+     */
+    public function listedProgress(): array
+    {
+        $weighted = WorkItemService::weightedFromSums($this->getAttribute('work_rab_total'), $this->getAttribute('work_rab_progress'));
+
+        if ($weighted !== null) {
+            return ['progress' => $weighted, 'basis' => self::PROGRESS_WEIGHTED];
+        }
+
+        $total = (int) $this->getAttribute('tasks_count');
+
+        return ['progress' => $total === 0 ? null : self::activityPercent((int) $this->getAttribute('done_tasks_count'), $total), 'basis' => self::PROGRESS_ACTIVITY];
     }
 
     /** The phase, treating a null (never on a real row — the column defaults to PRODUKSI) as PRODUKSI. */

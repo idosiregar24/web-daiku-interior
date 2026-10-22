@@ -123,6 +123,15 @@ class MilestoneService
             ]);
         }
 
+        // Sprint 29 Sub 12 (G3) — QA per item RAB: the timeline is simply done
+        // (no QaForm); the next one starts, as after a QA approval.
+        if ($milestone->project->usesItemQa()) {
+            $milestone->update(['status' => MilestoneStatus::Completed->value]);
+            $this->startNext($milestone);
+
+            return $milestone->fresh();
+        }
+
         $milestone->update(['status' => MilestoneStatus::QaWaiting->value]);
 
         if ($qaForm = $milestone->qaForm) {
@@ -155,6 +164,20 @@ class MilestoneService
         }
 
         return $first;
+    }
+
+    /** Same step as QaFormService::advanceNextMilestone(): the next PENDING timeline in order runs. */
+    private function startNext(Milestone $milestone): void
+    {
+        $next = $milestone->project->milestones()
+            ->where('order', '>', $milestone->order)
+            ->reorder()
+            ->orderBy('order')
+            ->first();
+
+        if ($next && $next->status === MilestoneStatus::Pending) {
+            $next->update(['status' => MilestoneStatus::InProgress->value]);
+        }
     }
 
     private function defaultStartDate(Project $project, string $targetDate): string

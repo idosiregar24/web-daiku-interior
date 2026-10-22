@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Projects;
 
+use App\Enums\MilestoneStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\StoreMilestoneRequest;
 use App\Http\Requests\Projects\UpdateMilestoneRequest;
@@ -45,8 +46,11 @@ class MilestoneController extends Controller
     public function markDone(Milestone $milestone, MilestoneService $service): RedirectResponse
     {
         $this->authorize('manageWork', $milestone->project);
-        $service->markDone($milestone);
+        $milestone = $service->markDone($milestone);
 
-        return back()->with('success', 'Timeline diajukan ke Pengawas (QA/QC) untuk diperiksa.');
+        // Sprint 29 Sub 12 (G3) — with QA per item RAB the timeline is done without a QA form.
+        return back()->with('success', $milestone->status === MilestoneStatus::Completed
+            ? 'Timeline ditandai selesai.'
+            : 'Timeline diajukan ke Pengawas (QA/QC) untuk diperiksa.');
     }
 }

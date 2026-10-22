@@ -36,16 +36,19 @@ class InvoicePaymentProofService
     public const QUALITY = 80;
 
     /**
+     * Sprint 29 Sub 12 — also the QA per item photo (WorkItemQaService): same
+     * pipeline, its own form field and wording in the error.
+     *
      * @param  list<UploadedFile>  $files
      * @return list<array{full: string, thumb: string, width: int, height: int}>
      */
-    public function encode(array $files): array
+    public function encode(array $files, string $field = 'payment_photos', string $label = 'Foto bukti bayar'): array
     {
-        return array_map(function (UploadedFile $file) {
+        return array_map(function (UploadedFile $file) use ($field, $label) {
             try {
                 $image = $this->manager()->read($file->getRealPath());
             } catch (Throwable) {
-                throw ValidationException::withMessages(['payment_photos' => 'Foto bukti bayar tidak bisa dibaca — unggah foto JPG, PNG, atau WEBP lain.']);
+                throw ValidationException::withMessages([$field => "{$label} tidak bisa dibaca — unggah foto JPG, PNG, atau WEBP lain."]);
             }
 
             $image->scaleDown(self::MAX_SIZE, self::MAX_SIZE);

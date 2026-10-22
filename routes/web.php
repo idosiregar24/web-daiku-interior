@@ -32,6 +32,8 @@ use App\Http\Controllers\HR\MyHrController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\Logistics\AssetController;
 use App\Http\Controllers\Logistics\MaterialController;
+use App\Http\Controllers\Logistics\MaterialOrderController;
+use App\Http\Controllers\Logistics\MaterialPlanController;
 use App\Http\Controllers\Logistics\MaterialRequestController;
 use App\Http\Controllers\Logistics\ProjectMaterialController;
 use App\Http\Controllers\Logistics\StockMovementController;
@@ -61,7 +63,9 @@ use App\Http\Controllers\Projects\ProjectDashboardController;
 use App\Http\Controllers\Projects\ProjectExecutionController;
 use App\Http\Controllers\Projects\ProjectOpeningController;
 use App\Http\Controllers\Projects\TaskController;
+use App\Http\Controllers\Projects\WageSplitController;
 use App\Http\Controllers\Projects\WorkItemController;
+use App\Http\Controllers\Projects\WorkItemQaController;
 use App\Http\Controllers\PublicQuotationController;
 use App\Http\Controllers\PwaController;
 use App\Http\Controllers\QA\QaDashboardController;
@@ -464,8 +468,38 @@ Route::middleware('auth')->prefix('projects')->name('projects.')->group(function
 // Sprint 29 Sub 08 — Upah Tukang per item RAB: the Pengawas or the Admin Proyek (ProjectPolicy::setWages()).
 Route::middleware(['auth', 'role:QA|ADMIN_PROYEK', 'throttle:120,1'])->group(function () {
     Route::put('project-work-items/{workItem}', [WorkItemController::class, 'update'])->name('projects.work-items.update');
+    // Sprint 31 Sub 03 — jadwal per item (ProjectPolicy::scheduleWorkItems()).
+    Route::put('project-work-items/{workItem}/schedule', [WorkItemController::class, 'updateSchedule'])->name('projects.work-items.schedule');
+    // Sprint 31 Sub 07 — "Jadwalkan berurutan" on the Lembar Progres.
+    Route::post('projects/{project}/work-items/schedule-sequence', [WorkItemController::class, 'scheduleSequence'])->name('projects.work-items.scheduleSequence');
     Route::post('projects/{project}/work-items/team-lead', [WorkItemController::class, 'assignTeamLead'])->name('projects.work-items.teamLead');
+    // Sprint 29 Sub 09 — the pengecekan % per item draft (ProjectPolicy::fillWorkCheck()); sending it stays weekly-reports.store (role:QA).
+    Route::put('projects/{project}/work-check/draft', [WorkItemController::class, 'saveDraft'])->name('projects.work-check.draft');
+    // Sprint 32 — Pembagian Upah per Orang: one Kepala Tim's people on the project (ProjectPolicy::splitWages()).
+    Route::put('projects/{project}/wage-splits', [WageSplitController::class, 'saveProjectSplit'])->name('projects.wage-splits.save');
 });
+
+// Sprint 32 — ⚙ Pengaturan › Tim Tukang: team templates (CEO, PM, Pengawas, Admin Proyek);
+// the default weight per tingkatan karir is the CEO's alone.
+Route::middleware(['auth', 'role:CEO|PM|QA|ADMIN_PROYEK'])
+    ->prefix('pengaturan/tim-tukang')
+    ->name('work-teams.')
+    ->group(function () {
+        Route::get('/', [WageSplitController::class, 'index'])->name('index');
+        Route::put('tingkatan-karir', [WageSplitController::class, 'saveLevels'])->middleware('role:CEO')->name('levels.update');
+        Route::post('/', [WageSplitController::class, 'store'])->name('store');
+        Route::put('{workTeam}', [WageSplitController::class, 'update'])->name('update');
+        Route::delete('{workTeam}', [WageSplitController::class, 'destroy'])->name('destroy');
+    });
+
+// Sprint 29 Sub 12 — QA per item RAB: the project's Pengawas decides (ProjectPolicy::reviewItemQa()),
+// never the Admin Proyek; the photo is read by the roles of Timeline & QC (viewItemQa()).
+Route::middleware(['auth', 'role:QA', 'throttle:60,1'])->group(function () {
+    Route::post('projects/{project}/item-qa', [WorkItemQaController::class, 'decide'])->name('projects.item-qa.decide');
+});
+Route::get('projects/{project}/item-qa/{check}/photo', [WorkItemQaController::class, 'photo'])
+    ->middleware(['auth', 'role:CEO|PM|ASISTEN_PM|QA|ADMIN_PROYEK'])
+    ->name('projects.item-qa.photo');
 
 // Sprint 29 Sub 07 — the Admin Proyek builds timelines; "Tandai Selesai" (→ QA) stays the PM side.
 Route::middleware(['auth', 'role:CEO|PM|ASISTEN_PM|ADMIN_PROYEK'])->group(function () {
@@ -904,6 +938,30 @@ Route::middleware('auth')->group(function () {
     });
 });
 
+// Sprint 29 Sub 11 (E2–E4) — the Pengawas's / Admin Proyek's Rencana Bahan:
+// a custom line and "Ajukan ke Logistik" (ProjectPolicy::planMaterials() +
+// plansThroughLogistics()); Logistik decides and orders on "Pemesanan Bahan"
+// (custom lines through logistics.material-requests.review); CEO and the
+// projects' PM / Asisten PM read it.
+Route::middleware('auth')->group(function () {
+    Route::get('logistics/material-orders', [MaterialOrderController::class, 'index'])
+        ->middleware('role:CEO|PM|ASISTEN_PM|LOGISTICS')
+        ->name('logistics.material-orders.index');
+
+    Route::middleware('throttle:60,1')->group(function () {
+        Route::post('projects/{project}/material-plans/custom', [MaterialPlanController::class, 'storeCustom'])
+            ->middleware('role:QA|ADMIN_PROYEK')
+            ->name('projects.material-plans.custom');
+        Route::post('projects/{project}/material-plans/submit', [MaterialPlanController::class, 'submit'])
+            ->middleware('role:QA|ADMIN_PROYEK')
+            ->name('projects.material-plans.submit');
+        Route::middleware('role:LOGISTICS')->group(function () {
+            Route::post('logistics/material-orders/decide', [MaterialOrderController::class, 'decide'])->name('logistics.material-orders.decide');
+            Route::post('logistics/material-orders/order', [MaterialOrderController::class, 'order'])->name('logistics.material-orders.order');
+        });
+    });
+});
+
 // Sprint 11 Sub 3 (§5.6) — a line's lifecycle. Issuing from and returning
 // to the warehouse: Logistics only. Purchase, usage, waste and hand-over:
 // Logistics, or the PM on their own project (ProjectPolicy::manageMaterials()).
@@ -1022,6 +1080,12 @@ Route::middleware(['auth', 'employee.self'])->prefix('saya')->name('my.')->group
     require __DIR__.'/my/salary.php';
     require __DIR__.'/my/kpi.php';
     require __DIR__.'/my/reviews.php';
+});
+
+// Sprint 29 Sub 13 — Aktivitas Harian (every account but a Tukang) and
+// HR's "Periksa Aktivitas" (CEO & PM read). Not under module:hr — see the file.
+Route::middleware('auth')->prefix('aktivitas-harian')->name('daily-activities.')->group(function () {
+    require __DIR__.'/daily-activities.php';
 });
 
 // Site Settings / web customization — CEO + SUPERADMIN only (not itemized

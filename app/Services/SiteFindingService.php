@@ -110,8 +110,22 @@ class SiteFindingService
 
         $finding->update(['status' => SiteFindingStatus::Selesai->value, 'resolved_by' => $actor->id, 'resolved_at' => now()]);
         $this->auditLogService->record('site_finding.resolved', $finding, ['status' => SiteFindingStatus::Terbuka->value], ['status' => SiteFindingStatus::Selesai->value], $actor);
+        self::afterClosed($finding->project);
 
         return $finding;
+    }
+
+    /**
+     * Sprint 29 Sub 12 (G2) — with QA per item RAB nothing else follows a
+     * closed finding (no timeline QA to approve), so the last one closing
+     * may be what completes the project. A finding of a QA item sends that
+     * item back to "Menunggu QA" instead — then this is a no-op.
+     */
+    public static function afterClosed(?Project $project): void
+    {
+        if ($project && $project->usesItemQa()) {
+            app(ProjectService::class)->completeIfFinished($project, notifyWhenBlocked: true);
+        }
     }
 
     /** Open findings that hold this timeline's QA: its own, plus the project-wide ones (no timeline). */

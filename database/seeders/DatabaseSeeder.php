@@ -69,6 +69,10 @@ class DatabaseSeeder extends Seeder
         User::factory()->create(['name' => 'Budi Tukang', 'username' => 'budi', 'email' => null, 'email_verified_at' => null])
             ->assignRole('FIELD_STAFF');
 
+        // Sprint 29 Sub 06 — a second Pengawas (QA/QC) for the projects with two: `qa2` / `password`.
+        User::factory()->create(['name' => 'Pengawas Kedua', 'username' => 'qa2', 'email' => 'qa2@daikuinterior.com'])
+            ->assignRole('QA');
+
         // Walks the full presales→execution→payroll business process
         // through the real Service layer (Lead→Design→Quotation→Project→
         // Task→DailyForm→Penalty→Overtime) so there's something real to
@@ -86,6 +90,11 @@ class DatabaseSeeder extends Seeder
         // forms still missing (every other role's "Perlu Tindakan" queue is
         // already filled by the two seeders above).
         $this->call(Demo\TodayDemoSeeder::class);
+
+        // Sprint 29 — everything of the revision the demo Pengawas (`qa`) can
+        // open: Rencana Bahan states, a pengecekan draft, a returned target,
+        // Aktivitas Harian checked by HR.
+        $this->call(Demo\PengawasPreviewSeeder::class);
 
         // SDM (Sprint 10) on top of DemoDataSeeder's employees, through the
         // real services: warnings + salary changes, KPI templates and three

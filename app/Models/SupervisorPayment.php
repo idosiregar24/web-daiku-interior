@@ -19,6 +19,7 @@ class SupervisorPayment extends Model
         'supervisor_id',
         'kind',
         'amount',
+        'breakdown',
         'status',
         'weekly_report_id',
         'requested_by',
@@ -40,6 +41,7 @@ class SupervisorPayment extends Model
             'kind' => SupervisorPaymentKind::class,
             'status' => SupervisorPaymentStatus::class,
             'amount' => 'decimal:2',
+            'breakdown' => 'array',
             'requested_at' => 'datetime',
             'decided_at' => 'datetime',
             'paid_at' => 'datetime',
@@ -89,7 +91,7 @@ class SupervisorPayment extends Model
     public function getLabelAttribute(): string
     {
         $kind = $this->kind === SupervisorPaymentKind::Mingguan && $this->weeklyReport
-            ? "Mingguan minggu ke-{$this->weeklyReport->week_number}"
+            ? 'Mingguan '.lcfirst($this->weeklyReport->label())
             : $this->kind?->label();
         $project = $this->project?->name;
 

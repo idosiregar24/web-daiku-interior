@@ -5,11 +5,14 @@ namespace App\Services;
 use App\Enums\NotificationType;
 use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
+use App\Enums\SupervisorPaymentStatus;
 use App\Enums\WeeklyReportStatus;
 use App\Models\Project;
+use App\Models\SupervisorPayment;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Support\DailyFormSchedule;
+use App\Support\Quantity;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -20,6 +23,12 @@ use Illuminate\Validation\ValidationException;
  * approves — optionally with this week's Jasa Pengawas payment, which
  * goes straight to Finance — or rejects with a note (the Pengawas fixes
  * and re-sends the same report). A Friday reminder chases a missing one.
+ *
+ * Sprint 29 Sub 09 (C1/B5) — a project with wages per RAB item: the report
+ * is the pengecekan — the % added per item (work_item_progress) — and
+ * sending it asks "cair kali ini" as the week's payment (DIAJUKAN); the PM
+ * decides both at once (may lower the amount; rejecting keeps the %). The
+ * typed weekly amount stays for older projects only.
  */
 class WeeklyReportService
 {
@@ -27,6 +36,8 @@ class WeeklyReportService
         private NotificationService $notificationService,
         private AuditLogService $auditLogService,
         private SupervisorPaymentService $supervisorPaymentService,
+        private WorkItemService $workItemService,
+        private ProductionService $productionService,
     ) {}
 
     /**
@@ -62,10 +73,32 @@ class WeeklyReportService
     }
 
     /**
+     * Sprint 31 — whether a report / pengecekan can be sent now (the same
+     * rule submit() enforces): with wages per item, unless this week's last
+     * one still waits for the PM; otherwise once a week (again after a
+     * rejection).
+     */
+    public function canSubmit(Project $project): bool
+    {
+        $report = WeeklyReport::where('project_id', $project->id)->whereDate('week_start', $this->weekOf($project)['week_start'])->orderByDesc('sequence')->first();
+
+        if ($this->workItemService->hasWorkItems($project)) {
+            return $report?->status !== WeeklyReportStatus::Diajukan;
+        }
+
+        return ! $report || $report->status === WeeklyReportStatus::Ditolak;
+    }
+
+    /**
      * The project's Pengawas sends this week's report (PRODUKSI or
      * PEMASANGAN). A rejected report of the same week is corrected in place.
      *
-     * @param  array{notes: string, links?: ?array<int, string>}  $data
+     * Sprint 31 — with wages per RAB item the report is a pengecekan, and a
+     * week may hold several (File C: 20 and 25 Oct): each is a new row
+     * (`sequence`), sent once the week's previous one was decided by the PM
+     * — within a week one money request waits for the PM at a time.
+     *
+     * @param  array{notes: string, links?: ?array<int, string>, progress?: ?array<int, array{item_id: int|string, percent: numeric-string|int|float, note?: string|null}>}  $data
      */
     public function submit(Project $project, array $data, User $actor): WeeklyReport
     {
@@ -78,9 +111,18 @@ class WeeklyReportService
 
             $week = $this->weekOf($project);
             $links = collect($data['links'] ?? [])->map(fn ($url) => trim((string) $url))->filter()->values()->all();
-            $report = WeeklyReport::where('project_id', $project->id)->whereDate('week_start', $week['week_start'])->first();
+            $usesWorkItems = $this->workItemService->hasWorkItems($project);
+            $report = WeeklyReport::where('project_id', $project->id)->whereDate('week_start', $week['week_start'])->orderByDesc('sequence')->first();
+            $sequence = 1;
 
-            if ($report && $report->status !== WeeklyReportStatus::Ditolak) {
+            if ($usesWorkItems) {
+                if ($report?->status === WeeklyReportStatus::Diajukan) {
+                    throw ValidationException::withMessages(['notes' => "Pengecekan {$report->label()} masih menunggu keputusan PM — kirim pengecekan berikutnya setelah diputuskan."]);
+                }
+
+                $sequence = ($report?->sequence ?? 0) + 1;
+                $report = null;
+            } elseif ($report && $report->status !== WeeklyReportStatus::Ditolak) {
                 throw ValidationException::withMessages(['notes' => "Laporan minggu ke-{$week['week_number']} sudah dikirim."]);
             }
 
@@ -97,30 +139,57 @@ class WeeklyReportService
 
             $report = $report
                 ? tap($report)->update($attributes)
-                : WeeklyReport::create([...$attributes, 'project_id' => $project->id, ...$week]);
+                : WeeklyReport::create([...$attributes, 'project_id' => $project->id, ...$week, 'sequence' => $sequence]);
 
             // Sprint 29 Sub 02 — "Pengecekan mingguan belum diisi" leaves the Pengawas's queue at once.
             DB::afterCommit(fn () => ActionInboxService::forget($actor));
 
             $this->auditLogService->record('weekly_report.submitted', $report, null, [
                 'week_number' => $report->week_number,
+                'sequence' => $report->sequence,
                 'notes' => $report->notes,
                 'links' => $links,
             ], $actor);
 
+            // Sprint 29 Sub 09 — the % per item, then "cair kali ini" as this week's request.
+            $payment = null;
+
+            if ($usesWorkItems) {
+                $this->workItemService->recordProgress($project, $data['progress'] ?? [], $report, $actor);
+                $this->workItemService->clearDraft($project);
+                $payment = $this->supervisorPaymentService->requestForReport($project, $report, $actor);
+            }
+
             $this->notificationService->notifyMany(
                 [$project->pm],
                 NotificationType::WeeklyReportSubmitted,
-                "Laporan Mingguan · Minggu ke-{$report->week_number}",
-                "{$actor->name} mengirim laporan mingguan proyek \"{$project->name}\" — setujui atau tolak di tab Eksekusi.",
-                ['project_id' => $project->id],
+                $payment ? "Pengajuan Upah Tukang · {$report->label()}" : "Laporan Mingguan · {$report->label()}",
+                $payment
+                    ? "{$actor->name} mengirim pengecekan proyek \"{$project->name}\" (progres ".Quantity::format($this->workItemService->weightedProgress($project) ?? 0).' %) dan mengajukan '.mb_strtolower($payment->kind->label()).' upah Rp '.number_format((float) $payment->amount, 0, ',', '.').' — setujui atau tolak di Item RAB › Lembar Progres.'
+                    : ($usesWorkItems
+                        ? "{$actor->name} mengirim pengecekan proyek \"{$project->name}\" — setujui atau tolak di Item RAB › Lembar Progres."
+                        : "{$actor->name} mengirim laporan mingguan proyek \"{$project->name}\" — setujui atau tolak di tab Eksekusi."),
+                // Sprint 31 — a pengecekan per item is decided on the Lembar Progres (NotificationTarget).
+                ['project_id' => $project->id, 'item_sheet' => $usesWorkItems],
             );
+
+            // Sprint 29 Sub 10 (B7) — the pengecekan moves the progres berbobot: the 70 % moment may be now.
+            if ($usesWorkItems) {
+                $this->productionService->checkProgress($project);
+            }
 
             return $report;
         });
     }
 
-    /** PM: approve (+ optional weekly payment → Finance) or reject (note required). */
+    /**
+     * PM: approve or reject (note required). Sprint 29 Sub 09 — a report that
+     * asked "cair kali ini" decides that payment too: approve with the amount
+     * (may be lowered; 0 = not this week), reject = the request is rejected
+     * as well (the % stay recorded — asked again with the next pengecekan).
+     * An older project without work items: the PM may still type this week's
+     * payment (straight to Finance).
+     */
     public function decide(WeeklyReport $report, bool $approve, ?float $paymentAmount, ?string $note, User $actor): WeeklyReport
     {
         return DB::transaction(function () use ($report, $approve, $paymentAmount, $note, $actor) {
@@ -141,8 +210,23 @@ class WeeklyReportService
                 'decision_note' => filled($note) ? trim($note) : null,
             ]);
 
-            if ($approve && $paymentAmount !== null && $paymentAmount > 0) {
+            $pending = SupervisorPayment::where('weekly_report_id', $report->id)->where('status', SupervisorPaymentStatus::Diajukan->value)->first();
+
+            if ($pending) {
+                $pays = $approve && ($paymentAmount === null || $paymentAmount > 0);
+                $pending = $this->supervisorPaymentService->decide(
+                    $pending,
+                    $pays,
+                    $pays ? ($paymentAmount ?? (float) $pending->amount) : null,
+                    $pays ? $note : ($note ?: 'Tidak dicairkan minggu ini.'),
+                    $actor,
+                    fromReport: true,
+                );
+                $paymentAmount = $pays ? (float) $pending->amount : null;
+            } elseif ($approve && $paymentAmount !== null && $paymentAmount > 0 && ! $this->workItemService->hasWorkItems($report->project)) {
                 $this->supervisorPaymentService->createWeekly($report, $paymentAmount, $actor);
+            } else {
+                $paymentAmount = null;
             }
 
             $this->auditLogService->record($approve ? 'weekly_report.approved' : 'weekly_report.rejected', $report, ['status' => WeeklyReportStatus::Diajukan->value], [
@@ -154,11 +238,11 @@ class WeeklyReportService
             $this->notificationService->notifyMany(
                 [$report->supervisor],
                 NotificationType::WeeklyReportDecided,
-                $approve ? "Laporan Minggu ke-{$report->week_number} Disetujui" : "Laporan Minggu ke-{$report->week_number} Ditolak",
+                $approve ? "Laporan {$report->label()} Disetujui" : "Laporan {$report->label()} Ditolak",
                 $approve
-                    ? "{$actor->name} menyetujui laporan mingguan proyek \"{$report->project->name}\"."
+                    ? "{$actor->name} menyetujui laporan mingguan proyek \"{$report->project->name}\"".($paymentAmount ? ' — upah Rp '.number_format($paymentAmount, 0, ',', '.').' menunggu dibayar Finance.' : '.')
                     : "{$actor->name} menolak laporan mingguan proyek \"{$report->project->name}\": {$report->decision_note} — perbaiki lalu kirim ulang.",
-                ['project_id' => $report->project_id],
+                ['project_id' => $report->project_id, 'item_sheet' => $this->workItemService->hasWorkItems($report->project)],
             );
 
             return $report;

@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Enums\MaterialOrderStatus;
 use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
 use App\Enums\QuotationStatus;
+use App\Enums\WeeklyReportStatus;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\Quotation;
@@ -34,6 +36,8 @@ class ProjectExecutionService
         private WeeklyReportService $weeklyReportService,
         private WorkItemService $workItemService,
         private ProductionService $productionService,
+        private WageSplitService $wageSplitService,
+        private ProjectStepsService $projectStepsService,
     ) {}
 
     /** Who gets the tab at all. */
@@ -59,12 +63,19 @@ class ProjectExecutionService
 
         $drawing = $project->workingDrawing()->with(['pic:id,name', 'staff:id,name', 'completer:id,name'])->first();
         $meeting = $project->technicalMeeting()->with(['attendees.user:id,name', 'completer:id,name'])->first();
-        $progress = $project->actualProgress();
+        // Sprint 29 Sub 10 (B7) — progres berbobot (items with a wage) or actual activity.
+        $progress = $project->progressFigure();
         $producing = $phase->isProducing();
         $weekStart = $this->weekStart($week);
+        $usesWorkItems = $this->workItemService->hasWorkItems($project);
+        $administers = $project->isAdministeredBy($user);
+        // Sprint 29 Sub 09 — the pengecekan % per item (built once; the PM's dialog reads it too).
+        $workCheck = $usesWorkItems && $producing && ($seesMoney || $administers) ? $this->workItemService->checkOverview($project, $seesMoney) : null;
 
         return [
             'phase' => $phase->value,
+            // Sprint 33 — "Langkah Kerja": the running phase's work in the order it is done (top of Detail Proyek).
+            'steps' => $this->projectStepsService->for($project, $user),
             'phases' => array_map(fn (ProjectPhase $step) => [
                 'value' => $step->value,
                 'label' => $step->label(),
@@ -94,7 +105,8 @@ class ProjectExecutionService
             'meetingRequirements' => $phase === ProjectPhase::Tm ? $this->technicalMeetingService->requirements($project) : [],
             // The Pengawas's "bahan yang digunakan", planned right in the TM card.
             'meetingMaterials' => $phase === ProjectPhase::Tm
-                ? $this->technicalMeetingService->plannedMaterials($project)
+                // Sprint 29 Sub 11 — the Rencana Bahan too (rejected lines with their reason).
+                ? $this->technicalMeetingService->plannedMaterials($project, true)
                     ->with(['material:id,name', 'unit:id,code'])
                     ->get()
                     ->map(fn (ProjectMaterial $line) => [
@@ -103,10 +115,19 @@ class ProjectExecutionService
                         'name' => $line->display_name,
                         'qty' => $line->quantityLabel($line->qty_planned ?? 0),
                         'qty_planned' => (float) $line->qty_planned,
+                        'qty_received' => (float) $line->qty_received,
                         'unit' => $line->unit?->code,
                         'source' => $line->source->value,
-                        // Only a catalog line nothing arrived on can still be changed from the TM card.
-                        'editable' => $line->material_id !== null && $line->request_channel === null && (float) $line->qty_received === 0.0,
+                        'channel' => $line->request_channel,
+                        // E4 — ProjectMaterial::orderStatus(), worded by materialStatus() in the UI.
+                        'order_status' => $line->orderStatus()->value,
+                        'reject_reason' => $line->reject_reason,
+                        'expected_at' => $line->expected_at?->toDateString(),
+                        // A Rencana Bahan line: its planners' draft until submitted (E5); otherwise
+                        // only a catalog line nothing arrived on can still be changed from the TM card.
+                        'editable' => $line->request_channel === ProjectMaterial::CHANNEL_RENCANA
+                            ? ($supervises || $administers) && $line->orderStatus() === MaterialOrderStatus::Direncanakan
+                            : $line->material_id !== null && $line->request_channel === null && (float) $line->qty_received === 0.0,
                     ])->values()->all()
                 : [],
             // What the RAB says the work is — the reference the Pengawas plans the materials from
@@ -125,13 +146,16 @@ class ProjectExecutionService
                 : [],
             'payments' => $seesMoney
                 ? $project->supervisorPayments()
-                    ->with(['project:id,name', 'weeklyReport:id,week_number', 'decider:id,name', 'payer:id,name'])
+                    ->with(['project:id,name', 'weeklyReport:id,week_number,sequence,status', 'decider:id,name', 'payer:id,name'])
                     ->get()
                     ->map(fn (SupervisorPayment $payment) => [
                         'id' => $payment->id,
                         'kind' => $payment->kind->value,
                         'label' => $payment->label,
                         'amount' => (float) $payment->amount,
+                        'breakdown' => $payment->breakdown,
+                        // Sprint 29 Sub 09 — decided with its pengecekan (WeeklyReportsCard), not on its own.
+                        'via_report' => $payment->weeklyReport?->status === WeeklyReportStatus::Diajukan,
                         'status' => $payment->status->value,
                         'requested_at' => $payment->requested_at?->toIso8601String(),
                         'decided_at' => $payment->decided_at?->toIso8601String(),
@@ -141,12 +165,15 @@ class ProjectExecutionService
                     ])->values()->all()
                 : [],
             'weeklyReports' => $project->weeklyReports()
-                ->with(['supervisor:id,name', 'decider:id,name', 'payment:id,weekly_report_id,amount,status'])
+                ->with(['supervisor:id,name', 'decider:id,name', 'payment', 'progressRows.workItem.quotationItem:id,description'])
                 ->get()
                 ->map(fn (WeeklyReport $report) => [
                     'id' => $report->id,
                     'week_number' => $report->week_number,
                     'week_start' => $report->week_start->toDateString(),
+                    // Sprint 31 — several pengecekan a week: "Minggu ke-3 · Pengecekan ke-2".
+                    'sequence' => $report->sequence,
+                    'label' => $report->label(),
                     'notes' => $report->notes,
                     'links' => $report->links ?? [],
                     'status' => $report->status->value,
@@ -156,14 +183,34 @@ class ProjectExecutionService
                     'decider' => $report->decider?->name,
                     'decision_note' => $report->decision_note,
                     'payment_amount' => $seesMoney && $report->payment ? (float) $report->payment->amount : null,
+                    // Sprint 29 Sub 09 — the request this pengecekan asked (money viewers only) and the % it added.
+                    'payment' => $seesMoney && $report->payment ? [
+                        'id' => $report->payment->id,
+                        'kind' => $report->payment->kind->value,
+                        'amount' => (float) $report->payment->amount,
+                        'status' => $report->payment->status->value,
+                        'breakdown' => $report->payment->breakdown,
+                    ] : null,
+                    'progress' => $report->progressRows->map(fn ($row) => [
+                        'description' => $row->workItem?->quotationItem?->description,
+                        'percent' => (float) $row->percent,
+                        'note' => $row->note,
+                    ])->values()->all(),
                 ])->values()->all(),
             'currentWeek' => $producing && $active ? [
                 ...$this->weeklyReportService->weekOf($project),
                 'is_report_day' => DailyFormSchedule::now()->dayOfWeek === (int) config('daiku.execution.weekly_report_day', 5),
                 // Sprint 29 Sub 02 — may be sent any day of the week; from the report day on it is due.
                 'is_due' => WeeklyReportService::isDue(),
+                // Sprint 31 — another pengecekan may be sent (several a week, one waiting for the PM at a time).
+                'open' => $this->weeklyReportService->canSubmit($project),
             ] : null,
-            'progress' => $progress,
+            // Sprint 31 Sub 03 — "Jadwal per Item" (File C's light-blue cells): every viewer of the tab, from Persiapan.
+            'workSchedule' => $usesWorkItems && $phase->isAtLeast(ProjectPhase::Persiapan) ? $this->workItemService->scheduleOverview($project) : null,
+            // Sprint 31 — "Rekap Progres per Item" (File C as a table): the pengecekan viewers only.
+            'progressRecap' => $usesWorkItems && ($seesMoney || $administers) ? $this->workItemService->progressRecap($project) : null,
+            'progress' => $progress['progress'],
+            'progressBasis' => $progress['basis'],
             'threshold' => ProductionService::departureThreshold(),
             'departure' => $project->departure_approved_at ? [
                 'approved_at' => $project->departure_approved_at->toIso8601String(),
@@ -195,11 +242,22 @@ class ProjectExecutionService
                 ]
                 : null,
             'deadline' => $this->deadline($project),
-            'usesWorkItems' => $this->workItemService->hasWorkItems($project),
+            'usesWorkItems' => $usesWorkItems,
             // Sprint 29 Sub 08 — Upah Tukang per item: RAB prices + wages, for who sees the money or fills it.
-            'workItems' => $seesMoney || $project->isAdministeredBy($user) ? $this->workItemService->overview($project) : null,
+            'workItems' => $seesMoney || $administers ? $this->workItemService->overview($project) : null,
+            'workCheck' => $workCheck,
+            // Sprint 32 — Pembagian Upah per Orang (File D): who sees the Upah Tukang; templates only for who fills it.
+            'wageSplit' => $usesWorkItems && ($seesMoney || $administers) ? [
+                ...$this->wageSplitService->overview($project),
+                'levels' => $this->wageSplitService->levelOptions(),
+                'templates' => $user->can('splitWages', $project) ? $this->wageSplitService->templateOptions() : [],
+            ] : null,
             'can' => [
                 'setWages' => $user->can('setWages', $project),
+                // Sprint 31 Sub 03 — the Jadwal per Item card's dates.
+                'scheduleItems' => $user->can('scheduleWorkItems', $project),
+                // Sprint 32 — Item RAB › Pembagian Upah.
+                'splitWages' => $user->can('splitWages', $project),
                 'saveMeeting' => $active && $phase === ProjectPhase::Tm && $user->can('editMeeting', $project),
                 'completeMeeting' => $active && $phase === ProjectPhase::Tm && $runsMeeting,
                 'requestDp' => $active && $phase === ProjectPhase::Persiapan && $supervises,
@@ -209,13 +267,21 @@ class ProjectExecutionService
                 'recordFinding' => $active && $phase === ProjectPhase::Pemasangan && $user->can('recordFindings', $project),
                 'resolveFinding' => ! $project->isClosed() && ($supervises || $approves),
                 'manageTargets' => $managesTargets && $phase->allowsTargets(),
-                'requestSettlement' => $project->status === ProjectStatus::Completed && $supervises,
+                // Sprint 29 Sub 09 (B5) — with wages per item: every item with a wage at 100 %.
+                'requestSettlement' => $supervises && ($usesWorkItems
+                    ? ($workCheck['summary']['all_done'] ?? $this->workItemService->allDone($project))
+                    : $project->status === ProjectStatus::Completed),
+                // Sprint 29 Sub 09 — the pengecekan draft: the Pengawas or the Admin Proyek (sending = submitWeekly).
+                'fillWorkCheck' => $usesWorkItems && $user->can('fillWorkCheck', $project),
                 // The TM card's material planner (same routes and policies as the Material tab).
                 'planMaterials' => $active && $phase === ProjectPhase::Tm && $user->can('planMaterials', $project),
                 'updateMaterials' => $active && $phase === ProjectPhase::Tm
                     && ($user->can('manageMaterials', $project) || $user->can('reviseMaterialPlan', $project)),
                 'removeMaterials' => $active && $phase === ProjectPhase::Tm
                     && ($user->hasRole('LOGISTICS') || $user->can('reviseMaterialPlan', $project)),
+                // Sprint 29 Sub 11 (E2/E3) — custom lines and "Ajukan ke Logistik" in the planner.
+                'submitMaterialPlan' => $active && $phase === ProjectPhase::Tm && $user->can('planMaterials', $project)
+                    && app(ProjectMaterialService::class)->plansThroughLogistics($project, $user),
             ],
         ];
     }

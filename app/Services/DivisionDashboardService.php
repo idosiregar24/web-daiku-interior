@@ -624,10 +624,9 @@ class DivisionDashboardService
                     // Sprint 28 K14 — the status chip names the phase's holder.
                     'phase' => $project->phase,
                     'pm' => $project->pm?->name,
-                    // Sprint 24 D11 — actual activity; null while no daily target exists.
-                    'progress' => $project->tasks_count === 0
-                        ? null
-                        : Project::activityPercent((int) $project->done_tasks_count, (int) $project->tasks_count),
+                    // Sprint 29 Sub 10 — progres berbobot, else actual activity (null while no daily target exists).
+                    'progress' => $project->listedProgress()['progress'],
+                    'progressBasis' => $project->listedProgress()['basis'],
                     'tasksDone' => (int) $project->done_tasks_count,
                     'tasksTotal' => (int) $project->tasks_count,
                     'milestonesCompleted' => (int) $project->milestones_completed_count,
@@ -788,9 +787,7 @@ class DivisionDashboardService
                     'id' => $form->id,
                     'projectId' => $form->project_id,
                     'projectName' => $form->project?->name ?? '—',
-                    'projectProgress' => $form->project === null || $form->project->tasks_count === 0
-                        ? null
-                        : Project::activityPercent((int) $form->project->done_tasks_count, (int) $form->project->tasks_count),
+                    'projectProgress' => $form->project?->listedProgress()['progress'],
                     'milestoneName' => $form->milestone?->name ?? '—',
                     'milestoneTargetDate' => $form->milestone?->target_date?->toDateString(),
                     'round' => $form->rejection_count + 1,

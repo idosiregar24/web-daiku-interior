@@ -65,7 +65,8 @@ class AnalyticsService
 
     /**
      * "Active Projects Overview: Card ringkasan proyek berjalan + progres".
-     * Progress = actual activity (Sprint 24 D11, Project::withActivityCounts());
+     * Progress = Project::listedProgress() (Sprint 29 Sub 10: progres berbobot,
+     * else actual activity — Project::withActivityCounts());
      * the QA-approved milestone ratio is sent alongside.
      */
     public function activeProjects(int $limit = 8): Collection
@@ -87,7 +88,8 @@ class AnalyticsService
                 'name' => $project->name,
                 'pm' => $project->pm?->name,
                 'contractValue' => (float) $project->contract_value,
-                'progress' => Project::activityPercent((int) $project->done_tasks_count, (int) $project->tasks_count),
+                'progress' => $project->listedProgress()['progress'] ?? 0,
+                'progressBasis' => $project->listedProgress()['basis'],
                 'milestonesCompleted' => $project->milestones_completed_count,
                 'milestonesTotal' => $project->milestones_count,
                 'overdueTasks' => $project->overdue_tasks_count,

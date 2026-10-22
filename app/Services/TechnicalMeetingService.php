@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Enums\MaterialRequestStatus;
 use App\Enums\NotificationType;
 use App\Enums\ProjectPhase;
 use App\Models\Project;
@@ -65,7 +64,7 @@ class TechnicalMeetingService
             if ($project->workItems()->exists()) {
                 $fee = app(WorkItemService::class)->syncFee($project, $actor);
 
-                if ($fee && array_key_exists('dp_percent', $data)) {
+                if ($fee && filled($data['dp_percent'] ?? null)) {
                     $fee->update(['dp_percent' => round((float) $data['dp_percent'], 2)]);
                 }
             } elseif (filled($data['fee_total'] ?? null)) {
@@ -162,11 +161,14 @@ class TechnicalMeetingService
         );
     }
 
-    /** Material lines that count as "bahan yang digunakan": planned from the catalog or approved requests. */
-    public function plannedMaterials(Project $project): Builder
+    /**
+     * Material lines that count as "bahan yang digunakan": planned from the
+     * catalog, approved requests and the Pengawas's Rencana Bahan (Sprint 29
+     * Sub 11 — rejected plan lines only with `$withRejected`).
+     */
+    public function plannedMaterials(Project $project, bool $withRejected = false): Builder
     {
-        return $project->projectMaterials()->getQuery()
-            ->where(fn (Builder $q) => $q->whereNull('request_status')->orWhere('request_status', MaterialRequestStatus::Disetujui->value));
+        return $project->projectMaterials()->getQuery()->planned($withRejected);
     }
 
     private function snapshot(TechnicalMeeting $meeting, Project $project): array

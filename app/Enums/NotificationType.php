@@ -130,6 +130,8 @@ enum NotificationType: string
     case QaApproved = 'qa_approved';
     case QaRejected = 'qa_rejected';
     case QaRejectedTwice = 'qa_rejected_twice';
+    // Sprint 29 Sub 12 — QA per item RAB: the Pengawas passed items / asked a repair.
+    case WorkItemQaDecided = 'work_item_qa_decided';
 
     // Material & logistik
     case MaterialRequestSubmitted = 'material_request_submitted';
@@ -139,6 +141,11 @@ enum NotificationType: string
     case MaterialRequestSummary = 'material_request_summary';
     case MaterialLowStock = 'material_low_stock';
     case ProjectMaterialLeftover = 'project_material_leftover';
+    // Sprint 29 Sub 11 — the Pengawas's Rencana Bahan: submitted to Logistik, rejected, ordered, arrived.
+    case MaterialPlanSubmitted = 'material_plan_submitted';
+    case MaterialPlanRejected = 'material_plan_rejected';
+    case MaterialOrdered = 'material_ordered';
+    case MaterialReceived = 'material_received';
 
     // SDM
     case DisciplinaryIssued = 'disciplinary_issued';
@@ -148,6 +155,8 @@ enum NotificationType: string
     case ReviewReturned = 'review_returned';
     case ReviewApproved = 'review_approved';
     case ReviewApprovedReviewer = 'review_approved_reviewer';
+    // Sprint 29 Sub 13 — HR asks an employee to explain a day's Aktivitas Harian.
+    case DailyActivityClarification = 'daily_activity_clarification';
 
     // Akun (Sprint 21) — the CEO changed someone's username, email or password.
     case AccountUpdated = 'account_updated';
@@ -237,6 +246,7 @@ enum NotificationType: string
             self::MaterialRequestSubmitted,
             self::MaterialRequestPmPending,
             self::MaterialRequestReminder,
+            self::MaterialPlanSubmitted,
             self::MaterialLowStock,
             self::ProjectMaterialLeftover,
             self::QaFormCreated,
@@ -252,6 +262,7 @@ enum NotificationType: string
             self::SalaryChangeRequested,
             self::ReviewSubmitted,
             self::ReviewReturned,
+            self::DailyActivityClarification,
             // Sprint 19 (K3) — Marketing hears the money arrived with a ring.
             self::InvoiceVerified,
             self::SurveyScheduled,
@@ -280,7 +291,11 @@ enum NotificationType: string
             self::BudgetOverrunApproved,
             self::BudgetOverrunRejected,
             self::MaterialRequestDecided,
+            self::MaterialPlanRejected,
+            self::MaterialOrdered,
+            self::MaterialReceived,
             self::QaApproved,
+            self::WorkItemQaDecided,
             self::PenaltyIssued,
             self::DisciplinaryIssued,
             self::SalaryChangeDecided,
@@ -405,13 +420,18 @@ enum NotificationType: string
             self::QaFormCreated,
             self::QaApproved,
             self::QaRejected,
-            self::QaRejectedTwice => NotificationCategory::Qa,
+            self::QaRejectedTwice,
+            self::WorkItemQaDecided => NotificationCategory::Qa,
 
             self::MaterialRequestSubmitted,
             self::MaterialRequestPmPending,
             self::MaterialRequestReminder,
             self::MaterialRequestDecided,
             self::MaterialRequestSummary,
+            self::MaterialPlanSubmitted,
+            self::MaterialPlanRejected,
+            self::MaterialOrdered,
+            self::MaterialReceived,
             self::MaterialLowStock,
             self::ProjectMaterialLeftover => NotificationCategory::Logistics,
 
@@ -421,7 +441,8 @@ enum NotificationType: string
             self::ReviewSubmitted,
             self::ReviewReturned,
             self::ReviewApproved,
-            self::ReviewApprovedReviewer => NotificationCategory::Hr,
+            self::ReviewApprovedReviewer,
+            self::DailyActivityClarification => NotificationCategory::Hr,
 
             self::AccountUpdated => NotificationCategory::Account,
         };

@@ -9,6 +9,7 @@ use App\Enums\ProjectPhase;
 use App\Enums\ProjectStatus;
 use App\Enums\SupervisorPaymentKind;
 use App\Enums\SupervisorPaymentStatus;
+use App\Enums\WeeklyReportStatus;
 use App\Models\Project;
 use App\Models\SupervisorFee;
 use App\Models\SupervisorPayment;
@@ -34,6 +35,7 @@ class SupervisorPaymentService
         private ProjectPhaseService $phaseService,
         private TechnicalMeetingService $technicalMeetingService,
         private MilestoneService $milestoneService,
+        private WorkItemService $workItemService,
     ) {}
 
     /** Sprint 27 P1a — at most this many items are named per condition (the rest is "dan n lainnya"). */
@@ -65,22 +67,14 @@ class SupervisorPaymentService
         $hasMaterials = $this->technicalMeetingService->plannedMaterials($project)->exists();
         $fee = $project->supervisorFee()->first();
         $hasFee = $fee !== null && (float) $fee->total_amount > 0;
-        $perItem = app(WorkItemService::class)->hasWorkItems($project);
-        $wageTotal = $perItem ? app(WorkItemService::class)->totalWage($project) : 0;
+        $perItem = $this->workItemService->hasWorkItems($project);
+        $wageTotal = $perItem ? $this->workItemService->totalWage($project) : 0;
 
         $wagesMissing = $withTaskTitles
             ? $unpaid->take(self::MISSING_SHOWN)->map(fn ($task) => trim($task->title.' · '.(($task->planned_date ?? $task->due_date)?->format('d/m') ?? '')))->all()
             : [];
 
         return [
-            [
-                'key' => 'materials',
-                'label' => 'Bahan',
-                'done' => $hasMaterials,
-                'detail' => $hasMaterials ? null : 'Belum ada rencana bahan.',
-                'missing' => [],
-                'more' => 0,
-            ],
             // Sprint 29 Sub 08 (D3) — a project with work items: "upah ✓" = ≥ 1 RAB item with a Satuan Upah.
             $perItem ? [
                 'key' => 'wages',
@@ -108,6 +102,14 @@ class SupervisorPaymentService
                     : ($empty->isEmpty() ? null : "{$empty->count()} timeline belum punya daily target."),
                 'missing' => $empty->take(self::MISSING_SHOWN)->pluck('name')->values()->all(),
                 'more' => max(0, $empty->count() - self::MISSING_SHOWN),
+            ],
+            [
+                'key' => 'materials',
+                'label' => 'Bahan',
+                'done' => $hasMaterials,
+                'detail' => $hasMaterials ? null : 'Belum ada rencana bahan.',
+                'missing' => [],
+                'more' => 0,
             ],
             // Sprint 29 Sub 03 — the old Jasa Pengawas value (projects without work
             // items); with work items the total is Σ upah per item (the row above).
@@ -140,17 +142,29 @@ class SupervisorPaymentService
                 throw ValidationException::withMessages(['dp' => 'DP upah tukang proyek ini sudah diajukan.']);
             }
 
-            return $this->createRequest($project, $fee, SupervisorPaymentKind::Dp, $fee->dpAmount(), $actor);
+            $amount = $fee->dpAmount();
+
+            // Sprint 29 Sub 09 (B6) — the DP splits per Kepala Tim pro rata to each team's wage.
+            return $this->createRequest($project, $fee, SupervisorPaymentKind::Dp, $amount, $actor, breakdown: $this->shares($project, $amount, 'total', 0.0));
         });
     }
 
-    /** E3 — "Ajukan Pelunasan": the rest of the fee, once the project is COMPLETED. */
+    /**
+     * E3 — "Ajukan Pelunasan": the rest of the fee. Sprint 29 Sub 09 (B5) — a
+     * project with wages per RAB item: once every item with a wage is at
+     * 100 %; an older project: once it is COMPLETED.
+     */
     public function requestSettlement(Project $project, User $actor): SupervisorPayment
     {
         return DB::transaction(function () use ($project, $actor) {
             $project = Project::lockForUpdate()->findOrFail($project->id);
+            $perItem = $this->workItemService->hasWorkItems($project);
 
-            if ($project->status !== ProjectStatus::Completed) {
+            if ($perItem && ! $this->workItemService->allDone($project)) {
+                throw ValidationException::withMessages(['settlement' => 'Pelunasan upah tukang diajukan setelah semua item berupah mencapai 100 %.']);
+            }
+
+            if (! $perItem && $project->status !== ProjectStatus::Completed) {
                 throw ValidationException::withMessages(['settlement' => 'Pelunasan upah tukang diajukan setelah proyek selesai.']);
             }
 
@@ -166,8 +180,35 @@ class SupervisorPaymentService
                 throw ValidationException::withMessages(['settlement' => 'Jasa pengawas proyek ini sudah dibayar penuh.']);
             }
 
-            return $this->createRequest($project, $fee, SupervisorPaymentKind::Pelunasan, $remaining, $actor);
+            return $this->createRequest($project, $fee, SupervisorPaymentKind::Pelunasan, $remaining, $actor, breakdown: $this->shares($project, $remaining, 'progress', $fee->committedAmount()));
         });
+    }
+
+    /**
+     * Sprint 29 Sub 09 (B5/C1) — "Kirim pengecekan": the pengecekan asks
+     * "cair kali ini" (upah boleh cair − sudah cair) as this week's payment —
+     * the PELUNASAN once every item with a wage is at 100 %. Nothing when
+     * there is nothing to draw. Runs inside WeeklyReportService::submit()'s
+     * transaction, the project row locked (like requestDp()).
+     */
+    public function requestForReport(Project $project, WeeklyReport $report, User $actor): ?SupervisorPayment
+    {
+        $fee = SupervisorFee::where('project_id', $project->id)->lockForUpdate()->first();
+
+        if (! $fee) {
+            return null;
+        }
+
+        $alreadyPaid = $fee->committedAmount();
+        $amount = $this->workItemService->payableNow($project);
+
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $kind = $this->workItemService->allDone($project) ? SupervisorPaymentKind::Pelunasan : SupervisorPaymentKind::Mingguan;
+
+        return $this->createRequest($project, $fee, $kind, $amount, $actor, $report, $this->shares($project, $amount, 'progress', $alreadyPaid), notifyPm: false);
     }
 
     /**
@@ -176,14 +217,21 @@ class SupervisorPaymentService
      * queue; a DP approval starts production. Reject: a note is required;
      * the Pengawas may ask again.
      */
-    public function decide(SupervisorPayment $payment, bool $approve, ?float $amount, ?string $note, User $actor): SupervisorPayment
+    public function decide(SupervisorPayment $payment, bool $approve, ?float $amount, ?string $note, User $actor, bool $fromReport = false): SupervisorPayment
     {
-        return DB::transaction(function () use ($payment, $approve, $amount, $note, $actor) {
+        return DB::transaction(function () use ($payment, $approve, $amount, $note, $actor, $fromReport) {
             $payment = SupervisorPayment::lockForUpdate()->findOrFail($payment->id);
             $project = Project::lockForUpdate()->findOrFail($payment->project_id);
 
             if ($payment->status !== SupervisorPaymentStatus::Diajukan) {
                 throw ValidationException::withMessages(['payment' => 'Pengajuan ini sudah diputuskan.']);
+            }
+
+            // Sprint 29 Sub 09 — a pengecekan's payment is decided with its report (one decision).
+            $report = $payment->weekly_report_id ? WeeklyReport::find($payment->weekly_report_id) : null;
+
+            if (! $fromReport && $report && $report->status === WeeklyReportStatus::Diajukan) {
+                throw ValidationException::withMessages(['payment' => "Putuskan lewat pengecekan {$report->label()} (tab Eksekusi)."]);
             }
 
             if (! $approve) {
@@ -201,7 +249,9 @@ class SupervisorPaymentService
                     'status' => SupervisorPaymentStatus::Ditolak->value,
                     'note' => trim($note),
                 ], $actor);
-                $this->notifySupervisor($payment, 'Pengajuan Ditolak PM', "Pengajuan {$payment->label} ditolak {$actor->name}: ".trim($note));
+                if (! $fromReport) {
+                    $this->notifySupervisor($payment, 'Pengajuan Ditolak PM', "Pengajuan {$payment->label} ditolak {$actor->name}: ".trim($note));
+                }
 
                 return $payment;
             }
@@ -211,6 +261,8 @@ class SupervisorPaymentService
 
             $payment->update([
                 'amount' => $amount,
+                // The PM changed the amount: the split per Kepala Tim follows.
+                'breakdown' => (float) $payment->amount === $amount ? $payment->breakdown : $this->workItemService->scaleShares($payment->breakdown, $amount),
                 'status' => SupervisorPaymentStatus::DisetujuiPm->value,
                 'decided_by' => $actor->id,
                 'decided_at' => now(),
@@ -225,7 +277,10 @@ class SupervisorPaymentService
                 $this->startProduction($project, $actor);
             }
 
-            $this->notifySupervisor($payment, 'Pengajuan Disetujui PM', "Pengajuan {$payment->label} (Rp ".$this->rupiah($amount).") disetujui {$actor->name} — menunggu dibayar Finance.");
+            if (! $fromReport) {
+                $this->notifySupervisor($payment, 'Pengajuan Disetujui PM', "Pengajuan {$payment->label} (Rp ".$this->rupiah($amount).") disetujui {$actor->name} — menunggu dibayar Finance.");
+            }
+
             $this->notifyFinance($payment);
 
             return $payment;
@@ -269,7 +324,7 @@ class SupervisorPaymentService
     public function pay(SupervisorPayment $payment, int $bankAccountId, User $actor): SupervisorPayment
     {
         return DB::transaction(function () use ($payment, $bankAccountId, $actor) {
-            $payment = SupervisorPayment::with(['project:id,name', 'supervisor:id,name', 'weeklyReport:id,week_number'])->lockForUpdate()->findOrFail($payment->id);
+            $payment = SupervisorPayment::with(['project:id,name', 'supervisor:id,name', 'weeklyReport:id,week_number,sequence'])->lockForUpdate()->findOrFail($payment->id);
 
             if ($payment->status !== SupervisorPaymentStatus::DisetujuiPm) {
                 throw ValidationException::withMessages(['payment' => $payment->status === SupervisorPaymentStatus::Dibayar
@@ -353,8 +408,20 @@ class SupervisorPaymentService
         );
     }
 
-    private function createRequest(Project $project, SupervisorFee $fee, SupervisorPaymentKind $kind, float $amount, User $actor): SupervisorPayment
-    {
+    /**
+     * @param  list<array{label: string, amount: float}>|null  $breakdown  Sprint 29 Sub 09 — split per Kepala Tim
+     * @param  bool  $notifyPm  false when the weekly report's own notification carries it
+     */
+    private function createRequest(
+        Project $project,
+        SupervisorFee $fee,
+        SupervisorPaymentKind $kind,
+        float $amount,
+        User $actor,
+        ?WeeklyReport $report = null,
+        ?array $breakdown = null,
+        bool $notifyPm = true,
+    ): SupervisorPayment {
         $this->ensureWithinFee($fee, $amount);
 
         $payment = $fee->payments()->create([
@@ -363,15 +430,24 @@ class SupervisorPaymentService
             'supervisor_id' => $project->isSupervisedBy($actor) ? $actor->id : $project->supervisors()->value('users.id'),
             'kind' => $kind->value,
             'amount' => $amount,
+            'breakdown' => $breakdown ?: null,
+            'weekly_report_id' => $report?->id,
             'status' => SupervisorPaymentStatus::Diajukan->value,
             'requested_by' => $actor->id,
             'requested_at' => now(),
         ]);
         $payment->setRelation('project', $project);
+        $payment->setRelation('weeklyReport', $report);
         $this->auditLogService->record('supervisor_payment.requested', $payment, null, [
             'kind' => $kind->value,
             'amount' => $amount,
+            'weekly_report_id' => $report?->id,
+            'breakdown' => $breakdown ?: null,
         ], $actor);
+
+        if (! $notifyPm) {
+            return $payment;
+        }
 
         $this->notificationService->notifyMany(
             [$project->pm],
@@ -382,6 +458,21 @@ class SupervisorPaymentService
         );
 
         return $payment;
+    }
+
+    /**
+     * Split per Kepala Tim — only for a project with wages per RAB item.
+     *
+     * @param  'total'|'progress'  $basis
+     * @return list<array{label: string, amount: float}>|null
+     */
+    private function shares(Project $project, float $amount, string $basis, float $alreadyPaid): ?array
+    {
+        if (! $this->workItemService->hasWorkItems($project)) {
+            return null;
+        }
+
+        return $this->workItemService->teamShares($project, $amount, $basis, $alreadyPaid) ?: null;
     }
 
     private function feeOf(Project $project): SupervisorFee

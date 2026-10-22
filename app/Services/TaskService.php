@@ -298,7 +298,9 @@ class TaskService
 
         $becomesDone = $data['status'] === TaskStatus::Done->value && $task->status !== TaskStatus::Done;
 
-        DB::transaction(function () use ($task, $data, $actor, $isAssignee, $recordActivity, $becomesDone) {
+        $closedFindings = 0;
+
+        DB::transaction(function () use ($task, $data, $actor, $isAssignee, $recordActivity, $becomesDone, &$closedFindings) {
             $task->update([
                 'status' => $data['status'],
                 'pre_overdue_status' => null,
@@ -315,7 +317,7 @@ class TaskService
 
             if ($becomesDone) {
                 // D12 — a repair task closes its finding.
-                SiteFinding::where('task_id', $task->id)->open()->update([
+                $closedFindings = SiteFinding::where('task_id', $task->id)->open()->update([
                     'status' => SiteFindingStatus::Selesai->value,
                     'resolved_by' => $actor->id,
                     'resolved_at' => now(),
@@ -325,6 +327,11 @@ class TaskService
 
         if ($becomesDone && $task->project) {
             $this->productionService->checkProgress($task->project);
+
+            // Sprint 29 Sub 12 — the last finding closing may complete a project with QA per item.
+            if ($closedFindings > 0) {
+                SiteFindingService::afterClosed($task->project);
+            }
         }
 
         return $task->fresh();

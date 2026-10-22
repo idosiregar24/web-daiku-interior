@@ -359,6 +359,9 @@ class ProjectService
      * whenever a leftover gets settled (ProjectMaterialService), so the
      * project finishes the moment both conditions hold. A project with no
      * milestones never auto-completes. Returns whether it completed.
+     * Sprint 29 Sub 12 (G2): a project with QA per item RAB completes on
+     * its items instead (WorkItemQaService — called on a LOLOS and when a
+     * finding closes), timelines don't count.
      *
      * $notifyWhenBlocked: tell the PM and Logistics which items are
      * holding the project up — only on the QA approval that finished the
@@ -370,11 +373,23 @@ class ProjectService
             return false;
         }
 
-        $milestones = $project->milestones()->get(['id', 'status']);
+        // Sprint 29 Sub 12 (G2) — QA per item RAB: every item with a wage at
+        // 100 % and passed; per timeline (older projects): every timeline QA'd.
+        $itemQa = $project->usesItemQa();
 
-        if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
-            return false;
+        if ($itemQa) {
+            if (! app(WorkItemQaService::class)->allPassed($project)) {
+                return false;
+            }
+        } else {
+            $milestones = $project->milestones()->get(['id', 'status']);
+
+            if ($milestones->isEmpty() || $milestones->contains(fn (Milestone $m) => $m->status !== MilestoneStatus::Completed)) {
+                return false;
+            }
         }
+
+        $passed = $itemQa ? 'Semua item RAB proyek "'.$project->name.'" lolos QA' : 'Semua timeline proyek "'.$project->name.'" lolos QA';
 
         // Sprint 24 D12 — an open finishing finding holds the project too.
         if ($project->siteFindings()->open()->exists()) {
@@ -400,7 +415,7 @@ class ProjectService
                     User::role('LOGISTICS')->where('is_active', true)->get()->push($project->pm)->filter(),
                     NotificationType::ProjectMaterialLeftover,
                     'Proyek Tertahan: Material',
-                    "Semua timeline proyek \"{$project->name}\" lolos QA, tetapi proyek belum bisa COMPLETED karena "
+                    "{$passed}, tetapi proyek belum bisa COMPLETED karena "
                         .implode('; ', $reasons).'. Selesaikan di tab Material.',
                     ['project_id' => $project->id],
                 );
@@ -422,7 +437,7 @@ class ProjectService
             User::role('CEO')->where('is_active', true)->get()->push($project->pm)->filter(),
             NotificationType::ProjectCompleted,
             'Proyek Selesai',
-            "Semua timeline proyek \"{$project->name}\" lolos QA — proyek ditandai COMPLETED.",
+            "{$passed} — proyek ditandai COMPLETED.",
             ['project_id' => $project->id],
         );
 
