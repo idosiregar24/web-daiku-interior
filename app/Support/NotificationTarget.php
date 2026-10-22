@@ -104,7 +104,6 @@ class NotificationTarget
             NotificationType::TechnicalMeetingScheduled,
             NotificationType::TechnicalMeetingReminder,
             NotificationType::TechnicalMeetingCompleted,
-            NotificationType::SupervisorPaymentRequested,
             NotificationType::SupervisorPaymentDecided,
             NotificationType::SupervisorPaymentPaid,
             NotificationType::ProductionStarted,
@@ -114,6 +113,10 @@ class NotificationTarget
             NotificationType::SiteFindingRecorded,
             NotificationType::ProjectDeadlineNear => $id('project_id')
                 ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'execution'])
+                : null,
+            // Sprint 34 — straight to the Upah Tukang card, where the PM decides.
+            NotificationType::SupervisorPaymentRequested => $id('project_id')
+                ? route('projects.show', ['project' => $id('project_id'), 'tab' => 'execution']).'#dp'
                 : null,
             // Sprint 31 — a pengecekan per item is sent and decided on Item RAB › Lembar Progres.
             NotificationType::WeeklyReportSubmitted,

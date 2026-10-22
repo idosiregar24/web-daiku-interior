@@ -452,8 +452,10 @@ class SupervisorPaymentService
         $this->notificationService->notifyMany(
             [$project->pm],
             NotificationType::SupervisorPaymentRequested,
-            'Pengajuan Upah Tukang',
-            "{$actor->name} mengajukan {$payment->label} sebesar Rp ".$this->rupiah($amount).' — setujui atau tolak di tab Eksekusi.',
+            $kind === SupervisorPaymentKind::Dp ? 'DP Upah Tukang Menunggu Persetujuan Anda' : 'Pengajuan Upah Tukang Menunggu Persetujuan Anda',
+            "{$actor->name} mengajukan {$payment->label} sebesar Rp ".$this->rupiah($amount).($kind === SupervisorPaymentKind::Dp
+                ? ' — bila Anda setujui, Produksi dimulai. Setujui atau tolak di kartu Upah Tukang (tab Eksekusi).'
+                : ' — setujui atau tolak di kartu Upah Tukang (tab Eksekusi).'),
             ['project_id' => $project->id],
         );
 
