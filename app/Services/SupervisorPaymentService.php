@@ -115,7 +115,7 @@ class SupervisorPaymentService
             // items); with work items the total is Σ upah per item (the row above).
             ...($perItem ? [] : [[
                 'key' => 'fee',
-                'label' => 'Nilai upah tukang & DP % · PM',
+                'label' => 'Nilai upah tukang & DP % diisi PM',
                 'done' => $hasFee,
                 'detail' => $hasFee ? null : 'PM belum mengisi nilai upah tukang (kartu Technical Meeting).',
                 'missing' => [],

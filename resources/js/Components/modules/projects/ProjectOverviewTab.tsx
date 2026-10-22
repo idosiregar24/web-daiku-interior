@@ -106,7 +106,7 @@ function MyTurnCard({
         <SectionCard
             title={
                 <span className="flex items-center gap-2">
-                    Giliran Anda
+                    Tugas Anda
                     <span className="rounded-md bg-daiku-yellow-light px-1.5 py-0.5 text-[11px] font-semibold text-daiku-yellow-dark tabular-nums">
                         {rows.length}
                     </span>
@@ -132,7 +132,7 @@ function MyTurnCard({
     );
 }
 
-/** H6e — rows that are someone else's turn, muted, "· {holder}". */
+/** H6e — rows that wait on someone else, muted; each detail is a sentence naming whom it waits on (Sprint 34). */
 function OthersCard({
     rows,
     onOpen,
@@ -145,7 +145,7 @@ function OthersCard({
     return (
         <SectionCard
             title="Menunggu Orang Lain"
-            description="Hal yang belum selesai di proyek ini dan giliran siapa."
+            description="Hal yang belum selesai di proyek ini dan siapa yang sedang ditunggu."
             icon={Hourglass}
             flush
         >
@@ -159,7 +159,6 @@ function OthersCard({
                                 <RowChip row={row} muted />
                                 <span className="min-w-0 flex-1 text-sm text-muted-foreground">
                                     {row.detail}
-                                    {row.holder && <span className="font-medium text-foreground/80"> · {row.holder}</span>}
                                 </span>
                             </>
                         );

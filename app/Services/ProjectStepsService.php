@@ -14,6 +14,7 @@ use App\Enums\WeeklyReportStatus;
 use App\Enums\WorkItemQaStatus;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
+use App\Models\TechnicalMeeting;
 use App\Models\User;
 use App\Support\Quantity;
 
@@ -96,8 +97,11 @@ class ProjectStepsService
             : null;
 
         return [
-            $this->step('tm-schedule', 'Jadwalkan Technical Meeting', 'PM', $meeting?->meeting_date !== null,
-                $meeting?->meeting_date ? $meeting->meeting_date->locale('id')->translatedFormat('l, j M Y') : 'Tanggal TM belum diisi.',
+            // Sprint 34 — scheduled ahead (invited people reminded) or held right away.
+            $this->step('tm-schedule', 'Jadwalkan TM atau langsung mulai', 'PM', $meeting?->meeting_date !== null,
+                $meeting?->meeting_date
+                    ? ($meeting->mode === TechnicalMeeting::MODE_SCHEDULED ? 'Dijadwalkan '.$meeting->scheduleLabel().' · '.$meeting->attendees_count.' diundang' : 'TM langsung '.$meeting->scheduleLabel())
+                    : 'Belum dijadwalkan.',
                 ['tab' => 'execution', 'anchor' => 'tm'], $edits),
             $this->step('tm-timeline', 'Susun timeline & tanggal selesai proyek', 'PM / Admin Proyek', $timelines > 0 && $project->end_date !== null,
                 $timelines > 0 ? "{$timelines} timeline".($project->end_date ? '' : ' · tanggal selesai belum diisi') : 'Belum ada timeline.',

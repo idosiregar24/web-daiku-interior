@@ -2,7 +2,7 @@ import { summarizeArrivals } from '@/Components/modules/projects/materialArrival
 import type { MaterialPermissions } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { formatDate, formatRupiah } from '@/lib/format';
 import { progressPhrase } from '@/lib/progress';
-import { waitingOn } from '@/lib/waitingOn';
+import { architectOf, waitingOn, waitingSentence } from '@/lib/waitingOn';
 import type { OvertimeRequest, Project, ProjectExecution, ProjectMaterial, QaForm, Termin } from '@/types';
 
 /** Where a Ringkasan row is handled: a tab of Detail Proyek, its sub-tab, and a card id inside it. */
@@ -116,9 +116,14 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
     switch (project.phase) {
         case 'GAMBAR_KERJA': {
             const drawing = execution?.workingDrawing ?? null;
-            const parts = ['Gambar kerja belum selesai'];
+            const parts = [
+                drawing?.status === 'DIKERJAKAN'
+                    ? `Gambar kerja sedang dikerjakan oleh ${architectOf(drawing.pic) ?? 'arsitek'}`
+                    : drawing?.status === 'MENUNGGU_PENUGASAN'
+                      ? 'Menunggu Kepala Desain menugaskan arsitek untuk gambar kerja'
+                      : 'Menunggu tim desain menyelesaikan gambar kerja',
+            ];
 
-            if (drawing?.pic) parts.push(`PIC ${drawing.pic}`);
             if (drawing?.deadline) parts.push(`target ${formatDate(drawing.deadline)}`);
 
             return [
@@ -126,7 +131,10 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     key: 'phase-drawing',
                     label: 'Gambar Kerja',
                     detail: parts.join(' · '),
-                    holder: waitingOn('workingDrawing', drawing?.status) ?? waitingOn('projectPhase', 'GAMBAR_KERJA'),
+                    holder:
+                        drawing?.status === 'DIKERJAKAN'
+                            ? (architectOf(drawing.pic) ?? 'arsitek')
+                            : (waitingOn('workingDrawing', drawing?.status) ?? 'tim desain'),
                     // The page carries no flag for the drawing team — they work on the drawing's own page.
                     mine: false,
                     tone: 'info',
@@ -144,8 +152,8 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     label: 'TM',
                     detail:
                         requirements.length > 0
-                            ? `Technical Meeting belum selesai · syarat ${done}/${requirements.length}`
-                            : 'Technical Meeting belum selesai',
+                            ? `Menunggu PM menyelesaikan Technical Meeting · syarat ${done}/${requirements.length}`
+                            : 'Menunggu PM menyelesaikan Technical Meeting',
                     holder: waitingOn('projectPhase', 'TM'),
                     mine: Boolean(can?.completeMeeting || can?.saveMeeting),
                     tone: 'warning',
@@ -160,7 +168,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     {
                         key: 'phase-dp',
                         label: 'Persiapan',
-                        detail: 'Bahan, upah & daily target disiapkan, lalu DP upah tukang diajukan',
+                        detail: 'Menunggu Pengawas menyiapkan bahan, upah & daily target, lalu mengajukan DP upah tukang',
                         holder: waitingOn('projectPhase', 'PERSIAPAN'),
                         mine: isSupervisor,
                         tone: 'info',
@@ -177,7 +185,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     {
                         key: 'phase-dp',
                         label: 'DP Upah Tukang',
-                        detail: `DP upah tukang ${formatRupiah(dp.amount)} diajukan — keputusan PM membuka Produksi`,
+                        detail: `Menunggu PM memutuskan DP upah tukang ${formatRupiah(dp.amount)} — bila disetujui, Produksi dimulai`,
                         holder: waitingOn('supervisorPayment', 'DIAJUKAN'),
                         mine: can?.decide ?? false,
                         tone: 'warning',
@@ -199,10 +207,10 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                     key: 'phase-dp',
                     label: 'DP Upah Tukang',
                     detail: ready
-                        ? 'Syarat DP lengkap — DP upah tukang belum diajukan'
+                        ? 'Syarat DP lengkap — menunggu Pengawas mengajukan DP upah tukang'
                         : requirements.length > 0
-                          ? `Syarat DP belum lengkap · ${done}/${requirements.length} (jasa, bahan, upah & daily target)`
-                          : 'Bahan, upah & daily target disiapkan, lalu DP upah tukang diajukan',
+                          ? `Menunggu Pengawas melengkapi syarat DP · ${done}/${requirements.length} (bahan, upah & daily target)`
+                          : 'Menunggu Pengawas menyiapkan bahan, upah & daily target, lalu mengajukan DP upah tukang',
                     holder: 'Pengawas (QA/QC)',
                     mine: ready ? (can?.requestDp ?? false) : Boolean(can?.requestDp || can?.manageTargets || isSupervisor),
                     tone: 'warning',
@@ -219,7 +227,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                 {
                     key: 'phase-departure',
                     label: 'Berangkat',
-                    detail: `Siap Berangkat ke Lokasi — ${progressPhrase(execution.progress, execution.progressBasis)} (syarat ${execution.threshold}%)`,
+                    detail: `Menunggu PM menyetujui berangkat ke lokasi — ${progressPhrase(execution.progress, execution.progressBasis)} (syarat ${execution.threshold}%)`,
                     holder: 'PM',
                     mine: can?.approveDeparture ?? false,
                     tone: 'warning',
@@ -255,7 +263,7 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'deadline',
             label: deadline.days_left >= 0 ? `Sisa ${deadline.days_left} hari` : `Lewat ${-deadline.days_left} hari`,
-            detail: `Mendekati Tanggal Selesai ${formatDate(deadline.end_date)} — ${progressPhrase(execution.progress, execution.progressBasis)}`,
+            detail: `Mendekati tanggal selesai ${formatDate(deadline.end_date)} (${progressPhrase(execution.progress, execution.progressBasis)}) — perlu perhatian PM`,
             holder: 'PM',
             mine: can.decide,
             tone: deadline.days_left >= 0 ? 'warning' : 'error',
@@ -271,7 +279,7 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'supervisor-payments',
             label: `${payments.length} upah tukang`,
-            detail: 'Pengajuan upah tukang menunggu keputusan PM',
+            detail: 'Menunggu PM memutuskan pengajuan upah tukang',
             holder: waitingOn('supervisorPayment', 'DIAJUKAN'),
             mine: can.decide,
             tone: 'warning',
@@ -283,7 +291,7 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'weekly-reports',
             label: `${reports.length} laporan`,
-            detail: 'Laporan mingguan pengawas menunggu persetujuan PM',
+            detail: 'Menunggu PM meng-ACC pengecekan / laporan mingguan Pengawas',
             holder: waitingOn('weeklyReport', 'DIAJUKAN'),
             mine: can.decide,
             tone: 'warning',
@@ -296,7 +304,9 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'weekly-due',
             label: 'Laporan',
-            detail: `Laporan mingguan ke-${execution.currentWeek.week_number} ${thisWeek ? 'ditolak — kirim ulang' : 'belum dikirim · paling lambat Jumat'}`,
+            detail: thisWeek
+                ? `Laporan minggu ke-${execution.currentWeek.week_number} ditolak PM — menunggu Pengawas mengirim ulang`
+                : `Menunggu Pengawas mengirim laporan minggu ke-${execution.currentWeek.week_number} (paling lambat Jumat)`,
             holder: 'Pengawas (QA/QC)',
             mine: true,
             tone: thisWeek ? 'error' : execution.currentWeek.is_due ? 'warning' : 'info',
@@ -308,7 +318,7 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'findings',
             label: `${findingsOpen} temuan`,
-            detail: 'Temuan finishing di lokasi belum selesai',
+            detail: 'Menunggu Pengawas / tukang menyelesaikan temuan finishing di lokasi',
             holder: waitingOn('siteFinding', 'TERBUKA'),
             mine: can.resolveFinding,
             tone: 'error',
@@ -333,7 +343,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'qa-rejected',
             label: `${qaRejected} QA`,
-            detail: 'Timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi',
+            detail: 'Timeline ditolak Pengawas — menunggu PM / Asisten PM memperbaiki lalu menandai selesai lagi',
             holder: waitingOn('qa', 'REJECTED'),
             // canManageMilestones also holds for the CEO — the turn is the project's PM / Asisten PM.
             mine: input.canManageMilestones && managesProject,
@@ -346,7 +356,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'qa-pending',
             label: `${qaPending} QA`,
-            detail: 'Timeline menunggu pemeriksaan Pengawas (QA/QC)',
+            detail: 'Menunggu Pengawas memeriksa timeline (QA)',
             holder: waitingOn('qa', 'PENDING'),
             // QaFormPolicy::review — the project's Pengawas (a project without one is open to every QA user, unknown here).
             mine: input.canOpenQaForm && isSupervisor,
@@ -362,7 +372,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'overtime-pm',
             label: `${overtimePm} lembur`,
-            detail: 'Pengajuan lembur menunggu ACC PM',
+            detail: 'Menunggu PM meng-ACC pengajuan lembur',
             holder: waitingOn('overtime', 'PENDING'),
             // pmApprove is role:PM — the Asisten PM doesn't decide overtime.
             mine: project.pm_id === currentUserId,
@@ -375,7 +385,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'overtime-finance',
             label: `${overtimeFinance} lembur`,
-            detail: 'Lembur disetujui PM — menunggu ACC Finance',
+            detail: 'Lembur disetujui PM — menunggu Finance meng-ACC',
             holder: waitingOn('overtime', 'PENDING_FINANCE'),
             // canMarkTerminPaid = role FINANCE (ProjectController) — the same role approves overtime.
             mine: input.canMarkTerminPaid,
@@ -393,7 +403,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'material-plan-draft',
             label: `${planDrafts} bahan`,
-            detail: 'Rencana bahan belum diajukan ke Logistik',
+            detail: 'Menunggu Pengawas mengajukan rencana bahan ke Logistik',
             holder: waitingOn('materialOrder', 'DIRENCANAKAN'),
             mine: materialPermissions.planThroughLogistics,
             tone: 'warning',
@@ -405,7 +415,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'material-pm',
             label: `${requestsPm} barang`,
-            detail: 'Pengajuan barang tukang menunggu ACC PM / Asisten PM',
+            detail: 'Menunggu PM / Asisten PM meng-ACC pengajuan barang tukang',
             holder: waitingOn('materialRequest', 'MENUNGGU_PM'),
             mine: materialPermissions.pmDecide,
             tone: 'warning',
@@ -417,7 +427,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'material-logistics',
             label: `${requestsLogistics} barang`,
-            detail: 'Pengajuan barang menunggu keputusan Logistik',
+            detail: 'Menunggu Logistik memutuskan pengajuan barang',
             holder: waitingOn('materialRequest', 'DIAJUKAN'),
             mine: materialPermissions.review,
             tone: 'warning',
@@ -433,7 +443,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
             rows.push({
                 key: 'material-arrival',
                 label: `${arrivals.open.length} bahan`,
-                detail: `Bahan belum lengkap datang (${arrivals.complete} dari ${arrivals.total - arrivals.request} lengkap)`,
+                detail: `Menunggu Logistik mendatangkan bahan (${arrivals.complete} dari ${arrivals.total - arrivals.request} lengkap)`,
                 holder: 'Logistik',
                 mine: materialPermissions.receive && !managesProject,
                 tone: 'info',
@@ -455,7 +465,7 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
             label: `Termin ${nextTermin.termin_number}`,
             detail: `Termin berikutnya ${formatRupiah(nextTermin.sisa_piutang ?? nextTermin.amount)} · ${terminTrigger(nextTermin)}${
                 nextTermin.status === 'OVERDUE' ? ' · lewat jadwal' : ''
-            }${verifying ? ' · bukti bayar menunggu verifikasi' : ''}`,
+            } — ${(verifying ? waitingSentence('invoice', 'MENUNGGU_VERIFIKASI') : waitingSentence('termin', nextTermin.status))?.replace(/^./, (first) => first.toLowerCase()) ?? 'belum dibayar'}`,
             holder: verifying ? waitingOn('invoice', 'MENUNGGU_VERIFIKASI') : waitingOn('termin', nextTermin.status),
             mine: verifying
                 ? input.canMarkTerminPaid

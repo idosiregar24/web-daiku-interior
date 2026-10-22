@@ -137,7 +137,7 @@ function StepItem({
         >
             <div className="flex items-center gap-2">
                 <StepMarker state={step.state} number={number} />
-                {isCurrent && step.mine && <span className="ml-auto rounded-full bg-daiku-yellow px-2 py-0.5 text-[10px] font-semibold text-daiku-dark">Giliran Anda</span>}
+                {isCurrent && step.mine && <span className="ml-auto rounded-full bg-daiku-yellow px-2 py-0.5 text-[10px] font-semibold text-daiku-dark">Tugas Anda</span>}
             </div>
             <div className="min-w-0 flex-1 space-y-0.5">
                 <p className={cn('text-sm leading-snug', step.state === 'done' ? 'text-daiku-muted' : 'font-medium text-foreground')}>{step.title}</p>

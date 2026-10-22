@@ -193,7 +193,7 @@ export default function ReviewShow({ review, canManage, canDecide, disciplinePen
                 }
                 step={
                     canDecide && review.status === 'SUBMITTED'
-                        ? 'Giliran Anda: setujui evaluasi ini, atau kembalikan ke SDM dengan catatan.'
+                        ? 'Tugas Anda: setujui evaluasi ini, atau kembalikan ke SDM dengan catatan.'
                         : editable
                           ? 'Lengkapi penilaian, lalu tekan "Simpan & Ajukan ke CEO" di bawah.'
                           : undefined

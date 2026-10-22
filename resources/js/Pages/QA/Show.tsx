@@ -105,7 +105,7 @@ export default function QaShow({ qaForm, canReview, openFindingsCount }: QaShowP
                         <StatusChip domain="qa" status={qaForm.status} />
                     </span>
                 }
-                step={editable ? 'Giliran Anda: periksa tiap item checklist, lalu Setujui atau Tolak QA di bawah.' : undefined}
+                step={editable ? 'Tugas Anda: periksa tiap item checklist, lalu Setujui atau Tolak QA di bawah.' : undefined}
             />
 
             {qaForm.rejection_count > 0 && (

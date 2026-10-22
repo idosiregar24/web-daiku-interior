@@ -888,13 +888,13 @@ class ActionInboxService
     private function meetingsForSupervisor(User $user): ?array
     {
         return $this->group(
-            'tm-supervisor', 'Technical Meeting · giliran Pengawas', 'Lihat jadwal TM dan rencanakan bahan yang digunakan.', 'project', 'projects.index',
+            'tm-supervisor', 'Technical Meeting · menunggu Pengawas', 'Lihat jadwal TM dan rencanakan bahan yang digunakan.', 'project', 'projects.index',
             route('projects.index'),
             Project::query()
                 ->active()
                 ->supervisedBy($user)
                 ->where('phase', ProjectPhase::Tm->value)
-                ->with('technicalMeeting:id,project_id,meeting_date')
+                ->with('technicalMeeting:id,project_id,meeting_date,meeting_time')
                 // Sprint 29 Sub 11 — the same "bahan yang digunakan" as the TM card (Rencana Bahan included).
                 ->withCount(['projectMaterials as planned_materials_count' => fn (Builder $line) => $line->planned()])
                 ->oldest('phase_changed_at'),
@@ -903,7 +903,7 @@ class ActionInboxService
                 'title' => $project->name,
                 'subtitle' => collect([
                     ($date = $project->technicalMeeting?->meeting_date)
-                        ? 'TM '.$date->locale('id')->translatedFormat('D, j M Y')
+                        ? 'TM '.$date->locale('id')->translatedFormat('D, j M Y').($project->technicalMeeting->meeting_time ? ' pukul '.str_replace(':', '.', substr($project->technicalMeeting->meeting_time, 0, 5)) : '')
                         : 'Jadwal TM belum ditentukan PM',
                     $project->planned_materials_count > 0 ? "{$project->planned_materials_count} bahan direncanakan" : 'Bahan belum direncanakan',
                 ])->implode(' · '),

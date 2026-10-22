@@ -30,7 +30,7 @@ export default function InboxIndex({ groups }: InboxIndexProps) {
                 description={
                     total > 0
                         ? `${total} hal menunggu Anda — yang paling lama menunggu tampil paling atas di tiap kelompok.`
-                        : 'Pekerjaan yang menunggu giliran Anda muncul di sini.'
+                        : 'Pekerjaan yang sedang menunggu Anda muncul di sini.'
                 }
             />
 

@@ -54,7 +54,7 @@ export function TerminStatusChip({
                     {termin.status === 'OVERDUE' && <StatusChip domain="termin" status="OVERDUE" waitingOn={null} />}
                 </>
             ) : (
-                <StatusChip domain="termin" status={termin.status} waitingOn={termin.status === 'PAID' ? null : 'Marketing'} />
+                <StatusChip domain="termin" status={termin.status} waitingOn={termin.status === 'PAID' ? null : undefined} />
             )}
             {isPartiallyPaid(termin) && <StatusChip status="PARTIAL" label="Dibayar Sebagian" />}
         </span>

@@ -12,6 +12,7 @@ use App\Jobs\ProjectDeadlineReminderJob;
 use App\Jobs\PruneNotificationsJob;
 use App\Jobs\RepushClientWaitingJob;
 use App\Jobs\TaskOverdueJob;
+use App\Jobs\TechnicalMeetingReminderJob;
 use App\Jobs\TerminInvoiceReminderJob;
 use App\Jobs\TerminOverdueJob;
 use App\Jobs\TerminReminderJob;
@@ -46,6 +47,11 @@ Schedule::job(new TaskOverdueJob)
 // Sprint 24 D10 — Friday afternoon: the Pengawas's weekly report (config/daiku.php `execution`).
 Schedule::job(new WeeklyReportReminderJob)
     ->weeklyOn((int) config('daiku.execution.weekly_report_day', 5), config('daiku.execution.weekly_report_reminder_at', '15:00'))
+    ->timezone('Asia/Jakarta');
+
+// Sprint 34 — a scheduled TM reminds its people H-1 and 2 hours before (each once).
+Schedule::job(new TechnicalMeetingReminderJob)
+    ->everyFifteenMinutes()
     ->timezone('Asia/Jakarta');
 
 // Sprint 24 D13 — "H-30%": every morning until the project is closed.

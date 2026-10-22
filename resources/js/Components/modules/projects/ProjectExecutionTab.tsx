@@ -15,7 +15,7 @@ import { formatDate, formatDateTime } from '@/lib/format';
 import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL, progressPhrase } from '@/lib/progress';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
-import { domainStatusLabel } from '@/lib/waitingOn';
+import { architectOf, domainStatusLabel } from '@/lib/waitingOn';
 import type { Milestone, Project, ProjectExecution, ProjectMaterial, ProjectPhase, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
@@ -487,7 +487,7 @@ function WorkingDrawingCard({ execution }: { execution: ProjectExecution }) {
                 <p className="text-sm text-muted-foreground">Tidak ada (proyek dibuka sebelum Sprint 24).</p>
             ) : (
                 <div className="space-y-2 text-sm">
-                    <StatusChip domain="workingDrawing" status={drawing.status} />
+                    <StatusChip domain="workingDrawing" status={drawing.status} waitingOn={architectOf(drawing.pic)} />
                     <p className="text-muted-foreground">
                         {drawing.pic ? `Arsitek: ${drawing.pic}${drawing.staff.length ? ` + ${drawing.staff.join(', ')}` : ''}` : 'Belum ditugaskan'}
                         {drawing.deadline && ` · deadline ${formatDate(drawing.deadline)}`}
@@ -562,7 +562,7 @@ function DepartureCard({ project, execution }: { project: Project; execution: Pr
                 </>
             ) : (
                 project.status === 'ACTIVE' && (
-                    <p className="mt-3 text-xs text-muted-foreground">{reached ? 'Menunggu persetujuan PM.' : `Terbuka mulai ${threshold}% · PM.`}</p>
+                    <p className="mt-3 text-xs text-muted-foreground">{reached ? 'Menunggu persetujuan PM.' : `PM bisa menyetujui setelah progres mencapai ${threshold}%.`}</p>
                 )
             )}
         </SectionCard>

@@ -17,7 +17,7 @@ import { isQuotationExpired } from '@/Components/modules/quotation/QuotationExpi
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { formatPhone } from '@/lib/phone';
-import { projectWaitingOn, statusWithHolder, waitingOn, type WaitingDomain } from '@/lib/waitingOn';
+import { projectWaitingOn, waitingOn, type WaitingDomain } from '@/lib/waitingOn';
 import type {
     Design,
     Lead,
@@ -441,7 +441,7 @@ function leadStep(lead: LeadDetail, currentRab: LeadActiveQuotation | undefined)
     }
 
     if (lead.status === 'FOLLOW_UP') {
-        return statusWithHolder('Follow-up klien; bila tertarik, tekan "Ajukan Desain/Survey"', waitingOn('lead', lead.status));
+        return 'Menunggu Marketing follow-up klien — bila klien tertarik, tekan "Ajukan Desain/Survey".';
     }
 
     const running: [string, WaitingDomain, string | undefined][] = [
@@ -460,7 +460,7 @@ function leadStep(lead: LeadDetail, currentRab: LeadActiveQuotation | undefined)
     }
 
     if (lead.status === 'DEAL_DESAIN') {
-        return statusWithHolder('Buat RAB yang dibutuhkan klien (Survey, Desain, atau Proyek)', waitingOn('lead', lead.status));
+        return 'Menunggu Marketing membuat RAB yang dibutuhkan klien (Survey, Desain, atau Proyek).';
     }
 
     return null;

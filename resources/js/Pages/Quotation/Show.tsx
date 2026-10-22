@@ -221,7 +221,7 @@ export default function QuotationShow({
         step = canManage ? 'Lengkapi RAB, simpan sebagai draft, lalu kirim ke PM (tombol di bawah tabel).' : 'Estimator sedang menyusun RAB.';
     } else if (isSubmitted) {
         step = reviewStage
-            ? 'Giliran Anda: tandai ✔/✘ item di tabel Rincian RAB, lalu Setujui atau Kembalikan ke Estimator.'
+            ? 'Tugas Anda: tandai ✔/✘ item di tabel Rincian RAB, lalu Setujui atau Kembalikan ke Estimator.'
             : 'Menunggu review item oleh PM / Asisten PM.';
     } else if (status === 'READY_TO_SEND') {
         step = `Disetujui PM — Marketing mengirim link penawaran ke klien (berlaku ${validityDays} hari sejak dikirim).`;

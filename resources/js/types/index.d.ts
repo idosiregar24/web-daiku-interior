@@ -2691,6 +2691,10 @@ export interface ProjectExecution {
     } | null;
     meeting: {
         meeting_date: string | null;
+        /** Sprint 34 — "10:00"; JADWAL = invited ahead (reminders), LANGSUNG = held right away. */
+        meeting_time: string | null;
+        mode: 'JADWAL' | 'LANGSUNG' | null;
+        invited_at: string | null;
         notes: string | null;
         attendees: { user_id: number | null; name: string | null; label: string }[];
         completed_at: string | null;

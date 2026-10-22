@@ -97,6 +97,10 @@ class ProjectExecutionService
             ] : null,
             'meeting' => $meeting ? [
                 'meeting_date' => $meeting->meeting_date?->toDateString(),
+                // Sprint 34 — JADWAL (invited ahead) or LANGSUNG; the time and when the invitation went out.
+                'meeting_time' => $meeting->meeting_time ? substr($meeting->meeting_time, 0, 5) : null,
+                'mode' => $meeting->mode,
+                'invited_at' => $meeting->invited_at?->toIso8601String(),
                 'notes' => $meeting->notes,
                 'attendees' => $meeting->attendees->map(fn ($row) => ['user_id' => $row->user_id, 'name' => $row->name, 'label' => $row->label])->values()->all(),
                 'completed_at' => $meeting->completed_at?->toIso8601String(),

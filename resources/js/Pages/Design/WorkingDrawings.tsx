@@ -2,6 +2,7 @@ import { DataTable } from '@/Components/shared/DataTable';
 import { ModuleTabs } from '@/Components/shared/ModuleTabs';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { architectOf } from '@/lib/waitingOn';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate } from '@/lib/format';
@@ -34,7 +35,7 @@ const columns: ColumnDef<WorkingDrawing>[] = [
     { id: 'client', header: 'Klien', cell: ({ row }) => row.original.project?.lead?.client_name ?? '—' },
     { id: 'pic', header: 'PIC Arsitek', cell: ({ row }) => row.original.pic?.name ?? '—' },
     { id: 'deadline', header: 'Deadline', cell: ({ row }) => formatDate(row.original.deadline) },
-    { id: 'status', header: 'Status', cell: ({ row }) => <StatusChip domain="workingDrawing" status={row.original.status} /> },
+    { id: 'status', header: 'Status', cell: ({ row }) => <StatusChip domain="workingDrawing" status={row.original.status} waitingOn={architectOf(row.original.pic?.name)} /> },
 ];
 
 /** Sprint 24 D2 — the Gambar Kerja of every project (Desain hub tab). */
@@ -79,7 +80,7 @@ export default function WorkingDrawings({ drawings, filters }: WorkingDrawingsPr
                         <span className="block text-xs text-muted-foreground">
                             {drawing.pic?.name ?? 'Belum ditugaskan'} · deadline {formatDate(drawing.deadline)}
                         </span>
-                        <StatusChip domain="workingDrawing" status={drawing.status} />
+                        <StatusChip domain="workingDrawing" status={drawing.status} waitingOn={architectOf(drawing.pic?.name)} />
                     </Link>
                 )}
                 emptyMessage="Belum ada gambar kerja."

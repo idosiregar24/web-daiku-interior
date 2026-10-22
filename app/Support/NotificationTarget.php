@@ -102,6 +102,7 @@ class NotificationTarget
             NotificationType::SupervisorPaymentToPay => route('finance.supervisor-payments.index'),
             NotificationType::WorkingDrawingCompleted,
             NotificationType::TechnicalMeetingScheduled,
+            NotificationType::TechnicalMeetingReminder,
             NotificationType::TechnicalMeetingCompleted,
             NotificationType::SupervisorPaymentRequested,
             NotificationType::SupervisorPaymentDecided,

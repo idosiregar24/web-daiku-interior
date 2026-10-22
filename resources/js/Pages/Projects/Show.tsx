@@ -1113,36 +1113,36 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
     }
 
     if (!project.team_lead_id && !project.team_lead_name) {
-        return { text: 'Lengkapi Kepala Tim proyek ini lewat Ubah Proyek · PM.' };
+        return { text: 'Menunggu PM melengkapi Kepala Tim proyek ini lewat Ubah Proyek.' };
     }
 
     // Sprint 24 D1 — before production the phase says what comes next.
     switch (project.phase) {
         case 'GAMBAR_KERJA':
-            return { text: 'Gambar kerja sedang disiapkan tim desain · Kepala Desain / Arsitek.', target: { tab: 'execution', anchor: 'gambar-kerja' } };
+            return { text: 'Menunggu tim desain menyelesaikan gambar kerja.', target: { tab: 'execution', anchor: 'gambar-kerja' } };
         case 'TM':
-            return { text: 'Jadwalkan Technical Meeting, susun Timeline & Tanggal Selesai, lalu TM Selesai · PM.', target: { tab: 'execution', anchor: 'tm' } };
+            return { text: 'Menunggu PM menjadwalkan Technical Meeting, menyusun timeline & tanggal selesai, lalu menekan TM Selesai.', target: { tab: 'execution', anchor: 'tm' } };
         case 'PERSIAPAN':
-            return { text: 'Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP upah tukang · Pengawas → PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
+            return { text: 'Menunggu Pengawas melengkapi bahan, upah & daily target, lalu mengajukan DP upah tukang ke PM.', target: { tab: 'execution', anchor: 'syarat-dp' } };
     }
 
     if (milestones.length === 0) {
-        return { text: 'Susun Timeline proyek (tanggal mulai & selesai tiap tahap) · PM.', target: { tab: 'milestone' } };
+        return { text: 'Menunggu PM menyusun timeline proyek (tanggal mulai & selesai tiap tahap).', target: { tab: 'milestone' } };
     }
 
     // Sprint 29 Sub 12 — QA per item RAB: repairs first, then items waiting for the Pengawas.
     if (itemQa && itemQa.summary.perbaikan > 0) {
-        return { text: `${itemQa.summary.perbaikan} item RAB perlu perbaikan — selesaikan temuannya, lalu QA ulang · Tukang / Pengawas.`, target: { tab: 'items', view: 'qc' } };
+        return { text: `${itemQa.summary.perbaikan} item RAB perlu perbaikan — menunggu tukang memperbaiki, lalu Pengawas memeriksa ulang.`, target: { tab: 'items', view: 'qc' } };
     }
 
     if (itemQa && itemQa.summary.menunggu > 0) {
-        return { text: `${itemQa.summary.menunggu} item RAB sudah 100 % dan menunggu QA · Pengawas (QA/QC).`, target: { tab: 'items', view: 'qc' } };
+        return { text: `${itemQa.summary.menunggu} item RAB sudah 100 % — menunggu Pengawas memeriksa (QA).`, target: { tab: 'items', view: 'qc' } };
     }
 
     const rejected = qaForms.filter((form) => form.status === 'REJECTED').length;
 
     if (rejected > 0) {
-        return { text: `${rejected} timeline ditolak Pengawas (QA/QC) — perbaiki lalu tandai selesai lagi · PM.`, target: { tab: 'milestone', view: 'qc' } };
+        return { text: `${rejected} timeline ditolak Pengawas — menunggu PM memperbaiki lalu menandai selesai lagi.`, target: { tab: 'milestone', view: 'qc' } };
     }
 
     const waitingQa = milestones.filter((milestone) => milestone.status === 'QA_WAITING').length;
@@ -1157,7 +1157,7 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
         };
     }
 
-    return waitingQa > 0 ? { text: `${waitingQa} timeline menunggu pemeriksaan · Pengawas (QA/QC).`, target: { tab: 'milestone', view: 'qc' } } : undefined;
+    return waitingQa > 0 ? { text: `${waitingQa} timeline menunggu Pengawas memeriksa.`, target: { tab: 'milestone', view: 'qc' } } : undefined;
 }
 
 /** Scrolls to a card once the tab that holds it has rendered. */

@@ -1,6 +1,6 @@
 import { Badge } from '@/Components/ui/badge';
 import { cn } from '@/lib/utils';
-import { domainStatusLabel, waitingOn as holderOf, type WaitingDomain } from '@/lib/waitingOn';
+import { domainStatusLabel, statusWithHolder, waitingOn as holderOf, waitingSentence, type WaitingDomain } from '@/lib/waitingOn';
 
 type Tone = 'success' | 'warning' | 'error' | 'info' | 'neutral';
 
@@ -188,11 +188,11 @@ interface StatusChipProps {
     tone?: StatusTone;
     /**
      * Sprint 23 K3 — which domain the status belongs to (`lib/waitingOn.ts`):
-     * picks the domain's wording and appends whose turn it is
-     * ("Menunggu Review · PM / Asisten PM"). Finished statuses show no holder.
+     * picks the domain's wording; Sprint 34 — a status that waits on someone
+     * reads as a sentence ("Menunggu PM / Asisten PM mereview RAB").
      */
     domain?: WaitingDomain;
-    /** Explicit holder ("· Finance") — overrides the domain's; `null` hides it. */
+    /** Who it waits on, when the page knows better ("arsitek Budi") — overrides the domain's; `null` = the plain label. */
     waitingOn?: string | null;
     className?: string;
 }
@@ -201,8 +201,11 @@ export type StatusTone = Tone;
 
 export function StatusChip({ status, label, tone: toneOverride, domain, waitingOn, className }: StatusChipProps) {
     const tone = toneOverride ?? STATUS_TONE[status] ?? 'neutral';
-    const text = label ?? (domain && domainStatusLabel(domain, status)) ?? humanize(status);
+    const plain = label ?? (domain && domainStatusLabel(domain, status)) ?? humanize(status);
     const holder = waitingOn !== undefined ? waitingOn : domain ? holderOf(domain, status) : null;
+    // Sprint 34 — whom it waits on, said as a sentence ("Menunggu Kepala Desain menugaskan arsitek").
+    const sentence = holder !== null && !label && domain ? waitingSentence(domain, status, holder) : null;
+    const text = sentence ?? (holder !== null && (label || !domain) ? statusWithHolder(plain, holder) : plain);
 
     return (
         <Badge
@@ -214,13 +217,6 @@ export function StatusChip({ status, label, tone: toneOverride, domain, waitingO
             )}
         >
             {text}
-            {holder && (
-                <span className="font-normal opacity-80">
-                    <span aria-hidden>· </span>
-                    <span className="sr-only">menunggu </span>
-                    {holder}
-                </span>
-            )}
         </Badge>
     );
 }

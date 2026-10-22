@@ -16,7 +16,22 @@ import type { Milestone, Project, ProjectExecution, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import { differenceInCalendarDays } from 'date-fns';
-import { Check, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Loader2, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import {
+    CalendarClock,
+    Check,
+    CheckCircle2,
+    Circle,
+    ClipboardCheck,
+    ClipboardPen,
+    ExternalLink,
+    Loader2,
+    Pencil,
+    Plus,
+    Send,
+    Trash2,
+    Users,
+    X,
+} from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -27,27 +42,45 @@ import { TmMaterialPlanner } from './TmMaterialPlanner';
 import { WorkItemWageTable } from './WorkItemWageCard';
 
 // Mirrors SaveTechnicalMeetingRequest.
-const schema = z.object({
-    meeting_date: z.string().min(1, 'Tanggal TM wajib diisi.'),
-    notes: z.string().max(10000, 'Notulen terlalu panjang.').optional(),
-    attendees: z
-        .array(
-            z.object({
-                user_id: z.string().optional(),
-                name: z.string().max(120).optional(),
-            }),
-        )
-        .max(50, 'Maksimal 50 peserta.'),
-    // Optional until a fee exists — the PM may save the TM's date (its schedule) first.
-    fee_total: z.string().optional(),
-    dp_percent: z
-        .string()
-        .min(1, 'DP % wajib diisi.')
-        .refine((value) => Number(value) >= 0 && Number(value) <= 100, 'DP antara 0–100%.'),
-    end_date: z.string().optional(),
-});
+const schema = z
+    .object({
+        meeting_date: z.string().min(1, 'Tanggal TM wajib diisi.'),
+        // Sprint 34 — JADWAL (ahead, invited people notified & reminded) or LANGSUNG (held now).
+        mode: z.enum(['JADWAL', 'LANGSUNG']),
+        meeting_time: z.string().optional(),
+        notes: z.string().max(10000, 'Notulen terlalu panjang.').optional(),
+        attendees: z
+            .array(
+                z.object({
+                    user_id: z.string().optional(),
+                    name: z.string().max(120).optional(),
+                }),
+            )
+            .max(50, 'Maksimal 50 peserta.'),
+        // Optional until a fee exists — the PM may save the TM's date (its schedule) first.
+        fee_total: z.string().optional(),
+        dp_percent: z
+            .string()
+            .min(1, 'DP % wajib diisi.')
+            .refine((value) => Number(value) >= 0 && Number(value) <= 100, 'DP antara 0–100%.'),
+        end_date: z.string().optional(),
+    })
+    .superRefine((values, context) => {
+        if (values.mode !== 'JADWAL') return;
+        if (!values.meeting_time) context.addIssue({ code: 'custom', path: ['meeting_time'], message: 'Jam TM wajib diisi untuk menjadwalkan TM.' });
+        if (!values.attendees.some((row) => row.user_id)) {
+            context.addIssue({
+                code: 'custom',
+                path: ['attendees'],
+                message: 'Pilih minimal satu orang yang punya akun — merekalah yang menerima undangan & pengingat TM.',
+            });
+        }
+    });
 
 type FormValues = z.infer<typeof schema>;
+type MeetingView = 'choose' | 'schedule' | 'scheduled' | 'meeting';
+
+const TODAY = () => new Date().toISOString().slice(0, 10);
 
 type RequirementKey = ProjectExecution['meetingRequirements'][number]['key'];
 
@@ -103,7 +136,9 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
         return (
             <SectionCard title="Technical Meeting" icon={Users}>
                 <p className="text-sm text-muted-foreground">
-                    {execution.phase === 'GAMBAR_KERJA' ? 'Dimulai setelah gambar kerja selesai.' : 'Jadwal TM belum ditentukan · PM.'}
+                    {execution.phase === 'GAMBAR_KERJA'
+                        ? 'Dimulai setelah gambar kerja selesai.'
+                        : 'Menunggu PM menentukan jadwal Technical Meeting.'}
                 </p>
                 {execution.meetingRequirements.length > 0 && (
                     <div className="mt-4">
@@ -119,7 +154,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
     return (
         <SectionCard title="Technical Meeting" icon={Users}>
             <DetailList>
-                <DetailItem label="Tanggal TM">{formatDate(meeting.meeting_date)}</DetailItem>
+                <DetailItem label="Tanggal TM">{meetingWhen(meeting)}</DetailItem>
                 <DetailItem label="Peserta">{meeting.attendees.map((row) => row.label).join(', ') || '—'}</DetailItem>
                 {fee && !execution.usesWorkItems && (
                     <DetailItem label="Upah Tukang">
@@ -169,14 +204,18 @@ export function CompleteMeetingButton({
     const reason = blocked ?? (missing.length > 0 ? `Belum lengkap: ${missing.map((row) => row.label).join(', ')}.` : undefined);
 
     function complete() {
-        router.post(route('projects.technical-meeting.complete', { project: projectId }), {}, {
-            preserveScroll: true,
-            onStart: () => setBusy(true),
-            onFinish: () => {
-                setBusy(false);
-                setConfirming(false);
+        router.post(
+            route('projects.technical-meeting.complete', { project: projectId }),
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setBusy(true),
+                onFinish: () => {
+                    setBusy(false);
+                    setConfirming(false);
+                },
             },
-        });
+        );
     }
 
     return (
@@ -208,6 +247,47 @@ export function CompleteMeetingButton({
                 {warnUnsaved && <p className="text-xs text-muted-foreground">Isian kartu TM yang belum disimpan tidak ikut.</p>}
             </ConfirmDialog>
         </span>
+    );
+}
+
+/** "Selasa, 20 Okt 2026 pukul 10.00" */
+function meetingWhen(meeting: NonNullable<ProjectExecution['meeting']>): string {
+    const date = meeting.meeting_date
+        ? new Date(`${meeting.meeting_date}T00:00:00`).toLocaleDateString('id-ID', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+          })
+        : '—';
+
+    return meeting.meeting_time ? `${date} pukul ${meeting.meeting_time.replace(':', '.')}` : date;
+}
+
+/** One of the two ways into the TM (Sprint 34). */
+function ModeChoice({
+    icon: Icon,
+    title,
+    description,
+    onClick,
+}: {
+    icon: typeof CalendarClock;
+    title: string;
+    description: string;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className="flex flex-col items-start gap-2 rounded-xl bg-background p-4 text-left ring-1 ring-border transition-colors hover:bg-daiku-yellow-light hover:ring-daiku-yellow"
+        >
+            <span className="flex size-9 items-center justify-center rounded-lg bg-daiku-yellow-light text-daiku-dark">
+                <Icon className="size-5" />
+            </span>
+            <span className="font-semibold text-foreground">{title}</span>
+            <span className="text-sm text-muted-foreground">{description}</span>
+        </button>
     );
 }
 
@@ -259,10 +339,14 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
     const [deletingTimeline, setDeletingTimeline] = useState<Milestone | null>(null);
     const [removingTimeline, setRemovingTimeline] = useState(false);
     const defaultEndDate = execution.defaultEndDate?.slice(0, 10) ?? '';
+    // Sprint 34 — no TM yet: choose "Jadwalkan" or "Langsung"; a schedule without minutes shows its summary.
+    const [view, setView] = useState<MeetingView>(!meeting ? 'choose' : meeting.mode === 'JADWAL' && !meeting.notes ? 'scheduled' : 'meeting');
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: {
-            meeting_date: meeting?.meeting_date ?? new Date().toISOString().slice(0, 10),
+            meeting_date: meeting?.meeting_date ?? TODAY(),
+            mode: meeting?.mode ?? 'LANGSUNG',
+            meeting_time: meeting?.meeting_time ?? '',
             notes: meeting?.notes ?? '',
             attendees: meeting?.attendees.length
                 ? meeting.attendees.map((row) => ({
@@ -300,6 +384,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
             route('projects.technical-meeting.save', { project: project.id }),
             {
                 ...values,
+                meeting_time: values.meeting_time || null,
                 fee_total: values.fee_total ? Number(values.fee_total) : null,
                 // Sprint 33 — per-item projects: the DP % isn't set at the TM (10 %, the PM decides the amount).
                 ...(execution.usesWorkItems ? {} : { dp_percent: Number(values.dp_percent) }),
@@ -317,6 +402,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                     // The form stays mounted (preserveState) — what was saved is the new baseline.
                     form.reset(values);
                     setSaved(true);
+                    if (view === 'schedule') setView('scheduled');
                 },
                 onError: (errors) =>
                     Object.entries(errors).forEach(([key, message]) =>
@@ -367,54 +453,204 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                         title="Jadwal & Rapat"
                         holder="PM"
                         done={isDone('notes', 'attendees')}
-                        description="Simpan tanggal TM lebih dulu untuk menjadwalkannya — Pengawas & peserta diberi tahu. Notulen dan peserta dilengkapi saat rapat."
+                        description={
+                            view === 'choose'
+                                ? 'Pilih: jadwalkan TM untuk nanti (orang yang terlibat diundang & diingatkan), atau langsung isi TM yang sedang berlangsung.'
+                                : view === 'meeting'
+                                  ? 'Isi peserta yang hadir dan notulen rapat.'
+                                  : 'Tanggal, jam, dan orang yang diundang ke Technical Meeting.'
+                        }
                     >
-                        <div className="space-y-4">
-                            <FormField
-                                control={form.control}
-                                name="meeting_date"
-                                render={({ field }) => (
-                                    <FormItem className="sm:max-w-56">
-                                        <FormLabel required>Tanggal TM</FormLabel>
-                                        <FormControl>
-                                            <Input type="date" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                        {view === 'choose' && (
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                <ModeChoice
+                                    icon={CalendarClock}
+                                    title="Jadwalkan TM"
+                                    description="Rapat nanti: tentukan tanggal & jam, lalu pilih orang yang terlibat — mereka mendapat undangan dan pengingat H-1 serta 2 jam sebelum rapat."
+                                    onClick={() => {
+                                        form.setValue('mode', 'JADWAL', { shouldDirty: true });
+                                        setView('schedule');
+                                    }}
+                                />
+                                <ModeChoice
+                                    icon={ClipboardPen}
+                                    title="Langsung TM"
+                                    description="Rapat sedang berlangsung sekarang: isi peserta dan notulen seperti form biasa, tanpa undangan."
+                                    onClick={() => {
+                                        form.setValue('mode', 'LANGSUNG', { shouldDirty: true });
+                                        form.setValue('meeting_date', TODAY(), { shouldDirty: true });
+                                        setView('meeting');
+                                    }}
+                                />
+                            </div>
+                        )}
 
-                            <FormField
-                                control={form.control}
-                                name="notes"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Notulen</FormLabel>
-                                        <FormControl>
-                                            <Textarea
-                                                {...field}
-                                                rows={12}
-                                                className="min-h-64"
-                                                placeholder="Hasil rapat: urutan kerja, bahan, catatan tiap divisi…"
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                        {view === 'schedule' && (
+                            <div className="space-y-4 rounded-lg bg-daiku-gray/50 p-4">
+                                <div className="grid gap-4 sm:grid-cols-[14rem_10rem]">
+                                    <FormField
+                                        control={form.control}
+                                        name="meeting_date"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel required>Tanggal TM</FormLabel>
+                                                <FormControl>
+                                                    <Input type="date" min={TODAY()} {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="meeting_time"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel required>Jam</FormLabel>
+                                                <FormControl>
+                                                    <Input type="time" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <FormField
+                                    control={form.control}
+                                    name="attendees"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel required>Orang yang terlibat (diundang)</FormLabel>
+                                            <p className="text-xs text-muted-foreground">
+                                                Yang punya akun mendapat undangan sekarang, pengingat H-1, dan 2 jam sebelum rapat. Pengawas proyek
+                                                ikut diberi tahu otomatis.
+                                            </p>
+                                            <AttendeePicker value={field.value} onChange={field.onChange} options={execution.attendeeOptions} />
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setView(meeting ? 'scheduled' : 'choose')}
+                                        disabled={saving}
+                                    >
+                                        Kembali
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        disabled={saving}
+                                        onClick={() => {
+                                            form.setValue('mode', 'JADWAL');
+                                            void form.handleSubmit(onSubmit)();
+                                        }}
+                                    >
+                                        {saving ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                                        {meeting?.invited_at ? 'Simpan & beri tahu' : 'Jadwalkan & kirim undangan'}
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
 
-                            <FormField
-                                control={form.control}
-                                name="attendees"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Peserta</FormLabel>
-                                        <AttendeePicker value={field.value} onChange={field.onChange} options={execution.attendeeOptions} />
-                                        <FormMessage />
-                                    </FormItem>
+                        {view === 'scheduled' && meeting && (
+                            <div className="flex flex-col gap-3 rounded-lg border-2 border-daiku-yellow bg-daiku-yellow-light p-4 sm:flex-row sm:items-start">
+                                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-daiku-yellow text-daiku-dark">
+                                    <CalendarClock className="size-5" />
+                                </span>
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <p className="font-semibold text-foreground">TM dijadwalkan {meetingWhen(meeting)}</p>
+                                    <p className="text-sm text-muted-foreground">
+                                        {meeting.attendees.length} orang diundang
+                                        {meeting.invited_at ? ` · undangan terkirim ${formatDateTime(meeting.invited_at)}` : ''} · pengingat H-1 dan 2
+                                        jam sebelum rapat
+                                    </p>
+                                    {meeting.attendees.length > 0 && (
+                                        <p className="text-sm text-foreground">{meeting.attendees.map((row) => row.label).join(', ')}</p>
+                                    )}
+                                </div>
+                                <div className="flex flex-col gap-2 sm:items-end">
+                                    <Button type="button" onClick={() => setView('meeting')}>
+                                        <ClipboardPen className="size-4" />
+                                        Mulai TM · isi notulen
+                                    </Button>
+                                    <Button type="button" variant="outline" onClick={() => setView('schedule')}>
+                                        Ubah jadwal / undangan
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'meeting' && (
+                            <div className="space-y-4">
+                                {meeting?.mode === 'JADWAL' && (
+                                    <p className="rounded-md bg-daiku-gray/60 px-3 py-2 text-sm text-muted-foreground">
+                                        Dijadwalkan {meetingWhen(meeting)}. Peserta yang diundang sudah terisi — sesuaikan dengan yang hadir, lalu isi
+                                        notulen.
+                                    </p>
                                 )}
-                            />
-                        </div>
+                                <div className="grid gap-4 sm:grid-cols-[14rem_10rem]">
+                                    <FormField
+                                        control={form.control}
+                                        name="meeting_date"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel required>Tanggal TM</FormLabel>
+                                                <FormControl>
+                                                    <Input type="date" {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    <FormField
+                                        control={form.control}
+                                        name="meeting_time"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Jam</FormLabel>
+                                                <FormControl>
+                                                    <Input type="time" {...field} value={field.value ?? ''} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <FormField
+                                    control={form.control}
+                                    name="notes"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Notulen</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    {...field}
+                                                    rows={12}
+                                                    className="min-h-64"
+                                                    placeholder="Hasil rapat: urutan kerja, bahan, catatan tiap divisi…"
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
+                                    name="attendees"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Peserta</FormLabel>
+                                            <AttendeePicker value={field.value} onChange={field.onChange} options={execution.attendeeOptions} />
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        )}
                     </TmStep>
 
                     <TmStep
@@ -447,37 +683,37 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                         <div className={cn('grid gap-4', execution.usesWorkItems ? 'sm:max-w-xs' : 'sm:grid-cols-3')}>
                             {/* Sprint 33 — per-item projects: upah & DP are not part of the TM any more (Langkah Kerja, Persiapan). */}
                             {!execution.usesWorkItems && (
-                            <FormField
-                                control={form.control}
-                                name="fee_total"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required={fee !== null}>Nilai Upah Tukang</FormLabel>
-                                        <FormControl>
-                                            <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                <FormField
+                                    control={form.control}
+                                    name="fee_total"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel required={fee !== null}>Nilai Upah Tukang</FormLabel>
+                                            <FormControl>
+                                                <MoneyInput value={field.value} onChange={field.onChange} placeholder="0" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             )}
                             {!execution.usesWorkItems && (
-                            <FormField
-                                control={form.control}
-                                name="dp_percent"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel required>DP Upah Tukang (%)</FormLabel>
-                                        <FormControl>
-                                            <Input type="number" min={0} max={100} step="0.5" inputMode="decimal" {...field} />
-                                        </FormControl>
-                                        {feeTotal > 0 && (
-                                            <p className="text-xs text-muted-foreground">= {formatRupiah((feeTotal * dpPercent) / 100)}</p>
-                                        )}
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                <FormField
+                                    control={form.control}
+                                    name="dp_percent"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel required>DP Upah Tukang (%)</FormLabel>
+                                            <FormControl>
+                                                <Input type="number" min={0} max={100} step="0.5" inputMode="decimal" {...field} />
+                                            </FormControl>
+                                            {feeTotal > 0 && (
+                                                <p className="text-xs text-muted-foreground">= {formatRupiah((feeTotal * dpPercent) / 100)}</p>
+                                            )}
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             )}
                             <FormField
                                 control={form.control}
@@ -519,8 +755,8 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
             <div id="tm-bahan" className="mt-5 scroll-mt-24 rounded-lg border border-dashed border-border p-4">
                 <p className="text-sm font-semibold text-foreground">Bagian Pengawas</p>
                 <p className="mb-4 text-xs text-muted-foreground">
-                    Bahan, upah & daily target diisi {project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'} — boleh setelah TM, sebelum Start Produksi. Tidak
-                    menahan TM Selesai.
+                    Bahan, upah & daily target diisi {project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'} — boleh
+                    setelah TM, sebelum Start Produksi. Tidak menahan TM Selesai.
                 </p>
                 {execution.usesWorkItems && execution.workItems && (
                     <div id="tm-upah" className="mb-5 scroll-mt-24">
@@ -558,7 +794,9 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                         Semua syarat lengkap. Tombol TM Selesai ada di atas halaman.
                     </p>
                 ) : (
-                    <p className="mt-3 text-xs text-muted-foreground">Lengkapi syarat di atas, lalu tekan TM Selesai di atas halaman — upah & bahan dari Pengawas tidak perlu ditunggu.</p>
+                    <p className="mt-3 text-xs text-muted-foreground">
+                        Lengkapi syarat di atas, lalu tekan TM Selesai di atas halaman — upah & bahan dari Pengawas tidak perlu ditunggu.
+                    </p>
                 )}
             </div>
 

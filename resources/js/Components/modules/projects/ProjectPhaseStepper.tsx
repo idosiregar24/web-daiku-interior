@@ -2,7 +2,7 @@ import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogCon
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/Components/ui/dialog';
 import { formatDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { domainStatusLabel, waitingOn } from '@/lib/waitingOn';
+import { domainStatusLabel, waitingSentence } from '@/lib/waitingOn';
 import type { Project, ProjectExecution, ProjectPhase } from '@/types';
 import { Check, ChevronRight, Minus, Pause } from 'lucide-react';
 import { useState } from 'react';
@@ -64,7 +64,7 @@ function buildSteps(project: Pick<Project, 'status' | 'phase'>, execution: Proje
                 key: phase,
                 label: domainStatusLabel('projectPhase', phase) ?? phase,
                 state: paused ? 'paused' : 'current',
-                note: paused ? 'Ditahan' : (waitingOn('projectPhase', phase) ?? null),
+                note: paused ? 'Ditahan' : (waitingSentence('projectPhase', phase) ?? null),
             };
         }
 
@@ -131,7 +131,7 @@ function StepText({ step }: { step: Step }) {
                         step.alert === 'error' ? 'text-error-ink' : step.state === 'paused' || step.alert === 'warning' ? 'text-warning-ink' : 'text-muted-foreground',
                     )}
                 >
-                    {step.state === 'current' ? `giliran ${step.note}` : step.note}
+                    {step.note}
                 </span>
             )}
         </span>
@@ -285,7 +285,7 @@ export function ProjectPhaseMini({ project, className }: { project: Pick<Project
                 <span className="font-medium text-foreground">
                     {shown + 1}/{steps.length} · {step.label}
                 </span>
-                {step.note && step.state === 'current' && ` · giliran ${step.note}`}
+                {step.note && step.state === 'current' && ` · ${step.note}`}
                 {step.state === 'paused' && <span className="text-warning-ink"> · ditahan</span>}
             </p>
         </div>

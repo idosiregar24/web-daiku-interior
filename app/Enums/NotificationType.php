@@ -95,6 +95,8 @@ enum NotificationType: string
     case WorkingDrawingAssigned = 'working_drawing_assigned';
     case WorkingDrawingCompleted = 'working_drawing_completed';
     case TechnicalMeetingScheduled = 'technical_meeting_scheduled';
+    // Sprint 34 — H-1 and 2 hours before a scheduled TM.
+    case TechnicalMeetingReminder = 'technical_meeting_reminder';
     case TechnicalMeetingCompleted = 'technical_meeting_completed';
     case SupervisorPaymentRequested = 'supervisor_payment_requested';
     case SupervisorPaymentDecided = 'supervisor_payment_decided';
@@ -225,6 +227,7 @@ enum NotificationType: string
             self::WorkingDrawingAssigned,
             self::WorkingDrawingCompleted,
             self::TechnicalMeetingScheduled,
+            self::TechnicalMeetingReminder,
             self::TechnicalMeetingCompleted,
             self::SupervisorPaymentRequested,
             self::SupervisorPaymentToPay,
@@ -391,6 +394,7 @@ enum NotificationType: string
             self::BudgetOverrunApproved,
             self::BudgetOverrunRejected,
             self::TechnicalMeetingScheduled,
+            self::TechnicalMeetingReminder,
             self::TechnicalMeetingCompleted,
             self::SupervisorPaymentRequested,
             self::SupervisorPaymentDecided,

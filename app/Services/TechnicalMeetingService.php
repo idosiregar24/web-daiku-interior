@@ -9,6 +9,8 @@ use App\Models\SupervisorFee;
 use App\Models\TechnicalMeeting;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -43,13 +45,28 @@ class TechnicalMeetingService
 
             $meeting = TechnicalMeeting::firstOrNew(['project_id' => $project->id]);
             $before = $meeting->exists ? $this->snapshot($meeting, $project) : null;
-            $previousDate = $meeting->meeting_date?->toDateString();
+            $previousAt = $meeting->startsAt()?->toDateTimeString();
+            // Everyone a re-save already reached (attendees, Pengawas, PM) — only people added later are invited then.
+            $previousInvitees = $meeting->exists ? $this->invitees($project, $meeting)->pluck('id')->all() : [];
 
+            // Sprint 34 — a TM saved without a mode keeps its own (older forms schedule).
+            $mode = $data['mode'] ?? $meeting->mode ?? TechnicalMeeting::MODE_SCHEDULED;
             $meeting->fill([
                 'meeting_date' => $data['meeting_date'],
+                'meeting_time' => array_key_exists('meeting_time', $data) ? ($data['meeting_time'] ?: null) : $meeting->meeting_time,
+                'mode' => $mode,
                 'notes' => filled($data['notes'] ?? null) ? trim($data['notes']) : null,
                 'recorded_by' => $actor->id,
-            ])->save();
+            ]);
+            $moved = $previousAt !== null && $meeting->startsAt()?->toDateTimeString() !== $previousAt;
+
+            if ($moved) {
+                // A new date / time: the reminders count again.
+                $meeting->reminded_day_before_at = null;
+                $meeting->reminded_soon_at = null;
+            }
+
+            $meeting->save();
 
             $meeting->attendees()->delete();
             collect($data['attendees'] ?? [])
@@ -84,9 +101,7 @@ class TechnicalMeetingService
             $meeting->load('attendees.user:id,name');
             $this->auditLogService->record('technical_meeting.saved', $project, $before, $this->snapshot($meeting, $project->fresh()), $actor);
 
-            if ($meeting->meeting_date->toDateString() !== $previousDate) {
-                $this->notifySchedule($project, $meeting, $previousDate !== null, $actor);
-            }
+            $this->invite($project, $meeting, $moved, $previousInvitees, $actor);
 
             return $meeting;
         });
@@ -107,7 +122,7 @@ class TechnicalMeetingService
         return [
             ['key' => 'notes', 'label' => 'Tanggal & notulen TM', 'done' => $meeting !== null && $meeting->meeting_date !== null && filled($meeting->notes)],
             ['key' => 'attendees', 'label' => 'Minimal satu peserta', 'done' => (int) ($meeting?->attendees_count ?? 0) > 0],
-            ['key' => 'timeline', 'label' => 'Timeline (durasi) tersusun · PM', 'done' => $project->milestones()->exists()],
+            ['key' => 'timeline', 'label' => 'Timeline (durasi) disusun PM', 'done' => $project->milestones()->exists()],
             ['key' => 'end_date', 'label' => 'Tanggal Selesai proyek', 'done' => $project->end_date !== null],
         ];
     }
@@ -141,24 +156,107 @@ class TechnicalMeetingService
     }
 
     /**
-     * The TM got a date (or a new one): the Pengawas — who plans the
-     * materials before it — and the attendees with an account hear it.
+     * Sprint 34 — a scheduled TM (JADWAL) still ahead invites its people:
+     * everyone on the first save and when the date / time moves; on a plain
+     * re-save only the people just added. A TM held right away (LANGSUNG) or
+     * already past invites nobody.
+     *
+     * @param  list<int>  $previousInvitees
      */
-    private function notifySchedule(Project $project, TechnicalMeeting $meeting, bool $moved, User $actor): void
+    private function invite(Project $project, TechnicalMeeting $meeting, bool $moved, array $previousInvitees, User $actor): void
     {
-        $date = $meeting->meeting_date->locale('id')->translatedFormat('l, j F Y');
-        $recipients = $meeting->attendees->pluck('user')
-            ->concat($project->supervisors()->get())
-            ->filter(fn (?User $user) => $user && $user->id !== $actor->id)
-            ->unique('id');
+        if ($meeting->mode !== TechnicalMeeting::MODE_SCHEDULED || $meeting->isCompleted() || ! $meeting->startsAt()?->isFuture()) {
+            return;
+        }
+
+        $everyone = $this->invitees($project, $meeting)->reject(fn (User $user) => $user->id === $actor->id);
+        $firstTime = $meeting->invited_at === null;
+        $recipients = $firstTime || $moved ? $everyone : $everyone->reject(fn (User $user) => in_array($user->id, $previousInvitees, true));
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
 
         $this->notificationService->notifyMany(
-            $recipients,
+            $recipients->values(),
             NotificationType::TechnicalMeetingScheduled,
-            $moved ? 'Jadwal TM Diubah' : 'Jadwal Technical Meeting',
-            "Technical Meeting proyek \"{$project->name}\" ".($moved ? 'dipindah ke' : 'dijadwalkan')." {$date}. Pengawas: rencanakan bahan yang digunakan sebelum TM.",
+            $moved ? 'Jadwal TM Diubah' : 'Undangan Technical Meeting',
+            "Technical Meeting proyek \"{$project->name}\" ".($moved ? 'dipindah ke' : 'dijadwalkan')." {$meeting->scheduleLabel()}. Anda diundang sebagai peserta. Pengawas: rencanakan bahan yang digunakan sebelum TM.",
             ['project_id' => $project->id],
         );
+
+        $meeting->update(['invited_at' => now()]);
+    }
+
+    /**
+     * Who a scheduled TM notifies: the attendees with an account, the
+     * project's Pengawas and its PM.
+     *
+     * @return Collection<int, User>
+     */
+    private function invitees(Project $project, TechnicalMeeting $meeting): Collection
+    {
+        return $meeting->attendees()->with('user')->get()->pluck('user')
+            ->concat($project->supervisors()->get())
+            ->push($project->pm)
+            ->filter(fn (?User $user) => $user && $user->is_active)
+            ->unique('id')
+            ->values();
+    }
+
+    /**
+     * Sprint 34 — reminders of a scheduled TM: "besok" from 24 hours before
+     * and "2 jam lagi" from 2 hours before, each once (stamped), and only if
+     * the invitation went out before that window (a TM set up for this
+     * afternoon doesn't remind right after its invitation). Run by the
+     * scheduler every 15 minutes.
+     *
+     * @return int the reminders sent
+     */
+    public function sendReminders(?Carbon $now = null): int
+    {
+        $now ??= now('Asia/Jakarta');
+        $sent = 0;
+
+        TechnicalMeeting::query()
+            ->where('mode', TechnicalMeeting::MODE_SCHEDULED)
+            ->whereNull('completed_at')
+            ->whereNotNull('invited_at')
+            ->whereBetween('meeting_date', [$now->copy()->toDateString(), $now->copy()->addDays(2)->toDateString()])
+            ->whereHas('project', fn (Builder $project) => $project->active()->where('phase', ProjectPhase::Tm->value))
+            ->with('project')
+            ->get()
+            ->each(function (TechnicalMeeting $meeting) use ($now, &$sent) {
+                $at = $meeting->startsAt();
+
+                if (! $at || $now->gte($at)) {
+                    return;
+                }
+
+                $soon = $now->gte($at->copy()->subHours(2));
+                $stamp = $soon ? 'reminded_soon_at' : 'reminded_day_before_at';
+                $windowStart = $soon ? $at->copy()->subHours(2) : $at->copy()->subDay();
+
+                if ($meeting->{$stamp} !== null || $now->lt($windowStart) || $meeting->invited_at->gte($windowStart)) {
+                    return;
+                }
+
+                $when = $soon
+                    ? 'hari ini pukul '.str_replace(':', '.', $at->format('H:i'))
+                    : ($at->isSameDay($now->copy()->addDay()) ? 'besok, ' : '').$meeting->scheduleLabel();
+
+                $this->notificationService->notifyMany(
+                    $this->invitees($meeting->project, $meeting),
+                    NotificationType::TechnicalMeetingReminder,
+                    $soon ? 'TM Sebentar Lagi' : 'Pengingat Technical Meeting',
+                    "Technical Meeting proyek \"{$meeting->project->name}\" {$when}.",
+                    ['project_id' => $meeting->project_id],
+                );
+                $meeting->update([$stamp => $now]);
+                $sent++;
+            });
+
+        return $sent;
     }
 
     /**
@@ -177,6 +275,8 @@ class TechnicalMeetingService
 
         return [
             'meeting_date' => $meeting->meeting_date?->toDateString(),
+            'meeting_time' => $meeting->meeting_time ? substr($meeting->meeting_time, 0, 5) : null,
+            'mode' => $meeting->mode,
             'notes' => $meeting->notes,
             'attendees' => $meeting->attendees->map(fn ($row) => $row->label)->values()->all(),
             'fee_total' => $fee ? number_format((float) $fee->total_amount, 2, '.', '') : null,

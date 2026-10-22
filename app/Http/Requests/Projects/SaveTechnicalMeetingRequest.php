@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Projects;
 
 use App\Models\Project;
+use App\Models\TechnicalMeeting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,8 +29,16 @@ class SaveTechnicalMeetingRequest extends FormRequest
 
         return [
             'meeting_date' => ['required', 'date'],
+            // Sprint 34 — JADWAL (ahead: time + the people invited) or LANGSUNG (held now: the form only).
+            'mode' => ['nullable', Rule::in([TechnicalMeeting::MODE_SCHEDULED, TechnicalMeeting::MODE_NOW])],
+            'meeting_time' => ['nullable', 'date_format:H:i', 'required_if:mode,'.TechnicalMeeting::MODE_SCHEDULED],
             'notes' => ['nullable', 'string', 'max:10000'],
-            'attendees' => ['nullable', 'array', 'max:50'],
+            'attendees' => ['nullable', 'array', 'max:50', function (string $attribute, mixed $value, \Closure $fail) {
+                // A schedule is an invitation — at least one person with an account gets it.
+                if ($this->input('mode') === TechnicalMeeting::MODE_SCHEDULED && ! collect($value ?? [])->contains(fn ($row) => filled($row['user_id'] ?? null))) {
+                    $fail('Pilih minimal satu orang yang punya akun — merekalah yang menerima undangan & pengingat TM.');
+                }
+            }],
             // Sprint 33 — nobody twice (the picker never offers them again either).
             'attendees.*.user_id' => ['nullable', 'integer', 'distinct', Rule::exists('users', 'id')],
             'attendees.*.name' => ['nullable', 'string', 'max:120', 'distinct:ignore_case', 'required_without:attendees.*.user_id'],
@@ -45,6 +54,8 @@ class SaveTechnicalMeetingRequest extends FormRequest
     {
         return [
             'meeting_date.required' => 'Tanggal TM wajib diisi.',
+            'meeting_time.required_if' => 'Jam TM wajib diisi untuk menjadwalkan TM.',
+            'meeting_time.date_format' => 'Jam TM harus berformat JJ:MM.',
             'notes.max' => 'Notulen terlalu panjang.',
             'attendees.max' => 'Maksimal 50 peserta.',
             'attendees.*.name.required_without' => 'Isi nama peserta atau pilih dari daftar.',

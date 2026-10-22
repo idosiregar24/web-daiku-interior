@@ -1,5 +1,5 @@
 import { formatRupiah } from '@/lib/format';
-import { domainStatusLabel, statusWithHolder, waitingOn } from '@/lib/waitingOn';
+import { domainStatusLabel, waitingSentence } from '@/lib/waitingOn';
 import { MoneyInput } from '@/Components/shared/MoneyInput';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { StatusChip } from '@/Components/shared/StatusChip';
@@ -397,7 +397,7 @@ export default function OvertimeIndex({
                                 <SelectItem value="all">Semua status</SelectItem>
                                 {STATUS_OPTIONS.map((status) => (
                                     <SelectItem key={status} value={status}>
-                                        {statusWithHolder(domainStatusLabel('overtime', status) ?? status, waitingOn('overtime', status))}
+                                        {waitingSentence('overtime', status) ?? domainStatusLabel('overtime', status) ?? status}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

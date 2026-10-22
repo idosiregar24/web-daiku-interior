@@ -2,7 +2,8 @@ import { TASK_STATUS_LABEL } from '@/lib/taskLabels';
 
 /**
  * Sprint 23 K3 — "menunggu siapa": every status that is still running names
- * whose turn it is ("Menunggu Review · PM / Asisten PM", "Dikirim · Klien").
+ * whom it waits on. Sprint 34: shown as a sentence (`waitingSentence()` —
+ * "Menunggu PM / Asisten PM mereview RAB", "Menunggu keputusan klien").
  * One map per domain, because the same code means different things in
  * different domains (PENDING is a task, an overtime, a QA form…). Finished
  * and cancelled statuses have no holder.
@@ -390,6 +391,177 @@ export function waitingOn(domain: WaitingDomain, status: string | null | undefin
 }
 
 /**
+ * Sprint 34 — the same "who's next" said as a sentence instead of
+ * "Label · Peran" ("Menunggu Kepala Desain menugaskan arsitek", "Sedang
+ * dikerjakan arsitek Budi"). `{who}` is the holder above, or the person a
+ * page knows (StatusChip `waitingOn="arsitek Budi"`). Missing = the plain
+ * label (finished / cancelled statuses).
+ */
+const SENTENCE: Partial<Record<WaitingDomain, Partial<Record<string, string>>>> = {
+    quotation: {
+        DIMINTA: 'Menunggu {who} menyusun RAB',
+        DRAFT: 'Sedang disusun {who}',
+        SUBMITTED: 'Menunggu {who} mereview RAB',
+        WAITING_CEO: 'Menunggu persetujuan {who}',
+        APPROVED_INTERNAL: 'Menunggu {who} mengirim ke klien',
+        READY_TO_SEND: 'Menunggu {who} mengirim ke klien',
+        SENT_TO_CLIENT: 'Menunggu keputusan {who}',
+        CLIENT_REJECTED: 'Ditolak klien — menunggu {who} meneruskan ke Estimator',
+    },
+    lead: {
+        FOLLOW_UP: 'Menunggu {who} follow-up klien',
+        DEAL_DESAIN: 'Menunggu {who} memproses deal desain',
+    },
+    leadSurvey: {
+        DIJADWALKAN: 'Survey terjadwal — menunggu {who} mencatat hasilnya',
+        MENUNGGU_BAYAR: 'Menunggu {who} membayar jasa survey',
+        SIAP: 'Menunggu {who} menjadwalkan survey',
+    },
+    design: {
+        MENUNGGU_BAYAR: 'Menunggu {who} membayar jasa desain',
+        MENUNGGU_PENUGASAN: 'Menunggu {who} menugaskan arsitek',
+        BRIEF: 'Sedang dikerjakan {who}',
+        DESAIN: 'Sedang dikerjakan {who}',
+        WAITING_ACC_DESAIN: 'Menunggu persetujuan {who}',
+        REVISI_DESAIN: 'Sedang direvisi {who}',
+        HOLD_CLIENT: 'Ditahan — menunggu {who}',
+        REVISI_CLIENT: 'Sedang direvisi {who}',
+    },
+    invoice: {
+        DITERBITKAN: 'Menunggu {who} membayar',
+        MENUNGGU_VERIFIKASI: 'Menunggu {who} memverifikasi pembayaran',
+    },
+    termin: {
+        SCHEDULED: 'Menunggu {who} menerbitkan invoice',
+        INVOICED: 'Menunggu {who} membayar',
+        OVERDUE: 'Terlambat — menunggu {who} membayar',
+    },
+    project: {
+        ACTIVE: 'Berjalan — {who}',
+        ON_HOLD: 'Ditahan — menunggu {who} melanjutkan',
+    },
+    projectOpening: {
+        MENUNGGU_PM: 'Menunggu {who} membuka proyek',
+        MENUNGGU_CEO: 'Menunggu {who} membuka proyek',
+    },
+    milestone: {
+        PENDING: 'Belum mulai',
+        IN_PROGRESS: 'Sedang dikerjakan {who}',
+        QA_WAITING: 'Menunggu {who} memeriksa',
+        OVERDUE: 'Terlambat — menunggu {who} menindaklanjuti',
+    },
+    task: {
+        PENDING: 'Menunggu {who} mulai mengerjakan',
+        ONPROGRESS: 'Sedang dikerjakan {who}',
+        PENGECEKAN: 'Menunggu {who} mengecek hasilnya',
+        OVER: 'Lewat batas — menunggu {who} menyelesaikan',
+    },
+    qa: {
+        PENDING: 'Menunggu {who} memeriksa',
+        REJECTED: 'Perlu perbaikan — menunggu {who}',
+    },
+    overtime: {
+        PENDING: 'Menunggu ACC {who}',
+        PENDING_FINANCE: 'Menunggu ACC {who}',
+    },
+    materialRequest: {
+        MENUNGGU_PM: 'Menunggu ACC {who}',
+        DIAJUKAN: 'Menunggu keputusan {who}',
+    },
+    salaryChange: {
+        PENDING: 'Menunggu persetujuan {who}',
+    },
+    performanceReview: {
+        DRAFT: 'Sedang disusun {who}',
+        SUBMITTED: 'Menunggu persetujuan {who}',
+        APPROVED: 'Disetujui — menunggu {who} membaca',
+    },
+    kpiPeriod: {
+        OPEN: 'Terbuka — menunggu {who} menutup',
+    },
+    penalty: {
+        BELUM_DIBAYAR: 'Belum dibayar {who}',
+    },
+    staffLoan: {
+        BERJALAN: 'Berjalan — dicicil {who}',
+    },
+    supplierDebt: {
+        BERJALAN: 'Berjalan — dibayar {who}',
+        JATUH_TEMPO: 'Jatuh tempo — menunggu {who} membayar',
+    },
+    assetInstallment: {
+        BERJALAN: 'Berjalan — dibayar {who}',
+        JATUH_TEMPO: 'Jatuh tempo — menunggu {who} membayar',
+    },
+    payroll: {
+        PENDING: 'Menunggu {who} membayar',
+    },
+    projectPhase: {
+        GAMBAR_KERJA: 'Menunggu tim desain menyelesaikan gambar kerja',
+        TM: 'Menunggu PM menyelesaikan Technical Meeting',
+        PERSIAPAN: 'Menunggu Pengawas melengkapi persiapan & mengajukan DP',
+        PRODUKSI: 'Tukang sedang produksi, dicek Pengawas',
+        PEMASANGAN: 'Sedang dipasang di lokasi, dicek Pengawas',
+    },
+    workingDrawing: {
+        MENUNGGU_PENUGASAN: 'Menunggu {who} menugaskan arsitek',
+        DIKERJAKAN: 'Sedang dikerjakan {who}',
+    },
+    supervisorPayment: {
+        DIAJUKAN: 'Menunggu persetujuan {who}',
+        DISETUJUI_PM: 'Disetujui PM — menunggu {who} membayar',
+    },
+    weeklyReport: {
+        DIAJUKAN: 'Menunggu ACC {who}',
+        DITOLAK: 'Ditolak — menunggu {who} mengirim ulang',
+    },
+    siteFinding: {
+        TERBUKA: 'Menunggu {who} memperbaiki',
+    },
+    itemQa: {
+        MENUNGGU: 'Menunggu {who} memeriksa',
+        PERBAIKAN: 'Menunggu {who} memperbaiki',
+    },
+    dailyActivity: {
+        BELUM_DIPERIKSA: 'Menunggu {who} memeriksa',
+        PERLU_KLARIFIKASI: 'Menunggu {who} menjelaskan',
+    },
+    materialOrder: {
+        DIRENCANAKAN: 'Direncanakan — menunggu {who} mengajukan',
+        MENUNGGU_PM: 'Menunggu ACC {who}',
+        DIAJUKAN: 'Menunggu keputusan {who}',
+        DISETUJUI: 'Disetujui — menunggu {who} memesan',
+        DIPESAN: 'Dipesan — menunggu barang tiba',
+        SEBAGIAN: 'Diterima sebagian — menunggu sisa barang',
+    },
+};
+
+/** Generic people are written in lower case inside a sentence ("menunggu klien membayar"). */
+const LOWER_CASE_WHO = new Set(['Klien', 'Tukang', 'Karyawan', 'Arsitek', 'Anda']);
+
+function inSentence(who: string): string {
+    return LOWER_CASE_WHO.has(who) ? who.toLowerCase() : who;
+}
+
+/**
+ * The status as a sentence ("Menunggu Kepala Desain menugaskan arsitek");
+ * `who` = a known person ("arsitek Budi"), else the domain's holder. `null`
+ * when the status waits on nobody (use the plain label).
+ */
+export function waitingSentence(domain: WaitingDomain, status: string | null | undefined, who?: string | null): string | null {
+    if (!status) return null;
+    const template = SENTENCE[domain]?.[status];
+    const holder = who ?? waitingOn(domain, status);
+
+    if (!template) {
+        // Only a status that waits on someone (a finished one stays its plain label, whoever is passed).
+        return holder && waitingOn(domain, status) ? `Menunggu ${inSentence(holder)}` : null;
+    }
+
+    return template.replace('{who}', holder ? inSentence(holder) : '').replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Sprint 28 K14 — whose turn a project is. A running (ACTIVE) project's turn
  * is its phase's holder — the same `projectPhase` map ProjectPhaseStepper
  * reads, PRODUKSI for projects opened before the flow existed — so the
@@ -399,7 +571,10 @@ export function waitingOn(domain: WaitingDomain, status: string | null | undefin
  */
 export function projectWaitingOn(project: { status: string; phase?: string | null }): string | null {
     if (project.status === 'ACTIVE' && project.phase !== undefined) {
-        return waitingOn('projectPhase', project.phase ?? 'PRODUKSI');
+        // Sprint 34 — the phase's sentence, inside "Berjalan — {who}" (lower case: it continues the chip).
+        const sentence = waitingSentence('projectPhase', project.phase ?? 'PRODUKSI');
+
+        return sentence ? sentence.charAt(0).toLowerCase() + sentence.slice(1) : null;
     }
 
     return waitingOn('project', project.status);
@@ -410,7 +585,12 @@ export function domainStatusLabel(domain: WaitingDomain, status: string): string
     return LABEL[domain]?.[status];
 }
 
-/** "Menunggu Review · PM / Asisten PM" — for plain text (titles, notifications rendered client-side). */
+/** "Lembur — menunggu PM" — a label plus whom it waits on, for plain text. */
 export function statusWithHolder(label: string, holder: string | null | undefined): string {
-    return holder ? `${label} · ${holder}` : label;
+    return holder ? `${label} — menunggu ${inSentence(holder)}` : label;
+}
+
+/** "arsitek Budi" — the architect a Gambar Kerja / desain waits on, by name (undefined = the role). */
+export function architectOf(name: string | null | undefined): string | undefined {
+    return name ? `arsitek ${name}` : undefined;
 }

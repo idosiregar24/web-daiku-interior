@@ -4,6 +4,7 @@ import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { PageHeader } from '@/Components/shared/PageHeader';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
+import { architectOf } from '@/lib/waitingOn';
 import { Button } from '@/Components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/Components/ui/form';
 import { Textarea } from '@/Components/ui/textarea';
@@ -43,9 +44,9 @@ const schema = z.object({
 function stepOf(drawing: WorkingDrawing): string | undefined {
     switch (drawing.status) {
         case 'MENUNGGU_PENUGASAN':
-            return 'Tugaskan arsitek gambar kerja ini · Kepala Desain.';
+            return 'Menunggu Kepala Desain menugaskan arsitek untuk membuat gambar kerja ini.';
         case 'DIKERJAKAN':
-            return 'Simpan link gambar kerja lalu tekan "Gambar Kerja Selesai" · Arsitek.';
+            return `Gambar kerja sedang dikerjakan oleh ${architectOf(drawing.pic?.name) ?? 'arsitek'} — simpan link gambar kerja, lalu tekan "Gambar Kerja Selesai".`;
         default:
             return undefined;
     }
@@ -103,7 +104,7 @@ export default function WorkingDrawingShow({ drawing, canAssign, canWork, archit
                 step={stepOf(drawing)}
                 actions={
                     <>
-                        <StatusChip domain="workingDrawing" status={drawing.status} />
+                        <StatusChip domain="workingDrawing" status={drawing.status} waitingOn={architectOf(drawing.pic?.name)} />
                         {canAssign && (
                             // Not assigned yet = the page's next step → the yellow primary button; reassigning stays secondary.
                             <Button variant={drawing.pic_id ? 'outline' : 'default'} onClick={() => setAssigning(true)}>
