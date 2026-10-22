@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\QuotationStatus;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Models\Quotation;
@@ -14,7 +15,6 @@ use App\Models\WorkItemProgress;
 use App\Models\WorkItemProgressDraft;
 use App\Support\Quantity;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -667,95 +667,64 @@ class WorkItemService
     public const SCHEDULE_DONE = 'SELESAI';
 
     /**
-     * The Pengawas / Admin Proyek sets an item's production window and,
-     * optionally, its installation window (File C's second block). Inside
-     * the project's dates; installation never starts before production.
-     * Not locked after Start Produksi — a schedule moves (audited).
-     *
-     * @param  array{production_start?: ?string, production_end?: ?string, installation_start?: ?string, installation_end?: ?string}  $data
+     * Sprint 35 — an item's dates are its timelines': from the earliest
+     * start to the latest end of the timelines it is linked to (the PM links
+     * them on the Timeline). `production_start/end` are that cache — read by
+     * scheduleStatus(), "Item terlambat" and the inbox; installation is no
+     * longer a separate window (a "Pemasangan" timeline is one more link).
      */
-    public function updateSchedule(ProjectWorkItem $item, array $data, User $actor): ProjectWorkItem
+    public function syncTimelineSchedule(Project $project): void
     {
-        return DB::transaction(function () use ($item, $data, $actor) {
-            $project = Project::lockForUpdate()->findOrFail($item->project_id);
-            $item = ProjectWorkItem::lockForUpdate()->with('quotationItem:id,description')->findOrFail($item->id);
-            $fields = ['production_start', 'production_end', 'installation_start', 'installation_end'];
-            $values = collect($fields)->mapWithKeys(fn (string $field) => [$field => filled($data[$field] ?? null) ? $data[$field] : null]);
+        $windows = DB::table('milestone_work_item')
+            ->join('milestones', 'milestones.id', '=', 'milestone_work_item.milestone_id')
+            ->where('milestones.project_id', $project->id)
+            ->groupBy('milestone_work_item.project_work_item_id')
+            ->selectRaw('milestone_work_item.project_work_item_id as item_id, MIN(milestones.start_date) as starts, MAX(milestones.target_date) as ends')
+            ->get()
+            ->keyBy('item_id');
 
-            foreach ($fields as $field) {
-                $date = $values[$field];
+        ProjectWorkItem::query()->where('project_id', $project->id)->get(['id', 'production_start', 'production_end', 'installation_start', 'installation_end'])
+            ->each(function (ProjectWorkItem $item) use ($windows) {
+                $window = $windows->get($item->id);
+                $item->fill([
+                    'production_start' => $window ? substr((string) $window->starts, 0, 10) : null,
+                    'production_end' => $window ? substr((string) $window->ends, 0, 10) : null,
+                    'installation_start' => null,
+                    'installation_end' => null,
+                ]);
 
-                if ($date && $project->start_date && $date < $project->start_date->toDateString()) {
-                    throw ValidationException::withMessages([$field => 'Jadwal item tidak boleh sebelum tanggal mulai proyek ('.$project->start_date->translatedFormat('d M Y').').']);
+                if ($item->isDirty()) {
+                    $item->saveQuietly();
                 }
-
-                if ($date && $project->end_date && $date > $project->end_date->toDateString()) {
-                    throw ValidationException::withMessages([$field => 'Jadwal item tidak boleh melewati tanggal selesai proyek ('.$project->end_date->translatedFormat('d M Y').').']);
-                }
-            }
-
-            if ($values['installation_start'] && $values['production_start'] && $values['installation_start'] < $values['production_start']) {
-                throw ValidationException::withMessages(['installation_start' => 'Pemasangan tidak boleh mulai sebelum produksi item ini dimulai.']);
-            }
-
-            $before = collect($item->only($fields))->map(fn ($date) => $date?->toDateString())->all();
-            $item->fill($values->all());
-
-            if (! $item->isDirty($fields)) {
-                return $item;
-            }
-
-            $item->set_by = $actor->id;
-            $item->save();
-            $this->auditLogService->record('work_item.scheduled', $item, $before, [...$values->all(), 'item' => $item->quotationItem->description], $actor);
-
-            return $item;
-        });
+            });
     }
 
     /**
-     * "Jadwalkan berurutan" — File C's staircase in one step: the chosen
-     * items (in RAB order) get `production_days` days of production each,
-     * the first from `production_start`, every next one `gap_days` later;
-     * the installation the same way when `installation_start` is given.
-     * Each item goes through updateSchedule() (same checks, audited); one
-     * refused item saves none.
+     * The RAB items a timeline can hold — the Timeline form's checklist:
+     * every item of the project (with or without a wage), its section and
+     * the timelines it already sits in.
      *
-     * @param  array{item_ids: list<int|string>, production_start: string, production_days: int|string, gap_days?: int|string|null, installation_start?: ?string, installation_days?: int|string|null}  $data
+     * @return list<array{id: int, description: string, volume_label: string, section: string, has_wage: bool, milestone_ids: list<int>}>
      */
-    public function scheduleSequence(Project $project, array $data, User $actor): int
+    public function timelineOptions(Project $project): array
     {
-        $ids = collect($data['item_ids'])->map(fn ($id) => (int) $id)->unique();
-        $items = $this->items($project)->filter(fn (ProjectWorkItem $item) => $item->hasWage() && $ids->contains($item->id))->values();
+        $links = DB::table('milestone_work_item')
+            ->join('milestones', 'milestones.id', '=', 'milestone_work_item.milestone_id')
+            ->where('milestones.project_id', $project->id)
+            ->get(['milestone_work_item.project_work_item_id as item_id', 'milestone_work_item.milestone_id'])
+            ->groupBy('item_id');
 
-        if ($items->count() !== $ids->count()) {
-            throw ValidationException::withMessages(['item_ids' => 'Sebagian item bukan item berupah proyek ini.']);
-        }
-
-        $gap = (int) ($data['gap_days'] ?? 1);
-        $day = fn (string $start, int $offset) => Carbon::parse($start)->addDays($offset)->toDateString();
-        $install = filled($data['installation_start'] ?? null) && (int) ($data['installation_days'] ?? 0) > 0;
-
-        return DB::transaction(function () use ($items, $data, $gap, $day, $install, $actor) {
-            foreach ($items as $index => $item) {
-                $productionStart = $day($data['production_start'], $index * $gap);
-                $installationStart = $install ? $day($data['installation_start'], $index * $gap) : null;
-
-                try {
-                    $this->updateSchedule($item, [
-                        'production_start' => $productionStart,
-                        'production_end' => $day($productionStart, (int) $data['production_days'] - 1),
-                        'installation_start' => $installationStart,
-                        'installation_end' => $installationStart ? $day($installationStart, (int) $data['installation_days'] - 1) : null,
-                    ], $actor);
-                } catch (ValidationException $e) {
-                    // Name the item: the dates were computed, the user only typed the first one.
-                    throw ValidationException::withMessages(['production_start' => "\"{$item->quotationItem->description}\": ".collect($e->errors())->flatten()->first()]);
-                }
-            }
-
-            return $items->count();
-        });
+        return collect($this->overview($project)['sections'])
+            ->flatMap(fn (array $section) => collect($section['items'])->map(fn (array $item) => [
+                'id' => $item['id'],
+                'description' => $item['description'],
+                'volume_label' => trim($item['volume_label'].' '.($item['unit'] ?? '')),
+                'section' => $section['title'],
+                'has_wage' => ($item['unit_wage'] ?? 0) > 0,
+                'milestone_ids' => $links->get($item['id'], collect())->pluck('milestone_id')->map(fn ($id) => (int) $id)->values()->all(),
+            ]))
+            ->values()
+            ->all();
     }
 
     /**
@@ -768,6 +737,7 @@ class WorkItemService
     public function scheduleOverview(Project $project): array
     {
         $items = $this->items($project)->filter(fn (ProjectWorkItem $item) => $item->hasWage())->values();
+        $items->load('milestones:id,name,start_date,target_date');
         $progress = $this->progressHundredths($project);
         $today = now('Asia/Jakarta')->toDateString();
         $date = fn ($value) => $value?->toDateString();
@@ -780,12 +750,16 @@ class WorkItemService
             'progress' => (float) (($progress[$item->id] ?? 0) / 100),
             'production_start' => $date($item->production_start),
             'production_end' => $date($item->production_end),
-            'installation_start' => $date($item->installation_start),
-            'installation_end' => $date($item->installation_end),
+            // Sprint 35 — the timelines it is worked in: one block each on the sheet.
+            'timelines' => $item->milestones
+                ->sortBy('start_date')
+                ->map(fn (Milestone $milestone) => ['id' => $milestone->id, 'name' => $milestone->name, 'start' => $date($milestone->start_date), 'end' => $date($milestone->target_date)])
+                ->values()
+                ->all(),
             'status' => self::scheduleStatus($item, $progress[$item->id] ?? 0, $today),
         ]);
 
-        $dates = $rows->flatMap(fn (array $row) => [$row['production_start'], $row['production_end'], $row['installation_start'], $row['installation_end']])
+        $dates = $rows->flatMap(fn (array $row) => [$row['production_start'], $row['production_end']])
             ->push($project->start_date?->toDateString(), $project->end_date?->toDateString())
             ->filter()
             ->sort()

@@ -23,6 +23,8 @@ use Inertia\Testing\AssertableInertia as Assert;
 
 beforeEach(function () {
     Carbon::setTestNow(Carbon::parse('2026-10-14 10:00:00', 'Asia/Jakarta'));
+    // Sprint 36 — the Friday/Saturday send window is tested in WeeklyReportWindowTest; here any day sends.
+    config(['daiku.execution.weekly_report_send_days' => [1, 2, 3, 4, 5, 6, 7]]);
     $this->seed(RoleSeeder::class);
 
     foreach (['pm' => 'PM', 'qa' => 'QA', 'marketing' => 'MARKETING'] as $key => $role) {
@@ -66,7 +68,11 @@ test('Persiapan in the order it is filled: upah → jadwal → daily target → 
     expect($steps['wages']['state'])->toBe('done')
         ->and($steps['wages']['detail'])->toBe('2 dari 2 item berupah')
         ->and($steps['schedule']['state'])->toBe('current')
-        ->and($steps['schedule']['detail'])->toBe('2 item belum dijadwalkan');
+        ->and($steps['schedule']['detail'])->toBe('2 item belum masuk timeline')
+        // Sprint 35 — the schedule is the Timeline: the PM's step there, not the Pengawas's.
+        ->and($steps['schedule']['target'])->toBe(['tab' => 'milestone'])
+        ->and($steps['schedule']['mine'])->toBeFalse()
+        ->and(stepsOf($this->project, $this->pm)['schedule']['mine'])->toBeTrue();
 
     // The PM reads the same list; its own step is the DP decision.
     expect(stepsOf($this->project, $this->pm)['wages']['mine'])->toBeFalse()

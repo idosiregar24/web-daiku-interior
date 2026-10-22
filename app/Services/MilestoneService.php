@@ -6,6 +6,7 @@ use App\Enums\MilestoneStatus;
 use App\Enums\NotificationType;
 use App\Models\Milestone;
 use App\Models\Project;
+use App\Models\ProjectWorkItem;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -14,6 +15,7 @@ class MilestoneService
     public function __construct(
         private QaFormService $qaFormService,
         private NotificationService $notificationService,
+        private WorkItemService $workItemService,
     ) {}
 
     /**
@@ -75,19 +77,60 @@ class MilestoneService
         $this->ensureProjectOpen($project);
 
         $nextOrder = $project->milestones()->max('order') + 1;
+        $itemIds = $data['work_item_ids'] ?? null;
+        unset($data['work_item_ids']);
 
-        return $project->milestones()->create([
+        $milestone = $project->milestones()->create([
             ...$data,
             'start_date' => $data['start_date'] ?? $this->defaultStartDate($project, $data['target_date']),
             'order' => $nextOrder,
         ]);
-    }
-
-    public function update(Milestone $milestone, array $data): Milestone
-    {
-        $milestone->update($data);
+        $this->linkItems($milestone, $itemIds);
 
         return $milestone;
+    }
+
+    /** `work_item_ids` absent = the links stay; present (even empty) = exactly these. */
+    public function update(Milestone $milestone, array $data): Milestone
+    {
+        $itemIds = array_key_exists('work_item_ids', $data) ? ($data['work_item_ids'] ?? []) : null;
+        unset($data['work_item_ids']);
+
+        $milestone->update($data);
+        $this->linkItems($milestone, $itemIds);
+
+        return $milestone;
+    }
+
+    /** A timeline removed: its items lose those dates. */
+    public function delete(Milestone $milestone): void
+    {
+        $project = $milestone->project;
+        $milestone->delete();
+        $this->workItemService->syncTimelineSchedule($project);
+    }
+
+    /**
+     * Sprint 35 — the timeline's RAB items (only this project's), then every
+     * item's dates follow its timelines. `null` = links unchanged (dates may
+     * still have moved).
+     *
+     * @param  list<int|string>|null  $itemIds
+     */
+    private function linkItems(Milestone $milestone, ?array $itemIds): void
+    {
+        if ($itemIds !== null) {
+            $ids = collect($itemIds)->map(fn ($id) => (int) $id)->unique()->values();
+            $valid = ProjectWorkItem::query()->where('project_id', $milestone->project_id)->whereIn('id', $ids)->count();
+
+            if ($valid !== $ids->count()) {
+                throw ValidationException::withMessages(['work_item_ids' => 'Sebagian item bukan item RAB proyek ini.']);
+            }
+
+            $milestone->workItems()->sync($ids->all());
+        }
+
+        $this->workItemService->syncTimelineSchedule($milestone->project);
     }
 
     /**

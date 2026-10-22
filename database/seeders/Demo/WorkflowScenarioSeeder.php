@@ -524,7 +524,8 @@ class WorkflowScenarioSeeder extends Seeder
         // (50 % per item) approved & paid; this week's (+25 % → 75 %, past the
         // 70 % of "Berangkat ke Lokasi") is a draft the Pengawas can still
         // change and send (PengawasPreviewSeeder).
-        Carbon::setTestNow(now()->subWeek()->setTime(10, 0));
+        // Sprint 36 — a pengecekan is sent on Friday / Saturday: last week's Friday.
+        Carbon::setTestNow(now()->subWeek()->startOfWeek(Carbon::MONDAY)->addDays(4)->setTime(10, 0));
         $producing = ExecutionFlowDemo::requestDp($producing, $this->pm);
         $payments = app(SupervisorPaymentService::class);
         $bank = BankAccount::where('is_active', true)->firstOrFail()->id;
@@ -552,12 +553,15 @@ class WorkflowScenarioSeeder extends Seeder
         $kitchen = ExecutionFlowDemo::timeline($finishing, 'Produksi & Pemasangan Kitchen Set', -20, 3);
         $finishing = ExecutionFlowDemo::holdMeeting($finishing, $this->pm);
         $target($finishing, $kitchen->id, 'Pasang kitchen set', 1);
+        // Sprint 36 — sent on the last Friday (or today when it is Friday / Saturday).
+        Carbon::setTestNow(in_array(now()->dayOfWeekIso, [5, 6], true) ? now() : now()->previous(Carbon::FRIDAY)->setTime(10, 0));
         $finishing = ExecutionFlowDemo::requestDp($finishing, $this->pm);
         $itemIds = $finishing->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
         app(WeeklyReportService::class)->submit($finishing, [
             'notes' => 'Semua pekerjaan terpasang, siap diperiksa per item.',
             'progress' => $itemIds->map(fn ($id) => ['item_id' => $id, 'percent' => 100])->all(),
         ], $this->qa);
+        Carbon::setTestNow();
         // 100 % ≥ 70 % — the PM sent the team to the site (PEMASANGAN: Temuan Finishing open).
         app(ProductionService::class)->approveDeparture($finishing, $this->pm);
 

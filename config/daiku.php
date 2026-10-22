@@ -32,6 +32,9 @@ return [
         'deadline_warning_ratio' => 0.7,
         // D10 — the Pengawas's weekly report day (Carbon day-of-week, 5 = Jumat) and reminder hour (WIB).
         'weekly_report_day' => 5,
+        // Sprint 36 — the days a pengecekan / weekly report (= the wage request) can be SENT (ISO: 5 = Jumat,
+        // 6 = Sabtu, a missed Friday still counts). Before them it is only filled as a draft. Once a week.
+        'weekly_report_send_days' => [5, 6],
         'weekly_report_reminder_at' => '15:00',
         // D4 — default DP of the Jasa Pengawas, editable per project at the TM.
         'supervisor_dp_percent' => 10,

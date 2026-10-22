@@ -21,6 +21,9 @@ class UpdateMilestoneRequest extends FormRequest
             // Sprint 23 K17 — older timelines were backfilled, so every row has one.
             'start_date' => ['required', 'date'],
             'target_date' => ['required', 'date', 'after_or_equal:start_date'],
+            // Sprint 35 — the RAB items worked on in this timeline (checked against the project in MilestoneService).
+            'work_item_ids' => ['sometimes', 'array', 'max:500'],
+            'work_item_ids.*' => ['integer', 'distinct'],
             'status' => ['required', Rule::in(['PENDING', 'IN_PROGRESS', 'QA_WAITING', 'COMPLETED', 'OVERDUE'])],
         ];
     }

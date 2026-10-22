@@ -3,37 +3,38 @@ import { Notice } from '@/Components/shared/Notice';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
-import { formatDateTime, formatRupiah } from '@/lib/format';
+import { formatDateTime, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { formatProgress } from '@/lib/progress';
 import { cn } from '@/lib/utils';
-import type { ProjectExecution, WorkItemScheduleStatus, WorkSchedule } from '@/types';
+import type { ProjectExecution, WorkItemScheduleStatus } from '@/types';
+import { Link } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
-import { CalendarRange, Hourglass, PencilLine, Pencil, Sheet, X } from 'lucide-react';
+import { CalendarRange, Hourglass, PencilLine, Sheet, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
 import { decisionTargetOf, workCheckState } from './WeeklyReportsCard';
 import { WorkCheckForm, type SheetInput } from './WorkCheckForm';
-import { ItemScheduleDialog, SequenceScheduleDialog } from './WorkScheduleDialogs';
 import { dayRange, inside, rangeLabel, SCHEDULE_STATUS } from './workSchedule';
 
 /** A continuous day grid is drawn up to this many days; longer → only the pengecekan dates (+ today). */
 const MAX_DAYS = 120;
+
+type Timeline = { id: number; name: string; start: string | null; end: string | null };
 
 interface Row {
     id: number;
     description: string;
     volume_label: string;
     team_lead: string;
+    /** RAB value (money viewers). */
+    value: number | null;
     weight: number | null;
     cells: Record<string, number>;
     total: number;
     contribution: number | null;
     status: WorkItemScheduleStatus | null;
-    production_start: string | null;
-    production_end: string | null;
-    installation_start: string | null;
-    installation_end: string | null;
+    timelines: Timeline[];
 }
 
 type Report = ProjectExecution['weeklyReports'][number];
@@ -45,16 +46,12 @@ function added(value: number | undefined): string {
     return `${value > 0 ? '+' : '−'}${formatProgress(Math.abs(value))}`;
 }
 
-/** The items as the sheet shows them — schedule (every viewer), recap (pengecekan viewers), whichever reached this viewer. */
+/** The items as the sheet shows them — schedule (every viewer), recap & values (pengecekan viewers), whichever reached this viewer. */
 function rowsOf(execution: ProjectExecution): Row[] {
-    const { workSchedule: schedule, progressRecap: recap } = execution;
+    const { workSchedule: schedule, progressRecap: recap, workItems } = execution;
     const recapById = new Map((recap?.items ?? []).map((item) => [item.id, item]));
-    const base: {
-        id: number;
-        description: string;
-        volume_label: string;
-        team_lead: string;
-    }[] = schedule?.items ?? recap?.items ?? [];
+    const valueById = new Map((workItems?.sections ?? []).flatMap((section) => section.items).map((item) => [item.id, item.rab_subtotal]));
+    const base: { id: number; description: string; volume_label: string; team_lead: string }[] = schedule?.items ?? recap?.items ?? [];
 
     return base.map((item) => {
         const timed = schedule?.items.find((row) => row.id === item.id);
@@ -65,45 +62,31 @@ function rowsOf(execution: ProjectExecution): Row[] {
             description: item.description,
             volume_label: item.volume_label,
             team_lead: item.team_lead,
+            value: valueById.get(item.id) ?? null,
             weight: summed?.weight ?? null,
             cells: summed?.cells ?? {},
             total: summed?.total ?? timed?.progress ?? 0,
             contribution: summed?.contribution ?? null,
             status: timed?.status ?? null,
-            production_start: timed?.production_start ?? null,
-            production_end: timed?.production_end ?? null,
-            installation_start: timed?.installation_start ?? null,
-            installation_end: timed?.installation_end ?? null,
+            timelines: timed?.timelines ?? [],
         };
     });
 }
 
 /**
- * Sprint 31 Sub 07 — "Lembar Progres": the SIMULASI PERSENTASI sheet in one
- * table. Per RAB item and per day: the planned production (blue) and
- * installation (green) windows, the % the Pengawas added on each pengecekan
- * date written in its cell, and — for the Pengawas / Admin Proyek — today's
- * column is where this pengecekan is typed. Right of the days: Total %,
- * Kontribusi (Total × Bobot), status against the schedule. Under the table
- * the rest of the pengecekan (summary, notes, Kirim) — WorkCheckForm. Phones
- * get a card per item (the input cards with their quick buttons).
+ * Sprint 31 Sub 07 / Sprint 35 — "Lembar Progres", laid out like the
+ * SIMULASI PERSENTASI sheet: NO · Uraian · Volume · Nilai · Bobot, then one
+ * column per day (month over the date) with the item's timelines as blue
+ * blocks and the % added on each pengecekan date, then TOTAL % and
+ * Kontribusi (kept in view on the right), and the "Jumlah / Progres proyek"
+ * row. The schedule is the Timeline (Sprint 35): the PM puts items into
+ * timelines; nothing is scheduled here. For the Pengawas / Admin Proyek
+ * today's column is where the pengecekan is typed (WorkCheckForm).
  */
 export function WorkProgressSheet({ projectId, execution }: { projectId: number; execution: ProjectExecution }) {
     const { workSchedule: schedule, progressRecap: recap, workCheck, can } = execution;
-    const [editing, setEditing] = useState<WorkSchedule['items'][number] | null>(null);
-    const [sequencing, setSequencing] = useState(false);
     const state = workCheckState(execution);
     const rows = useMemo(() => rowsOf(execution), [execution]);
-    const canSchedule = can.scheduleItems && schedule !== null;
-    const unscheduled = (schedule?.items ?? []).filter((item) => item.status === 'BELUM_DIJADWALKAN');
-    const firstUnscheduled = unscheduled[0] ?? null;
-    // "Simpan & lanjut": the next unscheduled item after the one open (RAB order), else the first left.
-    const nextAfter = (id: number) => {
-        const order = (schedule?.items ?? []).map((item) => item.id);
-        const after = unscheduled.filter((item) => item.id !== id && order.indexOf(item.id) > order.indexOf(id));
-
-        return after[0] ?? unscheduled.find((item) => item.id !== id) ?? null;
-    };
     const today = schedule?.today ?? format(new Date(), 'yyyy-MM-dd');
     // The pengecekan sent and waiting for the PM: its % stay visible (marked) and the PM decides right here.
     const pending = execution.weeklyReports.find((report) => report.status === 'DIAJUKAN') ?? null;
@@ -111,6 +94,7 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
     const [deciding, setDeciding] = useState<ExecutionDecisionTarget | null>(null);
     // Nothing new is typed while this week's last pengecekan waits for the PM.
     const typing = state.showsCheck && workCheck !== null && execution.currentWeek !== null && (state.weekOpen || pending === null);
+    const timelineHref = route('projects.show', { project: projectId, tab: 'milestone' });
 
     if (rows.length === 0) {
         return (
@@ -120,27 +104,20 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
         );
     }
 
-    const table = (input?: SheetInput) => (
-        <SheetTable
-            rows={rows}
-            execution={execution}
-            today={today}
-            pendingDate={pendingDate}
-            input={input}
-            onEdit={canSchedule ? (id) => setEditing(schedule.items.find((item) => item.id === id) ?? null) : undefined}
-        />
-    );
+    const table = (input?: SheetInput) => <SheetTable rows={rows} execution={execution} today={today} pendingDate={pendingDate} input={input} />;
 
     return (
         <SectionCard
             title="Lembar Progres"
-            description="Jadwal & progres tiap item — seperti lembar Simulasi Persentasi."
+            description="Jadwal (dari Timeline) & progres tiap item RAB — seperti lembar Simulasi Persentasi."
             icon={Sheet}
             action={
-                canSchedule ? (
-                    <Button size="sm" variant="outline" onClick={() => setSequencing(true)}>
-                        <CalendarRange className="size-4" />
-                        Jadwalkan Berurutan
+                can.linkTimelines ? (
+                    <Button size="sm" variant="outline" asChild>
+                        <Link href={timelineHref}>
+                            <CalendarRange className="size-4" />
+                            Atur di Timeline
+                        </Link>
                     </Button>
                 ) : undefined
             }
@@ -148,37 +125,21 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
             {schedule && (schedule.summary.late > 0 || schedule.summary.unscheduled > 0) && (
                 <div className="mb-4 space-y-2">
                     {schedule.summary.late > 0 && (
-                        <Notice tone="error">{schedule.summary.late} item terlambat dari jadwalnya (jadwal sudah lewat, progres belum 100 %).</Notice>
+                        <Notice tone="error">{schedule.summary.late} item terlambat dari jadwalnya (timeline sudah lewat, progres belum 100 %).</Notice>
                     )}
-                    {schedule.summary.unscheduled > 0 &&
-                        (canSchedule && firstUnscheduled ? (
-                            // Sprint 33 — the next thing to do, not just a count: open the first unscheduled item (already filled in).
-                            <div className="flex flex-col gap-3 rounded-xl border-2 border-daiku-yellow bg-daiku-yellow-light p-4 sm:flex-row sm:items-center">
-                                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-daiku-yellow text-daiku-dark">
-                                    <CalendarRange className="size-5" />
-                                </span>
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-semibold text-foreground">
-                                        Atur jadwal kerja · {schedule.summary.unscheduled} dari {schedule.summary.total} item belum dijadwalkan
-                                    </p>
-                                    <p className="text-sm text-daiku-muted">
-                                        Mulai dari <span className="font-medium text-foreground">{firstUnscheduled.description}</span> — tanggal sudah
-                                        diusulkan (setelah item sebelumnya selesai), tinggal periksa lalu "Simpan & lanjut". Atau jadwalkan semuanya
-                                        sekaligus.
-                                    </p>
-                                </div>
-                                <div className="flex flex-col gap-2 sm:flex-row">
-                                    <Button onClick={() => setEditing(firstUnscheduled)}>Atur {firstUnscheduled.description}</Button>
-                                    <Button variant="outline" onClick={() => setSequencing(true)}>
-                                        Sekaligus berurutan
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <Notice tone="info">
-                                {schedule.summary.unscheduled} dari {schedule.summary.total} item belum dijadwalkan — diisi Pengawas.
-                            </Notice>
-                        ))}
+                    {schedule.summary.unscheduled > 0 && (
+                        <Notice tone="info">
+                            {schedule.summary.unscheduled} dari {schedule.summary.total} item belum masuk timeline, jadi belum punya jadwal —{' '}
+                            {can.linkTimelines ? (
+                                <Link href={timelineHref} className="font-medium underline decoration-daiku-yellow underline-offset-2">
+                                    pilih item RAB-nya saat menambah / mengubah timeline
+                                </Link>
+                            ) : (
+                                'dipilih PM saat menyusun timeline'
+                            )}
+                            .
+                        </Notice>
+                    )}
                 </div>
             )}
 
@@ -191,7 +152,7 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
                 />
             )}
 
-            {typing && state.weekOpen && <TodayPrompt label={state.nextLabel} />}
+            {typing && !state.sentThisWeek && <TodayPrompt label={state.nextLabel} canSend={state.canSend} sendDays={state.sendDays} />}
 
             {typing && workCheck && execution.currentWeek ? (
                 <WorkCheckForm
@@ -207,34 +168,24 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
                 />
             ) : (
                 <>
-                    <PhoneCards
-                        rows={rows}
-                        pendingDate={pendingDate}
-                        onEdit={canSchedule ? (id) => setEditing(schedule.items.find((item) => item.id === id) ?? null) : undefined}
-                    />
+                    <PhoneCards rows={rows} pendingDate={pendingDate} />
                     <div className="hidden md:block">{table()}</div>
-                    {recap && recap.total !== null && (
-                        <p className="mt-3 text-sm text-daiku-muted md:hidden">Progres proyek {formatProgress(recap.total)}</p>
-                    )}
+                    {recap && recap.total !== null && <p className="mt-3 text-sm text-daiku-muted md:hidden">Progres proyek {formatProgress(recap.total)}</p>}
                 </>
             )}
 
-            {canSchedule && (
-                <>
-                    <ItemScheduleDialog
-                        item={editing}
-                        schedule={schedule}
-                        onOpenChange={(open) => !open && setEditing(null)}
-                        next={editing ? nextAfter(editing.id) : null}
-                        onNext={setEditing}
-                    />
-                    <SequenceScheduleDialog open={sequencing} onOpenChange={setSequencing} projectId={projectId} schedule={schedule} />
-                </>
-            )}
             <ExecutionDecisionDialog target={deciding} onOpenChange={(open) => !open && setDeciding(null)} />
         </SectionCard>
     );
 }
+
+const HEAD = 'bg-daiku-yellow-light px-2 py-1.5 text-[11px] font-semibold tracking-wide text-daiku-muted uppercase';
+// Kept in view while the days scroll: NO + Uraian on the left, TOTAL % + Kontribusi on the right (like the sheet's frozen panes).
+// Frozen left: NO · Uraian (+ volume) · Nilai · Bobot — offsets in px, the money columns only for who sees them.
+const W = { no: 40, item: 224, value: 104, weight: 64 };
+const LEFT = 'sticky z-10';
+const RIGHT_TOTAL = 'sticky right-24 z-10 w-20 min-w-20 border-l border-border';
+const RIGHT_SHARE = 'sticky right-0 z-10 w-24 min-w-24';
 
 function SheetTable({
     rows,
@@ -242,19 +193,27 @@ function SheetTable({
     today,
     pendingDate,
     input,
-    onEdit,
 }: {
     rows: Row[];
     execution: ProjectExecution;
     today: string;
     pendingDate: string | null;
     input?: SheetInput;
-    onEdit?: (id: number) => void;
 }) {
     const { workSchedule: schedule, progressRecap: recap, workCheck } = execution;
-    const showMoney = recap !== null;
+    const showValue = rows.some((row) => row.value !== null);
+    const showWeight = recap !== null;
+    const at = {
+        no: { left: 0, width: W.no, minWidth: W.no },
+        item: { left: W.no, width: W.item, minWidth: W.item, maxWidth: W.item },
+        value: { left: W.no + W.item, width: W.value, minWidth: W.value },
+        weight: { left: W.no + W.item + (showValue ? W.value : 0), width: W.weight, minWidth: W.weight },
+    };
+    // The last frozen column draws the divider.
+    const lastFrozen = showWeight ? 'weight' : showValue ? 'value' : 'item';
+    const edge = (key: keyof typeof at) => (key === lastFrozen ? 'border-r border-border' : '');
 
-    // Continuous days over the schedule, the pengecekan dates and (when typing) today; else just those dates.
+    // Continuous days over the timelines, the pengecekan dates and (when typing) today; else just those dates.
     const days = useMemo(() => {
         const marks = [...(recap?.dates ?? []), ...(input ? [today] : [])];
         const bounds = [schedule?.from, schedule?.to, ...marks].filter((day): day is string => Boolean(day)).sort();
@@ -264,37 +223,71 @@ function SheetTable({
         return schedule?.from && range.length <= MAX_DAYS ? range : Array.from(new Set(marks)).sort();
     }, [schedule?.from, schedule?.to, recap?.dates, input, today]);
 
+    // The month row over the dates (the sheet's "SEPTEMBER | OKTOBER").
+    const months = useMemo(() => {
+        const spans: { key: string; label: string; span: number }[] = [];
+        days.forEach((day) => {
+            const key = day.slice(0, 7);
+            const last = spans[spans.length - 1];
+            if (last && last.key === key) last.span += 1;
+            else spans.push({ key, label: format(parseISO(day), 'MMMM yyyy', { locale: localeId }), span: 1 });
+        });
+
+        // A month with only a day or two under it gets its short name ("Nov") — the full one wouldn't fit.
+        return spans.map((span) => (span.span < 3 ? { ...span, label: format(parseISO(`${span.key}-01`), 'MMM', { locale: localeId }) } : span));
+    }, [days]);
+
     const cumulative = new Map((recap?.per_date ?? []).map((row) => [row.date, row.cumulative]));
+    const checkItems = new Map((workCheck?.items ?? []).map((item) => [item.id, item]));
     const scroller = useRef<HTMLDivElement>(null);
+    const totalValue = rows.reduce((sum, row) => sum + (row.value ?? 0), 0);
+    const projectTotal = input ? input.preview.weightedProgress : (recap?.total ?? null);
 
     // Today's column in view (a long project's grid is wider than the screen) — once, on open.
     useEffect(() => {
         const box = scroller.current;
         const cell = box?.querySelector<HTMLElement>('th[data-today]');
         if (!box || !cell) return;
-        // Only when it is out of sight — otherwise the figures on the left stay in view.
-        const overflow = cell.offsetLeft + cell.offsetWidth - box.clientWidth;
+        const overflow = cell.offsetLeft + cell.offsetWidth - (box.clientWidth - 176);
         if (overflow > 0) box.scrollLeft = overflow + 16;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
-    const checkItems = new Map((workCheck?.items ?? []).map((item) => [item.id, item]));
 
     return (
         <div ref={scroller} className="overflow-x-auto rounded-lg ring-1 ring-border">
-            <table className="text-sm">
+            <table className="border-separate border-spacing-0 text-sm">
                 <thead>
-                    <tr className="bg-daiku-yellow-light text-xs text-daiku-muted">
-                        <th className="sticky left-0 z-10 w-60 min-w-60 max-w-60 bg-daiku-yellow-light px-3 py-2 text-left font-semibold uppercase">
-                            Item RAB
+                    <tr>
+                        <th rowSpan={2} style={at.no} className={cn(HEAD, LEFT, 'text-center')}>
+                            No
                         </th>
-                        <th className="sticky left-60 z-10 w-20 min-w-20 border-r border-border bg-daiku-yellow-light px-2 py-2 text-right font-semibold uppercase">
-                            Total
+                        <th rowSpan={2} style={at.item} className={cn(HEAD, LEFT, edge('item'), 'text-left')}>
+                            Uraian Pekerjaan · Volume
                         </th>
-                        {showMoney && <th className="px-2 py-2 text-right font-semibold uppercase">Bobot</th>}
-                        {showMoney && <th className="px-2 py-2 text-right font-semibold uppercase">Kontribusi</th>}
-                        {schedule && <th className="px-2 py-2 text-left font-semibold uppercase">Status</th>}
-                        {onEdit && <th className="border-r border-border px-2 py-2" aria-label="Jadwal" />}
-                        {days.map((day, index) => {
+                        {showValue && (
+                            <th rowSpan={2} style={at.value} className={cn(HEAD, LEFT, edge('value'), 'text-right')}>
+                                Nilai
+                            </th>
+                        )}
+                        {showWeight && (
+                            <th rowSpan={2} style={at.weight} className={cn(HEAD, LEFT, edge('weight'), 'text-right')}>
+                                Bobot
+                            </th>
+                        )}
+                        {months.map((month) => (
+                            <th key={month.key} colSpan={month.span} className={cn(HEAD, 'border-b border-l border-border text-center')}>
+                                {month.label}
+                            </th>
+                        ))}
+                        <th rowSpan={2} className={cn(HEAD, RIGHT_TOTAL, 'text-right')}>
+                            Total %
+                        </th>
+                        <th rowSpan={2} className={cn(HEAD, RIGHT_SHARE, 'text-right')}>
+                            Kontribusi
+                        </th>
+                    </tr>
+                    <tr>
+                        {days.map((day) => {
                             const date = parseISO(day);
                             const isToday = day === today;
 
@@ -303,37 +296,20 @@ function SheetTable({
                                     key={day}
                                     data-today={isToday || undefined}
                                     className={cn(
-                                        'px-0 py-2 text-center font-medium tabular-nums',
-                                        isToday && input
-                                            ? 'min-w-24 border-x-2 border-daiku-yellow-dark bg-daiku-yellow text-daiku-dark'
-                                            : 'w-11 min-w-11',
-                                        isToday && !input && 'bg-warning/10 text-foreground',
-                                        !isToday && date.getDay() === 0 && 'bg-daiku-gray/70',
+                                        'bg-daiku-yellow-light px-0 py-1.5 text-center text-xs font-medium tabular-nums text-daiku-muted',
+                                        isToday && input ? 'min-w-24 border-x-2 border-daiku-yellow-dark bg-daiku-yellow text-daiku-dark' : 'w-10 min-w-10',
+                                        isToday && !input && 'bg-warning/20 text-foreground',
+                                        !isToday && date.getDay() === 0 && 'bg-daiku-gray',
                                     )}
-                                    title={format(date, 'EEEE, d MMMM yyyy', {
-                                        locale: localeId,
-                                    })}
+                                    title={format(date, 'EEEE, d MMMM yyyy', { locale: localeId })}
                                 >
                                     {isToday && input ? (
                                         <span className="flex flex-col items-center leading-tight">
                                             <span className="text-[10px] font-bold uppercase">Isi hari ini</span>
-                                            <span className="font-semibold">
-                                                {format(date, 'd MMM', {
-                                                    locale: localeId,
-                                                })}
-                                            </span>
+                                            <span className="font-semibold">{format(date, 'd MMM', { locale: localeId })}</span>
                                         </span>
                                     ) : (
-                                        <>
-                                            {(index === 0 || date.getDate() === 1) && (
-                                                <span className="block text-[10px] uppercase">
-                                                    {format(date, 'MMM', {
-                                                        locale: localeId,
-                                                    })}
-                                                </span>
-                                            )}
-                                            {date.getDate()}
-                                        </>
+                                        date.getDate()
                                     )}
                                 </th>
                             );
@@ -341,91 +317,60 @@ function SheetTable({
                     </tr>
                 </thead>
                 <tbody>
-                    {rows.map((row) => {
+                    {rows.map((row, index) => {
                         const checkItem = checkItems.get(row.id);
                         const newTotal = input && checkItem ? input.preview.progress[row.id] : undefined;
                         const changed = newTotal !== undefined && newTotal !== row.total;
+                        const shownTotal = changed ? newTotal : row.total;
+                        const late = row.status === 'TERLAMBAT';
+                        const cell = 'border-t border-border';
 
                         return (
-                            <tr key={row.id} className="border-t border-border">
-                                <td className="sticky left-0 z-10 w-60 min-w-60 max-w-60 bg-background px-3 py-2 align-top">
-                                    <p className="font-medium text-foreground">{row.description}</p>
+                            <tr key={row.id}>
+                                <td style={at.no} className={cn(cell, LEFT, 'bg-background px-2 py-2 text-center align-top text-daiku-muted tabular-nums')}>
+                                    {index + 1}
+                                </td>
+                                <td style={at.item} className={cn(cell, LEFT, edge('item'), 'bg-background px-3 py-2 align-top')}>
+                                    <p className="leading-snug font-medium text-foreground">{row.description}</p>
                                     <p className="text-xs text-daiku-muted">
                                         {row.volume_label} · {row.team_lead}
+                                        {row.timelines.length === 0 && ' · belum masuk timeline'}
                                     </p>
+                                    {late && <p className="text-xs font-medium text-error-ink">Terlambat dari timeline</p>}
                                 </td>
-                                <td className="sticky left-60 z-10 w-20 min-w-20 border-r border-border bg-background px-2 py-2 text-right font-medium tabular-nums">
-                                    {changed ? (
-                                        <>
-                                            <span className="block text-foreground">{formatProgress(newTotal)}</span>
-                                            <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted">
-                                                dari {formatProgress(row.total)}
-                                            </span>
-                                        </>
-                                    ) : (
-                                        formatProgress(row.total)
-                                    )}
-                                </td>
-                                {showMoney && (
-                                    <td className="px-2 py-2 text-right text-daiku-muted tabular-nums">
+                                {showValue && (
+                                    <td
+                                        style={at.value}
+                                        title={row.value !== null ? formatRupiah(row.value) : undefined}
+                                        className={cn(cell, LEFT, edge('value'), 'bg-background px-2 py-2 text-right align-top whitespace-nowrap tabular-nums')}
+                                    >
+                                        {row.value !== null ? formatRupiahCompact(row.value) : '—'}
+                                    </td>
+                                )}
+                                {showWeight && (
+                                    <td style={at.weight} className={cn(cell, LEFT, edge('weight'), 'bg-background px-2 py-2 text-right align-top text-daiku-muted tabular-nums')}>
                                         {row.weight !== null ? formatProgress(row.weight) : '—'}
                                     </td>
                                 )}
-                                {showMoney && (
-                                    <td className="px-2 py-2 text-right tabular-nums">
-                                        {row.contribution !== null ? formatProgress(row.contribution) : '—'}
-                                    </td>
-                                )}
-                                {schedule && (
-                                    <td className="px-2 py-2 whitespace-nowrap">
-                                        {row.status && (
-                                            <StatusChip
-                                                status={row.status}
-                                                tone={SCHEDULE_STATUS[row.status].tone}
-                                                label={SCHEDULE_STATUS[row.status].label}
-                                            />
-                                        )}
-                                    </td>
-                                )}
-                                {onEdit && (
-                                    <td className="border-r border-border px-1 py-2">
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="size-8"
-                                            aria-label={`Atur jadwal ${row.description}`}
-                                            onClick={() => onEdit(row.id)}
-                                        >
-                                            <Pencil className="size-4" />
-                                        </Button>
-                                    </td>
-                                )}
                                 {days.map((day) => {
-                                    const production = inside(day, row.production_start, row.production_end);
-                                    const installation = inside(day, row.installation_start, row.installation_end);
+                                    const block = row.timelines.find((timeline) => inside(day, timeline.start, timeline.end));
                                     const isToday = day === today;
 
                                     return (
                                         <td
                                             key={day}
+                                            title={block ? `${block.name} · ${rangeLabel(block.start, block.end)}` : undefined}
                                             className={cn(
+                                                cell,
                                                 'px-0 py-1 text-center align-middle',
-                                                isToday && input
-                                                    ? 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light px-2'
-                                                    : [
-                                                          production && 'bg-info/25',
-                                                          installation && 'bg-success/25',
-                                                          isToday && !production && !installation && 'bg-warning/10',
-                                                      ],
+                                                isToday && input ? 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light px-2' : [block && 'bg-info/25', !block && isToday && 'bg-warning/10'],
                                             )}
                                         >
                                             {isToday && input && checkItem ? (
                                                 // An earlier pengecekan of today stays readable above the new input.
                                                 <span className="flex flex-col items-center gap-1">
                                                     {row.cells[day] ? (
-                                                        <span className="text-[10px] font-medium whitespace-nowrap text-daiku-muted">
-                                                            sudah {added(row.cells[day])}
-                                                        </span>
+                                                        <span className="text-[10px] font-medium whitespace-nowrap text-daiku-muted">sudah {added(row.cells[day])}</span>
                                                     ) : null}
                                                     {input.field(checkItem)}
                                                 </span>
@@ -435,21 +380,38 @@ function SheetTable({
                                         </td>
                                     );
                                 })}
+                                <td className={cn(cell, RIGHT_TOTAL, 'bg-background px-2 py-2 text-right align-top font-semibold tabular-nums')}>
+                                    <span className={cn(shownTotal >= 100 && 'text-success-ink')}>{formatProgress(shownTotal)}</span>
+                                    {changed && <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted">dari {formatProgress(row.total)}</span>}
+                                </td>
+                                <td className={cn(cell, RIGHT_SHARE, 'bg-background px-2 py-2 text-right align-top tabular-nums')}>
+                                    {row.contribution !== null ? formatProgress(changed && row.weight !== null ? (shownTotal * row.weight) / 100 : row.contribution) : '—'}
+                                </td>
                             </tr>
                         );
                     })}
                 </tbody>
                 {recap && (
-                    <tfoot className="border-t-2 border-border bg-daiku-gray/60">
+                    <tfoot>
                         <tr className="font-semibold">
-                            <td className="sticky left-0 z-10 w-60 min-w-60 max-w-60 bg-daiku-gray px-3 py-2">Progres proyek</td>
-                            <td className="sticky left-60 z-10 w-20 min-w-20 border-r border-border bg-daiku-gray px-2 py-2 text-right tabular-nums">
-                                {formatProgress(input ? input.preview.weightedProgress : recap.total)}
+                            <td style={at.no} className={cn('border-t-2 border-border', LEFT, 'bg-daiku-gray')} />
+                            <td style={at.item} className={cn('border-t-2 border-border', LEFT, edge('item'), 'bg-daiku-gray px-3 py-2')}>
+                                Jumlah · progres proyek
                             </td>
-                            {showMoney && <td />}
-                            <td className="px-2 py-2 text-right tabular-nums">{formatProgress(recap.total)}</td>
-                            {schedule && <td />}
-                            {onEdit && <td className="border-r border-border" />}
+                            {showValue && (
+                                <td
+                                    style={at.value}
+                                    title={formatRupiah(totalValue)}
+                                    className={cn('border-t-2 border-border', LEFT, edge('value'), 'bg-daiku-gray px-2 py-2 text-right whitespace-nowrap tabular-nums')}
+                                >
+                                    {formatRupiahCompact(totalValue)}
+                                </td>
+                            )}
+                            {showWeight && (
+                                <td style={at.weight} className={cn('border-t-2 border-border', LEFT, edge('weight'), 'bg-daiku-gray px-2 py-2 text-right tabular-nums')}>
+                                    100%
+                                </td>
+                            )}
                             {days.map((day) => {
                                 const isToday = day === today;
                                 const value = isToday && input ? input.preview.weightedProgress : cumulative.get(day);
@@ -458,7 +420,7 @@ function SheetTable({
                                     <td
                                         key={day}
                                         className={cn(
-                                            'px-0 py-2 text-center text-[11px] tabular-nums',
+                                            'border-t-2 border-border bg-daiku-gray px-0 py-2 text-center text-[11px] tabular-nums',
                                             isToday && input && 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light text-info-ink',
                                         )}
                                     >
@@ -466,6 +428,10 @@ function SheetTable({
                                     </td>
                                 );
                             })}
+                            <td className={cn('border-t-2 border-border', RIGHT_TOTAL, 'bg-daiku-gray px-2 py-2 text-right tabular-nums')} />
+                            <td className={cn('border-t-2 border-border', RIGHT_SHARE, 'bg-daiku-yellow px-2 py-2 text-right text-daiku-dark tabular-nums')}>
+                                {projectTotal !== null ? formatProgress(projectTotal) : '—'}
+                            </td>
                         </tr>
                     </tfoot>
                 )}
@@ -475,7 +441,7 @@ function SheetTable({
     );
 }
 
-/** A % added on a pengecekan date: a small chip, centred in its day over the schedule colour; `pending` = sent, waiting for the PM. */
+/** A % added on a pengecekan date: a small chip, centred in its day over the timeline colour; `pending` = sent, waiting for the PM. */
 function CellValue({ value, pending = false }: { value: number | undefined; pending?: boolean }) {
     if (value === undefined || value === 0) return null;
 
@@ -483,7 +449,7 @@ function CellValue({ value, pending = false }: { value: number | undefined; pend
         <span
             title={pending ? 'Terkirim — menunggu ACC PM' : undefined}
             className={cn(
-                'inline-flex min-w-10 justify-center rounded-md px-1 py-0.5 text-[11px] font-semibold tabular-nums shadow-xs',
+                'inline-flex min-w-9 justify-center rounded-md px-1 py-0.5 text-[11px] font-semibold tabular-nums shadow-xs',
                 pending ? 'bg-warning/20 text-warning-ink ring-1 ring-warning' : 'bg-background text-foreground ring-1 ring-border',
             )}
         >
@@ -496,17 +462,7 @@ function CellValue({ value, pending = false }: { value: number | undefined; pend
  * Sprint 31 — the pengecekan the Pengawas sent, waiting for the PM: what was
  * sent (per item, the money asked) and, for the PM, the decision right here.
  */
-function PendingCheckBanner({
-    report,
-    canDecide,
-    sentBySelf,
-    onDecide,
-}: {
-    report: Report;
-    canDecide: boolean;
-    sentBySelf: boolean;
-    onDecide: () => void;
-}) {
+function PendingCheckBanner({ report, canDecide, sentBySelf, onDecide }: { report: Report; canDecide: boolean; sentBySelf: boolean; onDecide: () => void }) {
     const asked = report.payment?.status === 'DIAJUKAN' ? report.payment : null;
 
     return (
@@ -515,9 +471,7 @@ function PendingCheckBanner({
                 <Hourglass className="size-5" />
             </span>
             <div className="min-w-0 flex-1 space-y-1.5">
-                <p className="font-semibold text-foreground">
-                    {canDecide ? 'Pengecekan menunggu ACC Anda' : 'Pengecekan terkirim — menunggu ACC PM'}
-                </p>
+                <p className="font-semibold text-foreground">{canDecide ? 'Pengecekan menunggu ACC Anda' : 'Pengecekan terkirim — menunggu ACC PM'}</p>
                 <p className="text-sm text-daiku-muted">
                     {report.label} · dikirim {formatDateTime(report.submitted_at)}
                     {report.supervisor ? ` oleh ${report.supervisor}` : ''}
@@ -526,19 +480,14 @@ function PendingCheckBanner({
                 {report.progress.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                         {report.progress.map((row, index) => (
-                            <span
-                                key={index}
-                                className="rounded-md bg-background px-2 py-0.5 text-xs text-foreground tabular-nums ring-1 ring-warning"
-                            >
+                            <span key={index} className="rounded-md bg-background px-2 py-0.5 text-xs text-foreground tabular-nums ring-1 ring-warning">
                                 {row.description ?? 'Item'} <span className="font-semibold">{added(row.percent)}</span>
                             </span>
                         ))}
                     </div>
                 )}
                 {!canDecide && sentBySelf && (
-                    <p className="text-xs text-daiku-muted">
-                        Persen yang dikirim tampil di sel bertanda oranye. Pengecekan berikutnya bisa diisi setelah PM memutuskan.
-                    </p>
+                    <p className="text-xs text-daiku-muted">Persen yang dikirim tampil di sel bertanda oranye. Pengecekan berikutnya bisa diisi setelah PM memutuskan.</p>
                 )}
             </div>
             {canDecide && (
@@ -555,7 +504,7 @@ function PendingCheckBanner({
  * to action above the sheet; "Mulai isi" puts the cursor in the first empty
  * % (today's column, or the first card on a phone). Closable for this visit.
  */
-function TodayPrompt({ label }: { label: string }) {
+function TodayPrompt({ label, canSend, sendDays }: { label: string; canSend: boolean; sendDays: string }) {
     const [closed, setClosed] = useState(false);
 
     if (closed) return null;
@@ -565,28 +514,29 @@ function TodayPrompt({ label }: { label: string }) {
             (input) => input.offsetParent !== null && !input.disabled,
         );
         const target = inputs.find((input) => input.value.trim() === '') ?? inputs[0];
-        target?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-            inline: 'center',
-        });
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         target?.focus({ preventScroll: true });
     }
 
     return (
-        <div
-            role="status"
-            className="mb-4 flex flex-col gap-3 rounded-xl border-2 border-daiku-yellow bg-daiku-yellow-light p-4 sm:flex-row sm:items-center"
-        >
+        <div role="status" className="mb-4 flex flex-col gap-3 rounded-xl border-2 border-daiku-yellow bg-daiku-yellow-light p-4 sm:flex-row sm:items-center">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-daiku-yellow text-daiku-dark">
                 <PencilLine className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-                <p className="font-semibold text-foreground">Isi persentase progres hari ini</p>
+                <p className="font-semibold text-foreground">{canSend ? 'Isi persentase progres & kirim pengecekan' : 'Isi persentase progres (draf)'}</p>
                 <p className="text-sm text-daiku-muted">
-                    Pengecekan {label}: ketik tambahan % di kolom kuning <span className="font-medium text-foreground">Isi hari ini</span> hanya untuk
-                    item yang dikerjakan — <span className="font-medium text-foreground">item lain biarkan kosong</span>. Lalu tekan{' '}
-                    <span className="font-medium text-foreground">Kirim Pengecekan</span> di bawah. Isian tersimpan otomatis sebagai draf.
+                    Pengecekan {label}: ketik tambahan % di kolom kuning <span className="font-medium text-foreground">Isi hari ini</span> hanya untuk item yang
+                    dikerjakan — <span className="font-medium text-foreground">item lain biarkan kosong</span>.{' '}
+                    {canSend ? (
+                        <>
+                            Hari ini hari kirim: tekan <span className="font-medium text-foreground">Kirim Pengecekan</span> di bawah (sekali seminggu).
+                        </>
+                    ) : (
+                        <>
+                            Tersimpan otomatis sebagai draf — <span className="font-medium text-foreground">dikirim hari {sendDays}</span>.
+                        </>
+                    )}
                 </p>
             </div>
             <div className="flex gap-2">
@@ -610,36 +560,36 @@ function Legend({ pending }: { pending: boolean }) {
 
     return (
         <p className="flex flex-wrap items-center gap-4 border-t border-border px-3 py-2 text-xs text-daiku-muted">
-            {swatch('bg-info/25', 'Produksi')}
-            {swatch('bg-success/25', 'Pemasangan')}
+            {swatch('bg-info/25', 'Jadwal (timeline item)')}
             {swatch('bg-daiku-yellow ring-1 ring-daiku-yellow-dark', 'Isi hari ini')}
             {pending && swatch('bg-warning/20 ring-1 ring-warning', 'Terkirim, menunggu ACC PM')}
-            <span>Angka di sel = persen yang ditambahkan pada pengecekan tanggal itu.</span>
+            <span>Angka di sel = persen yang ditambahkan pada pengecekan tanggal itu. Baris bawah = progres proyek kumulatif.</span>
         </p>
     );
 }
 
-/** Phones: one card per item — schedule, status, total, the dates it moved. */
-function PhoneCards({ rows, pendingDate, onEdit }: { rows: Row[]; pendingDate: string | null; onEdit?: (id: number) => void }) {
+/** Phones: one card per item — timelines, status, total, the dates it moved. */
+function PhoneCards({ rows, pendingDate }: { rows: Row[]; pendingDate: string | null }) {
     return (
         <ul className="divide-y divide-border rounded-lg ring-1 ring-border md:hidden">
-            {rows.map((row) => (
+            {rows.map((row, index) => (
                 <li key={row.id} className="space-y-1.5 px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <p className="text-sm font-medium text-foreground">{row.description}</p>
+                            <p className="text-sm font-medium text-foreground">
+                                {index + 1}. {row.description}
+                            </p>
                             <p className="text-xs text-daiku-muted">
-                                {row.team_lead} · total {formatProgress(row.total)}
+                                {row.volume_label} · total {formatProgress(row.total)}
                                 {row.contribution !== null && ` · kontribusi ${formatProgress(row.contribution)}`}
                             </p>
                         </div>
-                        {row.status && (
-                            <StatusChip status={row.status} tone={SCHEDULE_STATUS[row.status].tone} label={SCHEDULE_STATUS[row.status].label} />
-                        )}
+                        {row.status && <StatusChip status={row.status} tone={SCHEDULE_STATUS[row.status].tone} label={SCHEDULE_STATUS[row.status].label} />}
                     </div>
                     <p className="text-xs text-daiku-muted">
-                        Produksi {rangeLabel(row.production_start, row.production_end)} · Pemasangan{' '}
-                        {rangeLabel(row.installation_start, row.installation_end)}
+                        {row.timelines.length > 0
+                            ? row.timelines.map((timeline) => `${timeline.name} ${rangeLabel(timeline.start, timeline.end)}`).join(' · ')
+                            : 'Belum masuk timeline'}
                     </p>
                     {Object.keys(row.cells).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
@@ -650,24 +600,13 @@ function PhoneCards({ rows, pendingDate, onEdit }: { rows: Row[]; pendingDate: s
                                         key={date}
                                         className={cn(
                                             'rounded-md px-2 py-0.5 text-xs tabular-nums',
-                                            date === pendingDate
-                                                ? 'bg-warning/20 text-warning-ink ring-1 ring-warning'
-                                                : 'bg-daiku-gray text-daiku-muted',
+                                            date === pendingDate ? 'bg-warning/20 text-warning-ink ring-1 ring-warning' : 'bg-daiku-gray text-daiku-muted',
                                         )}
                                     >
-                                        {format(parseISO(date), 'd MMM', {
-                                            locale: localeId,
-                                        })}{' '}
-                                        {added(value)}
+                                        {format(parseISO(date), 'd MMM', { locale: localeId })} {added(value)}
                                     </span>
                                 ))}
                         </div>
-                    )}
-                    {onEdit && (
-                        <Button size="sm" variant="outline" className="w-full" onClick={() => onEdit(row.id)}>
-                            <Pencil className="size-4" />
-                            Atur Jadwal
-                        </Button>
                     )}
                 </li>
             ))}

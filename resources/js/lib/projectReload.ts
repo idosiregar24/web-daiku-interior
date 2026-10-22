@@ -18,6 +18,7 @@ export type ProjectProp =
     | 'project'
     | 'execution'
     | 'milestones'
+    | 'timelineItems'
     | 'tasks'
     | 'activityTarget'
     | 'projectMaterials'
@@ -45,7 +46,7 @@ export const RELOAD = {
     /** Technical Meeting: jadwal, notulen, peserta, jasa pengawas, TM Selesai. */
     meeting: ['execution', 'project', 'milestones'],
     /** Timeline: tambah, ubah, hapus, tandai selesai. */
-    milestones: ['milestones', 'execution', 'qaForms', 'project', 'tasks', 'activityTarget'],
+    milestones: ['milestones', 'timelineItems', 'execution', 'qaForms', 'project', 'tasks', 'activityTarget'],
     /** Pengawas: laporan mingguan, temuan finishing, DP / pembayaran jasa (a pengecekan / closed finding moves QA items). */
     supervision: ['execution', 'project', 'itemQa'],
     /** Sprint 29 Sub 12 — QA per item RAB: Lolos / Perlu perbaikan (finding, maybe the project COMPLETED). */

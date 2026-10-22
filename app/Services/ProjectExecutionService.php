@@ -206,8 +206,10 @@ class ProjectExecutionService
                 'is_report_day' => DailyFormSchedule::now()->dayOfWeek === (int) config('daiku.execution.weekly_report_day', 5),
                 // Sprint 29 Sub 02 — may be sent any day of the week; from the report day on it is due.
                 'is_due' => WeeklyReportService::isDue(),
-                // Sprint 31 — another pengecekan may be sent (several a week, one waiting for the PM at a time).
+                // Sprint 36 — sent on the send days only (else a draft), once a week.
                 'open' => $this->weeklyReportService->canSubmit($project),
+                'window_open' => WeeklyReportService::sendWindowOpen(),
+                'send_days' => WeeklyReportService::sendDaysLabel(),
             ] : null,
             // Sprint 31 Sub 03 — "Jadwal per Item" (File C's light-blue cells): every viewer of the tab, from Persiapan.
             'workSchedule' => $usesWorkItems && $phase->isAtLeast(ProjectPhase::Persiapan) ? $this->workItemService->scheduleOverview($project) : null,
@@ -258,8 +260,8 @@ class ProjectExecutionService
             ] : null,
             'can' => [
                 'setWages' => $user->can('setWages', $project),
-                // Sprint 31 Sub 03 — the Jadwal per Item card's dates.
-                'scheduleItems' => $user->can('scheduleWorkItems', $project),
+                // Sprint 35 — an item's dates come from its timelines: whoever manages the timelines links them.
+                'linkTimelines' => $user->can('manageWork', $project) && ! $project->isClosed(),
                 // Sprint 32 — Item RAB › Pembagian Upah.
                 'splitWages' => $user->can('splitWages', $project),
                 'saveMeeting' => $active && $phase === ProjectPhase::Tm && $user->can('editMeeting', $project),

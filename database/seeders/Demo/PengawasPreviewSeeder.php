@@ -4,6 +4,7 @@ namespace Database\Seeders\Demo;
 
 use App\Enums\DailyActivityReviewStatus;
 use App\Models\Material;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Models\Task;
@@ -11,10 +12,10 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Services\DailyActivityService;
+use App\Services\MilestoneService;
 use App\Services\ProjectMaterialService;
 use App\Services\TaskService;
 use App\Services\WageSplitService;
-use App\Services\WeeklyReportService;
 use App\Services\WorkItemService;
 use App\Support\DailyFormSchedule;
 use Illuminate\Database\Seeder;
@@ -29,13 +30,14 @@ use Illuminate\Support\Carbon;
  * - Bambang (TM): part of the Upah Tukang filled, a Rencana Bahan draft
  *   (catalog + custom) → "Ajukan ke Logistik (2 bahan)".
  * - Siska / Hendra / Dewi: the Rencana Bahan at Diajukan / Dipesan / Disetujui.
- * - Hendra: this week already one pengecekan (+10 % per item, approved —
- *   Sprint 31: several a week); the next one starts empty (typing +15 % on
- *   every item → 75 % unlocks "Berangkat ke Lokasi"); one daily target sent back to the Tukang
- *   ("Kembalikan"), two waiting.
+ * - Hendra: last week's pengecekan (50 %) approved & paid; this week's is
+ *   filled as a draft and sent on Friday / Saturday (Sprint 36 — once a
+ *   week; typing +20 % on every item → 70 % unlocks "Berangkat ke Lokasi");
+ *   one daily target sent back to the Tukang ("Kembalikan"), two waiting.
  * - Sprint 32 — Tim Tukang templates of File D (Tim Putra, Tim Evan, Tim
  *   Yusup); Hendra's "Tim Putra" splits per person, "Tim Yusuf" is left for
  *   the Pengawas to pick a template.
+ * - Sprint 35: the wage items sit in the projects' timelines (their schedule).
  * - Aktivitas Harian of `qa`: every working day of last month (two left
  *   empty, one clarification — KpiDemoSeeder computes its KPI), today, the
  *   previous working day (HR asks a clarification) and the day before (Sesuai).
@@ -93,42 +95,24 @@ class PengawasPreviewSeeder extends Seeder
             }
         }
 
-        // ── Sprint 31 Sub 03 — Jadwal per Item: Hendra (one item late), Siska (part unscheduled), Dewi (done) ──
-        $day = fn (int $offset) => now()->addDays($offset)->toDateString();
-        $scheduleOf = function (string $client, array $windows) use ($project, $wages, $qa) {
-            $items = $project($client)->workItems()->where('unit_wage', '>', 0)->orderBy('id')->get();
-            foreach ($windows as $index => $window) {
-                if ($item = $items->get($index)) {
-                    $wages->updateSchedule($item, $window, $qa);
-                }
-            }
-        };
-        $scheduleOf('Hendra Gunawan', [
-            ['production_start' => $day(-10), 'production_end' => $day(-6), 'installation_start' => $day(3), 'installation_end' => $day(8)],
-            // Its last window ended two days ago below 100 % → "Item terlambat dari jadwal".
-            ['production_start' => $day(-9), 'production_end' => $day(-5), 'installation_start' => $day(-3), 'installation_end' => $day(-2)],
-            ['production_start' => $day(-4), 'production_end' => $day(2)],
-        ]);
-        $scheduleOf('Siska Amelia', [
-            ['production_start' => $day(1), 'production_end' => $day(4), 'installation_start' => $day(8), 'installation_end' => $day(10)],
-        ]);
-        $scheduleOf('Dewi Lestari', [
-            ['production_start' => $day(-18), 'production_end' => $day(-12), 'installation_start' => $day(-6), 'installation_end' => $day(-2)],
-            ['production_start' => $day(-16), 'production_end' => $day(-10), 'installation_start' => $day(-5), 'installation_end' => $day(-1)],
-            ['production_start' => $day(-14), 'production_end' => $day(-8), 'installation_start' => $day(-4), 'installation_end' => $day(-1)],
-        ]);
+        // ── Sprint 35 — each item's schedule is its timeline: the wage items go into the projects' timelines (round robin) ──
+        $milestoneService = app(MilestoneService::class);
+        foreach (['Hendra Gunawan', 'Siska Amelia', 'Dewi Lestari'] as $client) {
+            $timelines = $project($client)->milestones()->reorder()->orderBy('order')->get();
+            $items = $project($client)->workItems()->where('unit_wage', '>', 0)->orderBy('id')->pluck('id');
 
-        // ── Hendra: this week's first pengecekan (approved), the second as a draft, one target sent back ──
+            if ($timelines->isEmpty()) {
+                continue;
+            }
+
+            $timelines->each(fn (Milestone $timeline, int $index) => $milestoneService->update($timeline, [
+                'work_item_ids' => $items->filter(fn (int $id, int $position) => $position % $timelines->count() === $index)->values()->all(),
+            ]));
+        }
+
+        // ── Hendra: last week's pengecekan approved (WorkflowScenarioSeeder); this week's is filled as a
+        // draft and sent on Friday / Saturday (Sprint 36). One target sent back to the Tukang. ──
         $hendra = $project('Hendra Gunawan');
-        $wageItemIds = $hendra->workItems()->where('unit_wage', '>', 0)->pluck('id');
-        $reports = app(WeeklyReportService::class);
-        Carbon::setTestNow(now()->startOfWeek(Carbon::MONDAY)->setTime(9, 0));
-        $early = $reports->submit($hendra, [
-            'notes' => 'Cek awal minggu: rangka laci terpasang.',
-            'progress' => $wageItemIds->map(fn ($id) => ['item_id' => $id, 'percent' => 10])->all(),
-        ], $qa);
-        $reports->decide($early, true, null, null, $pm);
-        Carbon::setTestNow();
 
         $tasks = app(TaskService::class);
         $hpl = Task::where('project_id', $hendra->id)->where('title', 'Lapis HPL meja')->firstOrFail();

@@ -54,6 +54,30 @@ class WeeklyReportService
     }
 
     /**
+     * Sprint 36 — the report / pengecekan (the wage request) is sent only on
+     * the send days (config daiku.execution.weekly_report_send_days: Friday,
+     * Saturday); before them it is filled as a draft.
+     */
+    public static function sendWindowOpen(?Carbon $date = null): bool
+    {
+        return in_array(($date ?? DailyFormSchedule::now())->dayOfWeekIso, self::sendDays(), true);
+    }
+
+    /** @return list<int> ISO days (1 = Senin … 7 = Minggu) */
+    public static function sendDays(): array
+    {
+        return array_map('intval', (array) config('daiku.execution.weekly_report_send_days', [5, 6]));
+    }
+
+    /** "Jumat atau Sabtu" */
+    public static function sendDaysLabel(): string
+    {
+        $names = [1 => 'Senin', 2 => 'Selasa', 3 => 'Rabu', 4 => 'Kamis', 5 => 'Jumat', 6 => 'Sabtu', 7 => 'Minggu'];
+
+        return collect(self::sendDays())->map(fn (int $day) => $names[$day] ?? '')->filter()->join(', ', ' atau ');
+    }
+
+    /**
      * The production week a date falls in: its Monday and its number
      * (week 1 = the week production started).
      *
@@ -73,20 +97,24 @@ class WeeklyReportService
     }
 
     /**
-     * Sprint 31 — whether a report / pengecekan can be sent now (the same
-     * rule submit() enforces): with wages per item, unless this week's last
-     * one still waits for the PM; otherwise once a week (again after a
-     * rejection).
+     * Whether a report / pengecekan can be sent now — the same rule submit()
+     * enforces. Sprint 36: on the send days only, once a week (again after
+     * the PM rejected it).
      */
     public function canSubmit(Project $project): bool
     {
+        return self::sendWindowOpen() && $this->sentThisWeek($project) === null;
+    }
+
+    /**
+     * This week's report that still counts (waiting for the PM or approved) —
+     * a rejected one leaves the week open for a corrected one.
+     */
+    public function sentThisWeek(Project $project): ?WeeklyReport
+    {
         $report = WeeklyReport::where('project_id', $project->id)->whereDate('week_start', $this->weekOf($project)['week_start'])->orderByDesc('sequence')->first();
 
-        if ($this->workItemService->hasWorkItems($project)) {
-            return $report?->status !== WeeklyReportStatus::Diajukan;
-        }
-
-        return ! $report || $report->status === WeeklyReportStatus::Ditolak;
+        return $report && $report->status !== WeeklyReportStatus::Ditolak ? $report : null;
     }
 
     /**
@@ -109,21 +137,27 @@ class WeeklyReportService
                 throw ValidationException::withMessages(['notes' => 'Laporan mingguan diisi selama produksi / pemasangan berjalan.']);
             }
 
+            if (! self::sendWindowOpen()) {
+                throw ValidationException::withMessages(['notes' => 'Pengecekan dikirim hari '.self::sendDaysLabel().' — sebelum itu isian disimpan sebagai draf.']);
+            }
+
             $week = $this->weekOf($project);
             $links = collect($data['links'] ?? [])->map(fn ($url) => trim((string) $url))->filter()->values()->all();
             $usesWorkItems = $this->workItemService->hasWorkItems($project);
             $report = WeeklyReport::where('project_id', $project->id)->whereDate('week_start', $week['week_start'])->orderByDesc('sequence')->first();
             $sequence = 1;
 
-            if ($usesWorkItems) {
-                if ($report?->status === WeeklyReportStatus::Diajukan) {
-                    throw ValidationException::withMessages(['notes' => "Pengecekan {$report->label()} masih menunggu keputusan PM — kirim pengecekan berikutnya setelah diputuskan."]);
-                }
+            // Sprint 36 — once a week; a report the PM rejected is sent again (corrected).
+            if ($report && $report->status !== WeeklyReportStatus::Ditolak) {
+                throw ValidationException::withMessages(['notes' => $report->status === WeeklyReportStatus::Diajukan
+                    ? "Pengecekan {$report->label()} sudah dikirim dan menunggu keputusan PM."
+                    : "Pengecekan minggu ke-{$week['week_number']} sudah dikirim — berikutnya minggu depan."]);
+            }
 
+            if ($usesWorkItems) {
+                // A pengecekan sent again after a rejection is a new row (the rejected one stays as history).
                 $sequence = ($report?->sequence ?? 0) + 1;
                 $report = null;
-            } elseif ($report && $report->status !== WeeklyReportStatus::Ditolak) {
-                throw ValidationException::withMessages(['notes' => "Laporan minggu ke-{$week['week_number']} sudah dikirim."]);
             }
 
             $attributes = [

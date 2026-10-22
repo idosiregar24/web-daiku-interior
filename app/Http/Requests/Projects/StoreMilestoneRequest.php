@@ -20,6 +20,9 @@ class StoreMilestoneRequest extends FormRequest
             // Sprint 23 K17 — every new timeline runs from a start to an end date.
             'start_date' => ['required', 'date'],
             'target_date' => ['required', 'date', 'after_or_equal:start_date'],
+            // Sprint 35 — the RAB items worked on in this timeline (checked against the project in MilestoneService).
+            'work_item_ids' => ['sometimes', 'array', 'max:500'],
+            'work_item_ids.*' => ['integer', 'distinct'],
         ];
     }
 

@@ -12,9 +12,9 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
-import type { Milestone, Project, ProjectExecution, User } from '@/types';
+import type { Milestone, PageProps, Project, ProjectExecution, TimelineItem, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { differenceInCalendarDays } from 'date-fns';
 import {
     CalendarClock,
@@ -845,11 +845,15 @@ function TimelinePlanner({
     const first = timelines.find((row) => row.start_date)?.start_date ?? null;
     const last = timelines.reduce<string | null>((max, row) => (!max || row.target_date > max ? row.target_date : max), null);
     const span = last ? dayCount(first, last) : null;
+    // Sprint 35 — the RAB items of each timeline (their schedule on the Lembar Progres).
+    const items = usePage<PageProps<{ timelineItems?: TimelineItem[] }>>().props.timelineItems ?? [];
+    const itemName = new Map(items.map((item) => [item.id, item.description]));
+    const unplaced = items.filter((item) => item.has_wage && item.milestone_ids.length === 0).length;
 
     return (
         <div className="space-y-3">
             {timelines.length === 0 ? (
-                <Notice tone="info">Belum ada timeline — mis. "Produksi Kabinet", lalu "Pemasangan & Finishing".</Notice>
+                <Notice tone="info">Belum ada timeline — mis. "Produksi Kabinet", lalu "Pemasangan & Finishing". Pilih item RAB-nya di tiap timeline.</Notice>
             ) : (
                 <ol className="divide-y divide-border rounded-lg ring-1 ring-border">
                     {timelines.map((row, index) => {
@@ -866,6 +870,13 @@ function TimelinePlanner({
                                         {formatDate(row.target_date)}
                                         {days !== null && ` · ${days} hari`}
                                     </p>
+                                    {items.length > 0 && (
+                                        <p className="truncate text-xs text-foreground/80">
+                                            {row.work_items?.length
+                                                ? `Item RAB: ${row.work_items.map((item) => itemName.get(item.id) ?? '…').join(', ')}`
+                                                : 'Belum ada item RAB'}
+                                        </p>
+                                    )}
                                 </div>
                                 <StatusChip domain="milestone" status={row.status} waitingOn={null} className="hidden sm:inline-flex" />
                                 {canManage && (
@@ -894,6 +905,9 @@ function TimelinePlanner({
                         );
                     })}
                 </ol>
+            )}
+            {unplaced > 0 && (
+                <Notice tone="info">{unplaced} item RAB berupah belum masuk timeline — ubah timeline dan centang item RAB-nya supaya punya jadwal di Lembar Progres.</Notice>
             )}
             <div className="flex flex-wrap items-center justify-between gap-2">
                 {canManage ? (

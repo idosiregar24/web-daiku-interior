@@ -30,10 +30,10 @@ class MilestoneController extends Controller
         return back()->with('success', 'Timeline berhasil diperbarui.');
     }
 
-    public function destroy(Milestone $milestone): RedirectResponse
+    public function destroy(Milestone $milestone, MilestoneService $service): RedirectResponse
     {
         $this->authorize('manageWork', $milestone->project);
-        $milestone->delete();
+        $service->delete($milestone);
 
         return back()->with('success', 'Timeline berhasil dihapus.');
     }

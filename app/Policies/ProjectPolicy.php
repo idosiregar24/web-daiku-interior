@@ -151,17 +151,6 @@ class ProjectPolicy
     }
 
     /**
-     * Sprint 31 Sub 03 — the "Jadwal per Item" (production / installation
-     * window per RAB item): the project's Pengawas or the Admin Proyek, while
-     * the project runs — like the Upah Tukang, but never locked (a schedule
-     * moves). The PM reads it; the project's dates stay the PM's.
-     */
-    public function scheduleWorkItems(User $user, Project $project): bool
-    {
-        return $this->setWages($user, $project);
-    }
-
-    /**
      * Sprint 32 — Pembagian Upah per Orang: the people of each Kepala Tim on
      * this project (a help for the Kepala Tim; never moves money).
      */

@@ -7,6 +7,7 @@ use App\Enums\WorkItemQaStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -54,6 +55,12 @@ class ProjectWorkItem extends Model
     public function teamLead(): BelongsTo
     {
         return $this->belongsTo(User::class, 'team_lead_id');
+    }
+
+    /** Sprint 35 — the timelines this item is worked in (its schedule). */
+    public function milestones(): BelongsToMany
+    {
+        return $this->belongsToMany(Milestone::class, 'milestone_work_item')->withTimestamps();
     }
 
     /** Sprint 29 Sub 12 — QA decisions on this item, append-only (the newest one counts). */

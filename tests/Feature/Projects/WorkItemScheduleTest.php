@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ProjectPhase;
+use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Models\Quotation;
@@ -13,10 +14,11 @@ use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
 
 /*
- * Sprint 31 Sub 03 — "Jadwal per Item" (File C, the light-blue cells): the
- * Pengawas / Admin Proyek give each RAB item a production window and,
- * optionally, an installation window; the item is late once its last window
- * ended below 100 % — shown on the card and queued for the PM and the Pengawas.
+ * Sprint 35 — "Jadwal per Item" is the Timeline: the PM (or Admin Proyek)
+ * puts RAB items into a timeline; an item's dates on the Lembar Progres are
+ * its timelines' (earliest start → latest end, one block per timeline). It is
+ * late once its last timeline ended below 100 % — queued for the PM and the
+ * Pengawas.
  */
 
 beforeEach(function () {
@@ -49,48 +51,63 @@ function scheduleItem(Project $project, string $description): ProjectWorkItem
     return $project->workItems()->whereHas('quotationItem', fn ($q) => $q->where('description', $description))->sole();
 }
 
-test('the Pengawas and the Admin Proyek set an item\'s windows; the PM, another QA and Logistik may not', function () {
-    $item = scheduleItem($this->project, 'Panel klinik');
-    // File C row 4: production 2–5 Okt, the second block 20–31 Okt.
-    $schedule = ['production_start' => '2026-10-02', 'production_end' => '2026-10-05', 'installation_start' => '2026-10-20', 'installation_end' => '2026-10-31'];
+function timeline(object $test, string $name, string $start, string $end, array $items = []): Milestone
+{
+    $test->actingAs($test->pm)->post(route('milestones.store', $test->project), [
+        'name' => $name, 'start_date' => $start, 'target_date' => $end,
+        'work_item_ids' => collect($items)->map(fn (string $description) => scheduleItem($test->project, $description)->id)->all(),
+    ])->assertSessionHasNoErrors();
 
-    foreach ([$this->pm, $this->otherQa, $this->logistics] as $user) {
-        $this->actingAs($user)->put(route('projects.work-items.schedule', $item), $schedule)->assertForbidden();
+    return $test->project->milestones()->where('name', $name)->sole();
+}
+
+test('the PM puts RAB items into a timeline; the items take its dates — several timelines = from the first start to the last end', function () {
+    timeline($this, 'Produksi Panel', '2026-10-02', '2026-10-05', ['Panel klinik', 'Panel gigi']);
+    $install = timeline($this, 'Pemasangan', '2026-10-20', '2026-10-31', ['Panel klinik']);
+
+    expect(scheduleItem($this->project, 'Panel klinik')->production_start->toDateString())->toBe('2026-10-02')
+        ->and(scheduleItem($this->project, 'Panel klinik')->production_end->toDateString())->toBe('2026-10-31')
+        ->and(scheduleItem($this->project, 'Panel gigi')->production_end->toDateString())->toBe('2026-10-05')
+        ->and(scheduleItem($this->project, 'Kabinet')->production_start)->toBeNull();
+
+    // The sheet gets one block per timeline.
+    $row = collect(app(WorkItemService::class)->scheduleOverview($this->project)['items'])->firstWhere('description', 'Panel klinik');
+    expect(collect($row['timelines'])->pluck('name')->all())->toBe(['Produksi Panel', 'Pemasangan']);
+
+    // Moving a timeline moves its items; removing the timeline takes its dates away.
+    $this->actingAs($this->pm)->put(route('milestones.update', $install), ['name' => 'Pemasangan', 'start_date' => '2026-10-22', 'target_date' => '2026-10-30', 'status' => 'PENDING'])
+        ->assertSessionHasNoErrors();
+    expect(scheduleItem($this->project, 'Panel klinik')->production_end->toDateString())->toBe('2026-10-30');
+
+    $this->actingAs($this->pm)->delete(route('milestones.destroy', $install))->assertSessionHasNoErrors();
+    expect(scheduleItem($this->project, 'Panel klinik')->production_end->toDateString())->toBe('2026-10-05');
+});
+
+test('only this project items can be put in a timeline; the Pengawas and Logistik do not manage timelines', function () {
+    $this->actingAs($this->pm)->post(route('milestones.store', $this->project), [
+        'name' => 'Asing', 'start_date' => '2026-10-02', 'target_date' => '2026-10-05', 'work_item_ids' => [999999],
+    ])->assertSessionHasErrors('work_item_ids');
+
+    foreach ([$this->qa, $this->logistics] as $user) {
+        $this->actingAs($user)->post(route('milestones.store', $this->project), ['name' => 'X', 'start_date' => '2026-10-02', 'target_date' => '2026-10-05'])->assertForbidden();
     }
 
-    $this->actingAs($this->qa)->put(route('projects.work-items.schedule', $item), $schedule)->assertSessionHasNoErrors();
-    expect($item->fresh()->production_start->toDateString())->toBe('2026-10-02')
-        ->and($item->fresh()->installation_end->toDateString())->toBe('2026-10-31');
-
-    // The Admin Proyek inputs too; the production window alone is enough.
-    $this->actingAs($this->admin)->put(route('projects.work-items.schedule', scheduleItem($this->project, 'Kabinet')), ['production_start' => '2026-10-10', 'production_end' => '2026-10-20'])
-        ->assertSessionHasNoErrors();
+    // The Admin Proyek inputs timelines too.
+    $this->actingAs($this->admin)->post(route('milestones.store', $this->project), [
+        'name' => 'Produksi Kabinet', 'start_date' => '2026-10-06', 'target_date' => '2026-10-09', 'work_item_ids' => [scheduleItem($this->project, 'Kabinet')->id],
+    ])->assertSessionHasNoErrors();
+    expect(scheduleItem($this->project, 'Kabinet')->production_start->toDateString())->toBe('2026-10-06');
 });
 
-test('a schedule stays inside the project, ends after it starts, and installation never starts before production', function () {
-    $item = scheduleItem($this->project, 'Panel klinik');
-    $put = fn (array $data) => $this->actingAs($this->qa)->put(route('projects.work-items.schedule', $item), $data);
-
-    $put(['production_start' => '2026-10-05', 'production_end' => '2026-10-02'])->assertSessionHasErrors('production_end');
-    $put(['production_start' => '2026-10-05'])->assertSessionHasErrors('production_end');
-    $put(['production_start' => '2026-09-20', 'production_end' => '2026-09-28'])->assertSessionHasErrors('production_start');
-    $put(['production_start' => '2026-10-28', 'production_end' => '2026-11-05'])->assertSessionHasErrors('production_end');
-    $put(['production_start' => '2026-10-10', 'production_end' => '2026-10-12', 'installation_start' => '2026-10-05', 'installation_end' => '2026-10-08'])
-        ->assertSessionHasErrors('installation_start');
-
-    expect($item->fresh()->production_start)->toBeNull();
-});
-
-test('late once the last window ended below 100 % — on the card and in the PM\'s and the Pengawas\'s queue', function () {
-    $service = app(WorkItemService::class);
-    $set = fn (string $description, array $data) => $service->updateSchedule(scheduleItem($this->project, $description), $data, $this->qa);
-
+test('late once its last timeline ended below 100 % — on the sheet and in the PM and Pengawas queue', function () {
     // Today is 14 Okt.
-    $set('Panel klinik', ['production_start' => '2026-10-02', 'production_end' => '2026-10-05', 'installation_start' => '2026-10-20', 'installation_end' => '2026-10-31']);
-    $set('Panel gigi', ['production_start' => '2026-10-02', 'production_end' => '2026-10-10']);
-    $set('Panel THT', ['production_start' => '2026-10-20', 'production_end' => '2026-10-24']);
-    // Kabinet: late window too, but at 100 % → done.
-    $set('Kabinet', ['production_start' => '2026-10-01', 'production_end' => '2026-10-08']);
+    timeline($this, 'Produksi Panel klinik', '2026-10-02', '2026-10-05', ['Panel klinik']);
+    timeline($this, 'Pemasangan Panel klinik', '2026-10-20', '2026-10-31', ['Panel klinik']);
+    timeline($this, 'Produksi Panel gigi', '2026-10-02', '2026-10-10', ['Panel gigi']);
+    timeline($this, 'Produksi Panel THT', '2026-10-20', '2026-10-24', ['Panel THT']);
+    // Kabinet: late too, but at 100 % → done.
+    timeline($this, 'Produksi Kabinet', '2026-10-01', '2026-10-08', ['Kabinet']);
+    $service = app(WorkItemService::class);
     $service->recordProgress($this->project, [['item_id' => scheduleItem($this->project, 'Kabinet')->id, 'percent' => 100]], null, $this->qa);
 
     $rows = collect($service->scheduleOverview($this->project)['items'])->keyBy('description');
@@ -104,37 +121,13 @@ test('late once the last window ended below 100 % — on the card and in the PM\
         ->and($inbox($this->qa, 'items-late-supervisor')['items'][0]['subtitle'])->toBe('1 item terlambat')
         ->and($inbox($this->otherQa, 'items-late-supervisor'))->toBeNull();
 
-    // The Eksekusi tab: every viewer reads it, only the Pengawas / Admin Proyek edit.
+    // Every viewer of the tab reads it; whoever manages the timelines links the items (the PM, not the Pengawas).
     $this->actingAs($this->logistics)->get(route('projects.show', $this->project))->assertInertia(fn (Assert $page) => $page
         ->where('execution.workSchedule.summary.late', 1)
-        ->where('execution.can.scheduleItems', false));
-    $this->actingAs($this->qa)->get(route('projects.show', $this->project))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.can.linkTimelines', false));
+    $this->actingAs($this->pm)->get(route('projects.show', $this->project))->assertInertia(fn (Assert $page) => $page
         ->where('execution.workSchedule.summary.total', 4)
-        ->where('execution.can.scheduleItems', true));
-});
-
-test('"Jadwalkan berurutan": File C\'s staircase — each item one day after the previous, one refused item saves none', function () {
-    $ids = $this->project->workItems()->orderBy('id')->take(3)->pluck('id')->all();
-    $payload = [
-        'item_ids' => $ids, 'production_start' => '2026-10-02', 'production_days' => 4, 'gap_days' => 1,
-        'installation_start' => '2026-10-20', 'installation_days' => 3,
-    ];
-
-    $this->actingAs($this->pm)->post(route('projects.work-items.scheduleSequence', $this->project), $payload)->assertForbidden();
-    $this->actingAs($this->qa)->post(route('projects.work-items.scheduleSequence', $this->project), $payload)->assertSessionHasNoErrors();
-
-    $windows = ProjectWorkItem::whereKey($ids)->orderBy('id')->get()->map(fn (ProjectWorkItem $item) => [
-        $item->production_start->toDateString(), $item->production_end->toDateString(),
-        $item->installation_start->toDateString(), $item->installation_end->toDateString(),
-    ])->all();
-    expect($windows)->toBe([
-        ['2026-10-02', '2026-10-05', '2026-10-20', '2026-10-22'],
-        ['2026-10-03', '2026-10-06', '2026-10-21', '2026-10-23'],
-        ['2026-10-04', '2026-10-07', '2026-10-22', '2026-10-24'],
-    ]);
-
-    // Past the project's end (31 Okt) for the third item → refused, naming it; nothing changes.
-    $this->actingAs($this->qa)->post(route('projects.work-items.scheduleSequence', $this->project), [...$payload, 'production_start' => '2026-10-27', 'installation_start' => null, 'installation_days' => null])
-        ->assertSessionHasErrors('production_start');
-    expect(ProjectWorkItem::find($ids[0])->production_start->toDateString())->toBe('2026-10-02');
+        ->where('execution.can.linkTimelines', true)
+        ->has('timelineItems', 4)
+        ->where('milestones.0.work_items.0.id', scheduleItem($this->project, 'Panel klinik')->id));
 });

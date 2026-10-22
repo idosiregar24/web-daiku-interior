@@ -5,9 +5,7 @@ namespace App\Http\Controllers\Projects;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\SaveWorkCheckDraftRequest;
 use App\Http\Requests\Projects\SaveWorkItemWagesRequest;
-use App\Http\Requests\Projects\ScheduleWorkItemsSequenceRequest;
 use App\Http\Requests\Projects\UpdateWorkItemRequest;
-use App\Http\Requests\Projects\UpdateWorkItemScheduleRequest;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Services\WorkItemService;
@@ -36,24 +34,6 @@ class WorkItemController extends Controller
         $changed = $service->saveWages($project, $request->validated('items'), $request->user());
 
         return back()->with('success', "{$changed} upah item tersimpan.");
-    }
-
-    /** Sprint 31 Sub 03 — one row of the "Jadwal per Item" card (quiet inline save). */
-    public function updateSchedule(UpdateWorkItemScheduleRequest $request, ProjectWorkItem $workItem, WorkItemService $service): RedirectResponse
-    {
-        $this->authorize('scheduleWorkItems', $workItem->project);
-        $service->updateSchedule($workItem, $request->validated(), $request->user());
-
-        return back()->with('success', 'Jadwal item tersimpan.');
-    }
-
-    /** Sprint 31 Sub 07 — "Jadwalkan berurutan": several items' windows at once (a step — keeps the pop-up). */
-    public function scheduleSequence(ScheduleWorkItemsSequenceRequest $request, Project $project, WorkItemService $service): RedirectResponse
-    {
-        $this->authorize('scheduleWorkItems', $project);
-        $count = $service->scheduleSequence($project, $request->validated(), $request->user());
-
-        return back()->with('success', "{$count} item dijadwalkan.");
     }
 
     /** "Terapkan ke bagian ini" — one Kepala Tim for several items. */

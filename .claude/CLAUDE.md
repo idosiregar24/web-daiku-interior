@@ -316,12 +316,15 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     `ProjectStepsService` (`execution.steps`) and shown by `WorkStepsPanel`
     at the top of Detail Proyek. A new step / reorder goes there — never a
     second "next step" list in a card; each step's `done` reads the same data
-    as the TM / DP conditions. Sprint 31: a week may hold
-    several pengecekan (`weekly_reports.sequence`, the next once the PM
-    decided the week's last one); each item has a production / installation
-    window (`updateSchedule()` / `scheduleSequence()`, Pengawas or Admin
-    Proyek, late → Perlu Tindakan). The UI is Detail Proyek › **Item RAB**
-    (Lembar Progres = the Excel sheet incl. today's input · Upah Tukang · QC
+    as the TM / DP conditions. Sprint 36: a pengecekan (= the wage
+    request) is **sent on Friday or Saturday only**
+    (`daiku.execution.weekly_report_send_days`), filled as a draft the rest of
+    the week, **once a week** (again after a PM rejection —
+    `WeeklyReportService::canSubmit()` / `sendWindowOpen()`); an item's schedule is **its Timeline** (Sprint 35 — the PM / Admin Proyek
+    picks the RAB items per timeline, `milestone_work_item`; the item's dates
+    are a cache kept by `WorkItemService::syncTimelineSchedule()`, never typed;
+    late → Perlu Tindakan). The UI is Detail Proyek › **Item RAB**
+    (Lembar Progres = laid out like the Excel sheet — NO · Uraian · Nilai · Bobot | days | TOTAL % · Kontribusi — incl. today's input · Upah Tukang · QC
     Item) — the Eksekusi tab keeps only the flow cards.
 
 ## Local environment

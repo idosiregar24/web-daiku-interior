@@ -33,6 +33,8 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     // Wednesday, a working day.
     Carbon::setTestNow(Carbon::parse('2026-10-14 10:00:00', 'Asia/Jakarta'));
+    // Sprint 36 — the Friday/Saturday send window is tested in WeeklyReportWindowTest; here any day sends.
+    config(['daiku.execution.weekly_report_send_days' => [1, 2, 3, 4, 5, 6, 7]]);
     $this->seed(RoleSeeder::class);
     $this->ceo = weightedUser('CEO');
     $this->pm = weightedUser('PM');
@@ -340,37 +342,6 @@ test('Rekap Progres per Item: the File C table — % per pengecekan date, Total 
     $logistics = weightedUser('LOGISTICS');
     $this->actingAs($logistics)->get(route('projects.show', $project))
         ->assertInertia(fn (Assert $page) => $page->where('execution.progressRecap', null));
-});
-
-test('several pengecekan a week (File C: Monday 20 and Saturday 25 Okt) — within the week one waits for the PM at a time', function () {
-    $project = weightedProject($this, ['Kabinet' => 10, 'Meja' => 10]);
-    $project->update(['production_started_at' => '2026-10-01 08:00:00']);
-    $reports = app(WeeklyReportService::class);
-    $check = fn (int $percent) => ['notes' => 'Pengecekan di lokasi.', 'progress' => weightedCheck($project, ['Kabinet' => $percent, 'Meja' => $percent])];
-
-    Carbon::setTestNow(Carbon::parse('2026-10-20 10:00:00', 'Asia/Jakarta'));
-    $first = $reports->submit($project, $check(30), $this->qa);
-    expect($first->sequence)->toBe(1)
-        ->and($first->label())->toBe('Minggu ke-4')
-        ->and($reports->canSubmit($project))->toBeFalse();
-
-    // A second one while the first waits for the PM is refused.
-    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), $check(10))->assertSessionHasErrors('notes');
-
-    $reports->decide($first, true, null, null, $this->pm);
-    expect($reports->canSubmit($project))->toBeTrue();
-
-    Carbon::setTestNow(Carbon::parse('2026-10-25 10:00:00', 'Asia/Jakarta'));
-    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), $check(20))->assertSessionHasNoErrors();
-    $second = $project->weeklyReports()->first();
-
-    expect($second->id)->not->toBe($first->id)
-        ->and($second->week_start->toDateString())->toBe($first->week_start->toDateString())
-        ->and($second->sequence)->toBe(2)
-        ->and($second->label())->toBe('Minggu ke-4 · Pengecekan ke-2')
-        ->and($second->payment->label)->toContain('Mingguan minggu ke-4 · Pengecekan ke-2')
-        ->and(app(WorkItemService::class)->weightedProgress($project))->toBe(50.0)
-        ->and(collect(app(WorkItemService::class)->progressRecap($project)['dates'])->all())->toBe(['2026-10-20', '2026-10-25']);
 });
 
 test('a pengecekan sent leads the PM to Item RAB › Lembar Progres (notification, Perlu Tindakan) and back to the Pengawas when decided', function () {

@@ -24,6 +24,7 @@ use App\Services\ProjectMaterialService;
 use App\Services\ProjectService;
 use App\Services\SupplierDebtService;
 use App\Services\WorkItemQaService;
+use App\Services\WorkItemService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -199,7 +200,11 @@ class ProjectController extends Controller
             'hasTerminPayments' => fn () => $canEditProject && $project->hasTerminPayments(),
             'statusNote' => fn () => $projectService->statusNote($project),
             'milestones' => fn () => $canViewMilestones
-                ? $project->milestones()->with('qaForm:id,milestone_id,status,rejection_count')->get()
+                ? $project->milestones()->with(['qaForm:id,milestone_id,status,rejection_count', 'workItems:id'])->get()
+                : [],
+            // Sprint 35 — the RAB items a timeline can hold (the Timeline form's checklist).
+            'timelineItems' => fn () => $canManageMilestones && $project->workItems()->exists()
+                ? app(WorkItemService::class)->timelineOptions($project)
                 : [],
             'canViewMilestones' => $canViewMilestones,
             'canManageMilestones' => $canManageMilestones,

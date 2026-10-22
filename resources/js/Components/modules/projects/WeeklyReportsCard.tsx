@@ -37,16 +37,28 @@ export function workCheckState(execution: ProjectExecution) {
     // The week's latest report (the list is newest first).
     const thisWeek = currentWeek ? weeklyReports.find((report) => report.week_start === currentWeek.week_start) : undefined;
     const weekOpen = Boolean(currentWeek?.open);
+    // Sprint 36 — once a week: this week's counts unless the PM rejected it.
+    const sentThisWeek = thisWeek && thisWeek.status !== 'DITOLAK' ? thisWeek : undefined;
+    const sendDays = currentWeek?.send_days ?? 'Jumat atau Sabtu';
 
     return {
         thisWeek,
         weekOpen,
+        /** Today is a send day (Sprint 36). */
+        windowOpen: Boolean(currentWeek?.window_open),
+        sendDays,
+        sentThisWeek,
         canSend: can.submitWeekly && weekOpen,
         showsCheck: workCheck !== null && currentWeek !== null && (can.submitWeekly || can.fillWorkCheck),
-        nextLabel: currentWeek ? `Minggu ke-${currentWeek.week_number}${thisWeek && workCheck ? ` · Pengecekan ke-${thisWeek.sequence + 1}` : ''}` : '',
+        // This week's pengecekan, or next week's once this week's was sent.
+        nextLabel: currentWeek ? `Minggu ke-${currentWeek.week_number + (sentThisWeek ? 1 : 0)}` : '',
         blockedReason:
             can.submitWeekly && !weekOpen
-                ? `Pengecekan ${thisWeek?.label ?? 'minggu ini'} masih menunggu keputusan PM — isian ini tersimpan sebagai draf; kirim setelah PM memutuskan.`
+                ? sentThisWeek?.status === 'DIAJUKAN'
+                    ? `Pengecekan ${sentThisWeek.label} sudah dikirim dan menunggu keputusan PM. Isian di atas tersimpan sebagai draf untuk minggu depan.`
+                    : sentThisWeek
+                      ? `Pengecekan minggu ini sudah dikirim — berikutnya minggu depan (hari ${sendDays}). Isian di atas tersimpan sebagai draf.`
+                      : `Pengecekan dikirim hari ${sendDays}. Sampai itu, isi saja — tersimpan otomatis sebagai draf.`
                 : null,
         rejectedNote: thisWeek?.status === 'DITOLAK' && can.submitWeekly ? thisWeek.decision_note : null,
         // A new form once this week's report was sent / decided (fresh progress, no draft).
@@ -150,7 +162,7 @@ export function WeeklyReportsCard({
             title={workCheck ? 'Pengecekan Mingguan' : 'Laporan Mingguan'}
             description={
                 currentWeek
-                    ? `Minggu ke-${currentWeek.week_number} (mulai ${formatDate(currentWeek.week_start)}) — diisi Pengawas kapan saja minggu ini, paling lambat Jumat; disetujui PM.${workCheck ? ' Kirim pengecekan = ajukan pencairan upah; boleh lebih dari sekali seminggu setelah pengecekan sebelumnya diputuskan PM.' : ''}`
+                    ? `Minggu ke-${currentWeek.week_number} (mulai ${formatDate(currentWeek.week_start)}) — diisi Pengawas sebagai draf sepanjang minggu, dikirim hari ${currentWeek.send_days}, sekali seminggu; disetujui PM.${workCheck ? ' Kirim pengecekan = ajukan pencairan upah.' : ''}`
                     : undefined
             }
             icon={CalendarCheck2}

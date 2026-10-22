@@ -66,6 +66,8 @@ use Inertia\Testing\AssertableInertia as Assert;
 beforeEach(function () {
     // Wednesday, a working day.
     Carbon::setTestNow(Carbon::parse('2026-10-14 10:00:00', 'Asia/Jakarta'));
+    // Sprint 36 — the Friday/Saturday send window is tested in WeeklyReportWindowTest; here any day sends.
+    config(['daiku.execution.weekly_report_send_days' => [1, 2, 3, 4, 5, 6, 7]]);
     $this->seed(RoleSeeder::class);
     $this->ceo = execUser('CEO');
     $this->pm = execUser('PM');

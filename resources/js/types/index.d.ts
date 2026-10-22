@@ -803,8 +803,20 @@ export interface Milestone {
     target_date: string;
     status: MilestoneStatus;
     order: number;
+    /** Sprint 35 — the RAB items worked on in this timeline (Detail Proyek only). */
+    work_items?: { id: number }[];
     created_at: string;
     updated_at: string;
+}
+
+/** Sprint 35 — a RAB item the Timeline form can put in a timeline (WorkItemService::timelineOptions()). */
+export interface TimelineItem {
+    id: number;
+    description: string;
+    volume_label: string;
+    section: string;
+    has_wage: boolean;
+    milestone_ids: number[];
 }
 
 /** PRD 4.5 — Task Management (Field Staff) */
@@ -2453,10 +2465,11 @@ export interface WorkSchedule {
         volume_label: string;
         team_lead: string;
         progress: number;
+        /** Sprint 35 — earliest start → latest end of its timelines. */
         production_start: string | null;
         production_end: string | null;
-        installation_start: string | null;
-        installation_end: string | null;
+        /** The timelines it is worked in — one block each on the Lembar Progres. */
+        timelines: { id: number; name: string; start: string | null; end: string | null }[];
         status: WorkItemScheduleStatus;
     }[];
     /** The chart's first and last day (project dates and every window). */
@@ -2761,7 +2774,16 @@ export interface ProjectExecution {
     }[];
     /** `is_due` — Sprint 29 Sub 02: from the report day (Friday) on; it may be sent any day. */
     /** `open` — Sprint 31: another report / pengecekan may be sent now (WeeklyReportService::canSubmit()). */
-    currentWeek: { week_start: string; week_number: number; is_report_day: boolean; is_due: boolean; open: boolean } | null;
+    /** Sprint 36 — `window_open`: today is a send day (`send_days`: "Jumat atau Sabtu"); before it the pengecekan is a draft. */
+    currentWeek: {
+        week_start: string;
+        week_number: number;
+        is_report_day: boolean;
+        is_due: boolean;
+        open: boolean;
+        window_open: boolean;
+        send_days: string;
+    } | null;
     /** Sprint 31 — WorkItemService::progressRecap(): File C as a table (pengecekan viewers only). */
     progressRecap: ProgressRecap | null;
     /** Sprint 31 Sub 03 — WorkItemService::scheduleOverview() (from Persiapan, projects with wages per item). */
@@ -2793,8 +2815,8 @@ export interface ProjectExecution {
         saveMeeting: boolean;
         /** Sprint 29 Sub 08 — the project's Pengawas or the Admin Proyek fills the Upah Tukang card. */
         setWages: boolean;
-        /** Sprint 31 Sub 03 — the Jadwal per Item card's dates (Pengawas / Admin Proyek). */
-        scheduleItems: boolean;
+        /** Sprint 35 — puts RAB items into timelines (whoever manages the timelines). */
+        linkTimelines: boolean;
         /** Sprint 32 — Item RAB › Pembagian Upah (Pengawas / Admin Proyek). */
         splitWages: boolean;
         completeMeeting: boolean;

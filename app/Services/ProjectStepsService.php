@@ -53,7 +53,7 @@ class ProjectStepsService
         $steps = match ($phase) {
             ProjectPhase::GambarKerja => $this->drawing($project, $user),
             ProjectPhase::Tm => $this->meeting($project, $user, $inputs),
-            ProjectPhase::Persiapan => $this->preparation($project, $perItem, $inputs, $supervises, $approves),
+            ProjectPhase::Persiapan => $this->preparation($project, $user, $perItem, $inputs, $supervises, $approves),
             ProjectPhase::Produksi => $this->production($project, $perItem, $inputs, $supervises, $approves),
             ProjectPhase::Pemasangan => $this->installation($project, $perItem, $supervises, $approves, $user),
         };
@@ -126,7 +126,7 @@ class ProjectStepsService
     }
 
     /** @return list<array<string, mixed>> */
-    private function preparation(Project $project, bool $perItem, bool $inputs, bool $supervises, bool $approves): array
+    private function preparation(Project $project, User $user, bool $perItem, bool $inputs, bool $supervises, bool $approves): array
     {
         $items = $perItem ? ProjectWorkItem::where('project_id', $project->id)->get(['id', 'unit_wage', 'production_start']) : collect();
         $paid = $items->filter(fn (ProjectWorkItem $item) => $item->hasWage());
@@ -143,9 +143,10 @@ class ProjectStepsService
                 $this->step('wages', 'Tentukan upah tukang per item RAB', 'Pengawas / Admin Proyek', $paid->isNotEmpty(),
                     $paid->isNotEmpty() ? "{$paid->count()} dari {$items->count()} item berupah" : 'Isi Satuan Upah & Kepala Tim tiap item RAB.',
                     ['tab' => 'items', 'view' => 'upah'], $inputs),
-                $this->step('schedule', 'Atur jadwal kerja tiap item', 'Pengawas / Admin Proyek', $paid->isNotEmpty() && $unscheduled === 0,
-                    $paid->isEmpty() ? 'Setelah upah terisi.' : ($unscheduled === 0 ? 'Semua item berupah terjadwal' : "{$unscheduled} item belum dijadwalkan"),
-                    ['tab' => 'items', 'view' => 'progres'], $inputs),
+                // Sprint 35 — an item's schedule is the timeline it is put in.
+                $this->step('schedule', 'Masukkan tiap item berupah ke timeline', 'PM / Admin Proyek', $paid->isNotEmpty() && $unscheduled === 0,
+                    $paid->isEmpty() ? 'Setelah upah terisi.' : ($unscheduled === 0 ? 'Semua item berupah punya timeline' : "{$unscheduled} item belum masuk timeline"),
+                    ['tab' => 'milestone'], $user->can('manageWork', $project)),
             ] : []),
             $this->step('targets', 'Buat daily target tiap timeline', 'Pengawas / Admin Proyek', $milestones->isNotEmpty() && $emptyTimelines === 0,
                 $milestones->isEmpty() ? 'Belum ada timeline.' : ($emptyTimelines === 0 ? 'Semua timeline punya daily target' : "{$emptyTimelines} timeline belum punya daily target"),
