@@ -9,6 +9,7 @@ import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate } from '@/lib/format';
+import { formatProgress } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 import type { QaDashboardStats, QaPendingRow, QaRepeatRejection } from '@/types';
 import { Head, Link } from '@inertiajs/react';
@@ -102,7 +103,7 @@ export default function QaDashboard({ stats, pending, repeatRejections }: QaDash
                                         <p className="text-xs text-muted-foreground">
                                             {form.projectName}
                                             {form.milestoneTargetDate && ` · selesai ${formatDate(form.milestoneTargetDate)}`}
-                                            {form.projectProgress !== null && ` · progres proyek ${form.projectProgress}%`}
+                                            {form.projectProgress !== null && ` · progres proyek ${formatProgress(form.projectProgress)}`}
                                         </p>
                                     </div>
                                     <div className="flex shrink-0 flex-col items-end gap-1">

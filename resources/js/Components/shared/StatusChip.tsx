@@ -104,6 +104,12 @@ const STATUS_TONE: Record<string, Tone> = {
     DIAJUKAN: 'warning',
     DISETUJUI: 'success',
     DITOLAK: 'error',
+    // Sprint 29 Sub 11 — MaterialOrderStatus (DIAJUKAN/DISETUJUI/DITOLAK reused from above)
+    DIRENCANAKAN: 'neutral',
+    DIPESAN: 'info',
+    SEBAGIAN: 'warning',
+    LENGKAP: 'success',
+    DARI_GUDANG: 'success',
     // SDM — DisciplinaryType
     TEGURAN_LISAN: 'warning',
     SP1: 'warning',
@@ -134,6 +140,16 @@ const STATUS_TONE: Record<string, Tone> = {
     DISETUJUI_PM: 'info',
     DIBAYAR: 'success',
     TERBUKA: 'warning',
+    // Sprint 29 Sub 12 — QA per item RAB (WorkItemQaStatus).
+    BELUM: 'neutral',
+    MENUNGGU: 'info',
+    PERBAIKAN: 'error',
+    LOLOS: 'success',
+    // Sprint 29 Sub 13 — DailyActivityReviewStatus (+ UI-only BELUM_DIPERIKSA)
+    SESUAI: 'success',
+    PERLU_KLARIFIKASI: 'warning',
+    TIDAK_MENGISI: 'error',
+    BELUM_DIPERIKSA: 'neutral',
 };
 
 /** Labels that read better than the humanized code (Sprint 12 #5, #3). */

@@ -105,7 +105,7 @@ export function DpRequirementsCard({
                         }
                     >
                         {busy && <Loader2 className="size-4 animate-spin" />}
-                        Ajukan DP Upah Tukang{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
+                        Ajukan DP Upah{fee ? ` · ${formatRupiah(fee.dp_amount)}` : ''}
                     </Button>
                 ) : asked ? (
                     <p className="text-sm text-muted-foreground">DP sudah diajukan — disetujui PM = Start Produksi.</p>
@@ -114,7 +114,8 @@ export function DpRequirementsCard({
         >
             <ul className="divide-y divide-border">
                 {items.map((item) => {
-                    const target = FIX_TARGET[item.key];
+                    // Sprint 31 Sub 07 — wages per RAB item are filled in Item RAB › Upah Tukang.
+                    const target = item.key === 'wages' && execution.usesWorkItems ? { tab: 'items', view: 'upah' } : FIX_TARGET[item.key];
                     const openable = fixes && target && onOpen && (canOpen?.(target) ?? true);
 
                     return <RequirementRow key={item.key} item={item} onFix={openable ? () => onOpen(target) : undefined} />;

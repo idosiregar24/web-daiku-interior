@@ -43,9 +43,12 @@ export default function SupervisorPaymentsIndex({ payments, filters, canPay, ban
             id: 'label',
             header: 'Pembayaran',
             cell: ({ row }) => (
-                <Link href={route('projects.show', { project: row.original.project_id, tab: 'execution' })} className="font-medium hover:underline">
-                    {row.original.label}
-                </Link>
+                <div>
+                    <Link href={route('projects.show', { project: row.original.project_id, tab: 'execution' })} className="font-medium hover:underline">
+                        {row.original.label}
+                    </Link>
+                    <Shares payment={row.original} />
+                </div>
             ),
         },
         { id: 'supervisor', header: 'Pengawas', cell: ({ row }) => row.original.supervisor?.name ?? '—' },
@@ -96,6 +99,7 @@ export default function SupervisorPaymentsIndex({ payments, filters, canPay, ban
                         <p className="text-xs text-muted-foreground">
                             {payment.supervisor?.name} · {formatRupiah(payment.amount)}
                         </p>
+                        <Shares payment={payment} />
                         <div className="flex items-center justify-between gap-2">
                             <StatusChip domain="supervisorPayment" status={payment.status} />
                             {canPay && payment.status === 'DISETUJUI_PM' && (
@@ -110,6 +114,17 @@ export default function SupervisorPaymentsIndex({ payments, filters, canPay, ban
 
             {canPay && <PayDialog payment={paying} bankAccounts={bankAccounts} onOpenChange={(open) => !open && setPaying(null)} />}
         </AppLayout>
+    );
+}
+
+/** Sprint 29 Sub 09 — the split per Kepala Tim the Pengawas hands over ("Putra Rp 4.551.500 · Yusuf Rp 1.287.000"). */
+function Shares({ payment }: { payment: SupervisorPayment }) {
+    if (!payment.breakdown?.length) return null;
+
+    return (
+        <p className="text-xs text-muted-foreground">
+            {payment.breakdown.map((share) => `${share.label} ${formatRupiah(share.amount)}`).join(' · ')}
+        </p>
     );
 }
 

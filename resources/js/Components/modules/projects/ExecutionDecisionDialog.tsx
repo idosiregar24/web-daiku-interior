@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -41,6 +41,12 @@ export interface ExecutionDecisionTarget {
     amountRequired: boolean;
     /** What is left of the fee — shown as the ceiling. */
     remaining: number | null;
+    /** Sprint 29 Sub 09 — 0 is a valid amount (approve the report, nothing paid this week). */
+    allowZero?: boolean;
+    /** Sprint 29 Sub 09 — no amount field (a pengecekan that asked nothing). Default true. */
+    showAmount?: boolean;
+    /** Sprint 29 Sub 09 — what is decided: the % per item, the split per Kepala Tim. */
+    details?: ReactNode;
 }
 
 /**
@@ -63,7 +69,9 @@ export function ExecutionDecisionDialog({ target, onOpenChange }: { target: Exec
     function onSubmit(values: FormValues) {
         if (!target) return;
 
-        if (values.decision === 'approve' && target.amountRequired && !(Number(values.amount) > 0)) {
+        const zeroOk = target.allowZero && (values.amount ?? '') !== '' && Number(values.amount) === 0;
+
+        if (values.decision === 'approve' && target.amountRequired && !(Number(values.amount) > 0) && !zeroOk) {
             form.setError('amount', { message: 'Nominal wajib diisi.' });
             return;
         }
@@ -117,7 +125,9 @@ export function ExecutionDecisionDialog({ target, onOpenChange }: { target: Exec
                             ))}
                         </div>
 
-                        {decision === 'approve' && (
+                        {target?.details}
+
+                        {decision === 'approve' && target?.showAmount !== false && (
                             <FormField
                                 control={form.control}
                                 name="amount"

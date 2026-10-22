@@ -22,6 +22,7 @@ export type ProjectProp =
     | 'activityTarget'
     | 'projectMaterials'
     | 'qaForms'
+    | 'itemQa'
     | 'progressLogs'
     | 'overtimeRequests'
     | 'termins'
@@ -39,22 +40,29 @@ export type ProjectProp =
 export const RELOAD = {
     /** Kebutuhan bahan, rencana bahan TM, terima / pakai / kembalikan bahan. */
     materials: ['projectMaterials', 'execution'],
-    /** Daily target: buat, ubah, status, geser, tukar, hapus. */
-    tasks: ['tasks', 'execution', 'activityTarget', 'project'],
+    /** Daily target: buat, ubah, status, geser, tukar, hapus (a repair task done sends its QA item back to "Menunggu QA"). */
+    tasks: ['tasks', 'execution', 'activityTarget', 'project', 'itemQa'],
     /** Technical Meeting: jadwal, notulen, peserta, jasa pengawas, TM Selesai. */
     meeting: ['execution', 'project', 'milestones'],
     /** Timeline: tambah, ubah, hapus, tandai selesai. */
     milestones: ['milestones', 'execution', 'qaForms', 'project', 'tasks', 'activityTarget'],
-    /** Pengawas: laporan mingguan, temuan finishing, DP / pembayaran jasa. */
-    supervision: ['execution', 'project'],
+    /** Pengawas: laporan mingguan, temuan finishing, DP / pembayaran jasa (a pengecekan / closed finding moves QA items). */
+    supervision: ['execution', 'project', 'itemQa'],
+    /** Sprint 29 Sub 12 — QA per item RAB: Lolos / Perlu perbaikan (finding, maybe the project COMPLETED). */
+    itemQa: ['itemQa', 'execution', 'project', 'statusNote'],
     /** Perpindahan fase oleh PM: Setujui Berangkat ke Lokasi (stepper, header, kartu Eksekusi). */
     phase: ['execution', 'project'],
     /** Catatan Progress. */
     progressLogs: ['progressLogs'],
     /** Anggaran: pos, alokasi, realisasi, overrun. */
     budget: ['budget'],
-    /** Sprint 29 Sub 08 — Upah Tukang per item (the card, the DP conditions and the fee live in `execution`). */
-    wages: ['execution'],
+    /**
+     * Sprint 29 Sub 08 — Upah Tukang per item (the card, the DP conditions and the fee live in `execution`).
+     * Sub 10 — `project` too: the first Satuan Upah turns the project progress into the progres berbobot.
+     */
+    wages: ['execution', 'project'],
+    /** Sprint 32 — Pembagian Upah per Orang (only `execution.wageSplit` changes). */
+    wageSplit: ['execution'],
     /** Termin & invoice. */
     billing: ['termins', 'documents', 'statusNote'],
 } as const satisfies Record<string, readonly ProjectProp[]>;

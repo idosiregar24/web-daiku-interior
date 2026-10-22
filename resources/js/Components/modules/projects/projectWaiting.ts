@@ -1,6 +1,7 @@
 import { summarizeArrivals } from '@/Components/modules/projects/materialArrival';
 import type { MaterialPermissions } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { progressPhrase } from '@/lib/progress';
 import { waitingOn } from '@/lib/waitingOn';
 import type { OvertimeRequest, Project, ProjectExecution, ProjectMaterial, QaForm, Termin } from '@/types';
 
@@ -218,7 +219,7 @@ function phaseRows(input: ProjectWaitingInput): WaitingRow[] {
                 {
                     key: 'phase-departure',
                     label: 'Berangkat',
-                    detail: `Siap Berangkat ke Lokasi — actual activity ${execution.progress}% (syarat ${execution.threshold}%)`,
+                    detail: `Siap Berangkat ke Lokasi — ${progressPhrase(execution.progress, execution.progressBasis)} (syarat ${execution.threshold}%)`,
                     holder: 'PM',
                     mine: can?.approveDeparture ?? false,
                     tone: 'warning',
@@ -242,9 +243,9 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
 
     const rows: WaitingRow[] = [];
     const { can } = execution;
-    // In PERSIAPAN the DP is the phase row itself.
+    // In PERSIAPAN the DP is the phase row itself; a pengecekan's request is the weekly report row (Sprint 29 Sub 09).
     const payments = execution.payments.filter(
-        (payment) => payment.status === 'DIAJUKAN' && !(payment.kind === 'DP' && project.phase === 'PERSIAPAN'),
+        (payment) => payment.status === 'DIAJUKAN' && !payment.via_report && !(payment.kind === 'DP' && project.phase === 'PERSIAPAN'),
     );
     const reports = execution.weeklyReports.filter((report) => report.status === 'DIAJUKAN');
 
@@ -254,7 +255,7 @@ function executionRows(input: ProjectWaitingInput): WaitingRow[] {
         rows.push({
             key: 'deadline',
             label: deadline.days_left >= 0 ? `Sisa ${deadline.days_left} hari` : `Lewat ${-deadline.days_left} hari`,
-            detail: `Mendekati Tanggal Selesai ${formatDate(deadline.end_date)} — actual activity ${execution.progress}%`,
+            detail: `Mendekati Tanggal Selesai ${formatDate(deadline.end_date)} — ${progressPhrase(execution.progress, execution.progressBasis)}`,
             holder: 'PM',
             mine: can.decide,
             tone: deadline.days_left >= 0 ? 'warning' : 'error',
@@ -385,6 +386,20 @@ function workRows(input: ProjectWaitingInput): WaitingRow[] {
 
     const requestsPm = projectMaterials.filter((line) => line.request_status === 'MENUNGGU_PM').length;
     const requestsLogistics = projectMaterials.filter((line) => line.request_status === 'DIAJUKAN').length;
+    // Sprint 29 Sub 11 (E3/E4) — the Pengawas's Rencana Bahan not sent to Logistik yet.
+    const planDrafts = projectMaterials.filter((line) => line.order_status === 'DIRENCANAKAN').length;
+
+    if (planDrafts > 0) {
+        rows.push({
+            key: 'material-plan-draft',
+            label: `${planDrafts} bahan`,
+            detail: 'Rencana bahan belum diajukan ke Logistik',
+            holder: waitingOn('materialOrder', 'DIRENCANAKAN'),
+            mine: materialPermissions.planThroughLogistics,
+            tone: 'warning',
+            target: { tab: 'material' },
+        });
+    }
 
     if (requestsPm > 0) {
         rows.push({

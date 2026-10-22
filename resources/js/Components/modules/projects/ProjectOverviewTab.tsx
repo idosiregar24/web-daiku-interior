@@ -8,6 +8,7 @@ import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 import type {
     ActivityTarget,
@@ -253,7 +254,12 @@ function InfoCard({ project, nearDeadline }: { project: Project; nearDeadline: b
     );
 }
 
-/** H4a — actual activity, today's target and the gap (numbers from ProductionService only). */
+/**
+ * H4a — the project progress, today's target and the gap (numbers from the
+ * server only). Sprint 29 Sub 10 — a project whose RAB items carry a wage
+ * shows the progres berbobot (pengecekan per item RAB) as its figure and the
+ * daily targets' actual activity below, labelled as such.
+ */
 function ProgressSummaryCard({
     project,
     activityTarget,
@@ -268,16 +274,24 @@ function ProgressSummaryCard({
     canOpen: (target: ProjectTabTarget) => boolean;
 }) {
     const summary = activityTarget?.summary;
-    const progress = summary?.progress ?? project.actual_progress ?? 0;
+    const basis = project.progress_basis ?? 'activity';
+    const weighted = basis === 'weighted';
+    const progress = weighted ? (project.actual_progress ?? 0) : (summary?.progress ?? project.actual_progress ?? 0);
     const target: ProjectTabTarget = { tab: 'task', view: 'activity-target' };
     const latest = progressLogs[0];
 
     return (
-        <SectionCard title="Progress" description="Dihitung dari daily target yang selesai." icon={Activity}>
-            <p className="text-4xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{progress}%</p>
-            <ProgressBar value={progress} label="Progress keseluruhan proyek" className="mt-4" />
+        <SectionCard title={weighted ? 'Progres Berbobot' : 'Progress'} description={PROGRESS_BASIS_HINT[basis]} icon={Activity}>
+            <p className="text-4xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{formatProgress(progress)}</p>
+            <ProgressBar value={progress} label={`${PROGRESS_BASIS_LABEL[basis]} proyek`} className="mt-4" />
             {summary && (
-                <div className="mt-3 space-y-1 text-sm">
+                // On a progres-berbobot project the daily-target figures are their own block, so the gap reads as actual activity vs target.
+                <div className={cn('mt-3 space-y-1 text-sm', weighted && 'rounded-lg bg-daiku-gray px-3 py-2')}>
+                    {weighted && (
+                        <p className="text-muted-foreground">
+                            Actual activity (daily target) <span className="font-medium text-foreground tabular-nums">{summary.progress}%</span>
+                        </p>
+                    )}
                     <p className="text-muted-foreground">
                         Target s.d. hari ini <span className="font-medium text-foreground tabular-nums">{summary.target_to_date}%</span>
                     </p>

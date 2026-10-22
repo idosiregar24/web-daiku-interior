@@ -1,3 +1,4 @@
+import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { ResponsiveDialogContent } from '@/Components/shared/ResponsiveDialogContent';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
@@ -6,13 +7,14 @@ import { Textarea } from '@/Components/ui/textarea';
 import { useConfirm } from '@/hooks/useConfirm';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatDateTime } from '@/lib/format';
+import { TASK_PRIORITY_LABEL } from '@/lib/taskLabels';
 import { cn } from '@/lib/utils';
 import { isWorkDay } from '@/lib/workDays';
 import type { Milestone, Task, TaskStatus } from '@/types';
 import { router } from '@inertiajs/react';
 import { addDays, format, startOfWeek } from 'date-fns';
-import { AlertCircle, Check, CheckCheck, ChevronLeft, ChevronRight, GripVertical, Loader2, Lock, MoveRight, Undo2, User } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, CheckCheck, ChevronLeft, ChevronRight, GripVertical, Loader2, Lock, MoveRight, StickyNote, Undo2, User, X } from 'lucide-react';
 import { type DragEvent, useMemo, useState } from 'react';
 
 const DAY_HEAD = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -60,6 +62,8 @@ export function TaskWeekBoard({ tasks, milestones, canMove, reload, canReview = 
     // Sprint 29 Sub 04 — reviewed cards show their new status until the server answers (K3).
     const [reviewing, setReviewing] = useState<Record<number, TaskStatus>>({});
     const [returning, setReturning] = useState<Task | null>(null);
+    // A tap on a card opens its detail; moving is a drag, or "Pindahkan ke hari lain" in the detail.
+    const [detail, setDetail] = useState<Task | null>(null);
     const { ask, dialog } = useConfirm();
 
     const days = useMemo(() => Array.from({ length: 7 }, (_, index) => ymd(addDays(weekStart, index))), [weekStart]);
@@ -210,11 +214,23 @@ export function TaskWeekBoard({ tasks, milestones, canMove, reload, canReview = 
             </div>
 
             {canMove && (
-                <p className="mb-3 text-xs text-muted-foreground">
-                    {moving
-                        ? `Memindahkan "${moving.title}" — pilih hari kerja mana saja; hari di timeline lain memindah target ke timeline itu.`
-                        : 'Seret kartu ke hari lain untuk menggeser target (di HP: ketuk kartu, lalu "Pindah ke sini"). Semua hari kerja (Senin–Sabtu).'}
-                </p>
+                moving ? (
+                    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-sm text-info-ink">
+                        <MoveRight className="size-4 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                            Memindahkan <span className="font-medium">"{moving.title}"</span> — tekan <span className="font-medium">Pindah ke sini</span> di hari tujuan
+                            (hari kerja mana saja; hari di timeline lain memindah target ke timeline itu).
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={() => setMoving(null)}>
+                            <X className="size-4" />
+                            Batal
+                        </Button>
+                    </div>
+                ) : (
+                    <p className="mb-3 text-xs text-muted-foreground">
+                        Klik kartu untuk melihat detail target. Seret kartu ke hari lain untuk menggeser (di HP: buka kartu → "Pindahkan ke hari lain"). Semua hari kerja (Senin–Sabtu).
+                    </p>
+                )
             )}
             {refused && (
                 <p role="alert" className="mb-3 flex items-start gap-1.5 text-xs font-medium text-error-ink">
@@ -300,7 +316,7 @@ export function TaskWeekBoard({ tasks, milestones, canMove, reload, canReview = 
                                                 />
                                             ) : null
                                         }
-                                        onPick={() => setMoving((current) => (current?.id === task.id ? null : task))}
+                                        onOpen={() => setDetail(task)}
                                         onDragStart={(event) => {
                                             event.dataTransfer.effectAllowed = 'move';
                                             event.dataTransfer.setData('text/plain', String(task.id));
@@ -319,6 +335,36 @@ export function TaskWeekBoard({ tasks, milestones, canMove, reload, canReview = 
             </div>
 
             <ReturnDialog task={returning} reload={reload} onClose={() => setReturning(null)} />
+            <TaskDetailDialog
+                task={detail ? (columns.flatMap((column) => column.tasks).find((task) => task.id === detail.id) ?? detail) : null}
+                today={today}
+                canMove={detail !== null && movable(detail)}
+                actions={
+                    detail && canReview ? (
+                        <ReviewActions
+                            task={detail}
+                            busy={detail.id in reviewing}
+                            onApprove={() => {
+                                review(route('tasks.approve', { task: detail.id }), [detail.id]);
+                                setDetail(null);
+                            }}
+                            onCheck={() => {
+                                review(route('tasks.checkOff', { task: detail.id }), [detail.id]);
+                                setDetail(null);
+                            }}
+                            onReturn={() => {
+                                setReturning(detail);
+                                setDetail(null);
+                            }}
+                        />
+                    ) : null
+                }
+                onMove={() => {
+                    setMoving(detail);
+                    setDetail(null);
+                }}
+                onClose={() => setDetail(null)}
+            />
             {dialog}
         </div>
     );
@@ -336,12 +382,12 @@ function ReviewActions({ task, busy, onApprove, onCheck, onReturn }: { task: Tas
 
     if (task.status === 'PENGECEKAN') {
         return (
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-                <Button size="sm" className="h-9 max-md:h-11" disabled={busy} onClick={stop(onApprove)}>
+            <div className="mt-2 flex flex-col gap-1.5">
+                <Button size="sm" className="h-9 w-full max-md:h-11" disabled={busy} onClick={stop(onApprove)}>
                     {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
                     Setujui
                 </Button>
-                <Button size="sm" variant="outline" className="h-9 max-md:h-11" disabled={busy} onClick={stop(onReturn)}>
+                <Button size="sm" variant="outline" className="h-9 w-full max-md:h-11" disabled={busy} onClick={stop(onReturn)}>
                     <Undo2 className="size-4" />
                     Kembalikan
                 </Button>
@@ -426,7 +472,7 @@ function TargetCard({
     saving,
     showTimeline,
     actions,
-    onPick,
+    onOpen,
     onDragStart,
     onDragEnd,
 }: {
@@ -437,30 +483,31 @@ function TargetCard({
     saving: boolean;
     showTimeline: boolean;
     actions?: React.ReactNode;
-    onPick: () => void;
+    onOpen: () => void;
     onDragStart: (event: DragEvent) => void;
     onDragEnd: () => void;
 }) {
-    const late = task.status !== 'DONE' && task.due_date !== null && task.due_date.slice(0, 10) < today;
+    // Reported done and waiting for the Pengawas's check — not late.
+    const late = task.status !== 'DONE' && task.status !== 'PENGECEKAN' && task.due_date !== null && task.due_date.slice(0, 10) < today;
 
     return (
         <div
-            role={movable ? 'button' : undefined}
-            tabIndex={movable ? 0 : undefined}
-            aria-pressed={movable ? selected : undefined}
+            role="button"
+            tabIndex={0}
+            aria-label={`Detail target ${task.title}`}
             draggable={movable}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
-            onClick={movable ? onPick : undefined}
+            onClick={onOpen}
             onKeyDown={(event) => {
-                if (movable && (event.key === 'Enter' || event.key === ' ')) {
+                if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
-                    onPick();
+                    onOpen();
                 }
             }}
             className={cn(
-                'min-w-0 rounded-lg border border-border bg-card p-2 text-left shadow-xs',
-                movable && 'cursor-grab transition-colors hover:border-daiku-yellow-dark focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing',
+                'min-w-0 cursor-pointer rounded-lg border border-border bg-card p-2 text-left shadow-xs transition-colors hover:border-daiku-yellow-dark focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                movable && 'active:cursor-grabbing',
                 selected && 'border-daiku-yellow-dark ring-2 ring-daiku-yellow',
                 saving && 'animate-pulse opacity-70',
                 task.status === 'DONE' && 'opacity-70',
@@ -477,13 +524,19 @@ function TargetCard({
                     {showTimeline && task.milestone && <p className="mt-0.5 truncate text-xs text-daiku-muted">{task.milestone.name}</p>}
                 </div>
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-daiku-muted">
-                <span className="flex min-w-0 items-center gap-1">
-                    <User className="size-3 shrink-0" aria-hidden />
-                    <span className="truncate">{task.assignee?.name ?? 'Belum ditugaskan'}</span>
-                </span>
-                <StatusChip domain="task" status={task.status} waitingOn={task.status === 'PENGECEKAN' ? undefined : null} className="text-[11px]" />
-                {late && <span className="font-medium text-error-ink">Terlambat</span>}
+            <p className="mt-1.5 flex min-w-0 items-center gap-1 text-xs text-daiku-muted">
+                <User className="size-3 shrink-0" aria-hidden />
+                <span className="truncate">{task.assignee?.name ?? 'Belum ditugaskan'}</span>
+            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                <StatusChip
+                    domain="task"
+                    status={task.status}
+                    label={task.status === 'PENGECEKAN' ? 'Menunggu dicek' : undefined}
+                    waitingOn={null}
+                    className="max-w-full text-[11px] whitespace-normal"
+                />
+                {late && <StatusChip status="OVER" tone="error" label="Terlambat" className="text-[11px]" />}
             </div>
             {task.kendala && (
                 <p className="mt-2 flex items-start gap-1 rounded bg-warning/10 px-1.5 py-1 text-xs text-daiku-dark">
@@ -493,5 +546,109 @@ function TargetCard({
             )}
             {actions}
         </div>
+    );
+}
+
+/**
+ * A target's detail — what the card is too small to show: who, which
+ * timeline, the day (and the day it was first planned, how often it rolled),
+ * priority, the Tukang's kendala and note, the description; with the same
+ * check buttons as the card and "Pindahkan ke hari lain" (the phone's way to
+ * move a target — a drag on a wide screen).
+ */
+function TaskDetailDialog({
+    task,
+    today,
+    canMove,
+    actions,
+    onMove,
+    onClose,
+}: {
+    task: Task | null;
+    today: string;
+    canMove: boolean;
+    actions: React.ReactNode;
+    onMove: () => void;
+    onClose: () => void;
+}) {
+    const due = task?.due_date?.slice(0, 10) ?? null;
+    const planned = task?.planned_date?.slice(0, 10) ?? null;
+    const late = task !== null && task.status !== 'DONE' && task.status !== 'PENGECEKAN' && due !== null && due < today;
+
+    return (
+        <Dialog open={task !== null} onOpenChange={(open) => !open && onClose()}>
+            <ResponsiveDialogContent className="max-w-lg">
+                {task && (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle className="pr-6">{task.title}</DialogTitle>
+                            <DialogDescription>{task.milestone?.name ?? 'Tanpa timeline'}</DialogDescription>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center gap-1.5">
+                            <StatusChip domain="task" status={task.status} />
+                            {late && <StatusChip status="OVER" tone="error" label="Terlambat" />}
+                            {task.priority && task.priority !== 'MEDIUM' && <StatusChip status={task.priority} label={`Prioritas ${TASK_PRIORITY_LABEL[task.priority]}`} />}
+                        </div>
+
+                        <DetailList>
+                            <DetailItem label="Tukang">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <User className="size-4 text-muted-foreground" />
+                                    {task.assignee?.name ?? 'Belum ditugaskan'}
+                                </span>
+                            </DetailItem>
+                            <DetailItem label="Tanggal target">
+                                <span className="inline-flex items-center gap-1.5">
+                                    <CalendarDays className="size-4 text-muted-foreground" />
+                                    {formatDate(due)}
+                                </span>
+                                {planned && planned !== due && <span className="block text-xs text-muted-foreground">Rencana awal {formatDate(planned)}</span>}
+                                {(task.rollover_count ?? 0) > 0 && <span className="block text-xs text-muted-foreground">Bergulir {task.rollover_count}×</span>}
+                            </DetailItem>
+                            {task.completed_at && <DetailItem label="Ditandai selesai">{formatDateTime(task.completed_at)}</DetailItem>}
+                        </DetailList>
+
+                        {task.description && (
+                            <div>
+                                <p className="text-xs font-medium text-muted-foreground">Deskripsi</p>
+                                <p className="mt-1 text-sm whitespace-pre-line text-foreground">{task.description}</p>
+                            </div>
+                        )}
+                        {task.kendala && (
+                            <p className="flex items-start gap-2 rounded-lg bg-warning/10 px-3 py-2 text-sm text-foreground">
+                                <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning-ink" />
+                                <span>
+                                    <span className="font-medium">Kendala:</span> {task.kendala}
+                                </span>
+                            </p>
+                        )}
+                        {task.note && (
+                            <p className="flex items-start gap-2 rounded-lg bg-daiku-gray px-3 py-2 text-sm text-foreground">
+                                <StickyNote className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                                <span>
+                                    <span className="font-medium">Catatan:</span> {task.note}
+                                </span>
+                            </p>
+                        )}
+
+                        {actions}
+
+                        {/* Phone: "Pindahkan" above "Tutup"; wide: "Pindahkan" left, "Tutup" right. */}
+                        <DialogFooter className="gap-2 sm:flex-row-reverse sm:justify-between">
+                            <Button variant="ghost" onClick={onClose}>
+                                Tutup
+                            </Button>
+                            {canMove && (
+                                <Button variant="outline" onClick={onMove}>
+                                    <MoveRight className="size-4" />
+                                    Pindahkan ke hari lain
+                                </Button>
+                            )}
+                        </DialogFooter>
+                    </>
+                )}
+            </ResponsiveDialogContent>
+        </Dialog>
     );
 }

@@ -17,6 +17,7 @@ import {
 } from '@/Components/ui/select';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDate, formatRupiah } from '@/lib/format';
+import { PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 import { projectWaitingOn } from '@/lib/waitingOn';
 import type {
@@ -70,16 +71,18 @@ const projectColumns: ColumnDef<MonitorProject>[] = [
     { accessorKey: 'pm', header: 'PM', cell: ({ row }) => row.original.pm ?? '—' },
     {
         accessorKey: 'progress',
-        // Sprint 24 D11 — actual activity, same as the project list/detail.
-        header: 'Actual Activity',
+        // Sprint 29 Sub 10 — the same progress as the project list/detail: progres berbobot, else actual activity.
+        header: 'Progres',
         cell: ({ row }) =>
             row.original.progress === null ? (
                 <span className="text-xs text-muted-foreground">Belum ada target</span>
             ) : (
-                <div className="min-w-36">
+                <div className="min-w-36" title={PROGRESS_BASIS_HINT[row.original.progressBasis]}>
                     <ProgressBar value={row.original.progress} label={`Progres ${row.original.name}`} showValue />
                     <span className="text-xs text-muted-foreground tabular-nums">
-                        {row.original.tasksDone}/{row.original.tasksTotal} target selesai
+                        {row.original.progressBasis === 'weighted'
+                            ? PROGRESS_BASIS_LABEL.weighted
+                            : `${row.original.tasksDone}/${row.original.tasksTotal} target selesai`}
                     </span>
                 </div>
             ),
@@ -340,7 +343,7 @@ export default function ProjectDashboard({
             <SectionCard
                 title="Progres Proyek"
                 icon={TrendingUp}
-                description="Actual activity (daily target selesai), timeline lolos QA, dan task terlambat."
+                description="Progres berbobot (pengecekan per item RAB) atau actual activity (daily target selesai), timeline lolos QA, dan task terlambat."
                 flush
             >
                 <DataTable

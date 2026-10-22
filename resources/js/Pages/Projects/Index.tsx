@@ -21,6 +21,7 @@ import { AlertTriangle, FolderKanban, Hourglass } from 'lucide-react';
 import { DashboardLinkButton } from '@/Components/modules/dashboards/DashboardLinkButton';
 import { ProjectPhaseMini } from '@/Components/modules/projects/ProjectPhaseStepper';
 import { domainStatusLabel, projectWaitingOn } from '@/lib/waitingOn';
+import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
 
 interface ProjectIndexProps {
     projects: PaginatedData<Project>;
@@ -56,10 +57,20 @@ function ProjectStatusCell({ project }: { project: Project }) {
     );
 }
 
-function actualActivity(project: Project): string | null {
-    const total = project.tasks_count ?? 0;
+/** Sprint 29 Sub 10 — the server's progress (progres berbobot or actual activity), with its basis as a hint. */
+function ProgressCell({ project }: { project: Project }) {
+    const basis = project.progress_basis ?? 'activity';
 
-    return total === 0 ? null : `${Math.floor(((project.done_tasks_count ?? 0) * 100) / total)}%`;
+    if (project.actual_progress === null || project.actual_progress === undefined) {
+        return <span className="text-muted-foreground">—</span>;
+    }
+
+    return (
+        <span className="inline-flex flex-col" title={PROGRESS_BASIS_HINT[basis]}>
+            <span className="font-medium tabular-nums">{formatProgress(project.actual_progress)}</span>
+            <span className="text-xs text-muted-foreground">{PROGRESS_BASIS_LABEL[basis]}</span>
+        </span>
+    );
 }
 
 const columns: ColumnDef<Project>[] = [
@@ -88,14 +99,10 @@ const columns: ColumnDef<Project>[] = [
         cell: ({ row }) => <ProjectStatusCell project={row.original} />,
     },
     {
-        // Sprint 24 D11 — actual activity: DONE ÷ all daily targets.
+        // Sprint 29 Sub 10 — progres berbobot (pengecekan per item RAB), else actual activity.
         id: 'progress',
-        header: 'Actual Activity',
-        cell: ({ row }) => {
-            const value = actualActivity(row.original);
-
-            return value === null ? <span className="text-muted-foreground">—</span> : <span className="tabular-nums">{value}</span>;
-        },
+        header: 'Progres',
+        cell: ({ row }) => <ProgressCell project={row.original} />,
     },
     {
         accessorKey: 'start_date',
@@ -194,7 +201,8 @@ export default function ProjectIndex({ projects, filters, canFilterSupervised, p
                         </div>
                         <ProjectStatusCell project={project} />
                         <p className="text-xs text-muted-foreground">
-                            Actual activity <span className="font-medium text-foreground tabular-nums">{actualActivity(project) ?? '—'}</span>
+                            {PROGRESS_BASIS_LABEL[project.progress_basis ?? 'activity']}{' '}
+                            <span className="font-medium text-foreground tabular-nums">{formatProgress(project.actual_progress)}</span>
                         </p>
                     </Link>
                 )}

@@ -19,7 +19,7 @@ const MAX_PROOF_SIDE = 2000;
  * server re-encodes it anyway (and strips its metadata). Falls back to the
  * original when the browser can't decode it or shrinking doesn't help.
  */
-async function shrinkPhoto(file: File): Promise<File> {
+export async function shrinkPhoto(file: File, name = 'bukti-bayar.jpg'): Promise<File> {
     try {
         const bitmap = await createImageBitmap(file);
         const scale = Math.min(1, MAX_PROOF_SIDE / Math.max(bitmap.width, bitmap.height));
@@ -37,7 +37,7 @@ async function shrinkPhoto(file: File): Promise<File> {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
         if (!blob || blob.size >= file.size) return file;
 
-        return new File([blob], 'bukti-bayar.jpg', { type: 'image/jpeg', lastModified: file.lastModified });
+        return new File([blob], name, { type: 'image/jpeg', lastModified: file.lastModified });
     } catch {
         return file;
     }
@@ -70,7 +70,7 @@ export function PaymentProofPicker({
         const images = Array.from(files).filter((file) => PROOF_TYPES.includes(file.type));
 
         setShrinking(true);
-        const shrunk = await Promise.all(images.slice(0, room).map(shrinkPhoto));
+        const shrunk = await Promise.all(images.slice(0, room).map((file) => shrinkPhoto(file)));
         setShrinking(false);
         const valid = shrunk.filter((file) => file.size <= MAX_PROOF_BYTES);
 

@@ -768,8 +768,13 @@ export interface Project {
     status: ProjectStatus;
     /** Sprint 24 D1 — execution phase (PRODUKSI on projects opened before Sprint 24). */
     phase?: ProjectPhase;
-    /** Sprint 24 D11 — DONE ÷ all targets, % (detail page). */
-    actual_progress?: number;
+    /**
+     * Project progress, % (detail page and the project list) — Sprint 29 Sub 10:
+     * progres berbobot when the RAB items carry a wage, else actual activity
+     * (DONE ÷ all targets). Null on the list while an actual-activity project has no target.
+     */
+    actual_progress?: number | null;
+    progress_basis?: ProgressBasis;
     /** `withCount` on the project list (Sprint 24 D11). */
     tasks_count?: number;
     done_tasks_count?: number;
@@ -1286,7 +1291,24 @@ export interface StockMovement {
 export type ProjectMaterialSource = 'GUDANG' | 'PEMBELIAN' | 'CUSTOM';
 
 /** Sprint 11 Sub 4 — out-of-catalog requests; catalog lines are DISETUJUI from the start. */
-export type MaterialRequestStatus = 'MENUNGGU_PM' | 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
+/** Sprint 29 Sub 11 — DIRENCANAKAN: a line of the Pengawas's Rencana Bahan before "Ajukan ke Logistik". */
+export type MaterialRequestStatus = 'DIRENCANAKAN' | 'MENUNGGU_PM' | 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
+
+/**
+ * Sprint 29 Sub 11 (E4) — where a project material line stands
+ * (App\Enums\MaterialOrderStatus, ProjectMaterial::orderStatus()); worded by
+ * `materialStatus()` in Components/modules/projects/materialArrival.ts.
+ */
+export type MaterialOrderStatus =
+    | 'DIRENCANAKAN'
+    | 'MENUNGGU_PM'
+    | 'DIAJUKAN'
+    | 'DISETUJUI'
+    | 'DITOLAK'
+    | 'DIPESAN'
+    | 'SEBAGIAN'
+    | 'LENGKAP'
+    | 'DARI_GUDANG';
 
 /** Sub 4 — Logistics' four decisions on a request (decision #13). */
 export type MaterialRequestDecision = 'PAKAI_KATALOG' | 'DAFTAR_KATALOG' | 'CUSTOM' | 'TOLAK';
@@ -1321,7 +1343,7 @@ export interface ProjectMaterial {
     vendor?: Pick<Vendor, 'id' | 'name'> | null;
     request_status: MaterialRequestStatus;
     /** Sub 4 — TIM (PM/Estimator) or TUKANG (PM approves first); null for lines planned from the catalog. */
-    request_channel: 'TIM' | 'TUKANG' | null;
+    request_channel: 'TIM' | 'TUKANG' | 'RENCANA' | null;
     request_reason: string | null;
     photo_link: string | null;
     requested_by: number | null;
@@ -1331,6 +1353,14 @@ export interface ProjectMaterial {
     review_decision: MaterialRequestDecision | null;
     reject_reason: string | null;
     reviewed_at: string | null;
+    /** Sprint 29 Sub 11 — "Dipesan": when / by whom Logistik ordered it, and when it should arrive. */
+    ordered_at?: string | null;
+    ordered_by?: number | null;
+    orderer?: Pick<User, 'id' | 'name'> | null;
+    expected_at?: string | null;
+    order_note?: string | null;
+    /** Appended — ProjectMaterial::orderStatus(). */
+    order_status: MaterialOrderStatus;
     qty_planned: number;
     qty_received: number;
     qty_used: number;
@@ -1857,6 +1887,27 @@ export type ReviewStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'ACKNOWLEDGED';
 export type ReviewGrade = 'A' | 'B' | 'C' | 'D' | 'E';
 export type ReviewRecommendation = 'NAIK_GAJI' | 'BONUS' | 'PEMBINAAN' | 'SP' | 'TIDAK_ADA';
 
+/** Sprint 29 Sub 13 — App\Enums\DailyActivityReviewStatus (HR's check of one employee's day). */
+export type DailyActivityReviewStatus = 'SESUAI' | 'PERLU_KLARIFIKASI' | 'TIDAK_MENGISI';
+
+/** One "Aktivitas Harian" entry (DailyActivityService::presentActivity). */
+export interface DailyActivityEntry {
+    id: number;
+    date: string;
+    description: string;
+    project: { id: number; name: string } | null;
+    created_at: string | null;
+    updated_at: string | null;
+}
+
+/** HR's newest check of a day (DailyActivityService::presentReview). */
+export interface DailyActivityReviewInfo {
+    status: DailyActivityReviewStatus;
+    note: string | null;
+    reviewer: string | null;
+    reviewed_at: string | null;
+}
+
 /** Qualitative aspects, each 1–5. */
 export interface ReviewQualitative {
     attitude: number;
@@ -2106,8 +2157,9 @@ export interface MonitorProject {
     /** Sprint 28 K14 — for the chip's holder (`projectWaitingOn`). */
     phase: ProjectPhase | null;
     pm: string | null;
-    /** Sprint 24 D11 — actual activity (DONE ÷ all daily targets); null without targets. */
+    /** Sprint 29 Sub 10 — progres berbobot, else actual activity (DONE ÷ all daily targets; null without targets). */
     progress: number | null;
+    progressBasis: ProgressBasis;
     tasksDone: number;
     tasksTotal: number;
     milestonesCompleted: number;
@@ -2341,11 +2393,136 @@ export interface ServicePageDetail extends ServicePageContent {
 
 /** Sprint 24 D1 — the execution phase inside ACTIVE (App\Enums\ProjectPhase). */
 export type ProjectPhase = 'GAMBAR_KERJA' | 'TM' | 'PERSIAPAN' | 'PRODUKSI' | 'PEMASANGAN';
+/** Sprint 29 Sub 10 — what the project progress is (Project::PROGRESS_*): progres berbobot / actual activity. */
+export type ProgressBasis = 'weighted' | 'activity';
 export type WorkingDrawingStatus = 'MENUNGGU_PENUGASAN' | 'DIKERJAKAN' | 'SELESAI';
 export type SupervisorPaymentKind = 'DP' | 'MINGGUAN' | 'PELUNASAN';
 export type SupervisorPaymentStatus = 'DIAJUKAN' | 'DISETUJUI_PM' | 'DITOLAK' | 'DIBAYAR';
+
+/** Sprint 32 — a position in a Tukang team with its default weight (⚙ Pengaturan › Tim Tukang). */
+export interface CareerLevelOption {
+    id: number;
+    name: string;
+    weight: number;
+    /** The company's share (File D "Perusahaan"), kept out of the team's pay. */
+    is_company: boolean;
+}
+
+/** Sprint 32 — one person of a team; `percent` = bobot ÷ Σ bobot × 100. */
+export interface WageSplitMember {
+    name: string | null;
+    level: string | null;
+    weight: number;
+    percent: number;
+    company: boolean;
+}
+
+export interface WorkTeamTemplate {
+    id: number;
+    name: string;
+    leader_name: string | null;
+    members: WageSplitMember[];
+}
+
+/** Sprint 32 — WageSplitService::overview(): per Kepala Tim its people, per payment each person's part. */
+export interface WageSplitOverview {
+    teams: { label: string; template: string | null; members: WageSplitMember[] | null }[];
+    slips: {
+        id: number;
+        label: string;
+        kind: SupervisorPaymentKind;
+        status: SupervisorPaymentStatus;
+        amount: number;
+        date: string | null;
+        teams: { label: string; amount: number; rows: (WageSplitMember & { amount: number })[] | null }[];
+    }[];
+    levels: CareerLevelOption[];
+    /** Only for who fills it (ProjectPolicy::splitWages()). */
+    templates: WorkTeamTemplate[];
+}
 export type WeeklyReportStatus = 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
 export type SiteFindingStatus = 'TERBUKA' | 'SELESAI';
+/** Sprint 31 Sub 03 — WorkItemService::SCHEDULE_* */
+export type WorkItemScheduleStatus = 'BELUM_DIJADWALKAN' | 'AKAN_DATANG' | 'BERJALAN' | 'TERLAMBAT' | 'SELESAI';
+
+/** Sprint 31 Sub 03 — "Jadwal per Item" (File C's light-blue cells). Dates are Y-m-d. */
+export interface WorkSchedule {
+    items: {
+        id: number;
+        description: string;
+        volume_label: string;
+        team_lead: string;
+        progress: number;
+        production_start: string | null;
+        production_end: string | null;
+        installation_start: string | null;
+        installation_end: string | null;
+        status: WorkItemScheduleStatus;
+    }[];
+    /** The chart's first and last day (project dates and every window). */
+    from: string | null;
+    to: string | null;
+    today: string;
+    project_start: string | null;
+    project_end: string | null;
+    summary: { total: number; late: number; unscheduled: number };
+}
+
+/** Sprint 31 — "Rekap Progres per Item" (WorkItemService::progressRecap()). */
+export interface ProgressRecap {
+    /** Pengecekan dates, oldest first (Y-m-d). */
+    dates: string[];
+    items: {
+        id: number;
+        description: string;
+        volume_label: string;
+        team_lead: string;
+        /** % of the RAB value of the items with a wage. */
+        weight: number;
+        /** date → % added that day. */
+        cells: Record<string, number>;
+        total: number;
+        /** total × weight ÷ 100 — the item's share of the project progress. */
+        contribution: number;
+    }[];
+    per_date: { date: string; added: number; cumulative: number }[];
+    total: number | null;
+}
+
+/** Sprint 29 Sub 12 — App\Enums\WorkItemQaStatus (a check row is only LOLOS / PERBAIKAN). */
+export type WorkItemQaStatus = 'BELUM' | 'MENUNGGU' | 'PERBAIKAN' | 'LOLOS';
+
+/** Sprint 29 Sub 12 — WorkItemQaService::overview(): Timeline & QC › QC Item. */
+export interface ItemQaOverview {
+    items: {
+        id: number;
+        description: string;
+        volume_label: string;
+        team_lead: string;
+        progress: number;
+        status: WorkItemQaStatus;
+        /** Number of QA decisions so far (append-only). */
+        checks: number;
+        latest: {
+            id: number;
+            decision: Extract<WorkItemQaStatus, 'LOLOS' | 'PERBAIKAN'>;
+            note: string | null;
+            photo_url: string | null;
+            /** Streamed from the private disk (projects.item-qa.photo). */
+            photo_href: string | null;
+            checker: string | null;
+            at: string | null;
+            finding: {
+                id: number;
+                description: string;
+                status: SiteFindingStatus;
+                task: { title: string; status: TaskStatus; assignee: string | null; due_date: string | null } | null;
+            } | null;
+        } | null;
+    }[];
+    summary: { total: number; belum: number; menunggu: number; perbaikan: number; lolos: number };
+    can: { decide: boolean; repair: boolean; resolve: boolean };
+}
 
 /** One line of a checklist (TM Selesai, syarat DP). */
 export interface ExecutionRequirement {
@@ -2395,11 +2572,51 @@ export interface SupervisorPayment {
     /** "DP · Proyek Kopi Oz" — SupervisorPayment::label (Sprint 23 K12b style). */
     label: string;
     amount: string;
+    /** Sprint 29 Sub 09 — split per Kepala Tim, frozen when asked (null for older projects). */
+    breakdown?: WageShare[] | null;
     status: SupervisorPaymentStatus;
     decider?: Pick<User, 'id' | 'name'> | null;
     decided_at: string | null;
     payer?: Pick<User, 'id' | 'name'> | null;
     paid_at: string | null;
+}
+
+/** Sprint 29 Sub 09 — one Kepala Tim's part of an Upah Tukang payment (WorkItemService::teamShares()). */
+export interface WageShare {
+    label: string;
+    amount: number;
+}
+
+/** Sprint 29 Sub 09 — the pengecekan % per item (WorkItemService::checkOverview()). */
+export interface WorkCheck {
+    items: {
+        id: number;
+        description: string;
+        volume_label: string;
+        team_lead: string;
+        wage_subtotal: number;
+        rab_subtotal: number;
+        weight: number;
+        /** Σ % recorded so far (0–100). */
+        progress: number;
+    }[];
+    summary: {
+        total_wage: number;
+        weighted_progress: number | null;
+        payable: number;
+        /** Null for viewers who don't see the payments (Admin Proyek). */
+        already_paid: number | null;
+        payable_now: number | null;
+        all_done: boolean;
+        teams: { label: string; total_wage: number; progress: number | null; payable: number }[];
+    };
+    draft: {
+        entries: Record<string, { percent: number | null; note: string | null }>;
+        notes: string | null;
+        links: string[];
+        updated_by: string | null;
+        updated_at: string | null;
+    } | null;
 }
 
 /** Sprint 29 Sub 08 — one RAB item of the Upah Tukang card (WorkItemService::overview()). */
@@ -2421,8 +2638,34 @@ export interface WorkItemRow {
 }
 
 /** Sprint 24 — ProjectExecutionService::overview(), the project's "Eksekusi" tab. */
+/** Sprint 33 — ProjectStepsService: a step of the running phase, in the order it is done. */
+/** `optional` — beside the flow (e.g. the Pengawas's upah & bahan at TM): never holds the phase's closing step. */
+export type WorkStepState = 'done' | 'current' | 'ongoing' | 'optional' | 'todo';
+
+export interface WorkSteps {
+    phase: ProjectPhase;
+    phase_label: string;
+    items: {
+        key: string;
+        title: string;
+        who: string;
+        detail: string | null;
+        target: { tab: string; view?: string; anchor?: string };
+        /** This viewer is the one who does it. */
+        mine: boolean;
+        state: WorkStepState;
+        /** A step done by one button of its own instead of opening a card (e.g. `completeMeeting`). */
+        action: 'completeMeeting' | null;
+    }[];
+    done: number;
+    total: number;
+    next: { phase: string; title: string } | null;
+}
+
 export interface ProjectExecution {
     phase: ProjectPhase;
+    /** Sprint 33 — "Langkah Kerja" (null when the project is not running). */
+    steps: WorkSteps | null;
     /** Sprint 29 Sub 08 — wages per RAB item (the total is no longer typed at the TM). */
     usesWorkItems: boolean;
     /** Sprint 29 Sub 08 — the Upah Tukang card (null for viewers who don't see RAB prices). */
@@ -2430,6 +2673,8 @@ export interface ProjectExecution {
         sections: { id: string; title: string; items: WorkItemRow[] }[];
         summary: { total_wage: number; items: number; paid_items: number; unpaid_items: number; per_team_lead: { label: string; total: number; items: number }[] };
     } | null;
+    /** Sprint 29 Sub 09 — the pengecekan % per item (production, projects with wages per item; null otherwise). */
+    workCheck: WorkCheck | null;
     phases: { value: ProjectPhase; label: string; state: 'done' | 'current' | 'upcoming' }[];
     isLegacy: boolean;
     workingDrawing: {
@@ -2460,6 +2705,12 @@ export interface ProjectExecution {
         qty_planned: number;
         unit: string | null;
         source: ProjectMaterialSource;
+        /** Sprint 29 Sub 11 — RENCANA = the Pengawas's Rencana Bahan; its status and reason. */
+        qty_received: number;
+        channel: ProjectMaterial['request_channel'];
+        order_status: MaterialOrderStatus;
+        reject_reason: string | null;
+        expected_at: string | null;
         editable: boolean;
     }[];
     meetingRab: { id: string; title: string; items: { id: number; description: string; volume: string }[] }[];
@@ -2472,6 +2723,9 @@ export interface ProjectExecution {
         kind: SupervisorPaymentKind;
         label: string;
         amount: number;
+        breakdown: WageShare[] | null;
+        /** Sprint 29 Sub 09 — decided with its pengecekan (weekly report still DIAJUKAN). */
+        via_report: boolean;
         status: SupervisorPaymentStatus;
         requested_at: string | null;
         decided_at: string | null;
@@ -2483,6 +2737,10 @@ export interface ProjectExecution {
         id: number;
         week_number: number;
         week_start: string;
+        /** Sprint 31 — several pengecekan a week: 1, 2, … within its week. */
+        sequence: number;
+        /** WeeklyReport::label() — "Minggu ke-3" / "Minggu ke-3 · Pengecekan ke-2". */
+        label: string;
         notes: string;
         links: string[];
         status: WeeklyReportStatus;
@@ -2492,10 +2750,23 @@ export interface ProjectExecution {
         decider: string | null;
         decision_note: string | null;
         payment_amount: number | null;
+        /** Sprint 29 Sub 09 — the request this pengecekan asked (money viewers only). */
+        payment: { id: number; kind: SupervisorPaymentKind; amount: number; status: SupervisorPaymentStatus; breakdown: WageShare[] | null } | null;
+        /** Sprint 29 Sub 09 — the % added per item with this report. */
+        progress: { description: string | null; percent: number; note: string | null }[];
     }[];
     /** `is_due` — Sprint 29 Sub 02: from the report day (Friday) on; it may be sent any day. */
-    currentWeek: { week_start: string; week_number: number; is_report_day: boolean; is_due: boolean } | null;
+    /** `open` — Sprint 31: another report / pengecekan may be sent now (WeeklyReportService::canSubmit()). */
+    currentWeek: { week_start: string; week_number: number; is_report_day: boolean; is_due: boolean; open: boolean } | null;
+    /** Sprint 31 — WorkItemService::progressRecap(): File C as a table (pengecekan viewers only). */
+    progressRecap: ProgressRecap | null;
+    /** Sprint 31 Sub 03 — WorkItemService::scheduleOverview() (from Persiapan, projects with wages per item). */
+    workSchedule: WorkSchedule | null;
+    /** Sprint 32 — WageSplitService::overview(): Pembagian Upah per Orang (who sees the Upah Tukang). */
+    wageSplit: WageSplitOverview | null;
+    /** Project::actualProgress() — Sprint 29 Sub 10: progres berbobot or actual activity (`progressBasis`). */
     progress: number;
+    progressBasis: ProgressBasis;
     threshold: number;
     departure: { approved_at: string; approver: string | null } | null;
     findings: {
@@ -2518,6 +2789,10 @@ export interface ProjectExecution {
         saveMeeting: boolean;
         /** Sprint 29 Sub 08 — the project's Pengawas or the Admin Proyek fills the Upah Tukang card. */
         setWages: boolean;
+        /** Sprint 31 Sub 03 — the Jadwal per Item card's dates (Pengawas / Admin Proyek). */
+        scheduleItems: boolean;
+        /** Sprint 32 — Item RAB › Pembagian Upah (Pengawas / Admin Proyek). */
+        splitWages: boolean;
         completeMeeting: boolean;
         requestDp: boolean;
         decide: boolean;
@@ -2527,8 +2802,12 @@ export interface ProjectExecution {
         resolveFinding: boolean;
         manageTargets: boolean;
         requestSettlement: boolean;
+        /** Sprint 29 Sub 09 — the pengecekan draft: the project's Pengawas or the Admin Proyek. */
+        fillWorkCheck: boolean;
         planMaterials: boolean;
         updateMaterials: boolean;
         removeMaterials: boolean;
+        /** Sprint 29 Sub 11 — custom lines + "Ajukan ke Logistik" (the Pengawas / Admin Proyek). */
+        submitMaterialPlan: boolean;
     };
 }

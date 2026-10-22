@@ -1,5 +1,6 @@
 import { ConfirmDialog } from '@/Components/shared/ConfirmDialog';
 import { Button } from '@/Components/ui/button';
+import { progressPhrase } from '@/lib/progress';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import type { Project, ProjectExecution } from '@/types';
 import { router } from '@inertiajs/react';
@@ -20,7 +21,7 @@ export function DepartureButton({
     size,
 }: {
     project: Pick<Project, 'id'>;
-    execution: Pick<ProjectExecution, 'progress' | 'threshold' | 'departure' | 'can'>;
+    execution: Pick<ProjectExecution, 'progress' | 'progressBasis' | 'threshold' | 'departure' | 'can'>;
     className?: string;
     size?: 'default' | 'sm';
 }) {
@@ -53,7 +54,7 @@ export function DepartureButton({
                 className={className}
                 size={size}
                 disabled={!reached || busy}
-                title={reached ? undefined : `Terbuka mulai actual activity ${execution.threshold}% (sekarang ${execution.progress}%).`}
+                title={reached ? undefined : `Terbuka mulai progres ${execution.threshold}% (sekarang ${progressPhrase(execution.progress, execution.progressBasis)}).`}
                 onClick={() => setConfirming(true)}
             >
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <MapPin className="size-4" />}
@@ -66,7 +67,7 @@ export function DepartureButton({
                 onConfirm={approve}
                 icon={MapPin}
                 title="Setujui berangkat ke lokasi?"
-                description={`Actual activity ${execution.progress}%. Proyek pindah dari Produksi ke Pemasangan dan tidak bisa dikembalikan. Logistik, Pengawas (QA/QC), Kepala Tim, dan Asisten PM diberi tahu.`}
+                description={`Proyek sudah ${progressPhrase(execution.progress, execution.progressBasis)}. Proyek pindah dari Produksi ke Pemasangan dan tidak bisa dikembalikan. Logistik, Pengawas (QA/QC), Kepala Tim, dan Asisten PM diberi tahu.`}
                 confirmLabel="Ya, berangkat"
             />
         </>

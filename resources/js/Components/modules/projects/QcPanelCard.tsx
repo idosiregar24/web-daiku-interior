@@ -1,6 +1,7 @@
 import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { Button } from '@/Components/ui/button';
+import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 import type { ProjectExecution } from '@/types';
 import { ArrowRight, CalendarCheck, ListChecks, MapPin, SearchCheck, ShieldCheck } from 'lucide-react';
@@ -118,13 +119,15 @@ function progressRow(execution: ProjectExecution): QcRow {
         status: execution.departure
             ? 'Berangkat ke lokasi disetujui PM'
             : reached
-              ? `Actual ${execution.progress}% — siap, menunggu persetujuan PM`
-              : `Actual ${execution.progress}% dari ${execution.threshold}%`,
+              ? `${PROGRESS_BASIS_LABEL[execution.progressBasis]} ${formatProgress(execution.progress)} — siap, menunggu persetujuan PM`
+              : `${PROGRESS_BASIS_LABEL[execution.progressBasis]} ${formatProgress(execution.progress)} dari ${execution.threshold}%`,
         tone: execution.departure ? 'success' : reached ? 'warning' : 'muted',
         mine: !execution.departure && reached && execution.can.approveDeparture,
         anchor: 'berangkat',
         extra: !execution.departure && (
-            <ProgressBar value={execution.progress} tone={reached ? 'success' : 'default'} label="Actual activity proyek" className="mt-2 max-w-xs" />
+            <div className="mt-2 max-w-xs" title={PROGRESS_BASIS_HINT[execution.progressBasis]}>
+                <ProgressBar value={execution.progress} tone={reached ? 'success' : 'default'} label={`${PROGRESS_BASIS_LABEL[execution.progressBasis]} proyek`} />
+            </div>
         ),
     };
 }

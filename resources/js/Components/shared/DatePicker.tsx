@@ -19,6 +19,11 @@ interface DatePickerProps {
     className?: string;
     /** Optional field: shows "Hapus tanggal" under the calendar to empty it. */
     clearable?: boolean;
+    /** Days before / after are greyed out and can't be picked (e.g. the project's dates). */
+    min?: Date;
+    max?: Date;
+    /** The month the calendar opens on while empty (else today). */
+    defaultMonth?: Date;
 }
 
 /**
@@ -39,6 +44,9 @@ export function DatePicker({
     disabled,
     className,
     clearable = false,
+    min,
+    max,
+    defaultMonth,
 }: DatePickerProps) {
     const [open, setOpen] = useState(false);
 
@@ -68,6 +76,8 @@ export function DatePicker({
                         setOpen(false);
                     }}
                     locale={id}
+                    defaultMonth={value ?? defaultMonth}
+                    disabled={[...(min ? [{ before: min }] : []), ...(max ? [{ after: max }] : [])]}
                     autoFocus
                 />
                 {clearable && value && (

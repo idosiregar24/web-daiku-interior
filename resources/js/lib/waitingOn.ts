@@ -39,7 +39,13 @@ export type WaitingDomain =
     | 'workingDrawing'
     | 'supervisorPayment'
     | 'weeklyReport'
-    | 'siteFinding';
+    | 'siteFinding'
+    // Sprint 29 Sub 12 — QA per item RAB (WorkItemQaService).
+    | 'itemQa'
+    // Sprint 29 Sub 13 — HR's check of an employee's Aktivitas Harian.
+    | 'dailyActivity'
+    // Sprint 29 Sub 11 — a project material line, Rencana Bahan → Logistik → arrived.
+    | 'materialOrder';
 
 /** Who holds the turn, per domain → status. Missing = nobody (done/cancelled). */
 const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
@@ -192,6 +198,25 @@ const HOLDER: Record<WaitingDomain, Partial<Record<string, string>>> = {
     siteFinding: {
         TERBUKA: 'Pengawas / Tukang',
     },
+    itemQa: {
+        MENUNGGU: 'Pengawas (QA/QC)',
+        PERBAIKAN: 'Tukang',
+    },
+    // BELUM_DIPERIKSA is a UI-only state (a day without a check yet).
+    dailyActivity: {
+        BELUM_DIPERIKSA: 'SDM',
+        PERLU_KLARIFIKASI: 'Karyawan',
+    },
+    // ProjectMaterial::orderStatus() — the Pengawas plans and submits, Logistik decides,
+    // orders / issues and receives (E4).
+    materialOrder: {
+        DIRENCANAKAN: 'Pengawas',
+        MENUNGGU_PM: 'PM / Asisten PM',
+        DIAJUKAN: 'Logistik',
+        DISETUJUI: 'Logistik',
+        DIPESAN: 'Logistik',
+        SEBAGIAN: 'Logistik',
+    },
 };
 
 /**
@@ -329,6 +354,29 @@ const LABEL: Partial<Record<WaitingDomain, Partial<Record<string, string>>>> = {
     siteFinding: {
         TERBUKA: 'Terbuka',
         SELESAI: 'Selesai',
+    },
+    itemQa: {
+        BELUM: 'Belum 100 %',
+        MENUNGGU: 'Menunggu QA',
+        PERBAIKAN: 'Perlu Perbaikan',
+        LOLOS: 'Lolos QA',
+    },
+    dailyActivity: {
+        BELUM_DIPERIKSA: 'Belum Diperiksa',
+        SESUAI: 'Sesuai',
+        PERLU_KLARIFIKASI: 'Perlu Klarifikasi',
+        TIDAK_MENGISI: 'Tidak Mengisi',
+    },
+    materialOrder: {
+        DIRENCANAKAN: 'Direncanakan',
+        MENUNGGU_PM: 'Menunggu PM',
+        DIAJUKAN: 'Diajukan',
+        DISETUJUI: 'Disetujui',
+        DITOLAK: 'Ditolak',
+        DIPESAN: 'Dipesan',
+        SEBAGIAN: 'Diterima Sebagian',
+        LENGKAP: 'Lengkap',
+        DARI_GUDANG: 'Dari Gudang',
     },
 };
 

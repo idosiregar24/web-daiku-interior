@@ -42,8 +42,10 @@ function CumulativeActual({ row }: { row: Pick<ActivityTargetDay, 'cum_target' |
 /**
  * Sprint 25 — tab "Activity Target": the project's daily targets against
  * what was actually finished, per working day (grouped per week), with
- * both cumulated over every target — the last actual figure is the
- * project's progress. Numbers only (ProductionService::activityTarget()).
+ * both cumulated over every target. Numbers only
+ * (ProductionService::activityTarget()). Sprint 29 Sub 10 — titled "Actual
+ * activity (daily target)": on a project whose RAB items carry a wage the
+ * project progress is the progres berbobot of the pengecekan instead.
  */
 export function ActivityTargetPanel({ data }: { data: ActivityTarget }) {
     const { summary } = data;
@@ -66,8 +68,8 @@ export function ActivityTargetPanel({ data }: { data: ActivityTarget }) {
     return (
         <div className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard label="Progress Proyek" value={`${summary.progress}%`} icon={Activity} hint={`${summary.done}/${summary.total} daily target selesai`}>
-                    <ProgressBar value={summary.progress} label="Progress proyek dari daily target yang selesai" />
+                <StatCard label="Actual Activity (Daily Target)" value={`${summary.progress}%`} icon={Activity} hint={`${summary.done}/${summary.total} daily target selesai`}>
+                    <ProgressBar value={summary.progress} label="Actual activity dari daily target yang selesai" />
                 </StatCard>
                 <StatCard
                     label="Target s.d. Hari Ini"

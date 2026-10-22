@@ -1,3 +1,4 @@
+import { formatProgress } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 
 type Tone = 'default' | 'success' | 'warning' | 'error';
@@ -46,7 +47,7 @@ export function ProgressBar({ value, label, tone = 'default', showValue = false,
                 <div className={cn('h-full rounded-full transition-[width]', FILL_CLASS[tone])} style={{ width: `${clamped}%` }} />
             </div>
             {showValue && (
-                <span className="w-10 shrink-0 text-right text-xs font-medium text-foreground tabular-nums">{clamped}%</span>
+                <span className="min-w-10 shrink-0 text-right text-xs font-medium text-foreground tabular-nums">{formatProgress(clamped)}</span>
             )}
         </div>
     );

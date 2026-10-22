@@ -42,6 +42,11 @@ import { INVOICE_TYPE_LABEL, InvoicePdfButton, InvoiceProofButton, IssueInvoiceD
 import { type MaterialPermissions, ProjectMaterialsPanel } from '@/Components/modules/projects/ProjectMaterialsPanel';
 import { ProjectOvertimeTab } from '@/Components/modules/projects/ProjectOvertimeTab';
 import { ProjectQaTab } from '@/Components/modules/projects/ProjectQaTab';
+import { WorkItemQaPanel } from '@/Components/modules/projects/WorkItemQaPanel';
+import { WorkItemWageCard } from '@/Components/modules/projects/WorkItemWageCard';
+import { WageSplitPanel } from '@/Components/modules/projects/WageSplitPanel';
+import { WorkStepsPanel } from '@/Components/modules/projects/WorkStepsPanel';
+import { WorkProgressSheet } from '@/Components/modules/projects/WorkProgressSheet';
 
 // Sprint 24 — the execution flow tab. Imported statically: a lazy() chunk shared with this page made Vite drop the page's manifest entry.
 import { ProjectExecutionTab } from '@/Components/modules/projects/ProjectExecutionTab';
@@ -53,6 +58,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import type {
     ActivityTarget,
     FinanceAllocationLine,
+    ItemQaOverview,
     Invoice,
     Material,
     MaterialCategory,
@@ -96,6 +102,7 @@ import {
     FilePlus2,
     Route,
     GalleryHorizontalEnd,
+    Rows3,
 } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 
@@ -129,6 +136,8 @@ interface ProjectShowProps {
     /** Sprint 13 #3 — Tab QA: the timelines' QA forms (CEO/PM/Asisten PM/QA). */
     qaForms: QaForm[];
     canViewQa: boolean;
+    /** Sprint 29 Sub 12 — QA per item RAB (WorkItemQaService::overview()); null = QA per timeline or no QA view. */
+    itemQa: ItemQaOverview | null;
     /** qa-forms.show is role:CEO|PM|QA — the Asisten PM reads the tab only. */
     canOpenQaForm: boolean;
     /** Sprint 13 #3 — Tab Lembur (CEO/PM/Asisten PM/Finance). */
@@ -201,7 +210,11 @@ function ViewTabs({ views, view, onView, children }: { views: ViewOption[]; view
     );
 }
 
-/** Sprint 26 H3e — tab "Timeline & QC": Gantt · Kalender · QC Timeline (Sprint 27 P2b). */
+/**
+ * Sprint 26 H3e — tab "Timeline & QC": Gantt · Kalender · QC Timeline (Sprint 27 P2b).
+ * Sprint 29 Sub 12 (G3) — with QA per item RAB the QC view is "QC Item" and
+ * "Tandai Selesai" closes a timeline without a QA form.
+ */
 function MilestoneTab({
     project,
     milestones,
@@ -209,6 +222,8 @@ function MilestoneTab({
     canManage,
     qaForms,
     canOpenQaForm,
+    itemQa,
+    fieldStaff,
     views,
     view,
     onView,
@@ -219,6 +234,8 @@ function MilestoneTab({
     canManage: boolean;
     qaForms: QaForm[];
     canOpenQaForm: boolean;
+    itemQa: ItemQaOverview | null;
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     views: ViewOption[];
     view: string;
     onView: (view: string) => void;
@@ -288,7 +305,11 @@ function MilestoneTab({
         <div>
             <ViewTabs views={views} view={view} onView={onView}>
                 {view === 'qc' ? (
-                    <ProjectQaTab qaForms={qaForms} canOpenForm={canOpenQaForm} />
+                    itemQa ? (
+                        <WorkItemQaPanel projectId={project.id} itemQa={itemQa} fieldStaff={fieldStaff} />
+                    ) : (
+                        <ProjectQaTab qaForms={qaForms} canOpenForm={canOpenQaForm} />
+                    )
                 ) : (
                     <>
                         {canManage && (
@@ -339,7 +360,9 @@ function MilestoneTab({
                     : {
                           icon: CircleCheck,
                           title: 'Tandai timeline selesai?',
-                          description: `"${shownConfirm?.milestone.name ?? ''}" — Pengawas (QA/QC) proyek akan diminta memeriksanya.`,
+                          description: itemQa
+                              ? `"${shownConfirm?.milestone.name ?? ''}" ditandai selesai. Pemeriksaan QA dilakukan per item RAB di tab Item RAB › QC Item.`
+                              : `"${shownConfirm?.milestone.name ?? ''}" — Pengawas (QA/QC) proyek akan diminta memeriksanya.`,
                           confirmLabel: 'Ya, tandai selesai',
                       })}
             />
@@ -671,7 +694,7 @@ function ActivityTargetTab({
             {activityTarget && <ActivityTargetPanel data={activityTarget} />}
             {tasks && <TaskTargetTable tasks={tasks} />}
 
-            {/* Sprint 24 D11 — notes only; the percentage is the actual activity above. */}
+            {/* Sprint 24 D11 — notes only; the percentage is the project progress above (Sprint 29 Sub 10: progres berbobot or actual activity). */}
             <SectionCard
                 title="Catatan Progress"
                 description="Laporan naratif PM — persentase progress dihitung otomatis dari daily target yang selesai."
@@ -1037,6 +1060,7 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
 const PROJECT_TAB_LABEL: Record<string, string> = {
     overview: 'Ringkasan',
     execution: 'Eksekusi',
+    items: 'Item RAB',
     milestone: 'Timeline',
     task: 'Daily Target',
     material: 'Material',
@@ -1079,7 +1103,7 @@ interface ProjectStep {
     target?: TabTarget;
 }
 
-function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[]): ProjectStep | undefined {
+function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[], itemQa: ItemQaOverview | null): ProjectStep | undefined {
     if (project.status === 'ON_HOLD') {
         return { text: 'Proyek ditahan — PM mengaktifkannya kembali lewat Ubah Proyek.' };
     }
@@ -1104,6 +1128,15 @@ function projectStep(project: Project, milestones: Milestone[], qaForms: QaForm[
 
     if (milestones.length === 0) {
         return { text: 'Susun Timeline proyek (tanggal mulai & selesai tiap tahap) · PM.', target: { tab: 'milestone' } };
+    }
+
+    // Sprint 29 Sub 12 — QA per item RAB: repairs first, then items waiting for the Pengawas.
+    if (itemQa && itemQa.summary.perbaikan > 0) {
+        return { text: `${itemQa.summary.perbaikan} item RAB perlu perbaikan — selesaikan temuannya, lalu QA ulang · Tukang / Pengawas.`, target: { tab: 'items', view: 'qc' } };
+    }
+
+    if (itemQa && itemQa.summary.menunggu > 0) {
+        return { text: `${itemQa.summary.menunggu} item RAB sudah 100 % dan menunggu QA · Pengawas (QA/QC).`, target: { tab: 'items', view: 'qc' } };
     }
 
     const rejected = qaForms.filter((form) => form.status === 'REJECTED').length;
@@ -1189,6 +1222,7 @@ export default function ProjectShow({
     activityTarget,
     qaForms,
     canViewQa,
+    itemQa,
     canOpenQaForm,
     overtimeRequests,
     canViewOvertime,
@@ -1218,11 +1252,22 @@ export default function ProjectShow({
     // small views (`?view=`). A view is listed only when its data reached
     // this viewer (the controller filters the props — nothing new is sent).
     const compact = useMediaQuery(BELOW_MD);
+    const producingPhase = execution?.phase === 'PRODUKSI' || execution?.phase === 'PEMASANGAN';
     const tabViews: Record<string, ViewOption[]> = {
         milestone: [
             { key: 'timeline', label: compact ? 'Timeline' : 'Gantt' },
             ...(compact ? [] : [{ key: 'kalender', label: 'Kalender' }]),
-            ...(canViewQa ? [{ key: 'qc', label: 'QC Timeline' }] : []),
+            ...(canViewQa && !itemQa ? [{ key: 'qc', label: 'QC Timeline' }] : []),
+        ],
+        // Sprint 31 Sub 07 — everything per RAB item in one tab: the Excel-like sheet, the wages, the QA.
+        items: [
+            // Sprint 33 — before Produksi the wages are filled first (Langkah Kerja order), then the schedule.
+            ...(execution?.workItems && !producingPhase ? [{ key: 'upah', label: 'Upah Tukang' }] : []),
+            ...(execution && (execution.workSchedule || execution.progressRecap || execution.workCheck) ? [{ key: 'progres', label: 'Lembar Progres' }] : []),
+            ...(execution?.workItems && producingPhase ? [{ key: 'upah', label: 'Upah Tukang' }] : []),
+            // Sprint 32 — Pembagian Upah per Orang (File D).
+            ...(execution?.wageSplit ? [{ key: 'pembagian', label: 'Pembagian Upah' }] : []),
+            ...(itemQa ? [{ key: 'qc', label: 'QC Item' }] : []),
         ],
         task: [
             ...(canViewTasks
@@ -1248,6 +1293,7 @@ export default function ProjectShow({
     const availableTabs: Record<string, boolean> = {
         overview: true,
         execution: Boolean(execution),
+        items: Boolean(execution?.usesWorkItems) && tabViews.items.length > 0,
         milestone: true,
         task: tabViews.task.length > 0,
         material: canViewMaterials,
@@ -1257,7 +1303,8 @@ export default function ProjectShow({
     const views = tabViews[tab] ?? [];
     const view = resolveView(requestedView, views.map((option) => option.key));
     const viewLabel = views.length > 1 && view !== views[0].key ? views.find((option) => option.key === view)?.label : undefined;
-    const tabLabel = tab === 'milestone' && canViewQa ? 'Timeline & QC' : PROJECT_TAB_LABEL[tab];
+    const showsTimelineQc = canViewQa && !itemQa;
+    const tabLabel = tab === 'milestone' && showsTimelineQc ? 'Timeline & QC' : PROJECT_TAB_LABEL[tab];
 
     /** Opens a tab (an old key is resolved through the aliases), then scrolls to its card. */
     function openTarget(target: TabTarget) {
@@ -1281,7 +1328,9 @@ export default function ProjectShow({
         project.status === 'COMPLETED' && heldRoles.some((role) => role === 'CEO' || role === 'MARKETING' || role === 'SUPERADMIN');
     const [makingPortfolio, setMakingPortfolio] = useState(false);
     const [requestingAddendum, setRequestingAddendum] = useState(false);
-    const step = projectStep(project, milestones, qaForms);
+    // Sprint 33 — a running project's next step is the Langkah Kerja panel; the header line stays for the rest.
+    const workSteps = execution?.steps ?? null;
+    const step = workSteps ? undefined : projectStep(project, milestones, qaForms, itemQa);
     const stepTarget = step?.target && canOpenTarget(step.target) ? step.target : undefined;
 
     return (
@@ -1356,6 +1405,19 @@ export default function ProjectShow({
 
             <ProjectPhaseStepper project={project} execution={execution} />
 
+            {workSteps && (
+                <WorkStepsPanel
+                    steps={workSteps}
+                    onOpen={openTarget}
+                    canOpen={canOpenTarget}
+                    actions={
+                        execution?.can.completeMeeting
+                            ? { completeMeeting: <CompleteMeetingButton projectId={project.id} requirements={execution.meetingRequirements} warnUnsaved /> }
+                            : undefined
+                    }
+                />
+            )}
+
             {canRequestAddendum && (
                 <RequestAddendumDialog
                     open={requestingAddendum}
@@ -1392,9 +1454,15 @@ export default function ProjectShow({
                             Eksekusi
                         </TabsTrigger>
                     )}
+                    {availableTabs.items && (
+                        <TabsTrigger value="items">
+                            <Rows3 />
+                            Item RAB
+                        </TabsTrigger>
+                    )}
                     <TabsTrigger value="milestone">
                         <Flag />
-                        {canViewQa ? 'Timeline & QC' : 'Timeline'}
+                        {showsTimelineQc ? 'Timeline & QC' : 'Timeline'}
                     </TabsTrigger>
                     {availableTabs.task && (
                         <TabsTrigger value="task">
@@ -1450,6 +1518,21 @@ export default function ProjectShow({
                         />
                     </TabsContent>
                 )}
+                {availableTabs.items && execution && (
+                    <TabsContent value="items" className="mt-6">
+                        <ViewTabs views={tabViews.items} view={tab === 'items' ? view : tabViews.items[0].key} onView={setView}>
+                            {(tab === 'items' ? view : tabViews.items[0].key) === 'upah' ? (
+                                <WorkItemWageCard projectId={project.id} execution={execution} fieldStaff={fieldStaff} />
+                            ) : (tab === 'items' ? view : '') === 'pembagian' && execution.wageSplit ? (
+                                <WageSplitPanel projectId={project.id} projectName={project.name} execution={execution} />
+                            ) : (tab === 'items' ? view : '') === 'qc' && itemQa ? (
+                                <WorkItemQaPanel projectId={project.id} itemQa={itemQa} fieldStaff={fieldStaff} />
+                            ) : (
+                                <WorkProgressSheet projectId={project.id} execution={execution} />
+                            )}
+                        </ViewTabs>
+                    </TabsContent>
+                )}
                 <TabsContent value="milestone" className="mt-6">
                     <MilestoneTab
                         project={project}
@@ -1458,6 +1541,8 @@ export default function ProjectShow({
                         canManage={canManageMilestones && !isClosed}
                         qaForms={canViewQa ? qaForms : []}
                         canOpenQaForm={canOpenQaForm}
+                        itemQa={itemQa}
+                        fieldStaff={fieldStaff}
                         views={tabViews.milestone}
                         view={tab === 'milestone' ? view : 'timeline'}
                         onView={setView}

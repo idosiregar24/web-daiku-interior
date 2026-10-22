@@ -31,13 +31,10 @@ export function WorkItemWageCard({
     execution: ProjectExecution;
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
 }) {
-    const data = execution.workItems;
     const canEdit = execution.can.setWages;
     const producing = execution.phase === 'PRODUKSI' || execution.phase === 'PEMASANGAN';
 
-    if (!data) return null;
-
-    const { summary } = data;
+    if (!execution.workItems) return null;
 
     return (
         <SectionCard
@@ -49,6 +46,34 @@ export function WorkItemWageCard({
                     : 'Upah per item RAB yang diisi Pengawas — dasar DP & pencairan upah.'
             }
         >
+            <WorkItemWageTable projectId={projectId} execution={execution} fieldStaff={fieldStaff} />
+        </SectionCard>
+    );
+}
+
+/**
+ * The RAB items with the Satuan Upah column on the right — the card above
+ * (Item RAB › Upah Tukang) and the Pengawas's part of the TM card (Sprint 33).
+ */
+export function WorkItemWageTable({
+    projectId,
+    execution,
+    fieldStaff,
+}: {
+    projectId: number;
+    execution: ProjectExecution;
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+}) {
+    const data = execution.workItems;
+    const canEdit = execution.can.setWages;
+    const producing = execution.phase === 'PRODUKSI' || execution.phase === 'PEMASANGAN';
+
+    if (!data) return null;
+
+    const { summary } = data;
+
+    return (
+        <>
             {data.sections.length === 0 ? (
                 <EmptyState title="Proyek ini belum punya item RAB." />
             ) : (
@@ -143,7 +168,7 @@ export function WorkItemWageCard({
                     </div>
                 </div>
             )}
-        </SectionCard>
+        </>
     );
 }
 

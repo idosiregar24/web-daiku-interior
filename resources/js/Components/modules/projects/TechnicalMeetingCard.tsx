@@ -12,16 +12,19 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatDate, formatDateTime, formatRupiah } from '@/lib/format';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
-import type { Milestone, Project, ProjectExecution } from '@/types';
+import type { Milestone, Project, ProjectExecution, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, router } from '@inertiajs/react';
 import { differenceInCalendarDays } from 'date-fns';
 import { Check, CheckCircle2, Circle, ClipboardCheck, ExternalLink, Loader2, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { MilestoneFormDialog, suggestTimelineStart } from './MilestoneFormDialog';
+import { AttendeePicker } from './AttendeePicker';
+import { MaterialStatusChip } from './MaterialStatusChip';
 import { TmMaterialPlanner } from './TmMaterialPlanner';
+import { WorkItemWageTable } from './WorkItemWageCard';
 
 // Mirrors SaveTechnicalMeetingRequest.
 const schema = z.object({
@@ -68,6 +71,8 @@ interface TechnicalMeetingCardProps {
     milestones: Milestone[];
     /** May add/edit/delete timelines (Show's canManageMilestones). */
     canManageTimeline: boolean;
+    /** Sprint 33 — the Kepala Tim picker of the Pengawas's wage table. */
+    fieldStaff?: Pick<User, 'id' | 'name' | 'is_active'>[];
 }
 
 /**
@@ -79,7 +84,7 @@ interface TechnicalMeetingCardProps {
  * are the Pengawas's: planned right here (TmMaterialPlanner) next to the
  * RAB items, in the PM's card and in the Pengawas's read-only one.
  */
-export function TechnicalMeetingCard({ project, execution, milestones, canManageTimeline }: TechnicalMeetingCardProps) {
+export function TechnicalMeetingCard({ project, execution, milestones, canManageTimeline, fieldStaff = [] }: TechnicalMeetingCardProps) {
     const { meeting, fee, can } = execution;
 
     if (can.saveMeeting) {
@@ -89,6 +94,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                 execution={execution}
                 milestones={milestones}
                 canManageTimeline={canManageTimeline}
+                fieldStaff={fieldStaff}
             />
         );
     }
@@ -104,6 +110,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                         <RequirementList items={execution.meetingRequirements} />
                     </div>
                 )}
+                <SupervisorWages project={project} execution={execution} fieldStaff={fieldStaff} />
                 <ReadOnlyMaterials project={project} execution={execution} />
             </SectionCard>
         );
@@ -114,7 +121,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
             <DetailList>
                 <DetailItem label="Tanggal TM">{formatDate(meeting.meeting_date)}</DetailItem>
                 <DetailItem label="Peserta">{meeting.attendees.map((row) => row.label).join(', ') || '—'}</DetailItem>
-                {fee && (
+                {fee && !execution.usesWorkItems && (
                     <DetailItem label="Upah Tukang">
                         {formatRupiah(fee.total_amount)} · DP {fee.dp_percent}% ({formatRupiah(fee.dp_amount)})
                     </DetailItem>
@@ -129,6 +136,7 @@ export function TechnicalMeetingCard({ project, execution, milestones, canManage
                     <RequirementList items={execution.meetingRequirements} />
                 </div>
             )}
+            <SupervisorWages project={project} execution={execution} fieldStaff={fieldStaff} />
             <ReadOnlyMaterials project={project} execution={execution} />
         </SectionCard>
     );
@@ -242,7 +250,7 @@ function TmStep({
     );
 }
 
-function TechnicalMeetingForm({ project, execution, milestones, canManageTimeline }: TechnicalMeetingCardProps) {
+function TechnicalMeetingForm({ project, execution, milestones, canManageTimeline, fieldStaff = [] }: TechnicalMeetingCardProps) {
     const { meeting, fee } = execution;
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -261,15 +269,11 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                       user_id: row.user_id ? String(row.user_id) : '',
                       name: row.name ?? '',
                   }))
-                : [{ user_id: '', name: '' }],
+                : [],
             fee_total: fee ? String(fee.total_amount) : '',
             dp_percent: fee ? String(fee.dp_percent) : '10',
             end_date: defaultEndDate,
         },
-    });
-    const attendees = useFieldArray({
-        control: form.control,
-        name: 'attendees',
     });
 
     // A timeline saved here keeps this form's state (preserveState) — follow
@@ -297,7 +301,8 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
             {
                 ...values,
                 fee_total: values.fee_total ? Number(values.fee_total) : null,
-                dp_percent: Number(values.dp_percent),
+                // Sprint 33 — per-item projects: the DP % isn't set at the TM (10 %, the PM decides the amount).
+                ...(execution.usesWorkItems ? {} : { dp_percent: Number(values.dp_percent) }),
                 end_date: values.end_date || null,
                 attendees: values.attendees
                     .filter((row) => row.user_id || row.name?.trim())
@@ -398,75 +403,17 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                                 )}
                             />
 
-                            <div className="space-y-2">
-                                <FormLabel>Peserta</FormLabel>
-                                {/* Side by side (grid) so a long list doesn't run far down the card. */}
-                                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                                    {attendees.fields.map((row, index) => (
-                                        <div key={row.id} className="flex items-start gap-1">
-                                            <div className="flex min-w-0 flex-1 flex-col gap-2">
-                                                <FormField
-                                                    control={form.control}
-                                                    name={`attendees.${index}.user_id`}
-                                                    render={({ field }) => (
-                                                        <Select
-                                                            value={field.value || 'none'}
-                                                            onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
-                                                        >
-                                                            <SelectTrigger className="w-full" aria-label="Pilih peserta">
-                                                                <SelectValue placeholder="Pilih akun" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="none">— Ketik nama —</SelectItem>
-                                                                {execution.attendeeOptions.map((user) => (
-                                                                    <SelectItem key={user.id} value={String(user.id)}>
-                                                                        {user.name}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    )}
-                                                />
-                                                {!form.watch(`attendees.${index}.user_id`) && (
-                                                    <FormField
-                                                        control={form.control}
-                                                        name={`attendees.${index}.name`}
-                                                        render={({ field }) => (
-                                                            <Input {...field} placeholder="Nama (orang luar / vendor)" maxLength={120} />
-                                                        )}
-                                                    />
-                                                )}
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                aria-label="Hapus peserta"
-                                                onClick={() => attendees.remove(index)}
-                                            >
-                                                <X className="size-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        attendees.append({
-                                            user_id: '',
-                                            name: '',
-                                        })
-                                    }
-                                >
-                                    <Plus className="size-4" />
-                                    Tambah peserta
-                                </Button>
-                                {form.formState.errors.attendees?.message && (
-                                    <p className="text-sm text-error-ink">{form.formState.errors.attendees.message}</p>
+                            <FormField
+                                control={form.control}
+                                name="attendees"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Peserta</FormLabel>
+                                        <AttendeePicker value={field.value} onChange={field.onChange} options={execution.attendeeOptions} />
+                                        <FormMessage />
+                                    </FormItem>
                                 )}
-                            </div>
+                            />
                         </div>
                     </TmStep>
 
@@ -488,20 +435,18 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
 
                     <TmStep
                         number={3}
-                        title="Tanggal Selesai & Upah Tukang"
+                        title={execution.usesWorkItems ? 'Tanggal Selesai Proyek' : 'Tanggal Selesai & Upah Tukang'}
                         holder="PM"
                         done={isDone('end_date')}
-                        description="Tanggal Selesai wajib untuk TM Selesai (dasar pengingat H-30%). Nilai upah tukang boleh diisi nanti — dibutuhkan sebelum Pengawas mengajukan DP."
+                        description={
+                            execution.usesWorkItems
+                                ? 'Wajib untuk TM Selesai (dasar pengingat H-30%). Upah tukang diisi Pengawas per item RAB setelah TM; DP 10 % diajukan Pengawas dan nominalnya diputuskan PM saat menyetujui.'
+                                : 'Tanggal Selesai wajib untuk TM Selesai (dasar pengingat H-30%). Nilai upah tukang boleh diisi nanti — dibutuhkan sebelum Pengawas mengajukan DP.'
+                        }
                     >
-                        <div className="grid gap-4 sm:grid-cols-3">
-                            {execution.usesWorkItems ? (
-                                // Sprint 29 Sub 08 — Σ satuan upah × volume, filled by the Pengawas in the Upah Tukang card.
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium">Nilai Upah Tukang</p>
-                                    <p className="text-sm tabular-nums">{formatRupiah(fee?.total_amount ?? 0)}</p>
-                                    <p className="text-xs text-muted-foreground">Dari upah per item RAB (kartu Upah Tukang, diisi Pengawas).</p>
-                                </div>
-                            ) : (
+                        <div className={cn('grid gap-4', execution.usesWorkItems ? 'sm:max-w-xs' : 'sm:grid-cols-3')}>
+                            {/* Sprint 33 — per-item projects: upah & DP are not part of the TM any more (Langkah Kerja, Persiapan). */}
+                            {!execution.usesWorkItems && (
                             <FormField
                                 control={form.control}
                                 name="fee_total"
@@ -516,6 +461,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                                 )}
                             />
                             )}
+                            {!execution.usesWorkItems && (
                             <FormField
                                 control={form.control}
                                 name="dp_percent"
@@ -532,6 +478,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                                     </FormItem>
                                 )}
                             />
+                            )}
                             <FormField
                                 control={form.control}
                                 name="end_date"
@@ -575,8 +522,21 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                     Bahan, upah & daily target diisi {project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'} — boleh setelah TM, sebelum Start Produksi. Tidak
                     menahan TM Selesai.
                 </p>
+                {execution.usesWorkItems && execution.workItems && (
+                    <div id="tm-upah" className="mb-5 scroll-mt-24">
+                        <TmStep
+                            number={4}
+                            title="Upah Tukang per Item RAB"
+                            holder="Pengawas"
+                            done={execution.workItems.summary.paid_items > 0}
+                            description="Isi satuan upah di kolom kanan tiap item RAB — tersimpan saat pindah kolom / Enter. Totalnya jadi nilai upah tukang proyek."
+                        >
+                            <WorkItemWageTable projectId={project.id} execution={execution} fieldStaff={fieldStaff} />
+                        </TmStep>
+                    </div>
+                )}
                 <TmStep
-                    number={4}
+                    number={execution.usesWorkItems && execution.workItems ? 5 : 4}
                     title="Bahan yang Digunakan"
                     holder="Pengawas"
                     done={execution.dpRequirements.find((row) => row.key === 'materials')?.done ?? false}
@@ -598,7 +558,7 @@ function TechnicalMeetingForm({ project, execution, milestones, canManageTimelin
                         Semua syarat lengkap. Tombol TM Selesai ada di atas halaman.
                     </p>
                 ) : (
-                    <p className="mt-3 text-xs text-muted-foreground">Lengkapi semua syarat di atas, lalu tekan TM Selesai di atas halaman.</p>
+                    <p className="mt-3 text-xs text-muted-foreground">Lengkapi syarat di atas, lalu tekan TM Selesai di atas halaman — upah & bahan dari Pengawas tidak perlu ditunggu.</p>
                 )}
             </div>
 
@@ -717,6 +677,38 @@ function TimelinePlanner({
 }
 
 /** Read-only TM card (the Pengawas during TM): plan the materials next to the RAB items. */
+/**
+ * Sprint 33 — the Pengawas's first job after the TM is set: the Satuan Upah
+ * per RAB item, right in the TM card (same table as Item RAB › Upah Tukang).
+ */
+function SupervisorWages({
+    project,
+    execution,
+    fieldStaff,
+}: {
+    project: Project;
+    execution: ProjectExecution;
+    fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
+}) {
+    if (execution.phase !== 'TM' || !execution.usesWorkItems || !execution.workItems) {
+        return null;
+    }
+
+    return (
+        <div id="tm-upah" className="mt-5 scroll-mt-24 border-t border-border pt-5">
+            <h3 className="text-sm font-semibold text-foreground">
+                Upah Tukang per Item RAB <span className="font-normal text-muted-foreground">· Pengawas</span>
+            </h3>
+            <p className="mt-0.5 mb-3 text-xs text-muted-foreground">
+                {execution.can.setWages
+                    ? 'Isi satuan upah di kolom kanan tiap item RAB — tersimpan saat pindah kolom / Enter. Totalnya jadi nilai upah tukang proyek.'
+                    : `Diisi ${project.supervisors?.map((person) => person.name).join(', ') || 'Pengawas proyek'}.`}
+            </p>
+            <WorkItemWageTable projectId={project.id} execution={execution} fieldStaff={fieldStaff} />
+        </div>
+    );
+}
+
 function ReadOnlyMaterials({ project, execution }: { project: Project; execution: ProjectExecution }) {
     if (execution.phase !== 'TM' || (execution.meetingRab.length === 0 && !execution.can.planMaterials)) {
         return null;
@@ -728,7 +720,11 @@ function ReadOnlyMaterials({ project, execution }: { project: Project; execution
                 Bahan yang Digunakan <span className="font-normal text-muted-foreground">· Pengawas</span>
             </h3>
             {execution.can.planMaterials && (
-                <p className="mt-0.5 text-xs text-muted-foreground">Cari barang, isi jumlah, Enter — rencana bisa diubah sampai produksi dimulai.</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    {execution.can.submitMaterialPlan
+                        ? 'Cari barang, isi jumlah, Enter — lalu "Ajukan ke Logistik". Rencana bisa diubah sampai diajukan.'
+                        : 'Cari barang, isi jumlah, Enter — rencana bisa diubah sampai produksi dimulai.'}
+                </p>
             )}
             <div className="mt-3">
                 <MaterialsPlanning project={project} execution={execution} />
@@ -777,6 +773,7 @@ function MaterialsPlanning({ project, execution }: { project: Project; execution
                         lines={materials}
                         canUpdate={execution.can.updateMaterials}
                         canRemove={execution.can.removeMaterials}
+                        throughLogistics={execution.can.submitMaterialPlan}
                     />
                 ) : materials.length === 0 ? (
                     <p className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
@@ -786,7 +783,10 @@ function MaterialsPlanning({ project, execution }: { project: Project; execution
                     <ul className="max-h-80 divide-y divide-border overflow-y-auto rounded-lg ring-1 ring-border">
                         {materials.map((line) => (
                             <li key={line.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-                                <span className="min-w-0 truncate text-foreground">{line.name}</span>
+                                <span className="min-w-0">
+                                    <span className="block truncate text-foreground">{line.name}</span>
+                                    {line.channel === 'RENCANA' && <MaterialStatusChip line={line} unit={line.unit} inline className="mt-0.5" />}
+                                </span>
                                 <span className="shrink-0 text-muted-foreground tabular-nums">{line.qty}</span>
                             </li>
                         ))}

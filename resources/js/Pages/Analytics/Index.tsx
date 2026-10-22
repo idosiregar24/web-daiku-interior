@@ -11,9 +11,10 @@ import { StatCard } from '@/Components/shared/StatCard';
 import { Button } from '@/Components/ui/button';
 import AppLayout from '@/Layouts/AppLayout';
 import { formatDateTime, formatRupiah, formatRupiahCompact } from '@/lib/format';
+import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 import { OverrunDecisionDialog, type OverrunDecision } from '@/Components/modules/projects/OverrunDecisionDialog';
-import type { OverrunQueueItem, TaskStatus } from '@/types';
+import type { OverrunQueueItem, ProgressBasis, TaskStatus } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import {
     AlertTriangle,
@@ -38,7 +39,9 @@ interface ActiveProject {
     name: string;
     pm: string | null;
     contractValue: number;
+    /** Sprint 29 Sub 10 — progres berbobot, else actual activity (`progressBasis`). */
     progress: number;
+    progressBasis: ProgressBasis;
     milestonesCompleted: number;
     milestonesTotal: number;
     overdueTasks: number;
@@ -314,7 +317,9 @@ export default function AnalyticsIndex({
                                         >
                                             {project.name}
                                         </Link>
-                                        <span className="shrink-0 text-sm font-semibold tabular-nums">{project.progress}%</span>
+                                        <span className="shrink-0 text-sm font-semibold tabular-nums" title={`${PROGRESS_BASIS_LABEL[project.progressBasis]} — ${PROGRESS_BASIS_HINT[project.progressBasis]}`}>
+                                            {formatProgress(project.progress)}
+                                        </span>
                                     </div>
                                     <ProgressBar value={project.progress} label={`Progres ${project.name}`} className="mt-2" />
                                     <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">

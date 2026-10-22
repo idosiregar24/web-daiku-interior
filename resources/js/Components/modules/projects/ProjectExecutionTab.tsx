@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL, progressPhrase } from '@/lib/progress';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
 import { domainStatusLabel } from '@/lib/waitingOn';
@@ -46,14 +47,13 @@ import type { ProjectTabTarget } from './projectWaiting';
 import { SiteFindingsCard } from './SiteFindingsCard';
 import { SupervisorFeeCard } from './SupervisorFeeCard';
 import { TechnicalMeetingCard } from './TechnicalMeetingCard';
-import { WorkItemWageCard } from './WorkItemWageCard';
 import { WeeklyReportsCard } from './WeeklyReportsCard';
 
 const DAY_LABEL = new Intl.DateTimeFormat('id-ID', { weekday: 'short', day: 'numeric' });
 
 const PHASE_ORDER: ProjectPhase[] = ['GAMBAR_KERJA', 'TM', 'PERSIAPAN', 'PRODUKSI', 'PEMASANGAN'];
 
-type ExecutionCard = 'workingDrawing' | 'meeting' | 'wages' | 'dpRequirements' | 'qc' | 'materialOrders' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
+type ExecutionCard = 'workingDrawing' | 'meeting' | 'dpRequirements' | 'qc' | 'materialOrders' | 'materialPlan' | 'fee' | 'targetVsActual' | 'departure' | 'weekly' | 'findings';
 
 /**
  * Sprint 26 H2a — the one place that says which cards a phase works with.
@@ -63,13 +63,13 @@ type ExecutionCard = 'workingDrawing' | 'meeting' | 'wages' | 'dpRequirements' |
  */
 const PHASE_CARDS: Record<ProjectPhase, ExecutionCard[]> = {
     GAMBAR_KERJA: ['workingDrawing'],
-    // Sprint 29 Sub 08 — Upah Tukang per item: filled from the TM on, read-only (but for new items) after Start Produksi.
-    TM: ['meeting', 'wages'],
+    // Sprint 31 Sub 07 — Upah Tukang, Jadwal & Rekap per item live in the "Item RAB" tab (Lembar Progres).
+    TM: ['meeting'],
     // Sprint 26 — the Pengawas plans daily targets in Persiapan, so Target vs Actual (Tukar Hari) shows from here.
-    PERSIAPAN: ['dpRequirements', 'wages', 'materialPlan', 'fee', 'targetVsActual'],
+    PERSIAPAN: ['dpRequirements', 'materialPlan', 'fee', 'targetVsActual'],
     // Sprint 27 P2 — the whiteboard's QC branch first, then the cards it points to.
-    PRODUKSI: ['qc', 'materialOrders', 'targetVsActual', 'departure', 'weekly', 'fee', 'wages'],
-    PEMASANGAN: ['qc', 'findings', 'weekly', 'fee', 'wages'],
+    PRODUKSI: ['qc', 'materialOrders', 'targetVsActual', 'departure', 'weekly', 'fee'],
+    PEMASANGAN: ['qc', 'findings', 'weekly', 'fee'],
 };
 
 /** H2f / Sub 03 — card ids used by the header's step link, Perlu Tindakan and notifications. */
@@ -77,7 +77,6 @@ const CARD_ANCHORS: Record<ExecutionCard, string[]> = {
     workingDrawing: ['gambar-kerja'],
     // `#tm-bahan` is rendered by the TM card itself, and only while TM is the running phase.
     meeting: ['tm'],
-    wages: ['upah-tukang'],
     dpRequirements: ['syarat-dp'],
     qc: ['qc-pengawas'],
     materialOrders: ['pemesanan-bahan'],
@@ -99,7 +98,7 @@ function nextStepText(next: ProjectPhase | null, threshold: number): string {
         case 'PRODUKSI':
             return 'DP upah tukang disetujui PM = Start Produksi; tukang mengerjakan daily target.';
         case 'PEMASANGAN':
-            return `PM menyetujui berangkat ke lokasi setelah actual activity mencapai ${threshold}%.`;
+            return `PM menyetujui berangkat ke lokasi setelah progres proyek mencapai ${threshold}%.`;
         default:
             return 'Proyek selesai setelah semua timeline lolos QC dan temuan lokasi ditutup.';
     }
@@ -223,8 +222,6 @@ export function ProjectExecutionTab({
                 return execution.workingDrawing !== null;
             case 'meeting':
                 return execution.meeting !== null;
-            case 'wages':
-                return Boolean(execution.workItems?.sections.length);
             case 'dpRequirements':
                 return execution.dpRequirements.length > 0;
             case 'materialOrders':
@@ -248,7 +245,7 @@ export function ProjectExecutionTab({
 
         switch (card) {
             case 'fee':
-                return (can.requestSettlement && fee !== null && fee.remaining > 0) || (can.decide && execution.payments.some((row) => row.status === 'DIAJUKAN'));
+                return (can.requestSettlement && fee !== null && fee.remaining > 0) || (can.decide && execution.payments.some((row) => row.status === 'DIAJUKAN' && !row.via_report));
             case 'weekly':
                 return can.decide && execution.weeklyReports.some((row) => row.status === 'DIAJUKAN');
             case 'findings':
@@ -272,14 +269,12 @@ export function ProjectExecutionTab({
                         execution={execution}
                         milestones={milestones}
                         canManageTimeline={canManageMilestones}
+                        fieldStaff={fieldStaff}
                     />
                 );
                 break;
             case 'qc':
                 body = <QcPanelCard execution={execution} />;
-                break;
-            case 'wages':
-                body = execution.workItems && <WorkItemWageCard projectId={project.id} execution={execution} fieldStaff={fieldStaff} />;
                 break;
             case 'materialOrders':
                 body = projectMaterials && <MaterialOrdersCard lines={projectMaterials} onOpen={onOpen} canOpen={canOpen} />;
@@ -302,7 +297,7 @@ export function ProjectExecutionTab({
                 body = <DepartureCard project={project} execution={execution} />;
                 break;
             case 'weekly':
-                body = <WeeklyReportsCard projectId={project.id} execution={execution} />;
+                body = <WeeklyReportsCard projectId={project.id} execution={execution} onOpen={onOpen} />;
                 break;
             case 'findings':
                 body = <SiteFindingsCard projectId={project.id} execution={execution} milestones={milestones} fieldStaff={fieldStaff} />;
@@ -344,7 +339,7 @@ export function ProjectExecutionTab({
                     {execution.deadline.days_left !== null && execution.deadline.days_left >= 0
                         ? `sisa ${execution.deadline.days_left} hari`
                         : `lewat ${Math.abs(execution.deadline.days_left ?? 0)} hari`}{' '}
-                    — actual activity {execution.progress}%.
+                    — {progressPhrase(execution.progress, execution.progressBasis)}.
                 </Notice>
             )}
 
@@ -541,18 +536,20 @@ function MaterialPlanCard({ project, execution }: { project: Project; execution:
 
 /** Sprint 26 H4c — the PRODUKSI → PEMASANGAN step (replaces the old "Actual Activity" card). */
 function DepartureCard({ project, execution }: { project: Project; execution: ProjectExecution }) {
-    const { progress, threshold, departure, can } = execution;
+    const { progress, progressBasis, threshold, departure, can } = execution;
     const reached = progress >= threshold;
+    // Sprint 29 Sub 10 — progres berbobot (pengecekan) or actual activity, named.
+    const basisLabel = PROGRESS_BASIS_LABEL[progressBasis];
 
     return (
         <SectionCard title="Berangkat ke Lokasi" description="Disetujui PM — proyek pindah ke tahap Pemasangan." icon={MapPin}>
-            <p className="flex items-center gap-2 text-sm">
+            <p className="flex items-center gap-2 text-sm" title={PROGRESS_BASIS_HINT[progressBasis]}>
                 {reached ? <CheckCircle2 className="size-4 shrink-0 text-success-ink" aria-hidden /> : <Circle className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
                 <span className={reached ? 'text-foreground' : 'text-muted-foreground'}>
-                    Actual activity ≥ {threshold}% — sekarang <span className="font-medium text-foreground tabular-nums">{progress}%</span>
+                    {basisLabel} ≥ {threshold}% — sekarang <span className="font-medium text-foreground tabular-nums">{formatProgress(progress)}</span>
                 </span>
             </p>
-            <ProgressBar value={progress} tone={reached ? 'success' : 'default'} label="Actual activity proyek" className="mt-3" />
+            <ProgressBar value={progress} tone={reached ? 'success' : 'default'} label={`${basisLabel} proyek`} className="mt-3" />
             {departure ? (
                 <p className="mt-3 text-sm text-success-ink">
                     Berangkat ke lokasi disetujui {formatDateTime(departure.approved_at)}
@@ -561,7 +558,7 @@ function DepartureCard({ project, execution }: { project: Project; execution: Pr
             ) : can.approveDeparture ? (
                 <>
                     <DepartureButton project={project} execution={execution} className="mt-4 w-full sm:w-auto" />
-                    {!reached && <p className="mt-2 text-xs text-muted-foreground">Terkunci sampai actual activity {threshold}%.</p>}
+                    {!reached && <p className="mt-2 text-xs text-muted-foreground">Terkunci sampai {basisLabel.toLowerCase()} {threshold}%.</p>}
                 </>
             ) : (
                 project.status === 'ACTIVE' && (

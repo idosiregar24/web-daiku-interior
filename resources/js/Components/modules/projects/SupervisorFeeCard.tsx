@@ -9,11 +9,13 @@ import { router } from '@inertiajs/react';
 import { HardHat, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
+import { SharesList } from './WorkCheckForm';
 
 /**
  * Sprint 24 D4/D5/E3 — Jasa Pengawas: the fee set at the TM, every
  * payment with its turn (PM decides, Finance pays), and "Ajukan Pelunasan"
- * once the project is done. Money only reaches CEO / PM / Finance / the
+ * once the project is done (Sprint 29 Sub 09: with wages per RAB item, once
+ * every item is at 100 %). Money only reaches CEO / PM / Finance / the
  * Pengawas (`fee` is null otherwise). Sprint 27 P1c — the DP conditions
  * and "Ajukan DP" live in DpRequirementsCard.
  */
@@ -55,9 +57,14 @@ export function SupervisorFeeCard({ projectId, execution }: { projectId: number;
                                     {payment.paid_at && ` · dibayar ${formatDate(payment.paid_at)}`}
                                     {payment.status === 'DITOLAK' && payment.decision_note && ` · ${payment.decision_note}`}
                                 </p>
+                                {/* Sprint 29 Sub 09 — split per Kepala Tim (projects with wages per item). */}
+                                {payment.breakdown && payment.breakdown.length > 1 && <SharesList shares={payment.breakdown} className="mt-1 max-w-xs" />}
+                                {payment.via_report && payment.status === 'DIAJUKAN' && (
+                                    <p className="mt-0.5 text-xs text-muted-foreground">Diputuskan bersama pengecekan mingguannya.</p>
+                                )}
                             </div>
                             <StatusChip domain="supervisorPayment" status={payment.status} />
-                            {can.decide && payment.status === 'DIAJUKAN' && (
+                            {can.decide && payment.status === 'DIAJUKAN' && !payment.via_report && (
                                 <Button
                                     size="sm"
                                     onClick={() =>

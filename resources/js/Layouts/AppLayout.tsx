@@ -83,6 +83,7 @@ import {
     Menu,
     MessageSquareQuote,
     Network,
+    NotebookPen,
     Package,
     Palette,
     Percent,
@@ -97,6 +98,7 @@ import {
     Store,
     Target,
     TrendingUp,
+    Truck,
     type LucideIcon,
     User as UserIcon,
     UserCog,
@@ -196,6 +198,15 @@ const NAV_GROUPS: NavGroup[] = [
             { label: 'Perlu Tindakan', icon: Inbox, routeName: 'inbox.index' },
             // SDM "Milik Saya" — only for accounts linked to an employee row (decision #6/#11).
             { label: 'Kinerja Saya', icon: UserRound, routeName: 'my.index', match: 'my.*', requiresEmployee: true },
+            // Sprint 29 Sub 13 — every account but a Tukang writes its day (their day is the daily target).
+            {
+                label: 'Aktivitas Harian',
+                icon: NotebookPen,
+                routeName: 'daily-activities.index',
+                // Periksa Aktivitas (daily-activities.review) is its own menu under SDM.
+                match: 'daily-activities.index',
+                roles: ['CEO', 'MARKETING', 'DESIGNER', 'ESTIMATOR', 'PM', 'QA', 'FINANCE', 'LOGISTICS', 'HR', 'ASISTEN_PM', 'KEPALA_DESAIN', 'ADMIN_PROYEK'],
+            },
         ],
     },
     {
@@ -356,6 +367,13 @@ const NAV_GROUPS: NavGroup[] = [
                 roles: ['CEO', 'PM', 'LOGISTICS', 'ESTIMATOR', 'FIELD_STAFF'],
             },
             {
+                // Sprint 29 Sub 11 — the Pengawas's submitted Rencana Bahan: decide, order, receive.
+                label: 'Pemesanan Bahan',
+                icon: Truck,
+                routeName: 'logistics.material-orders.index',
+                roles: ['CEO', 'PM', 'ASISTEN_PM', 'LOGISTICS'],
+            },
+            {
                 label: 'Aset Inventaris',
                 icon: Warehouse,
                 routeName: 'logistics.assets.index',
@@ -389,6 +407,15 @@ const NAV_GROUPS: NavGroup[] = [
                     { label: 'Evaluasi', icon: ClipboardList, routeName: 'hr.reviews.index', roles: ['CEO', 'HR'] },
                     { label: 'Kedisiplinan', icon: Gavel, routeName: 'hr.discipline.index', roles: ['CEO', 'HR'] },
                 ],
+            },
+            // Sprint 29 Sub 13 — HR checks the previous working day; the CEO and PMs read
+            // (route outside module:hr, so a PM sees SDM with this one menu).
+            {
+                label: 'Periksa Aktivitas',
+                icon: ClipboardCheck,
+                routeName: 'daily-activities.review',
+                match: 'daily-activities.review*',
+                roles: ['CEO', 'HR', 'PM'],
             },
         ],
     },
@@ -430,6 +457,8 @@ const NAV_GROUPS: NavGroup[] = [
                     { label: 'Vendor', icon: Store, routeName: 'master-data.vendors.index', roles: ['CEO', 'SUPERADMIN'] },
                     { label: 'Alokasi Persentase', icon: Percent, routeName: 'finance.allocations.index', roles: ['CEO', 'FINANCE'] },
                     { label: 'Divisi & Jabatan', icon: Network, routeName: 'hr.structure.index', roles: ['CEO', 'HR'] },
+                    // Sprint 32 — team templates for the Pembagian Upah per Orang (File D).
+                    { label: 'Tim Tukang', icon: Users, routeName: 'work-teams.index', roles: ['CEO', 'PM', 'QA', 'ADMIN_PROYEK'] },
                     {
                         label: 'Template KPI',
                         icon: SlidersHorizontal,

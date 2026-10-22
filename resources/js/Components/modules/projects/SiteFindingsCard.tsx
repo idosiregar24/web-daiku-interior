@@ -11,7 +11,7 @@ import { Input } from '@/Components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
 import { formatDate } from '@/lib/format';
-import { projectVisit, RELOAD } from '@/lib/projectReload';
+import { projectVisit, RELOAD, type ProjectProp } from '@/lib/projectReload';
 import type { Milestone, ProjectExecution, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
@@ -215,14 +215,17 @@ export function SiteFindingsCard({
     );
 }
 
-function RepairTaskDialog({
+/** "Jadikan Task Perbaikan" — also from Timeline & QC › QC Item (Sprint 29 Sub 12), which passes its own reload. */
+export function RepairTaskDialog({
     finding,
     fieldStaff,
     onOpenChange,
+    reload = RELOAD.tasks,
 }: {
-    finding: Finding | null;
+    finding: Pick<Finding, 'id' | 'description'> | null;
     fieldStaff: Pick<User, 'id' | 'name' | 'is_active'>[];
     onOpenChange: (open: boolean) => void;
+    reload?: readonly ProjectProp[];
 }) {
     const [saving, setSaving] = useState(false);
     const form = useForm<z.infer<typeof repairSchema>>({ resolver: zodResolver(repairSchema), defaultValues: { assignee_id: '', due_date: '', rate_per_task: '' } });
@@ -239,7 +242,7 @@ function RepairTaskDialog({
             { assignee_id: Number(values.assignee_id), due_date: values.due_date, rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null },
             {
                 // A new daily target for a Tukang (+ the finding's link) — keeps the pop-up.
-                ...projectVisit(RELOAD.tasks),
+                ...projectVisit(reload),
                 onStart: () => setSaving(true),
                 onFinish: () => setSaving(false),
                 onSuccess: () => onOpenChange(false),

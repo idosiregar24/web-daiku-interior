@@ -111,7 +111,7 @@ export function ProgressLogFormDialog({ open, onOpenChange, projectId }: Progres
                 <DialogHeader>
                     <DialogTitle>Tambah Catatan Progress</DialogTitle>
                     <DialogDescription>
-                        Persentase progress dihitung otomatis dari daily target yang selesai — di sini cukup catatannya.
+                        Persentase progress dihitung otomatis (pengecekan Pengawas per item RAB, atau daily target yang selesai) — di sini cukup catatannya.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
