@@ -273,25 +273,6 @@ export default function MaterialOrderIndex({ lines, filters, counts, projects, p
                                 </SelectContent>
                             </Select>
                         </div>
-                        {permissions.decide && picked.length > 0 && (
-                            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                                <Button size="sm" className="max-md:h-11" disabled={toApprove.length === 0} onClick={() => setDeciding({ ids: toApprove.map((line) => line.id), decision: 'approve' })}>
-                                    <Check className="size-4" />
-                                    Setujui ({toApprove.length})
-                                </Button>
-                                <Button size="sm" variant="outline" className="max-md:h-11" disabled={toReject.length === 0} onClick={() => setDeciding({ ids: toReject.map((line) => line.id), decision: 'reject' })}>
-                                    <X className="size-4" />
-                                    Tolak ({toReject.length})
-                                </Button>
-                                <Button size="sm" variant="outline" className="max-md:h-11" disabled={toOrder.length === 0} onClick={() => setOrdering(toOrder)}>
-                                    <Truck className="size-4" />
-                                    Tandai Dipesan ({toOrder.length})
-                                </Button>
-                                <Button size="sm" variant="ghost" className="max-md:h-11" onClick={done}>
-                                    Batal pilih
-                                </Button>
-                            </div>
-                        )}
                     </div>
                 }
             >
@@ -395,6 +376,37 @@ export default function MaterialOrderIndex({ lines, filters, counts, projects, p
                     })
                 )}
             </TableCard>
+
+            {/* Sprint 34 — the ticked lines' actions stay in view while scrolling (they used to sit in the toolbar above the list). */}
+            {permissions.decide && picked.length > 0 && (
+                <div className="sticky bottom-3 z-20 mt-3 flex flex-col gap-2 rounded-xl bg-background p-3 shadow-lg ring-2 ring-daiku-yellow sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm font-medium text-foreground">
+                        {picked.length} bahan dipilih
+                        {toApprove.length > 0 && toApprove.length < picked.length && (
+                            <span className="font-normal text-muted-foreground"> · {toApprove.length} bisa disetujui</span>
+                        )}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                        <Button className="max-md:h-11" disabled={toApprove.length === 0} onClick={() => setDeciding({ ids: toApprove.map((line) => line.id), decision: 'approve' })}>
+                            <Check className="size-4" />
+                            {toApprove.length > 1 && toApprove.length === picked.length ? `Setujui semua (${toApprove.length})` : `Setujui (${toApprove.length})`}
+                        </Button>
+                        <Button variant="outline" className="max-md:h-11" disabled={toReject.length === 0} onClick={() => setDeciding({ ids: toReject.map((line) => line.id), decision: 'reject' })}>
+                            <X className="size-4" />
+                            Tolak ({toReject.length})
+                        </Button>
+                        {toOrder.length > 0 && (
+                            <Button variant="outline" className="max-md:h-11" onClick={() => setOrdering(toOrder)}>
+                                <Truck className="size-4" />
+                                Tandai Dipesan ({toOrder.length})
+                            </Button>
+                        )}
+                        <Button variant="ghost" className="max-md:h-11" onClick={done}>
+                            Batal pilih
+                        </Button>
+                    </div>
+                </div>
+            )}
 
             <DecideDialog
                 key={deciding ? `${deciding.decision}-${deciding.ids.join('-')}` : 'decide'}
