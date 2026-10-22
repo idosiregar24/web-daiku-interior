@@ -470,10 +470,6 @@ Route::middleware(['auth', 'role:QA|ADMIN_PROYEK', 'throttle:120,1'])->group(fun
     Route::put('project-work-items/{workItem}', [WorkItemController::class, 'update'])->name('projects.work-items.update');
     // Sprint 33 — the Upah Tukang table saved with one "Simpan".
     Route::put('projects/{project}/work-items/wages', [WorkItemController::class, 'saveWages'])->name('projects.work-items.wages');
-    // Sprint 31 Sub 03 — jadwal per item (ProjectPolicy::scheduleWorkItems()).
-    Route::put('project-work-items/{workItem}/schedule', [WorkItemController::class, 'updateSchedule'])->name('projects.work-items.schedule');
-    // Sprint 31 Sub 07 — "Jadwalkan berurutan" on the Lembar Progres.
-    Route::post('projects/{project}/work-items/schedule-sequence', [WorkItemController::class, 'scheduleSequence'])->name('projects.work-items.scheduleSequence');
     Route::post('projects/{project}/work-items/team-lead', [WorkItemController::class, 'assignTeamLead'])->name('projects.work-items.teamLead');
     // Sprint 29 Sub 09 — the pengecekan % per item draft (ProjectPolicy::fillWorkCheck()); sending it stays weekly-reports.store (role:QA).
     Route::put('projects/{project}/work-check/draft', [WorkItemController::class, 'saveDraft'])->name('projects.work-check.draft');
