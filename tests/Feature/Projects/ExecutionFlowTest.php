@@ -37,6 +37,8 @@ use App\Models\TechnicalMeeting;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WorkingDrawing;
+use App\Models\WorkItemProgress;
+use App\Models\WorkItemProgressDraft;
 use App\Services\ActionInboxService;
 use App\Services\MilestoneService;
 use App\Services\PenaltyService;
@@ -241,6 +243,14 @@ test('TM: the PM records it, the Pengawas plans materials, "TM Selesai" needs ev
     $this->actingAs($this->otherPm)->put(route('projects.technical-meeting.save', $project), $payload)->assertForbidden();
     $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), $payload)->assertSessionHasNoErrors();
 
+    // Sprint 33 — the same person (account or typed name) is never on the list twice.
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [
+        ...$payload, 'attendees' => [['user_id' => $this->qa->id], ['user_id' => $this->qa->id]],
+    ])->assertSessionHasErrors('attendees.1.user_id');
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [
+        ...$payload, 'attendees' => [['name' => 'Pak Darto'], ['name' => 'pak darto']],
+    ])->assertSessionHasErrors('attendees.1.name');
+
     $meeting = TechnicalMeeting::where('project_id', $project->id)->sole();
     expect($meeting->attendees()->count())->toBe(2)
         ->and((float) SupervisorFee::where('project_id', $project->id)->value('total_amount'))->toBe(5_000_000.0);
@@ -291,7 +301,7 @@ test('"TM Selesai" needs only the PM part — no materials, no fee; the DP condi
     // PERSIAPAN: the Pengawas's part (+ the fee) still holds the DP.
     execTarget($project, $timeline, $this->tukang, ['rate_per_task' => 150_000]);
     $this->actingAs($this->qa)->get(route('projects.show', $project))->assertInertia(fn ($page) => $page
-        ->where('execution.dpRequirements', fn ($rows) => collect($rows)->pluck('done', 'key')->all() === ['materials' => false, 'wages' => true, 'targets' => true, 'fee' => false]));
+        ->where('execution.dpRequirements', fn ($rows) => collect($rows)->pluck('done', 'key')->all() === ['wages' => true, 'targets' => true, 'materials' => false, 'fee' => false]));
     $this->actingAs($this->qa)->post(route('projects.supervisor-payments.dp', $project))->assertSessionHasErrors();
     expect(SupervisorPayment::where('project_id', $project->id)->exists())->toBeFalse();
 });
@@ -372,8 +382,8 @@ test('the Pengawas revises their material plan until production starts; nobody e
     $this->actingAs($this->qa)->put(route('project-materials.update', $line), ['qty_planned' => 6.5])->assertSessionHasNoErrors();
     expect((float) $line->fresh()->qty_planned)->toBe(6.5);
 
-    // The PM edits too, but only the Pengawas / Logistics remove.
-    $this->actingAs($this->pm)->put(route('project-materials.update', $line), ['qty_planned' => 7])->assertSessionHasNoErrors();
+    // Sprint 29 Sub 11 (E5) — the Pengawas's Rencana Bahan draft: not the PM's to change.
+    $this->actingAs($this->pm)->put(route('project-materials.update', $line), ['qty_planned' => 7])->assertForbidden();
     $this->actingAs($this->pm)->delete(route('project-materials.destroy', $line))->assertForbidden();
 
     // A Tukang's request keeps its own flow.
@@ -383,10 +393,10 @@ test('the Pengawas revises their material plan until production starts; nobody e
     $this->actingAs($this->qa)->delete(route('project-materials.destroy', $line))->assertSessionHasNoErrors();
     expect($line->fresh())->toBeNull();
 
-    // From production on, Logistics is ordering — the Pengawas no longer revises.
+    // Sprint 29 Sub 11 (E5) — once "Ajukan ke Logistik" is pressed, Logistik is ordering — the Pengawas no longer revises.
     $this->actingAs($this->qa)->post(route('projects.materials.store', $project), ['material_id' => Material::factory()->create()->id, 'source' => 'GUDANG', 'qty_planned' => 2]);
-    $project->update(['phase' => ProjectPhase::Produksi->value]);
-    $this->actingAs($this->qa)->put(route('project-materials.update', $project->projectMaterials()->whereNull('request_channel')->sole()), ['qty_planned' => 3])->assertForbidden();
+    $this->actingAs($this->qa)->post(route('projects.material-plans.submit', $project))->assertSessionHasNoErrors();
+    $this->actingAs($this->qa)->put(route('project-materials.update', $project->projectMaterials()->fromPlan()->sole()), ['qty_planned' => 3])->assertForbidden();
 });
 
 test('the TM form is refused outside the TM phase', function () {
@@ -518,20 +528,20 @@ test('DP conditions say what is missing — task titles only for viewers of the 
 
     $this->actingAs($this->qa)->get(route('projects.show', $project))
         ->assertInertia(fn (Assert $page) => $page
-            ->where('execution.dpRequirements.0.done', false)
-            ->where('execution.dpRequirements.0.detail', 'Belum ada rencana bahan.')
-            ->where('execution.dpRequirements.1.detail', '1 daily target belum punya upah.')
-            ->where('execution.dpRequirements.1.missing', ['Pasang rangka atas · 14/10'])
-            ->where('execution.dpRequirements.2.detail', '1 timeline belum punya daily target.')
-            ->where('execution.dpRequirements.2.missing', ['Finishing HPL']));
+            ->where('execution.dpRequirements.2.done', false)
+            ->where('execution.dpRequirements.2.detail', 'Belum ada rencana bahan.')
+            ->where('execution.dpRequirements.0.detail', '1 daily target belum punya upah.')
+            ->where('execution.dpRequirements.0.missing', ['Pasang rangka atas · 14/10'])
+            ->where('execution.dpRequirements.1.detail', '1 timeline belum punya daily target.')
+            ->where('execution.dpRequirements.1.missing', ['Finishing HPL']));
 
     // A QA who isn't this project's Pengawas, and Logistik: the count, never the task title (PRD §4.6).
     foreach ([$this->otherQa, $this->logistics] as $viewer) {
         $this->actingAs($viewer)->get(route('projects.show', $project))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('execution.dpRequirements.1.detail', '1 daily target belum punya upah.')
-                ->where('execution.dpRequirements.1.missing', [])
-                ->where('execution.dpRequirements.2.missing', ['Finishing HPL']));
+                ->where('execution.dpRequirements.0.detail', '1 daily target belum punya upah.')
+                ->where('execution.dpRequirements.0.missing', [])
+                ->where('execution.dpRequirements.1.missing', ['Finishing HPL']));
     }
 
     // The rule itself is unchanged: still refused until every condition is met.
@@ -1142,6 +1152,20 @@ function wageItem(Project $project, string $description): ProjectWorkItem
     return $project->workItems()->whereHas('quotationItem', fn ($q) => $q->where('description', $description))->sole();
 }
 
+test('a per-item project\'s TM has no upah / DP % — saved without them, the DP stays 10 % (Sprint 33)', function () {
+    $project = fileAProject($this, ProjectPhase::Tm);
+    $this->actingAs($this->qa)->put(route('projects.work-items.update', wageItem($project, 'Meja bar')), ['unit_wage' => 1_000_000])->assertSessionHasNoErrors();
+
+    $this->actingAs($this->pm)->put(route('projects.technical-meeting.save', $project), [
+        'meeting_date' => '2026-10-19',
+        'notes' => 'Urutan kerja disepakati.',
+        'attendees' => [['user_id' => $this->qa->id]],
+        'end_date' => '2026-10-31',
+    ])->assertSessionHasNoErrors();
+
+    expect((float) $project->supervisorFee()->value('dp_percent'))->toBe(10.0);
+});
+
 test('Upah Tukang per item: satuan upah × volume, total Rp 7.705.000, bobot from the RAB value (File A)', function () {
     $project = fileAProject($this);
     $wages = ['Kabinet bawah' => 500_000, 'Kabinet atas kanan' => 500_000, 'Kabinet atas kiri' => 500_000, 'Cover kulkas' => 300_000, 'Cover atas HPL' => 300_000, 'Meja bar' => 1_100_000];
@@ -1307,4 +1331,235 @@ test('a project without a Pengawas is still checked by any QA/QC user', function
 
     expect(notified($this->qa, 'qa_form_created'))->toBe(1)
         ->and(notified($this->otherQa, 'qa_form_created'))->toBe(1);
+});
+
+// ── Sprint 29 Sub 09: DP & pencairan upah dari pengecekan % per item (File B/C) ──
+
+/** File A wages on a fileAProject() (set before production — they lock afterwards). */
+function fileAWages(object $test, Project $project): void
+{
+    foreach (['Kabinet bawah' => 500_000, 'Kabinet atas kanan' => 500_000, 'Kabinet atas kiri' => 500_000, 'Cover kulkas' => 300_000, 'Cover atas HPL' => 300_000, 'Meja bar' => 1_100_000] as $description => $wage) {
+        app(WorkItemService::class)->update(wageItem($project, $description), ['unit_wage' => $wage], $test->qa);
+    }
+}
+
+/** File B "Contoh Putra": `$percent` on every item with a wage (default 70 %, Meja bar 65 %). */
+function putraCheck(Project $project, ?int $percent = null): array
+{
+    return collect(['Kabinet bawah', 'Kabinet atas kanan', 'Kabinet atas kiri', 'Cover kulkas', 'Cover atas HPL', 'Meja bar'])
+        ->map(fn (string $description) => [
+            'item_id' => wageItem($project, $description)->id,
+            'percent' => $percent ?? ($description === 'Meja bar' ? 65 : 70),
+        ])
+        ->all();
+}
+
+/** A File A project in production with its DP (Rp 770.500) asked, approved and paid. */
+function fileAProducing(object $test): Project
+{
+    $project = fileAProject($test);
+    fileAWages($test, $project);
+    execPlanMaterial($project);
+    execTarget($project, execTimeline($project), $test->tukang);
+
+    $test->actingAs($test->qa)->post(route('projects.supervisor-payments.dp', $project))->assertSessionHasNoErrors();
+    $dp = SupervisorPayment::where('project_id', $project->id)->sole();
+    $test->actingAs($test->pm)->post(route('supervisor-payments.decide', $dp), ['decision' => 'approve'])->assertSessionHasNoErrors();
+    $test->actingAs($test->finance)->post(route('finance.supervisor-payments.pay', $dp), ['bank_account_id' => BankAccount::factory()->create(['is_active' => true])->id])
+        ->assertSessionHasNoErrors();
+
+    return $project->fresh();
+}
+
+test('DP upah = 10 % of the total upah, split per Kepala Tim; approving it is Start Produksi (B4)', function () {
+    $project = fileAProducing($this);
+    $dp = SupervisorPayment::where('project_id', $project->id)->sole();
+
+    expect($dp->kind)->toBe(SupervisorPaymentKind::Dp)
+        ->and((float) $dp->amount)->toBe(770_500.0)
+        ->and($dp->breakdown)->toEqual([['label' => 'Putra', 'amount' => 770_500]])
+        ->and($dp->status)->toBe(SupervisorPaymentStatus::Dibayar)
+        ->and($project->phase)->toBe(ProjectPhase::Produksi);
+});
+
+test('pengecekan: File B/C numbers — progres 69,48 %, upah boleh cair Rp 5.322.000, cair kali ini Rp 4.551.500 after the DP', function () {
+    $project = fileAProducing($this);
+    $service = app(WorkItemService::class);
+
+    // Live numbers before sending (the form's summary).
+    $this->actingAs($this->qa)->get(route('projects.show', ['project' => $project, 'tab' => 'execution']))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.workCheck.summary.payable', 0)
+        ->where('execution.workCheck.summary.already_paid', 770_500)
+        ->has('execution.workCheck.items', 6) // the items with a wage only
+        ->where('execution.can.fillWorkCheck', true)
+        ->where('execution.can.submitWeekly', true));
+
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Kabinet 70 %, meja bar 65 %', 'progress' => putraCheck($project)])
+        ->assertSessionHasNoErrors();
+
+    $report = WeeklyReport::sole();
+    $payment = SupervisorPayment::where('kind', SupervisorPaymentKind::Mingguan->value)->sole();
+
+    expect($service->weightedProgress($project))->toBe(69.48)
+        ->and($service->payableWage($project))->toBe(5_322_000.0)
+        ->and($service->progress($project)[wageItem($project, 'Meja bar')->id])->toBe(65.0)
+        ->and((float) $payment->amount)->toBe(4_551_500.0)
+        ->and($payment->status)->toBe(SupervisorPaymentStatus::Diajukan)
+        ->and($payment->weekly_report_id)->toBe($report->id)
+        ->and($payment->supervisor_id)->toBe($this->qa->id)
+        ->and($payment->breakdown)->toEqual([['label' => 'Putra', 'amount' => 4_551_500]])
+        // One notification for the PM: the pengecekan with its request.
+        ->and(Notification::where('user_id', $this->pm->id)->where('type', 'weekly_report_submitted')->sole()->title)->toBe('Pengajuan Upah Tukang · Minggu ke-1')
+        ->and(notified($this->pm, 'supervisor_payment_requested'))->toBe(1) // the DP only
+        ->and($service->payableNow($project))->toBe(0.0);
+
+    // Decided with its report, never on its own; never above the total upah.
+    $this->actingAs($this->pm)->post(route('supervisor-payments.decide', $payment), ['decision' => 'approve'])->assertSessionHasErrors('payment');
+    $this->actingAs($this->pm)->post(route('weekly-reports.decide', $report), ['decision' => 'approve', 'amount' => 7_000_000])->assertSessionHasErrors('amount');
+    expect($report->fresh()->status)->toBe(WeeklyReportStatus::Diajukan);
+
+    // The PM lowers it: the split follows; the rest may be asked with the next pengecekan.
+    $this->actingAs($this->pm)->post(route('weekly-reports.decide', $report), ['decision' => 'approve', 'amount' => 4_000_000])->assertSessionHasNoErrors();
+
+    $payment->refresh();
+    expect($report->fresh()->status)->toBe(WeeklyReportStatus::Disetujui)
+        ->and($payment->status)->toBe(SupervisorPaymentStatus::DisetujuiPm)
+        ->and((float) $payment->amount)->toBe(4_000_000.0)
+        ->and($payment->breakdown)->toEqual([['label' => 'Putra', 'amount' => 4_000_000]])
+        ->and(notified($this->finance, 'supervisor_payment_to_pay'))->toBe(2)
+        ->and(notified($this->qa, 'weekly_report_decided'))->toBe(1)
+        ->and($service->payableNow($project))->toBe(551_500.0)
+        ->and($service->alreadyPaid($project))->toBeLessThanOrEqual($service->totalWage($project));
+
+    $this->actingAs($this->finance)->get(route('finance.supervisor-payments.index'))
+        ->assertInertia(fn (Assert $page) => $page->where('payments.data.0.breakdown.0.label', 'Putra'));
+});
+
+test('pengecekan: Σ % per item stays 0–100; a correction is a negative row with a note; rows are append-only', function () {
+    $project = fileAProducing($this);
+    $service = app(WorkItemService::class);
+    $kabinet = wageItem($project, 'Kabinet bawah');
+
+    // Over 100 % — refused as a whole, nothing kept.
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Cek minggu ini', 'progress' => [['item_id' => $kabinet->id, 'percent' => 100], ['item_id' => wageItem($project, 'Meja bar')->id, 'percent' => 101]]])
+        ->assertSessionHasErrors('progress.1.percent');
+    expect(WeeklyReport::count())->toBe(0)->and(WorkItemProgress::count())->toBe(0);
+
+    $service->recordProgress($project, [['item_id' => $kabinet->id, 'percent' => 60]], null, $this->qa);
+    expect(fn () => $service->recordProgress($project, [['item_id' => $kabinet->id, 'percent' => 50]], null, $this->qa))->toThrow(ValidationException::class)
+        // A correction needs a note …
+        ->and(fn () => $service->recordProgress($project, [['item_id' => $kabinet->id, 'percent' => -10]], null, $this->qa))->toThrow(ValidationException::class)
+        // … and never goes below 0.
+        ->and(fn () => $service->recordProgress($project, [['item_id' => $kabinet->id, 'percent' => -70, 'note' => 'Salah input']], null, $this->qa))->toThrow(ValidationException::class)
+        // Items without a wage are not checked.
+        ->and(fn () => $service->recordProgress($project, [['item_id' => wageItem($project, 'Rak piring, LED, power supply, saklar')->id, 'percent' => 10]], null, $this->qa))->toThrow(ValidationException::class);
+
+    $service->recordProgress($project, [['item_id' => $kabinet->id, 'percent' => -10, 'note' => 'Salah input, seharusnya 50 %']], null, $this->qa);
+
+    expect($service->progress($project)[$kabinet->id])->toBe(50.0)
+        ->and(WorkItemProgress::count())->toBe(2)
+        ->and(fn () => WorkItemProgress::first()->delete())->toThrow(LogicException::class)
+        ->and(fn () => WorkItemProgress::first()->update(['percent' => 1]))->toThrow(LogicException::class);
+});
+
+test('pengecekan RBAC: the Admin Proyek saves the draft but never sends; another QA, the PM and Marketing are refused', function () {
+    $project = fileAProducing($this);
+    $admin = execUser('ADMIN_PROYEK');
+    $draft = ['notes' => 'Draf admin', 'progress' => [['item_id' => wageItem($project, 'Meja bar')->id, 'percent' => 30, 'note' => null]]];
+
+    $this->actingAs($admin)->put(route('projects.work-check.draft', $project), $draft)->assertSessionHasNoErrors();
+    $this->actingAs($this->qa)->put(route('projects.work-check.draft', $project), $draft)->assertSessionHasNoErrors();
+    $this->actingAs($this->otherQa)->put(route('projects.work-check.draft', $project), $draft)->assertForbidden();
+    $this->actingAs($this->pm)->put(route('projects.work-check.draft', $project), $draft)->assertForbidden();
+    $this->actingAs($this->marketing)->put(route('projects.work-check.draft', $project), $draft)->assertForbidden();
+
+    $this->actingAs($admin)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Kirim', 'progress' => putraCheck($project)])->assertForbidden();
+    $this->actingAs($this->otherQa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Kirim', 'progress' => putraCheck($project)])->assertForbidden();
+
+    // The Admin Proyek fills the % but gets no money already drawn.
+    $this->actingAs($admin)->get(route('projects.show', ['project' => $project, 'tab' => 'execution']))->assertInertia(fn (Assert $page) => $page
+        ->where('execution.workCheck.draft.notes', 'Draf admin')
+        ->where('execution.workCheck.summary.already_paid', null)
+        ->where('execution.can.fillWorkCheck', true)
+        ->where('execution.can.submitWeekly', false));
+
+    // Sending clears the draft; a draft before production is refused.
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Kirim', 'progress' => putraCheck($project)])->assertSessionHasNoErrors();
+    expect(WorkItemProgressDraft::count())->toBe(0);
+
+    $persiapan = fileAProject($this);
+    $this->actingAs($admin)->put(route('projects.work-check.draft', $persiapan), $draft)->assertForbidden();
+});
+
+test('a rejected pengecekan rejects its request; the % stay and the amount is asked again when re-sent', function () {
+    $project = fileAProducing($this);
+
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Cek pertama', 'progress' => putraCheck($project)])->assertSessionHasNoErrors();
+    $report = WeeklyReport::sole();
+    $this->actingAs($this->pm)->post(route('weekly-reports.decide', $report), ['decision' => 'reject'])->assertSessionHasErrors('note');
+    $this->actingAs($this->pm)->post(route('weekly-reports.decide', $report), ['decision' => 'reject', 'note' => 'Foto meja bar belum ada'])->assertSessionHasNoErrors();
+
+    $first = SupervisorPayment::where('kind', SupervisorPaymentKind::Mingguan->value)->sole();
+    expect($first->status)->toBe(SupervisorPaymentStatus::Ditolak)
+        ->and($report->fresh()->status)->toBe(WeeklyReportStatus::Ditolak)
+        ->and(app(WorkItemService::class)->payableWage($project))->toBe(5_322_000.0)
+        ->and(notified($this->qa, 'weekly_report_decided'))->toBe(1)
+        ->and(notified($this->qa, 'supervisor_payment_decided'))->toBe(1); // the DP approval only
+
+    // Re-sent with the photo, no new %: the same amount is asked again — Sprint 31: as the
+    // week's next pengecekan (its own row); the rejected one stays as history.
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $project), ['notes' => 'Foto meja bar terlampir', 'links' => ['https://drive.google.com/x']])->assertSessionHasNoErrors();
+
+    $again = SupervisorPayment::where('kind', SupervisorPaymentKind::Mingguan->value)->where('status', SupervisorPaymentStatus::Diajukan->value)->sole();
+    $resent = WeeklyReport::where('id', '!=', $report->id)->sole();
+    expect((float) $again->amount)->toBe(4_551_500.0)
+        ->and($resent->sequence)->toBe(2)
+        ->and($resent->payment->id)->toBe($again->id)
+        ->and($report->fresh()->status)->toBe(WeeklyReportStatus::Ditolak)
+        ->and($report->fresh()->payment->id)->toBe($first->id);
+});
+
+test('pelunasan: at 100 % the pengecekan asks the rest as PELUNASAN; the manual request needs every item at 100 % (B5)', function () {
+    $project = fileAProducing($this);
+    $service = app(WorkItemService::class);
+
+    $this->actingAs($this->qa)->post(route('projects.supervisor-payments.settlement', $project))->assertSessionHasErrors('settlement');
+    $service->recordProgress($project, putraCheck($project, 100), null, $this->qa);
+    $this->actingAs($this->qa)->get(route('projects.show', ['project' => $project, 'tab' => 'execution']))
+        ->assertInertia(fn (Assert $page) => $page->where('execution.can.requestSettlement', true)->where('execution.workCheck.summary.all_done', true));
+    $this->actingAs($this->otherQa)->post(route('projects.supervisor-payments.settlement', $project))->assertForbidden();
+    $this->actingAs($this->qa)->post(route('projects.supervisor-payments.settlement', $project))->assertSessionHasNoErrors();
+
+    $settlement = SupervisorPayment::where('kind', SupervisorPaymentKind::Pelunasan->value)->sole();
+    expect((float) $settlement->amount)->toBe(6_934_500.0)
+        ->and($settlement->breakdown)->toEqual([['label' => 'Putra', 'amount' => 6_934_500]])
+        ->and($service->alreadyPaid($project))->toBe(7_705_000.0)
+        ->and($service->payableNow($project))->toBe(0.0);
+    $this->actingAs($this->qa)->post(route('projects.supervisor-payments.settlement', $project))->assertSessionHasErrors('settlement');
+
+    // The pengecekan path: the check that reaches 100 % asks the PELUNASAN itself.
+    $other = fileAProducing($this);
+    $service->recordProgress($other, putraCheck($other, 90), null, $this->qa);
+    $this->actingAs($this->qa)->post(route('projects.weekly-reports.store', $other), ['notes' => 'Semua item selesai', 'progress' => putraCheck($other, 10)])
+        ->assertSessionHasNoErrors();
+
+    $last = SupervisorPayment::where('project_id', $other->id)->latest('id')->first();
+    expect($last->kind)->toBe(SupervisorPaymentKind::Pelunasan)
+        ->and((float) $last->amount)->toBe(6_934_500.0)
+        ->and($last->status)->toBe(SupervisorPaymentStatus::Diajukan);
+});
+
+test('two Kepala Tim: a payment splits by what each team may draw now', function () {
+    $project = fileAProducing($this);
+    $service = app(WorkItemService::class);
+    // Meja bar (Rp 1.430.000) is Yusuf's; the rest (Rp 6.275.000) stays Putra's.
+    wageItem($project, 'Meja bar')->update(['team_lead_name' => 'Yusuf']);
+
+    $service->recordProgress($project, [['item_id' => wageItem($project, 'Meja bar')->id, 'percent' => 100]], null, $this->qa);
+
+    // Drawn so far 770.500 → per team pro rata to its wage: Putra 627.500, Yusuf 143.000.
+    // Yusuf may draw 1.430.000 − 143.000 = 1.287.000; Putra 0 − 627.500 → 0.
+    expect($service->payableNow($project))->toBe(1_430_000.0 - 770_500.0)
+        ->and($service->teamShares($project, 659_500, 'progress', 770_500))->toEqual([['label' => 'Yusuf', 'amount' => 659_500]])
+        ->and($service->teamShares($project, 770_500, 'total'))->toEqual([['label' => 'Putra', 'amount' => 627_500], ['label' => 'Yusuf', 'amount' => 143_000]]);
 });

@@ -38,6 +38,7 @@ use App\Models\Task;
 use App\Models\Termin;
 use App\Models\User;
 use App\Models\WeeklyReport;
+use App\Services\ActionInboxService;
 use App\Services\TerminService;
 use App\Services\WorkItemService;
 use Database\Seeders\RoleSeeder;
@@ -528,18 +529,14 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
 
     // ── Tahap 8 — QA & termin berikutnya ─────────────────────────────────
 
-    // Langkah 25 · PM: Tandai Selesai → the Pengawas's QA form.
+    // Langkah 25 · PM: Tandai Selesai — Sprint 29 Sub 12 (G3): the project has items with a
+    // wage, so QA is per item RAB; the timeline is simply done and the next one runs.
+    expect($project->fresh()->usesItemQa())->toBeTrue();
     $this->actingAs($pm)->post(route('milestones.markDone', $persiapan))->assertSessionHasNoErrors();
-    $qaForm = QaForm::where('milestone_id', $persiapan->id)->sole();
-    expect($persiapan->fresh()->status)->toBe(MilestoneStatus::QaWaiting)
-        ->and(journeyNotified($qa, 'qa_form_created'))->toBe(1);
-
-    // Langkah 26 · QA: checklist → Setujui QA → the next timeline runs.
-    $checklist = ['decision' => 'approve', 'checklist_data' => [['label' => 'Sesuai gambar kerja', 'passed' => true, 'note' => 'Rapi']], 'notes' => null];
-    $this->actingAs($qa)->get(route('qa-forms.show', $qaForm))->assertInertia(fn (Assert $page) => $page->where('canReview', true));
-    $this->actingAs($qa)->put(route('qa-forms.update', $qaForm), $checklist)->assertSessionHasNoErrors();
     expect($persiapan->fresh()->status)->toBe(MilestoneStatus::Completed)
-        ->and($pemasangan->fresh()->status)->toBe(MilestoneStatus::InProgress);
+        ->and($pemasangan->fresh()->status)->toBe(MilestoneStatus::InProgress)
+        ->and(QaForm::where('project_id', $project->id)->exists())->toBeFalse()
+        ->and(journeyNotified($qa, 'qa_form_created'))->toBe(0);
 
     // Langkah 27 · Pemasangan Interior: the targets → ≥ 70 % → Berangkat ke Lokasi.
     foreach (['Pasang rangka partisi' => '2026-10-28', 'Pasang meja bar' => '2026-10-29'] as $title => $day) {
@@ -549,12 +546,23 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
         expect($targets[$title]->fresh()->status)->toBe(TaskStatus::Pengecekan);
         $this->actingAs($qa)->post(route('tasks.approve', $targets[$title]))->assertSessionHasNoErrors();
     }
-    expect($project->fresh()->actualProgress())->toBe(75)
+    // Sprint 29 Sub 10 (B7) — the project has items with a wage, so its progress is the
+    // progres berbobot of the Pengawas's pengecekan, not the daily targets (75 % actual
+    // activity alone no longer unlocks it): 75 % on every item → 75 %, the PM told once.
+    expect($project->fresh()->actualProgress())->toBe(0.0)
+        ->and(journeyNotified($pm, 'project_progress_reached'))->toBe(0);
+    journeyAt('2026-10-29', '17:00:00');
+    $this->actingAs($qa)->post(route('projects.weekly-reports.store', $project), [
+        'notes' => 'Rangka partisi & meja bar terpasang.',
+        'progress' => $project->workItems()->get()->map(fn ($item) => ['item_id' => $item->id, 'percent' => 75])->all(),
+    ])->assertSessionHasNoErrors();
+    expect($project->fresh()->actualProgress())->toBe(75.0)
+        ->and($project->fresh()->activityProgress())->toBe(75)
         ->and(journeyNotified($pm, 'project_progress_reached'))->toBe(1);
     $this->actingAs($pm)->post(route('projects.departure.approve', $project))->assertSessionHasNoErrors();
     expect($project->fresh()->phase)->toBe(ProjectPhase::Pemasangan);
 
-    // A Temuan Finishing holds the timeline's QA until its repair task is done.
+    // A Temuan Finishing holds the project's completion until its repair task is done.
     $this->actingAs($qa)->post(route('projects.site-findings.store', $project), [
         'description' => 'Sambungan kaca partisi kurang rapat', 'milestone_id' => $pemasangan->id,
     ])->assertSessionHasNoErrors();
@@ -567,7 +575,6 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     expect($finding->fresh()->status)->toBe(SiteFindingStatus::Selesai);
 
     $this->actingAs($pm)->post(route('milestones.markDone', $pemasangan))->assertSessionHasNoErrors();
-    $this->actingAs($qa)->put(route('qa-forms.update', QaForm::where('milestone_id', $pemasangan->id)->sole()), $checklist)->assertSessionHasNoErrors();
     expect($pemasangan->fresh()->status)->toBe(MilestoneStatus::Completed);
 
     // Termin 2 is due (the daily reminder job) → Marketing bills it → Finance verifies.
@@ -580,13 +587,42 @@ test('simulasi alur klien: Rina Kusuma from the first contact to the pelunasan',
     expect($terminInvoice->fresh()->paymentTypeLabel())->toBe('Termin 2 dari 3 · 30%');
     journeyPay($this, $terminInvoice);
 
-    // Finishing & Serah Terima → QA → the project completes on its own.
+    // Finishing & Serah Terima → every item 100 % → QA per item → the project completes on its own.
     journeyAt('2026-11-20', '16:00:00');
     $this->actingAs($tukang)->patch(route('tasks.updateStatus', $targets['Mural & list gypsum']), ['status' => 'DONE'])->assertSessionHasNoErrors();
     $this->actingAs($pm)->post(route('milestones.markDone', $finishing))->assertSessionHasNoErrors();
-    $this->actingAs($qa)->put(route('qa-forms.update', QaForm::where('milestone_id', $finishing->id)->sole()), $checklist)->assertSessionHasNoErrors();
+    $this->actingAs($qa)->post(route('projects.weekly-reports.store', $project), [
+        'notes' => 'Finishing & serah terima.',
+        'progress' => $project->workItems()->get()->map(fn ($item) => ['item_id' => $item->id, 'percent' => 25])->all(),
+    ])->assertSessionHasNoErrors();
+    expect($project->fresh()->status)->toBe(ProjectStatus::Active);
 
-    expect($project->fresh()->status)->toBe(ProjectStatus::Completed);
+    // Langkah 26 · Pengawas: "Item menunggu QA" → one item needs a repair, the rest pass.
+    $workItemIds = $project->workItems()->orderBy('id')->pluck('id');
+    $inbox = collect(app(ActionInboxService::class)->for($qa, fresh: true))->firstWhere('key', 'item-qa-pending');
+    expect($inbox['items'][0]['subtitle'])->toBe($workItemIds->count().' item menunggu QA');
+    $this->actingAs($qa)->get(route('projects.show', $project))->assertInertia(fn (Assert $page) => $page
+        ->where('itemQa.summary.menunggu', $workItemIds->count())
+        ->where('itemQa.can.decide', true));
+    $this->actingAs($qa)->post(route('projects.item-qa.decide', $project), [
+        'decision' => 'PERBAIKAN', 'item_ids' => [$workItemIds->first()], 'note' => 'List gypsum sudut kiri retak',
+    ])->assertSessionHasNoErrors();
+    $this->actingAs($qa)->post(route('projects.item-qa.decide', $project), ['decision' => 'LOLOS', 'item_ids' => $workItemIds->slice(1)->values()->all()])
+        ->assertSessionHasNoErrors();
+    expect($project->fresh()->status)->toBe(ProjectStatus::Active);
+
+    // The repair (a task from the finding) → the item waits for QA again → Lolos → COMPLETED.
+    $qaFinding = SiteFinding::where('project_id', $project->id)->open()->sole();
+    $this->actingAs($qa)->post(route('site-findings.repair-task', $qaFinding), ['assignee_id' => $tukang->id, 'due_date' => '2026-11-21'])
+        ->assertSessionHasNoErrors();
+    journeyAt('2026-11-21', '15:00:00');
+    $this->actingAs($tukang)->patch(route('tasks.updateStatus', $qaFinding->fresh()->task), ['status' => 'DONE'])->assertSessionHasNoErrors();
+    $this->actingAs($qa)->post(route('tasks.approve', $qaFinding->fresh()->task))->assertSessionHasNoErrors();
+    $this->actingAs($qa)->post(route('projects.item-qa.decide', $project), ['decision' => 'LOLOS', 'item_ids' => [$workItemIds->first()]])
+        ->assertSessionHasNoErrors();
+
+    expect($project->fresh()->status)->toBe(ProjectStatus::Completed)
+        ->and(journeyNotified($pm, 'work_item_qa_decided'))->toBe(3);
 
     // Pelunasan is due → invoice → verified.
     app(TerminService::class)->remindInvoices();
