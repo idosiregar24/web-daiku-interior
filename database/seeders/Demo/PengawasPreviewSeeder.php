@@ -33,9 +33,9 @@ use Illuminate\Support\Carbon;
  *   (Sprint 36 — once a week); today's target sent back to the Tukang
  *   ("Kembalikan"), the latest ones waiting to be checked.
  * - Sprint 32 — Tim Tukang templates of the demo Kepala Tim (Tim Budi, Tim
- *   Slamet, Tim Yanto; bobot as in File D); on Hendra, Budi's and Slamet's
- *   wages are split per person, Yanto's is left for the Pengawas to pick a
- *   template.
+ *   Slamet, Tim Yanto; bobot as in File D); on Hendra, Kitchen Set and
+ *   Partisi were given Tim Budi / Tim Slamet (Sprint 37 — wages split per
+ *   person), Listrik is left for the Pengawas to pick Tim Yanto.
  * - Aktivitas Harian of `qa`: every working day of last month (two left
  *   empty, one clarification — KpiDemoSeeder computes its KPI), today, the
  *   previous working day (HR asks a clarification) and the day before (Sesuai).
@@ -181,7 +181,10 @@ class PengawasPreviewSeeder extends Seeder
             $member('Yanto Kurniawan', 'Ketua Tim', 24), $member('Gilang', 'Tukang 1', 18), $member('Hadi', 'Helper 1', 11), $member('Joko', 'Helper 2', 7), $company,
         ]], $qa);
 
-        $splits->saveProjectSplit($hendra, ['team_label' => 'Budi Tukang', 'work_team_id' => $budi->id], $qa);
-        $splits->saveProjectSplit($hendra, ['team_label' => 'Slamet Wijaya', 'work_team_id' => $slamet->id], $qa);
+        // Sprint 37 — the team picked per item (Item RAB › Upah Tukang): ketua = Kepala Tim, members copied to Pembagian Upah.
+        $items = ExecutionFlowDemo::itemIds($hendra);
+        $wages = app(WorkItemService::class);
+        $wages->update(ProjectWorkItem::findOrFail($items['Kitchen Set Custom']), ['work_team_id' => $budi->id], $qa);
+        $wages->update(ProjectWorkItem::findOrFail($items['Partisi Ruangan']), ['work_team_id' => $slamet->id], $qa);
     }
 }

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WorkItemProgress;
 use App\Models\WorkItemProgressDraft;
+use App\Models\WorkTeam;
 use App\Support\Quantity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -37,7 +38,10 @@ class WorkItemService
     /** Default DP of the Upah Tukang (B4) — the PM may change the amount when deciding. */
     public const DEFAULT_DP_PERCENT = 10;
 
-    public function __construct(private AuditLogService $auditLogService) {}
+    public function __construct(
+        private AuditLogService $auditLogService,
+        private WageSplitService $wageSplitService,
+    ) {}
 
     /**
      * One work item per RAB item of the project's approved RABs (RAB Proyek +
@@ -132,14 +136,21 @@ class WorkItemService
      * an item that has no wage yet (a RAB Tambahan item) — the DP was a share
      * of the total.
      *
-     * @param  array{unit_wage?: numeric-string|int|float|null, team_lead_id?: int|string|null, team_lead_name?: string|null}  $data
+     * Sprint 37 — `work_team_id` gives the item a Tim Tukang template: its
+     * ketua becomes the Kepala Tim (the Tukang's account when the name
+     * matches, else the typed name) and its members the project's split of
+     * that Kepala Tim (WageSplitService::applyTemplate()). A Kepala Tim picked
+     * directly clears the template.
+     *
+     * @param  array{unit_wage?: numeric-string|int|float|null, team_lead_id?: int|string|null, team_lead_name?: string|null, work_team_id?: int|string|null}  $data
      */
     public function update(ProjectWorkItem $item, array $data, User $actor): ProjectWorkItem
     {
         return DB::transaction(function () use ($item, $data, $actor) {
             $project = Project::lockForUpdate()->findOrFail($item->project_id);
             $item = ProjectWorkItem::lockForUpdate()->findOrFail($item->id);
-            $before = $item->only(['unit_wage', 'team_lead_id', 'team_lead_name']);
+            $before = $item->only(['unit_wage', 'team_lead_id', 'team_lead_name', 'work_team_id']);
+            $team = filled($data['work_team_id'] ?? null) ? WorkTeam::findOrFail($data['work_team_id']) : null;
 
             if (array_key_exists('unit_wage', $data)) {
                 $wage = filled($data['unit_wage']) ? round((float) $data['unit_wage'], 2) : null;
@@ -151,10 +162,16 @@ class WorkItemService
                 $item->unit_wage = $wage;
             }
 
-            if (array_key_exists('team_lead_id', $data) || array_key_exists('team_lead_name', $data)) {
+            if ($team) {
+                $leader = $this->wageSplitService->leaderOf($team);
+                $item->team_lead_id = $leader?->id;
+                $item->team_lead_name = $leader ? null : ($team->leader_name ?: $team->name);
+                $item->work_team_id = $team->id;
+            } elseif (array_key_exists('team_lead_id', $data) || array_key_exists('team_lead_name', $data)) {
                 $leadId = filled($data['team_lead_id'] ?? null) ? (int) $data['team_lead_id'] : null;
                 $item->team_lead_id = $leadId;
                 $item->team_lead_name = $leadId === null && filled($data['team_lead_name'] ?? null) ? trim($data['team_lead_name']) : null;
+                $item->work_team_id = null;
             }
 
             if (! $item->isDirty()) {
@@ -164,9 +181,15 @@ class WorkItemService
             $item->set_by = $actor->id;
             $item->save();
             $this->syncFee($project, $actor);
-            $this->auditLogService->record('work_item.updated', $item, $before, $item->only(['unit_wage', 'team_lead_id', 'team_lead_name']), $actor);
+            $this->auditLogService->record('work_item.updated', $item, $before, $item->only(['unit_wage', 'team_lead_id', 'team_lead_name', 'work_team_id']), $actor);
 
-            return $item->fresh(['quotationItem', 'teamLead:id,name']);
+            $item = $item->fresh(['quotationItem', 'teamLead:id,name']);
+
+            if ($team) {
+                $this->wageSplitService->applyTemplate($project, $item->teamLeadLabel(), $team, $actor);
+            }
+
+            return $item;
         });
     }
 
@@ -174,8 +197,10 @@ class WorkItemService
      * Sprint 33 — the Upah Tukang table's "Simpan": several Satuan Upah at
      * once, each through update() (same lock after Start Produksi, same
      * audit); all or nothing. An error names the row (`items.N.unit_wage`).
+     * Sprint 37 — a row may also carry its Tim / Kepala Tim (`work_team_id`,
+     * or `team_lead_id` / `team_lead_name`); the count is of changed rows.
      *
-     * @param  list<array{id: int|string, unit_wage: numeric-string|int|float|null}>  $rows
+     * @param  list<array{id: int|string, unit_wage: numeric-string|int|float|null, work_team_id?: int|string|null, team_lead_id?: int|string|null, team_lead_name?: string|null}>  $rows
      */
     public function saveWages(Project $project, array $rows, User $actor): int
     {
@@ -190,15 +215,16 @@ class WorkItemService
                     throw ValidationException::withMessages(["items.{$index}.unit_wage" => 'Item ini bukan item RAB proyek ini.']);
                 }
 
-                $before = $item->unit_wage === null ? null : (float) $item->unit_wage;
+                $state = fn (ProjectWorkItem $row) => [$row->unit_wage === null ? null : (float) $row->unit_wage, $row->team_lead_id, $row->team_lead_name, $row->work_team_id];
+                $before = $state($item);
 
                 try {
-                    $saved = $this->update($item, ['unit_wage' => $row['unit_wage']], $actor);
+                    $saved = $this->update($item, collect($row)->only(['unit_wage', 'work_team_id', 'team_lead_id', 'team_lead_name'])->all(), $actor);
                 } catch (ValidationException $error) {
                     throw ValidationException::withMessages(["items.{$index}.unit_wage" => $error->errors()['unit_wage'][0] ?? 'Upah tidak bisa disimpan.']);
                 }
 
-                $changed += ($saved->unit_wage === null ? null : (float) $saved->unit_wage) !== $before ? 1 : 0;
+                $changed += $state($saved) !== $before ? 1 : 0;
             }
 
             return $changed;
@@ -872,7 +898,7 @@ class WorkItemService
     {
         return ProjectWorkItem::query()
             ->where('project_id', $project->id)
-            ->with(['quotationItem.unit', 'teamLead:id,name'])
+            ->with(['quotationItem.unit', 'teamLead:id,name', 'workTeam:id,name'])
             ->get()
             ->sortBy(fn (ProjectWorkItem $item) => [$item->quotationItem->quotation_id, $item->quotationItem->sort_order, $item->quotationItem->id])
             ->values();
@@ -908,6 +934,9 @@ class WorkItemService
             'team_lead_id' => $item->team_lead_id,
             'team_lead_name' => $item->team_lead_name,
             'team_lead' => $item->teamLeadLabel(),
+            // Sprint 37 — the Tim Tukang template picked for the item.
+            'work_team_id' => $item->work_team_id,
+            'work_team' => $item->workTeam?->name,
         ];
     }
 

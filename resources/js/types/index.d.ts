@@ -2648,6 +2648,9 @@ export interface WorkItemRow {
     team_lead_id: number | null;
     team_lead_name: string | null;
     team_lead: string | null;
+    /** Sprint 37 — the Tim Tukang template picked for the item (its Kepala Tim = the template's ketua). */
+    work_team_id: number | null;
+    work_team: string | null;
 }
 
 /** Sprint 24 — ProjectExecutionService::overview(), the project's "Eksekusi" tab. */

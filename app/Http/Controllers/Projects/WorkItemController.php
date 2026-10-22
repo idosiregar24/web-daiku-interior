@@ -33,7 +33,7 @@ class WorkItemController extends Controller
         $this->authorize('setWages', $project);
         $changed = $service->saveWages($project, $request->validated('items'), $request->user());
 
-        return back()->with('success', "{$changed} upah item tersimpan.");
+        return back()->with('success', "{$changed} item tersimpan.");
     }
 
     /** "Terapkan ke bagian ini" — one Kepala Tim for several items. */

@@ -22,6 +22,7 @@ class ProjectWorkItem extends Model
         'quotation_item_id',
         'team_lead_id',
         'team_lead_name',
+        'work_team_id',
         'unit_wage',
         'production_start',
         'production_end',
@@ -55,6 +56,12 @@ class ProjectWorkItem extends Model
     public function teamLead(): BelongsTo
     {
         return $this->belongsTo(User::class, 'team_lead_id');
+    }
+
+    /** Sprint 37 — the Tim Tukang template picked for this item (its Kepala Tim = the template's ketua). */
+    public function workTeam(): BelongsTo
+    {
+        return $this->belongsTo(WorkTeam::class);
     }
 
     /** Sprint 35 — the timelines this item is worked in (its schedule). */

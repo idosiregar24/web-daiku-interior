@@ -141,7 +141,7 @@ test('Upah Tukang: one "Simpan" saves every changed row; a locked row refuses th
     $this->actingAs($this->qa)->put(route('projects.work-items.wages', $this->project), ['items' => [
         ['id' => $kabinet->id, 'unit_wage' => 300_000],
         ['id' => $meja->id, 'unit_wage' => 150_000],
-    ]])->assertSessionHasNoErrors()->assertSessionHas('success', '2 upah item tersimpan.');
+    ]])->assertSessionHasNoErrors()->assertSessionHas('success', '2 item tersimpan.');
 
     expect((float) $kabinet->fresh()->unit_wage)->toBe(300_000.0)->and((float) $meja->fresh()->unit_wage)->toBe(150_000.0);
 

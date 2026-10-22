@@ -189,6 +189,49 @@ class WageSplitService
     }
 
     /**
+     * Sprint 37 — the account of a template's ketua: an active Tukang whose
+     * name is the template's `leader_name` (any case). None → the item keeps
+     * the ketua as a typed name.
+     */
+    public function leaderOf(WorkTeam $team): ?User
+    {
+        if (blank($team->leader_name)) {
+            return null;
+        }
+
+        return User::role('FIELD_STAFF')
+            ->where('is_active', true)
+            ->whereRaw('LOWER(name) = ?', [mb_strtolower(trim($team->leader_name))])
+            ->orderBy('id')
+            ->first();
+    }
+
+    /**
+     * Sprint 37 — a template picked for an item: its members become the
+     * project's split of that Kepala Tim (a copy — changing the template later
+     * never changes the project). A split already copied from this template
+     * keeps its per-project changes; another template's is replaced.
+     */
+    public function applyTemplate(Project $project, string $label, WorkTeam $team, User $actor): ProjectWageSplit
+    {
+        $split = ProjectWageSplit::where('project_id', $project->id)->where('team_label', $label)->first();
+
+        if ($split && (int) $split->work_team_id === $team->id) {
+            return $split;
+        }
+
+        $members = $this->cleanMembers($team->members);
+        $split = ProjectWageSplit::updateOrCreate(
+            ['project_id' => $project->id, 'team_label' => $label],
+            ['work_team_id' => $team->id, 'members' => $members, 'updated_by' => $actor->id],
+        );
+
+        $this->auditLogService->record('wage_split.project_saved', $project, null, ['team_label' => $label, 'template' => $team->name, 'members' => $members], $actor);
+
+        return $split;
+    }
+
+    /**
      * The project's "Pembagian Upah" view: per Kepala Tim its people (or
      * none yet), and per DP / pencairan (not rejected) each person's part.
      *

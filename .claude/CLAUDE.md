@@ -310,7 +310,12 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     Proyek — `ProjectPolicy::splitWages`). % = bobot ÷ Σ bobot; each person's
     part of a payment's `breakdown` only in `WageSplitService::split()` (whole
     rupiah, Σ exact; the "Perusahaan" row is the company's share). Shown only
-    to who sees the Upah Tukang (`execution.wageSplit`).
+    to who sees the Upah Tukang (`execution.wageSplit`). A template can be
+    picked **per RAB item** in the Upah Tukang table (`project_work_items.work_team_id`,
+    same "Simpan"): its ketua becomes the Kepala Tim (the Tukang's account
+    when the name matches — `WageSplitService::leaderOf()`) and its members
+    are copied once into that Kepala Tim's split (`applyTemplate()`; a later
+    template change never touches the project).
 22. **Langkah Kerja (Sprint 33 — `plan/sprint-33-langkah-kerja.md`).** The
     running phase's work, in the order it is filled, is built once in
     `ProjectStepsService` (`execution.steps`) and shown by `WorkStepsPanel`
