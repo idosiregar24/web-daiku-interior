@@ -254,195 +254,198 @@ function SheetTable({
     }, []);
 
     return (
-        <div ref={scroller} className="overflow-x-auto rounded-lg ring-1 ring-border">
-            <table className="border-separate border-spacing-0 text-sm">
-                <thead>
-                    <tr>
-                        <th rowSpan={2} style={at.no} className={cn(HEAD, LEFT, 'text-center')}>
-                            No
-                        </th>
-                        <th rowSpan={2} style={at.item} className={cn(HEAD, LEFT, edge('item'), 'text-left')}>
-                            Uraian Pekerjaan · Volume
-                        </th>
-                        {showValue && (
-                            <th rowSpan={2} style={at.value} className={cn(HEAD, LEFT, edge('value'), 'text-right')}>
-                                Nilai
+        <div className="overflow-hidden rounded-lg ring-1 ring-border">
+            {/* Only the grid scrolls sideways; the colour legend below stays put. */}
+            <div ref={scroller} className="overflow-x-auto">
+                <table className="border-separate border-spacing-0 text-sm">
+                    <thead>
+                        <tr>
+                            <th rowSpan={2} style={at.no} className={cn(HEAD, LEFT, 'text-center')}>
+                                No
                             </th>
-                        )}
-                        {showWeight && (
-                            <th
-                                rowSpan={2}
-                                style={at.weight}
-                                className={cn(HEAD, LEFT, edge('weight'), 'text-right')}
-                                title="Bobot = Nilai RAB item ÷ Σ Nilai RAB item berupah × 100%"
-                            >
-                                Bobot
-                                {/* Same formula as WorkItemService (the sheet's bobot). */}
-                                <span className="block text-[10px] leading-tight font-normal tracking-normal normal-case">Nilai ÷ Σ Nilai berupah</span>
+                            <th rowSpan={2} style={at.item} className={cn(HEAD, LEFT, edge('item'), 'text-left')}>
+                                Uraian Pekerjaan · Volume
                             </th>
-                        )}
-                        {months.map((month) => (
-                            <th key={month.key} colSpan={month.span} className={cn(HEAD, 'border-b border-l border-border text-center')}>
-                                {month.label}
+                            {showValue && (
+                                <th rowSpan={2} style={at.value} className={cn(HEAD, LEFT, edge('value'), 'text-right')}>
+                                    Nilai
+                                </th>
+                            )}
+                            {showWeight && (
+                                <th
+                                    rowSpan={2}
+                                    style={at.weight}
+                                    className={cn(HEAD, LEFT, edge('weight'), 'text-right')}
+                                    title="Bobot = Nilai RAB item ÷ Σ Nilai RAB item berupah × 100%"
+                                >
+                                    Bobot
+                                    {/* Same formula as WorkItemService (the sheet's bobot). */}
+                                    <span className="block text-[10px] leading-tight font-normal tracking-normal normal-case">Nilai ÷ Σ Nilai berupah</span>
+                                </th>
+                            )}
+                            {months.map((month) => (
+                                <th key={month.key} colSpan={month.span} className={cn(HEAD, 'border-b border-l border-border text-center')}>
+                                    {month.label}
+                                </th>
+                            ))}
+                            <th rowSpan={2} className={cn(HEAD, RIGHT_TOTAL, 'text-right')}>
+                                Total %
                             </th>
-                        ))}
-                        <th rowSpan={2} className={cn(HEAD, RIGHT_TOTAL, 'text-right')}>
-                            Total %
-                        </th>
-                        <th rowSpan={2} className={cn(HEAD, RIGHT_SHARE, 'text-right')}>
-                            Kontribusi
-                        </th>
-                    </tr>
-                    <tr>
-                        {days.map((day) => {
-                            const date = parseISO(day);
-                            const isToday = day === today;
+                            <th rowSpan={2} className={cn(HEAD, RIGHT_SHARE, 'text-right')}>
+                                Kontribusi
+                            </th>
+                        </tr>
+                        <tr>
+                            {days.map((day) => {
+                                const date = parseISO(day);
+                                const isToday = day === today;
+
+                                return (
+                                    <th
+                                        key={day}
+                                        data-today={isToday || undefined}
+                                        className={cn(
+                                            'bg-daiku-yellow-light px-0 py-1.5 text-center text-xs font-medium tabular-nums text-daiku-muted',
+                                            isToday && input ? 'min-w-24 border-x-2 border-daiku-yellow-dark bg-daiku-yellow text-daiku-dark' : 'w-10 min-w-10',
+                                            isToday && !input && 'bg-warning/20 text-foreground',
+                                            !isToday && date.getDay() === 0 && 'bg-daiku-gray',
+                                        )}
+                                        title={format(date, 'EEEE, d MMMM yyyy', { locale: localeId })}
+                                    >
+                                        {isToday && input ? (
+                                            <span className="flex flex-col items-center leading-tight">
+                                                <span className="text-[10px] font-bold uppercase">Isi hari ini</span>
+                                                <span className="font-semibold">{format(date, 'd MMM', { locale: localeId })}</span>
+                                            </span>
+                                        ) : (
+                                            date.getDate()
+                                        )}
+                                    </th>
+                                );
+                            })}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {rows.map((row, index) => {
+                            const checkItem = checkItems.get(row.id);
+                            const newTotal = input && checkItem ? input.preview.progress[row.id] : undefined;
+                            const changed = newTotal !== undefined && newTotal !== row.total;
+                            const shownTotal = changed ? newTotal : row.total;
+                            const late = row.status === 'TERLAMBAT';
+                            const cell = 'border-t border-border';
 
                             return (
-                                <th
-                                    key={day}
-                                    data-today={isToday || undefined}
-                                    className={cn(
-                                        'bg-daiku-yellow-light px-0 py-1.5 text-center text-xs font-medium tabular-nums text-daiku-muted',
-                                        isToday && input ? 'min-w-24 border-x-2 border-daiku-yellow-dark bg-daiku-yellow text-daiku-dark' : 'w-10 min-w-10',
-                                        isToday && !input && 'bg-warning/20 text-foreground',
-                                        !isToday && date.getDay() === 0 && 'bg-daiku-gray',
+                                <tr key={row.id}>
+                                    <td style={at.no} className={cn(cell, LEFT, 'bg-background px-2 py-2 text-center align-top text-daiku-muted tabular-nums')}>
+                                        {index + 1}
+                                    </td>
+                                    <td style={at.item} className={cn(cell, LEFT, edge('item'), 'bg-background px-3 py-2 align-top')}>
+                                        <p className="leading-snug font-medium text-foreground">{row.description}</p>
+                                        <p className="text-xs text-daiku-muted">
+                                            {row.volume_label} · {row.team_lead}
+                                            {row.timelines.length === 0 && ' · belum masuk timeline'}
+                                        </p>
+                                        {late && <p className="text-xs font-medium text-error-ink">Terlambat dari timeline</p>}
+                                    </td>
+                                    {showValue && (
+                                        <td
+                                            style={at.value}
+                                            title={row.value !== null ? formatRupiah(row.value) : undefined}
+                                            className={cn(cell, LEFT, edge('value'), 'bg-background px-2 py-2 text-right align-top whitespace-nowrap tabular-nums')}
+                                        >
+                                            {row.value !== null ? formatRupiahCompact(row.value) : '—'}
+                                        </td>
                                     )}
-                                    title={format(date, 'EEEE, d MMMM yyyy', { locale: localeId })}
-                                >
-                                    {isToday && input ? (
-                                        <span className="flex flex-col items-center leading-tight">
-                                            <span className="text-[10px] font-bold uppercase">Isi hari ini</span>
-                                            <span className="font-semibold">{format(date, 'd MMM', { locale: localeId })}</span>
-                                        </span>
-                                    ) : (
-                                        date.getDate()
+                                    {showWeight && (
+                                        <td style={at.weight} className={cn(cell, LEFT, edge('weight'), 'bg-background px-2 py-2 text-right align-top text-daiku-muted tabular-nums')}>
+                                            {row.weight !== null ? formatProgress(row.weight) : '—'}
+                                        </td>
                                     )}
-                                </th>
+                                    {days.map((day) => {
+                                        const block = row.timelines.find((timeline) => inside(day, timeline.start, timeline.end));
+                                        const isToday = day === today;
+
+                                        return (
+                                            <td
+                                                key={day}
+                                                title={block ? `${block.name} · ${rangeLabel(block.start, block.end)}` : undefined}
+                                                className={cn(
+                                                    cell,
+                                                    'px-0 py-1 text-center align-middle',
+                                                    isToday && input ? 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light px-2' : [block && 'bg-info/25', !block && isToday && 'bg-warning/10'],
+                                                )}
+                                            >
+                                                {isToday && input && checkItem ? (
+                                                    // An earlier pengecekan of today stays readable above the new input.
+                                                    <span className="flex flex-col items-center gap-1">
+                                                        {row.cells[day] ? (
+                                                            <span className="text-[10px] font-medium whitespace-nowrap text-daiku-muted">sudah {added(row.cells[day])}</span>
+                                                        ) : null}
+                                                        {input.field(checkItem)}
+                                                    </span>
+                                                ) : (
+                                                    <CellValue value={row.cells[day]} pending={day === pendingDate} />
+                                                )}
+                                            </td>
+                                        );
+                                    })}
+                                    <td className={cn(cell, RIGHT_TOTAL, 'bg-background px-2 py-2 text-right align-top font-semibold tabular-nums')}>
+                                        <span className={cn(shownTotal >= 100 && 'text-success-ink')}>{formatProgress(shownTotal)}</span>
+                                        {changed && <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted">dari {formatProgress(row.total)}</span>}
+                                    </td>
+                                    <td className={cn(cell, RIGHT_SHARE, 'bg-background px-2 py-2 text-right align-top tabular-nums')}>
+                                        {row.contribution !== null ? formatProgress(changed && row.weight !== null ? (shownTotal * row.weight) / 100 : row.contribution) : '—'}
+                                    </td>
+                                </tr>
                             );
                         })}
-                    </tr>
-                </thead>
-                <tbody>
-                    {rows.map((row, index) => {
-                        const checkItem = checkItems.get(row.id);
-                        const newTotal = input && checkItem ? input.preview.progress[row.id] : undefined;
-                        const changed = newTotal !== undefined && newTotal !== row.total;
-                        const shownTotal = changed ? newTotal : row.total;
-                        const late = row.status === 'TERLAMBAT';
-                        const cell = 'border-t border-border';
-
-                        return (
-                            <tr key={row.id}>
-                                <td style={at.no} className={cn(cell, LEFT, 'bg-background px-2 py-2 text-center align-top text-daiku-muted tabular-nums')}>
-                                    {index + 1}
-                                </td>
-                                <td style={at.item} className={cn(cell, LEFT, edge('item'), 'bg-background px-3 py-2 align-top')}>
-                                    <p className="leading-snug font-medium text-foreground">{row.description}</p>
-                                    <p className="text-xs text-daiku-muted">
-                                        {row.volume_label} · {row.team_lead}
-                                        {row.timelines.length === 0 && ' · belum masuk timeline'}
-                                    </p>
-                                    {late && <p className="text-xs font-medium text-error-ink">Terlambat dari timeline</p>}
+                    </tbody>
+                    {recap && (
+                        <tfoot>
+                            <tr className="font-semibold">
+                                <td style={at.no} className={cn('border-t-2 border-border', LEFT, 'bg-daiku-gray')} />
+                                <td style={at.item} className={cn('border-t-2 border-border', LEFT, edge('item'), 'bg-daiku-gray px-3 py-2')}>
+                                    Jumlah · progres proyek
                                 </td>
                                 {showValue && (
                                     <td
                                         style={at.value}
-                                        title={row.value !== null ? formatRupiah(row.value) : undefined}
-                                        className={cn(cell, LEFT, edge('value'), 'bg-background px-2 py-2 text-right align-top whitespace-nowrap tabular-nums')}
+                                        title={formatRupiah(totalValue)}
+                                        className={cn('border-t-2 border-border', LEFT, edge('value'), 'bg-daiku-gray px-2 py-2 text-right whitespace-nowrap tabular-nums')}
                                     >
-                                        {row.value !== null ? formatRupiahCompact(row.value) : '—'}
+                                        {formatRupiahCompact(totalValue)}
                                     </td>
                                 )}
                                 {showWeight && (
-                                    <td style={at.weight} className={cn(cell, LEFT, edge('weight'), 'bg-background px-2 py-2 text-right align-top text-daiku-muted tabular-nums')}>
-                                        {row.weight !== null ? formatProgress(row.weight) : '—'}
+                                    <td style={at.weight} className={cn('border-t-2 border-border', LEFT, edge('weight'), 'bg-daiku-gray px-2 py-2 text-right tabular-nums')}>
+                                        100%
                                     </td>
                                 )}
                                 {days.map((day) => {
-                                    const block = row.timelines.find((timeline) => inside(day, timeline.start, timeline.end));
                                     const isToday = day === today;
+                                    const value = isToday && input ? input.preview.weightedProgress : cumulative.get(day);
 
                                     return (
                                         <td
                                             key={day}
-                                            title={block ? `${block.name} · ${rangeLabel(block.start, block.end)}` : undefined}
                                             className={cn(
-                                                cell,
-                                                'px-0 py-1 text-center align-middle',
-                                                isToday && input ? 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light px-2' : [block && 'bg-info/25', !block && isToday && 'bg-warning/10'],
+                                                'border-t-2 border-border bg-daiku-gray px-0 py-2 text-center text-[11px] tabular-nums',
+                                                isToday && input && 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light text-info-ink',
                                             )}
                                         >
-                                            {isToday && input && checkItem ? (
-                                                // An earlier pengecekan of today stays readable above the new input.
-                                                <span className="flex flex-col items-center gap-1">
-                                                    {row.cells[day] ? (
-                                                        <span className="text-[10px] font-medium whitespace-nowrap text-daiku-muted">sudah {added(row.cells[day])}</span>
-                                                    ) : null}
-                                                    {input.field(checkItem)}
-                                                </span>
-                                            ) : (
-                                                <CellValue value={row.cells[day]} pending={day === pendingDate} />
-                                            )}
+                                            {value !== undefined && value !== null ? formatProgress(value) : ''}
                                         </td>
                                     );
                                 })}
-                                <td className={cn(cell, RIGHT_TOTAL, 'bg-background px-2 py-2 text-right align-top font-semibold tabular-nums')}>
-                                    <span className={cn(shownTotal >= 100 && 'text-success-ink')}>{formatProgress(shownTotal)}</span>
-                                    {changed && <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted">dari {formatProgress(row.total)}</span>}
-                                </td>
-                                <td className={cn(cell, RIGHT_SHARE, 'bg-background px-2 py-2 text-right align-top tabular-nums')}>
-                                    {row.contribution !== null ? formatProgress(changed && row.weight !== null ? (shownTotal * row.weight) / 100 : row.contribution) : '—'}
+                                <td className={cn('border-t-2 border-border', RIGHT_TOTAL, 'bg-daiku-gray px-2 py-2 text-right tabular-nums')} />
+                                <td className={cn('border-t-2 border-border', RIGHT_SHARE, 'bg-daiku-yellow px-2 py-2 text-right text-daiku-dark tabular-nums')}>
+                                    {projectTotal !== null ? formatProgress(projectTotal) : '—'}
                                 </td>
                             </tr>
-                        );
-                    })}
-                </tbody>
-                {recap && (
-                    <tfoot>
-                        <tr className="font-semibold">
-                            <td style={at.no} className={cn('border-t-2 border-border', LEFT, 'bg-daiku-gray')} />
-                            <td style={at.item} className={cn('border-t-2 border-border', LEFT, edge('item'), 'bg-daiku-gray px-3 py-2')}>
-                                Jumlah · progres proyek
-                            </td>
-                            {showValue && (
-                                <td
-                                    style={at.value}
-                                    title={formatRupiah(totalValue)}
-                                    className={cn('border-t-2 border-border', LEFT, edge('value'), 'bg-daiku-gray px-2 py-2 text-right whitespace-nowrap tabular-nums')}
-                                >
-                                    {formatRupiahCompact(totalValue)}
-                                </td>
-                            )}
-                            {showWeight && (
-                                <td style={at.weight} className={cn('border-t-2 border-border', LEFT, edge('weight'), 'bg-daiku-gray px-2 py-2 text-right tabular-nums')}>
-                                    100%
-                                </td>
-                            )}
-                            {days.map((day) => {
-                                const isToday = day === today;
-                                const value = isToday && input ? input.preview.weightedProgress : cumulative.get(day);
-
-                                return (
-                                    <td
-                                        key={day}
-                                        className={cn(
-                                            'border-t-2 border-border bg-daiku-gray px-0 py-2 text-center text-[11px] tabular-nums',
-                                            isToday && input && 'border-x-2 border-daiku-yellow-dark bg-daiku-yellow-light text-info-ink',
-                                        )}
-                                    >
-                                        {value !== undefined && value !== null ? formatProgress(value) : ''}
-                                    </td>
-                                );
-                            })}
-                            <td className={cn('border-t-2 border-border', RIGHT_TOTAL, 'bg-daiku-gray px-2 py-2 text-right tabular-nums')} />
-                            <td className={cn('border-t-2 border-border', RIGHT_SHARE, 'bg-daiku-yellow px-2 py-2 text-right text-daiku-dark tabular-nums')}>
-                                {projectTotal !== null ? formatProgress(projectTotal) : '—'}
-                            </td>
-                        </tr>
-                    </tfoot>
-                )}
-            </table>
+                        </tfoot>
+                    )}
+                </table>
+            </div>
             <Legend pending={pendingDate !== null} />
         </div>
     );
