@@ -3,10 +3,10 @@ import type { MaterialPermissions } from '@/Components/modules/projects/ProjectM
 import { type ProjectTabTarget, projectWaiting, type WaitingRow } from '@/Components/modules/projects/projectWaiting';
 import { DecidePaymentButton } from '@/Components/modules/projects/SupervisorFeeCard';
 import { CompleteMeetingButton } from '@/Components/modules/projects/TechnicalMeetingCard';
-import { DetailItem, DetailList } from '@/Components/shared/DetailList';
 import { EmptyState } from '@/Components/shared/EmptyState';
 import { ProgressBar } from '@/Components/shared/ProgressBar';
 import { SectionCard } from '@/Components/shared/SectionCard';
+import { StatCard } from '@/Components/shared/StatCard';
 import { Button } from '@/Components/ui/button';
 import { formatDate, formatRupiah } from '@/lib/format';
 import { formatProgress, PROGRESS_BASIS_HINT, PROGRESS_BASIS_LABEL } from '@/lib/progress';
@@ -22,7 +22,7 @@ import type {
     Termin,
 } from '@/types';
 import { differenceInCalendarDays, parseISO } from 'date-fns';
-import { Activity, ArrowRight, BellRing, ChevronRight, Hourglass, Info, Users } from 'lucide-react';
+import { Activity, ArrowRight, BellRing, CalendarClock, ChevronRight, Hourglass, NotebookPen, Target, Users, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 export type { ProjectTabTarget } from '@/Components/modules/projects/projectWaiting';
@@ -101,7 +101,7 @@ function MyTurnCard({
 
         return (
             <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => onOpen(row.target)}>
-                Buka
+                Kerjakan
                 <ArrowRight className="size-3.5" />
             </Button>
         );
@@ -199,81 +199,27 @@ function shortDate(value: string): string {
     return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
-/** H6g — "Mulai 1 Okt → Selesai 30 Nov · sisa 42 hari"; Sprint 27 P4a — amber inside the H-30% window. */
-function DateLine({ project, nearDeadline = false }: { project: Project; nearDeadline?: boolean }) {
-    const running = project.status === 'ACTIVE' || project.status === 'ON_HOLD';
-    const start = project.start_date ? `Mulai ${shortDate(project.start_date)}` : 'Mulai belum ditentukan';
-
-    if (!project.end_date) {
-        return (
-            <span>
-                {start} → Selesai <span className="text-muted-foreground">belum ditentukan</span>
-            </span>
-        );
-    }
-
-    const daysLeft = differenceInCalendarDays(parseISO(project.end_date), new Date());
-
-    return (
-        <span>
-            {start} → Selesai {shortDate(project.end_date)}
-            {running &&
-                (daysLeft >= 0 ? (
-                    <span className={nearDeadline ? 'text-warning-ink' : 'text-muted-foreground'}>
-                        {' '}
-                        · {daysLeft === 0 ? 'hari ini' : `sisa ${daysLeft} hari`}
-                        {nearDeadline && ' · masa H-30%'}
-                    </span>
-                ) : (
-                    <span className="text-error-ink"> · lewat {-daysLeft} hari</span>
-                ))}
-        </span>
-    );
-}
-
-function InfoCard({ project, nearDeadline }: { project: Project; nearDeadline: boolean }) {
-    const hasContract = project.contract_value != null && project.contract_value !== '';
-
-    return (
-        <SectionCard title="Informasi Proyek" icon={Info}>
-            <DetailList>
-                <DetailItem label="Klien" valueClassName="font-medium">
-                    {project.lead?.client_name ?? '—'}
-                </DetailItem>
-                {hasContract && (
-                    <DetailItem label="Nilai Kontrak" valueClassName="font-medium">
-                        {formatRupiah(project.contract_value)}
-                    </DetailItem>
-                )}
-                <DetailItem label="Jadwal" className="sm:col-span-2" valueClassName="font-medium">
-                    <DateLine project={project} nearDeadline={nearDeadline} />
-                    {project.opened_on && (
-                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                            Proyek dibuka {formatDate(project.opened_on)}
-                        </span>
-                    )}
-                </DetailItem>
-            </DetailList>
-        </SectionCard>
-    );
-}
+const TILE_LINK_CLASS = 'font-medium text-foreground underline decoration-daiku-yellow decoration-2 underline-offset-2 hover:decoration-daiku-yellow-dark';
 
 /**
- * H4a — the project progress, today's target and the gap (numbers from the
- * server only). Sprint 29 Sub 10 — a project whose RAB items carry a wage
- * shows the progres berbobot (pengecekan per item RAB) as its figure and the
- * daily targets' actual activity below, labelled as such.
+ * The project's health at a glance — the first row of the Ringkasan (was a
+ * Progress card and an Informasi Proyek card further down): progress, the gap
+ * to today's target, the end date and the contract value. Numbers from the
+ * server only (H4a); Sprint 29 Sub 10 — a project whose RAB items carry a
+ * wage shows the progres berbobot, with the daily targets' actual activity
+ * beside the target.
  */
-function ProgressSummaryCard({
+function ProjectPulse({
     project,
     activityTarget,
-    progressLogs,
+    nearDeadline,
     onOpen,
     canOpen,
 }: {
     project: Project;
     activityTarget: ActivityTarget | null;
-    progressLogs: ProgressLog[];
+    /** Sprint 27 P4a — inside the H-30% window. */
+    nearDeadline: boolean;
     onOpen: (target: ProjectTabTarget) => void;
     canOpen: (target: ProjectTabTarget) => boolean;
 }) {
@@ -281,44 +227,99 @@ function ProgressSummaryCard({
     const basis = project.progress_basis ?? 'activity';
     const weighted = basis === 'weighted';
     const progress = weighted ? (project.actual_progress ?? 0) : (summary?.progress ?? project.actual_progress ?? 0);
-    const target: ProjectTabTarget = { tab: 'task', view: 'activity-target' };
-    const latest = progressLogs[0];
+    const activityLink: ProjectTabTarget = { tab: 'task', view: 'activity-target' };
+    const hasContract = project.contract_value != null && project.contract_value !== '';
+
+    const running = project.status === 'ACTIVE' || project.status === 'ON_HOLD';
+    const daysLeft = project.end_date ? differenceInCalendarDays(parseISO(project.end_date), new Date()) : null;
+    const dateTone = !running ? 'default' : daysLeft === null ? 'warning' : daysLeft < 0 ? 'error' : nearDeadline ? 'warning' : 'default';
+    const dateNote =
+        project.status === 'COMPLETED'
+            ? 'Proyek selesai'
+            : !running || daysLeft === null
+              ? null
+              : daysLeft < 0
+                ? `Lewat ${-daysLeft} hari`
+                : daysLeft === 0
+                  ? 'Hari ini'
+                  : `Sisa ${daysLeft} hari${nearDeadline ? ' · masa H-30%' : ''}`;
+    const started = project.start_date ? `Mulai ${shortDate(project.start_date)}` : 'Mulai belum ditentukan';
+
+    const tiles = 2 + (summary ? 1 : 0) + (hasContract ? 1 : 0);
 
     return (
-        <SectionCard title={weighted ? 'Progres Berbobot' : 'Progress'} description={PROGRESS_BASIS_HINT[basis]} icon={Activity}>
-            <p className="text-4xl leading-none font-semibold tracking-tight text-foreground tabular-nums">{formatProgress(progress)}</p>
-            <ProgressBar value={progress} label={`${PROGRESS_BASIS_LABEL[basis]} proyek`} className="mt-4" />
+        <section aria-label="Kondisi proyek" className={cn('grid grid-cols-2 gap-3 lg:col-span-3', tiles === 4 ? 'lg:grid-cols-4' : tiles === 3 ? 'lg:grid-cols-3' : '')}>
+            <StatCard label={weighted ? 'Progres Berbobot' : 'Progres'} value={formatProgress(progress)} icon={Activity} hint={PROGRESS_BASIS_HINT[basis]}>
+                <ProgressBar value={progress} label={`${PROGRESS_BASIS_LABEL[basis]} proyek`} />
+            </StatCard>
             {summary && (
-                // On a progres-berbobot project the daily-target figures are their own block, so the gap reads as actual activity vs target.
-                <div className={cn('mt-3 space-y-1 text-sm', weighted && 'rounded-lg bg-daiku-gray px-3 py-2')}>
-                    {weighted && (
-                        <p className="text-muted-foreground">
-                            Actual activity (daily target) <span className="font-medium text-foreground tabular-nums">{summary.progress}%</span>
-                        </p>
-                    )}
-                    <p className="text-muted-foreground">
-                        Target s.d. hari ini <span className="font-medium text-foreground tabular-nums">{summary.target_to_date}%</span>
-                    </p>
-                    <p className={cn('font-medium tabular-nums', summary.gap >= 0 ? 'text-success-ink' : 'text-error-ink')}>
-                        Selisih {summary.gap > 0 ? '+' : summary.gap < 0 ? '−' : '±'}
-                        {Math.abs(summary.gap)} poin
-                    </p>
-                </div>
+                <StatCard
+                    label="Terhadap Target"
+                    value={`${summary.gap > 0 ? '+' : summary.gap < 0 ? '−' : '±'}${Math.abs(summary.gap)} poin`}
+                    tone={summary.gap >= 0 ? 'success' : 'error'}
+                    icon={Target}
+                    hint={
+                        <>
+                            {weighted && <span className="block">Actual activity (daily target) {summary.progress}%</span>}
+                            <span className="block">Target s.d. hari ini {summary.target_to_date}%</span>
+                            {canOpen(activityLink) && (
+                                <button type="button" onClick={() => onOpen(activityLink)} className={cn('mt-1.5 block', TILE_LINK_CLASS)}>
+                                    Lihat Activity Target →
+                                </button>
+                            )}
+                        </>
+                    }
+                />
             )}
-            {summary && canOpen(target) && (
-                <button
-                    type="button"
-                    onClick={() => onOpen(target)}
-                    className="mt-3 text-sm font-medium text-foreground underline decoration-daiku-yellow decoration-2 underline-offset-2 hover:decoration-daiku-yellow-dark"
-                >
-                    Lihat Activity Target →
-                </button>
+            <StatCard
+                label="Tanggal Selesai"
+                value={project.end_date ? shortDate(project.end_date) : 'Belum ditentukan'}
+                tone={dateTone}
+                icon={CalendarClock}
+                hint={
+                    <>
+                        {dateNote && <span className={cn('block font-medium', dateTone === 'error' ? 'text-error-ink' : dateTone === 'warning' ? 'text-warning-ink' : 'text-foreground')}>{dateNote}</span>}
+                        <span className="block">
+                            {started}
+                            {project.opened_on && ` · dibuka ${formatDate(project.opened_on)}`}
+                        </span>
+                    </>
+                }
+            />
+            {/* A half-width phone tile can't hold "Rp 33.000.000" at the KPI size. */}
+            {hasContract && (
+                <StatCard label="Nilai Kontrak" value={<span className="text-lg sm:text-2xl">{formatRupiah(project.contract_value)}</span>} icon={Wallet} />
             )}
-            {latest && (
-                <p className="mt-3 text-xs text-daiku-muted">
-                    Update terakhir: {latest.description} ({formatDate(latest.log_date)})
-                </p>
-            )}
+        </section>
+    );
+}
+
+/** The PM's latest Catatan Progress (Sprint 24 D11 — notes only, never a percentage); the rest sit under Activity Target. */
+function LatestNoteCard({
+    log,
+    onOpen,
+    canOpen,
+}: {
+    log: ProgressLog;
+    onOpen: (target: ProjectTabTarget) => void;
+    canOpen: (target: ProjectTabTarget) => boolean;
+}) {
+    const target: ProjectTabTarget = { tab: 'task', view: 'activity-target' };
+
+    return (
+        <SectionCard
+            title="Catatan Progress"
+            description={`Terakhir · ${formatDate(log.log_date)}`}
+            icon={NotebookPen}
+            action={
+                canOpen(target) && (
+                    <button type="button" onClick={() => onOpen(target)} className={cn('text-sm', TILE_LINK_CLASS)}>
+                        Semua catatan
+                    </button>
+                )
+            }
+        >
+            <p className="text-sm text-foreground">{log.description}</p>
         </SectionCard>
     );
 }
@@ -376,10 +377,11 @@ function TeamCard({ project, execution }: { project: Project; execution: Project
 }
 
 /**
- * Sprint 26 H6 — the Ringkasan tab: whose turn it is (mine first, with the
+ * Sprint 26 H6 — the Ringkasan tab: the project's health (progress vs
+ * target, end date, contract), whose turn it is (mine first, with the
  * one-click action where one exists), the rest of the open items, the
- * project's dates, progress vs target and the team. Reads only the page's
- * own props (`projectWaiting()`), never a query of its own.
+ * latest Catatan Progress and the team. Reads only the page's own props
+ * (`projectWaiting()`), never a query of its own.
  */
 export function ProjectOverviewTab({
     project,
@@ -433,23 +435,27 @@ export function ProjectOverviewTab({
     const mine = rows.filter((row) => row.mine);
     const others = rows.filter((row) => !row.mine);
 
+    const latestLog = progressLogs[0];
+
+    // Health first (a phone used to find the progress at the very bottom), then my turn, then the rest.
     return (
         <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+            <ProjectPulse
+                project={project}
+                activityTarget={activityTarget}
+                nearDeadline={Boolean(execution?.deadline.warning)}
+                onOpen={onOpen}
+                canOpen={canOpen}
+            />
+
             {mine.length > 0 && <MyTurnCard rows={mine} project={project} execution={execution} onOpen={onOpen} canOpen={canOpen} />}
 
             <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
                 <OthersCard rows={others} onOpen={onOpen} canOpen={canOpen} />
-                <InfoCard project={project} nearDeadline={Boolean(execution?.deadline.warning)} />
             </div>
 
             <div className="flex min-w-0 flex-col gap-6">
-                <ProgressSummaryCard
-                    project={project}
-                    activityTarget={activityTarget}
-                    progressLogs={progressLogs}
-                    onOpen={onOpen}
-                    canOpen={canOpen}
-                />
+                {latestLog && <LatestNoteCard log={latestLog} onOpen={onOpen} canOpen={canOpen} />}
                 <TeamCard project={project} execution={execution} />
             </div>
         </div>

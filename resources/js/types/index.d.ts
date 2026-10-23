@@ -2493,6 +2493,8 @@ export interface ProgressRecap {
         description: string;
         volume_label: string;
         team_lead: string;
+        /** RAB value of the item (Rp). */
+        value: number;
         /** % of the RAB value of the items with a wage. */
         weight: number;
         /** date → % added that day. */
@@ -2692,6 +2694,8 @@ export interface WorkSteps {
         target: { tab: string; view?: string; anchor?: string };
         /** This viewer is the one who does it. */
         mine: boolean;
+        /** Recurring work (daily check, weekly pengecekan) — never "done", so outside `done`/`total`. */
+        routine: boolean;
         state: WorkStepState;
         /** A step done by one button of its own instead of opening a card (e.g. `completeMeeting`). */
         action: 'completeMeeting' | 'decidePayment' | null;

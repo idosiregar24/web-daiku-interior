@@ -12,7 +12,7 @@ import type { ProjectExecution, WorkItemScheduleStatus, WorkItemTarget } from '@
 import { Link } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
-import { CalendarRange, CircleCheck, Hourglass, Info, PencilLine, Sheet, TriangleAlert, X } from 'lucide-react';
+import { CalendarRange, CircleCheck, FileDown, Hourglass, Info, PencilLine, Sheet, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
 import { decisionTargetOf, workCheckState } from './WeeklyReportsCard';
@@ -117,13 +117,26 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
             description="Jadwal (dari Timeline) & progres tiap item RAB — seperti lembar Simulasi Persentasi."
             icon={Sheet}
             action={
-                can.linkTimelines ? (
-                    <Button size="sm" variant="outline" asChild>
-                        <Link href={timelineHref}>
-                            <CalendarRange className="size-4" />
-                            Atur di Timeline
-                        </Link>
-                    </Button>
+                recap || can.linkTimelines ? (
+                    <div className="flex flex-wrap gap-2">
+                        {/* The recap reaches exactly who may download it (ProjectPolicy::viewProgressRecap()). */}
+                        {recap && (
+                            <Button size="sm" variant="outline" asChild>
+                                <a href={route('projects.progress-sheet.excel', { project: projectId })}>
+                                    <FileDown className="size-4" />
+                                    Unduh Excel
+                                </a>
+                            </Button>
+                        )}
+                        {can.linkTimelines && (
+                            <Button size="sm" variant="outline" asChild>
+                                <Link href={timelineHref}>
+                                    <CalendarRange className="size-4" />
+                                    Atur di Timeline
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
                 ) : undefined
             }
         >

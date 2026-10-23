@@ -477,6 +477,11 @@ Route::middleware(['auth', 'role:QA|ADMIN_PROYEK', 'throttle:120,1'])->group(fun
     Route::put('projects/{project}/wage-splits', [WageSplitController::class, 'saveProjectSplit'])->name('projects.wage-splits.save');
 });
 
+// Lembar Progres → Excel: whoever gets the recap on the page (ProjectPolicy::viewProgressRecap()) — read only.
+Route::get('projects/{project}/lembar-progres/excel', [WorkItemController::class, 'exportProgressSheet'])
+    ->middleware(['auth', 'role:CEO|PM|FINANCE|QA|ADMIN_PROYEK', 'throttle:30,1'])
+    ->name('projects.progress-sheet.excel');
+
 // Sprint 32 — ⚙ Pengaturan › Tim Tukang: team templates (CEO, PM, Pengawas, Admin Proyek);
 // the default weight per tingkatan karir is the CEO's alone.
 Route::middleware(['auth', 'role:CEO|PM|QA|ADMIN_PROYEK'])

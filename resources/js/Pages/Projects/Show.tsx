@@ -1068,7 +1068,7 @@ function SupplierDebtCard({ debts }: { debts: SupplierDebt[] }) {
 /** Top-level tab → breadcrumb label (Timeline gets "& QC" only for viewers of the QC view). */
 const PROJECT_TAB_LABEL: Record<string, string> = {
     overview: 'Ringkasan',
-    execution: 'Eksekusi',
+    execution: 'Tahapan',
     items: 'Item RAB',
     milestone: 'Timeline',
     task: 'Daily Target',
@@ -1383,8 +1383,14 @@ export default function ProjectShow({
                 }
                 actions={
                     <>
-                        {/* Sprint 26 H1d — the phase lives in ProjectPhaseStepper below; Sprint 28 K14 — the chip names that phase's holder. */}
-                        <StatusChip domain="project" status={project.status} waitingOn={projectWaitingOn(project)} />
+                        {/* Sprint 26 H1d — the phase lives in ProjectPhaseStepper below; Sprint 28 K14 — the chip names that phase's holder.
+                            On a phone the stepper's card right below says the same sentence (the chip was cut off there) — shown only without a stepper. */}
+                        <StatusChip
+                            domain="project"
+                            status={project.status}
+                            waitingOn={projectWaitingOn(project)}
+                            className={project.status !== 'CANCELLED' ? 'max-sm:hidden' : undefined}
+                        />
                         {canMakePortfolio && (
                             <Button
                                 variant="outline"
@@ -1483,7 +1489,7 @@ export default function ProjectShow({
                     {execution && (
                         <TabsTrigger value="execution">
                             <Route />
-                            Eksekusi
+                            Tahapan
                         </TabsTrigger>
                     )}
                     {availableTabs.items && (

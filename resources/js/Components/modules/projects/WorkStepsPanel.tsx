@@ -39,6 +39,9 @@ export function WorkStepsPanel({
     const [collapsed, setCollapsed] = useState(readCollapsed);
     const current = steps.items.find((step) => step.state === 'current' && step.mine) ?? steps.items.find((step) => step.state === 'current');
     const doneTitles = steps.items.filter((step) => step.state === 'done').map((step) => step.title);
+    // Phones: recurring work with nothing pending folds into one line too — tappable, it is where the daily work starts.
+    const idleRoutine = steps.items.filter((step) => step.state === 'ongoing');
+    const routineCount = steps.items.filter((step) => step.routine).length;
 
     function toggle() {
         setCollapsed((value) => {
@@ -63,8 +66,11 @@ export function WorkStepsPanel({
                 <span className="min-w-0 flex-1">
                     <span className="block text-sm font-semibold text-foreground">
                         Langkah Kerja · {steps.phase_label}
+                        {/* Recurring steps never finish, so the count is the one-time steps; the rest are named "rutin". */}
                         <span className="ml-2 font-normal text-daiku-muted tabular-nums">
-                            {steps.done}/{steps.total} selesai
+                            {steps.total > 0 && `${steps.done}/${steps.total} selesai`}
+                            {steps.total > 0 && routineCount > 0 && ' · '}
+                            {routineCount > 0 && `${routineCount} rutin`}
                         </span>
                     </span>
                     {collapsed && current && (
@@ -84,6 +90,30 @@ export function WorkStepsPanel({
                             <Check className="mt-0.5 size-3.5 shrink-0 text-success-ink" />
                             <span>
                                 Selesai: <span className="text-foreground">{doneTitles.join(' · ')}</span>
+                            </span>
+                        </p>
+                    )}
+                    {idleRoutine.length > 0 && (
+                        <p className="mb-2 flex items-start gap-1.5 text-xs text-daiku-muted lg:hidden">
+                            <RefreshCw className="mt-0.5 size-3.5 shrink-0 text-info-ink" />
+                            <span>
+                                Rutin, tidak ada yang menunggu:{' '}
+                                {idleRoutine.map((step, index) => (
+                                    <span key={step.key}>
+                                        {index > 0 && ' · '}
+                                        {canOpen(step.target) ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => onOpen(step.target)}
+                                                className="text-left text-foreground underline decoration-daiku-yellow underline-offset-2"
+                                            >
+                                                {step.title}
+                                            </button>
+                                        ) : (
+                                            <span className="text-foreground">{step.title}</span>
+                                        )}
+                                    </span>
+                                ))}
                             </span>
                         </p>
                     )}
@@ -132,7 +162,7 @@ function StepItem({
                 'flex flex-col gap-2 rounded-lg p-2.5',
                 isCurrent ? 'bg-daiku-yellow-light ring-2 ring-daiku-yellow' : 'bg-daiku-gray/50',
                 step.state === 'todo' && 'opacity-70',
-                step.state === 'done' && 'hidden lg:flex',
+                (step.state === 'done' || step.state === 'ongoing') && 'hidden lg:flex',
             )}
         >
             <div className="flex items-center gap-2">
@@ -143,6 +173,7 @@ function StepItem({
                 <p className={cn('text-sm leading-snug', step.state === 'done' ? 'text-daiku-muted' : 'font-medium text-foreground')}>{step.title}</p>
                 <p className="text-xs text-daiku-muted">
                     {step.who}
+                    {step.routine && <span className="ml-1.5 rounded bg-info/10 px-1.5 py-0.5 text-[10px] font-medium text-info-ink">Rutin</span>}
                     {step.state === 'optional' && <span className="ml-1.5 rounded bg-info/10 px-1.5 py-0.5 text-[10px] font-medium text-info-ink">Tidak menahan</span>}
                 </p>
                 {step.detail && <p className={cn('text-xs', isCurrent ? 'text-foreground' : 'text-daiku-muted')}>{step.detail}</p>}

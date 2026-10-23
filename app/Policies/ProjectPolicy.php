@@ -172,6 +172,18 @@ class ProjectPolicy
     }
 
     /**
+     * Sprint 31 — the Lembar Progres recap (bobot, % per pengecekan,
+     * kontribusi, RAB value) and its Excel: who sees the money of the
+     * project (CEO / PM / Finance / its Pengawas) and the Admin Proyek —
+     * never Marketing, Logistik, the Asisten PM or another QA.
+     */
+    public function viewProgressRecap(User $user, Project $project): bool
+    {
+        return $this->view($user, $project)
+            && ($user->hasAnyRole(['CEO', 'PM', 'FINANCE']) || $project->isSupervisedBy($user) || $project->isAdministeredBy($user));
+    }
+
+    /**
      * Sprint 29 Sub 12 (G1, H3) — decide QA per item RAB: the project's
      * Pengawas (QA/QC), every one of them; a project without a Pengawas →
      * every QA user (same rule as QaFormPolicy::review). Never the Admin Proyek.

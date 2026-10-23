@@ -216,7 +216,7 @@ class ProjectExecutionService
             // Sprint 31 Sub 03 — "Jadwal per Item" (File C's light-blue cells): every viewer of the tab, from Persiapan.
             'workSchedule' => $usesWorkItems && $phase->isAtLeast(ProjectPhase::Persiapan) ? $this->workItemService->scheduleOverview($project) : null,
             // Sprint 31 — "Rekap Progres per Item" (File C as a table): the pengecekan viewers only.
-            'progressRecap' => $usesWorkItems && ($seesMoney || $administers) ? $this->workItemService->progressRecap($project) : null,
+            'progressRecap' => $usesWorkItems && $user->can('viewProgressRecap', $project) ? $this->workItemService->progressRecap($project) : null,
             'progress' => $progress['progress'],
             'progressBasis' => $progress['basis'],
             'threshold' => ProductionService::departureThreshold(),

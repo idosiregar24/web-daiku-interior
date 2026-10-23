@@ -345,7 +345,7 @@ export function ProjectExecutionTab({
 
             {historyPhases.length > 0 && (
                 <SectionCard
-                    title={active ? 'Tahap Sebelumnya' : 'Riwayat Eksekusi'}
+                    title={active ? 'Tahap Sebelumnya' : 'Riwayat Tahapan'}
                     description={
                         active
                             ? 'Ketuk satu tahap untuk melihat rinciannya.'

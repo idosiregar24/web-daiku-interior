@@ -74,7 +74,7 @@ class ProductionService
             [$project->pm],
             NotificationType::ProjectProgressReached,
             'Siap Berangkat ke Lokasi',
-            'Proyek "'.$project->name.'" sudah '.self::progressText($figure).' — setujui berangkat ke lokasi di tab Eksekusi.',
+            'Proyek "'.$project->name.'" sudah '.self::progressText($figure).' — setujui berangkat ke lokasi di tab Tahapan.',
             ['project_id' => $project->id],
         );
     }

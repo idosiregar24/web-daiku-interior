@@ -60,13 +60,15 @@ class ProjectStepsService
 
         $items = $this->withStates($steps);
         $next = collect(ProjectPhase::cases())->first(fn (ProjectPhase $step) => $step->rank() === $phase->rank() + 1);
+        // Recurring work never ends, so "n/m selesai" counts the one-time steps only.
+        $oneTime = collect($items)->where('routine', false);
 
         return [
             'phase' => $phase->value,
             'phase_label' => $phase->label(),
             'items' => $items,
-            'done' => collect($items)->where('state', 'done')->count(),
-            'total' => count($items),
+            'done' => $oneTime->where('state', 'done')->count(),
+            'total' => $oneTime->count(),
             'next' => $next ? ['phase' => $next->value, 'title' => $next->label()] : ['phase' => 'SELESAI', 'title' => 'Proyek selesai'],
         ];
     }
@@ -262,9 +264,11 @@ class ProjectStepsService
                 $step['optional'] => 'optional',
                 default => 'todo',
             };
+            // `routine` stays readable once a recurring step turns `current` (something waits on it).
+            $routine = $step['ongoing'];
             unset($step['done'], $step['ongoing'], $step['attention'], $step['later'], $step['optional']);
 
-            return [...$step, 'state' => $state];
+            return [...$step, 'routine' => $routine, 'state' => $state];
         })->values()->all();
     }
 }

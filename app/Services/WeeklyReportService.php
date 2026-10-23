@@ -202,7 +202,7 @@ class WeeklyReportService
                     ? "{$actor->name} mengirim pengecekan proyek \"{$project->name}\" (progres ".Quantity::format($this->workItemService->weightedProgress($project) ?? 0).' %) dan mengajukan '.mb_strtolower($payment->kind->label()).' upah Rp '.number_format((float) $payment->amount, 0, ',', '.').' — setujui atau tolak di Item RAB › Lembar Progres.'
                     : ($usesWorkItems
                         ? "{$actor->name} mengirim pengecekan proyek \"{$project->name}\" — setujui atau tolak di Item RAB › Lembar Progres."
-                        : "{$actor->name} mengirim laporan mingguan proyek \"{$project->name}\" — setujui atau tolak di tab Eksekusi."),
+                        : "{$actor->name} mengirim laporan mingguan proyek \"{$project->name}\" — setujui atau tolak di tab Tahapan."),
                 // Sprint 31 — a pengecekan per item is decided on the Lembar Progres (NotificationTarget).
                 ['project_id' => $project->id, 'item_sheet' => $usesWorkItems],
             );

@@ -661,7 +661,7 @@ class ProjectService
             User::whereIn('id', $attached)->get(),
             NotificationType::ProjectSupervisorAssigned,
             'Ditunjuk sebagai Pengawas (QA/QC)',
-            "Anda ditunjuk sebagai Pengawas proyek \"{$project->name}\" oleh {$actor->name} — cek tab Eksekusi.",
+            "Anda ditunjuk sebagai Pengawas proyek \"{$project->name}\" oleh {$actor->name} — cek tab Tahapan.",
             ['project_id' => $project->id],
         );
 

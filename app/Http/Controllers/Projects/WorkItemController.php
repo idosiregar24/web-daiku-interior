@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Projects;
 
+use App\Exports\ProgressSheetExport;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Projects\SaveWorkCheckDraftRequest;
 use App\Http\Requests\Projects\SaveWorkItemWagesRequest;
@@ -11,6 +12,8 @@ use App\Models\ProjectWorkItem;
 use App\Services\WorkItemService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Sprint 29 Sub 08 (B3) — the "Upah Tukang" card's saves: the project's
@@ -62,5 +65,18 @@ class WorkItemController extends Controller
         $service->saveDraft($project, $request->validated(), $request->user());
 
         return back()->with('success', 'Draf pengecekan tersimpan.');
+    }
+
+    /** The Lembar Progres as Excel — the recap's viewers only (ProjectPolicy::viewProgressRecap()); read only. */
+    public function exportProgressSheet(Project $project, WorkItemService $service): BinaryFileResponse
+    {
+        $this->authorize('viewProgressRecap', $project);
+        abort_unless($service->hasWorkItems($project), 404);
+        $project->loadMissing('lead:id,client_name');
+
+        $name = str($project->name)->slug();
+        $export = new ProgressSheetExport($project, $service->progressRecap($project), $service->scheduleOverview($project));
+
+        return Excel::download($export, "lembar-progres-{$name}-".now('Asia/Jakarta')->format('Y-m-d').'.xlsx');
     }
 }

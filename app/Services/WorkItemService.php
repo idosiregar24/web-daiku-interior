@@ -672,6 +672,8 @@ class WorkItemService
                     'description' => $item->quotationItem->description,
                     'volume_label' => trim(Quantity::format($item->quotationItem->qty).' '.($item->quotationItem->unit?->code ?? '')),
                     'team_lead' => $item->teamLeadLabel() ?? self::NO_TEAM_LEAD,
+                    // RAB value — the recap's viewers already see it in Upah Tukang (`workItems`); the Excel's "Nilai" column.
+                    'value' => $this->money($rabCents[$item->id]),
                     'weight' => $rabTotal > 0 ? round($rabCents[$item->id] / $rabTotal * 100, 2) : 0.0,
                     'cells' => (object) array_map(fn (int $hundredths) => $hundredths / 100, $cells[$item->id] ?? []),
                     'total' => $total / 100,

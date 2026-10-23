@@ -33,6 +33,7 @@ import {
     SheetTrigger,
 } from '@/Components/ui/sheet';
 import { Toaster } from '@/Components/ui/sonner';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/Components/ui/tooltip';
 import { useFlashToasts } from '@/hooks/useFlashToasts';
 import { useRealtimeNotifications } from '@/hooks/useRealtimeNotifications';
 import { formatRelative } from '@/lib/format';
@@ -86,6 +87,8 @@ import {
     NotebookPen,
     Package,
     Palette,
+    PanelLeftClose,
+    PanelLeftOpen,
     Percent,
     PiggyBank,
     Receipt,
@@ -108,7 +111,20 @@ import {
     WalletCards,
     Warehouse,
 } from 'lucide-react';
-import { Fragment, lazy, PropsWithChildren, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    createContext,
+    Fragment,
+    lazy,
+    PropsWithChildren,
+    ReactNode,
+    Suspense,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 
 // "Buka Proyek" pop-up — the approving PM only (Sprint 23 K13), and only while an approved
 // RAB Proyek waits. Loaded on demand (Sprint 13 H8): its form, date picker
@@ -710,6 +726,77 @@ function initials(name: string) {
         .toUpperCase();
 }
 
+const RAIL_KEY = 'daiku.sidebar.collapsed';
+
+function readRail(): boolean {
+    try {
+        return window.localStorage.getItem(RAIL_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * The desktop sidebar folded to an icon rail. Per device (localStorage), not
+ * `users.nav_preferences`: a phone never shows the sidebar, and a wide
+ * monitor and a 13" laptop want different answers. Ctrl/⌘ B toggles it.
+ */
+function useSidebarRail(): [boolean, () => void] {
+    const [rail, setRail] = useState(readRail);
+
+    const toggle = useCallback(() => {
+        setRail((value) => {
+            try {
+                window.localStorage.setItem(RAIL_KEY, value ? '0' : '1');
+            } catch {
+                // Private mode — the rail just isn't remembered.
+            }
+
+            return !value;
+        });
+    }, []);
+
+    useEffect(() => {
+        function onKey(event: KeyboardEvent) {
+            if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'b') return;
+
+            const target = event.target as HTMLElement | null;
+            if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+
+            event.preventDefault();
+            toggle();
+        }
+
+        window.addEventListener('keydown', onKey);
+
+        return () => window.removeEventListener('keydown', onKey);
+    }, [toggle]);
+
+    return [rail, toggle];
+}
+
+/** True inside the desktop sidebar while it is an icon rail (the phone sheet is always full). */
+const SidebarRailContext = createContext(false);
+/** The topbar's toggle — null where there is no desktop sidebar to fold. */
+const SidebarToggleContext = createContext<{ rail: boolean; toggle: () => void } | null>(null);
+
+/** Rail only: the menu's name (and its count) beside the icon. */
+function RailTooltip({ label, count = 0, children }: { label: string; count?: number; children: ReactNode }) {
+    const rail = useContext(SidebarRailContext);
+
+    if (!rail) return children;
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>{children}</TooltipTrigger>
+            <TooltipContent side="right" sideOffset={10}>
+                {label}
+                {count > 0 && <span className="text-background/70">· {count > 99 ? '99+' : count} perlu tindakan</span>}
+            </TooltipContent>
+        </Tooltip>
+    );
+}
+
 // Latest folded-groups list of this browser session. The save runs in the
 // background, so a page visited before it lands still gets the server's
 // older value in its props — this one wins until the next full load.
@@ -747,55 +834,76 @@ function useCollapsedGroups(): [string[], (label: string) => void] {
     return [collapsed, toggle];
 }
 
+/** Rail only: the count sits on the icon, where the chip at the row's end can't. */
+function RailCount({ count }: { count: number }) {
+    if (count <= 0) return null;
+
+    return (
+        <span
+            aria-hidden
+            className="absolute -top-1 left-5 min-w-4 rounded-full bg-daiku-yellow px-1 text-center text-[9px] leading-4 font-semibold text-daiku-dark tabular-nums shadow-xs"
+        >
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
 function NavLink({ item }: { item: NavItem }) {
     const Icon = item.icon;
     const badge = useNavBadge()(item);
+    const rail = useContext(SidebarRailContext);
     // Detail/create pages (and every tab of a hub) keep their menu highlighted.
     const isActive = isCurrentNav(item);
 
     if (!item.routeName) {
         return (
-            <span
-                className="flex h-8 cursor-not-allowed items-center justify-between rounded-lg px-2.5 text-[13px] text-daiku-muted/70"
-                title="Segera hadir"
-            >
-                <span className="flex items-center gap-2.5">
-                    <Icon className="size-4" />
-                    {item.label}
+            <RailTooltip label={`${item.label} · segera hadir`}>
+                <span
+                    className="flex h-8 cursor-not-allowed items-center justify-between overflow-hidden rounded-lg px-2.5 text-[13px] whitespace-nowrap text-daiku-muted/70"
+                    title={rail ? undefined : 'Segera hadir'}
+                >
+                    <span className="flex items-center gap-2.5">
+                        <Icon className="size-4 shrink-0" />
+                        <span className={cn('transition-opacity duration-150', rail && 'opacity-0')}>{item.label}</span>
+                    </span>
+                    {!rail && (
+                        <Badge variant="secondary" className="text-[10px] font-normal">
+                            Segera
+                        </Badge>
+                    )}
                 </span>
-                <Badge variant="secondary" className="text-[10px] font-normal">
-                    Segera
-                </Badge>
-            </span>
+            </RailTooltip>
         );
     }
 
     return (
-        <Link
-            href={route(item.routeName)}
-            aria-current={isActive ? 'page' : undefined}
-            className={cn(
-                'group relative flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors',
-                isActive
-                    ? 'bg-background text-foreground shadow-xs ring-1 ring-border'
-                    : 'text-daiku-dark/75 hover:bg-background/70 hover:text-foreground',
-            )}
-        >
-            {isActive && (
-                <span
-                    aria-hidden
-                    className="absolute top-1/2 -left-3 h-5 w-1 -translate-y-1/2 rounded-r-full bg-daiku-yellow"
-                />
-            )}
-            <Icon
+        <RailTooltip label={item.label} count={badge}>
+            <Link
+                href={route(item.routeName)}
+                aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                    'size-4 shrink-0 transition-colors',
-                    isActive ? 'text-daiku-yellow-dark' : 'text-daiku-muted group-hover:text-foreground',
+                    'group relative flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium whitespace-nowrap transition-colors',
+                    isActive
+                        ? 'bg-background text-foreground shadow-xs ring-1 ring-border'
+                        : 'text-daiku-dark/75 hover:bg-background/70 hover:text-foreground',
                 )}
-            />
-            <span className="truncate">{item.label}</span>
-            <NavBadge count={badge} />
-        </Link>
+            >
+                {isActive && (
+                    <span
+                        aria-hidden
+                        className="absolute top-1/2 -left-3 h-5 w-1 -translate-y-1/2 rounded-r-full bg-daiku-yellow"
+                    />
+                )}
+                <Icon
+                    className={cn(
+                        'size-4 shrink-0 transition-colors',
+                        isActive ? 'text-daiku-yellow-dark' : 'text-daiku-muted group-hover:text-foreground',
+                    )}
+                />
+                <span className={cn('truncate transition-opacity duration-150', rail && 'opacity-0')}>{item.label}</span>
+                {rail ? <RailCount count={badge} /> : <NavBadge count={badge} />}
+            </Link>
+        </RailTooltip>
     );
 }
 
@@ -804,6 +912,7 @@ function SidebarNav() {
     const activeGroup = useActiveNav()?.group.label;
     const [collapsed, toggle] = useCollapsedGroups();
     const badgeOf = useNavBadge();
+    const rail = useContext(SidebarRailContext);
     const navRef = useRef<HTMLElement>(null);
 
     // Menus low in the list (Logistik, SDM…) would otherwise sit below
@@ -813,41 +922,48 @@ function SidebarNav() {
     }, []);
 
     return (
-        <nav ref={navRef} className="scrollbar-thin flex flex-1 flex-col gap-3 overflow-y-auto px-3 py-2">
-            {groups.map((group) => {
-                // The group of the page on screen never folds.
+        <nav ref={navRef} className="scrollbar-thin flex flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto px-3 py-2">
+            {groups.map((group, index) => {
+                // The group of the page on screen never folds; the rail has no headers to unfold with, so it shows every group.
                 const isActiveGroup = group.label === activeGroup;
-                const open = isActiveGroup || !collapsed.includes(group.label);
+                const open = rail || isActiveGroup || !collapsed.includes(group.label);
                 const listId = `nav-group-${group.label.toLowerCase()}`;
 
                 return (
                     <div key={group.label}>
-                        <button
-                            type="button"
-                            onClick={() => toggle(group.label)}
-                            disabled={isActiveGroup}
-                            aria-expanded={open}
-                            aria-controls={listId}
-                            title={isActiveGroup ? 'Grup halaman yang sedang dibuka' : open ? 'Lipat grup' : 'Buka grup'}
-                            className="group/header flex w-full items-center justify-between rounded-md px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wider text-daiku-muted/80 uppercase transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:text-daiku-muted/80"
-                        >
-                            {group.label}
-                            {/* A folded group still tells what waits inside it. */}
-                            {!open && (
-                                <NavBadge
-                                    count={group.items.reduce((sum, item) => sum + badgeOf(item), 0)}
-                                    className="mr-1.5 tracking-normal"
-                                />
-                            )}
-                            <ChevronDown
-                                aria-hidden
-                                className={cn(
-                                    'size-3.5 transition-transform',
-                                    !open && '-rotate-90',
-                                    isActiveGroup && 'opacity-0',
+                        {rail ? (
+                            // Same height as the header it replaces, so the icons don't jump.
+                            <div aria-hidden className="flex h-[26px] items-center px-2.5">
+                                {index > 0 && <span className="h-px w-4 bg-border" />}
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => toggle(group.label)}
+                                disabled={isActiveGroup}
+                                aria-expanded={open}
+                                aria-controls={listId}
+                                title={isActiveGroup ? 'Grup halaman yang sedang dibuka' : open ? 'Lipat grup' : 'Buka grup'}
+                                className="group/header flex w-full items-center justify-between rounded-md px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wider text-daiku-muted/80 uppercase transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:hover:text-daiku-muted/80"
+                            >
+                                {group.label}
+                                {/* A folded group still tells what waits inside it. */}
+                                {!open && (
+                                    <NavBadge
+                                        count={group.items.reduce((sum, item) => sum + badgeOf(item), 0)}
+                                        className="mr-1.5 tracking-normal"
+                                    />
                                 )}
-                            />
-                        </button>
+                                <ChevronDown
+                                    aria-hidden
+                                    className={cn(
+                                        'size-3.5 transition-transform',
+                                        !open && '-rotate-90',
+                                        isActiveGroup && 'opacity-0',
+                                    )}
+                                />
+                            </button>
+                        )}
                         {open && (
                             <div id={listId} className="flex flex-col gap-0.5">
                                 {group.items.map((item) => (
@@ -881,17 +997,22 @@ function SidebarPinned() {
 
 function SidebarBrand() {
     const { site } = usePage<PageProps>().props;
+    const rail = useContext(SidebarRailContext);
 
     return (
-        <Link href={route('dashboard')} className="flex shrink-0 items-center gap-3 px-5 pt-5 pb-4">
-            {site.logoUrl ? (
+        <Link
+            href={route('dashboard')}
+            aria-label={rail ? site.name : undefined}
+            className={cn('flex shrink-0 items-center gap-3 overflow-hidden pt-5 pb-4 whitespace-nowrap transition-[padding] duration-200', rail ? 'px-3' : 'px-5')}
+        >
+            {site.logoUrl && !rail ? (
                 <BrandLogoTile className="h-9 max-w-32" />
             ) : (
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-daiku-yellow shadow-xs">
                     <BrandMark className="size-5" fallbackClassName="fill-daiku-dark" />
                 </span>
             )}
-            <span className="min-w-0 leading-tight">
+            <span className={cn('min-w-0 leading-tight transition-opacity duration-150', rail && 'opacity-0')}>
                 <span className="block truncate text-sm font-semibold tracking-tight text-daiku-dark">
                     {site.name}
                 </span>
@@ -945,6 +1066,7 @@ function UserAvatar({ user, className }: { user: User; className?: string }) {
 function SidebarUser() {
     const { auth } = usePage<PageProps>().props;
     const user = auth.user;
+    const rail = useContext(SidebarRailContext);
 
     if (!user) {
         return null;
@@ -956,10 +1078,14 @@ function SidebarUser() {
                 <DropdownMenuTrigger asChild>
                     <button
                         type="button"
-                        className="flex w-full items-center gap-2.5 rounded-xl bg-background p-2 text-left shadow-xs ring-1 ring-border transition-colors hover:shadow-sm"
+                        aria-label={rail ? `Menu akun ${user.name}` : undefined}
+                        className={cn(
+                            'flex w-full items-center gap-2.5 overflow-hidden rounded-xl bg-background text-left whitespace-nowrap shadow-xs ring-1 ring-border transition-[padding,box-shadow] duration-200 hover:shadow-sm',
+                            rail ? 'p-0.5' : 'p-2',
+                        )}
                     >
-                        <UserAvatar user={user} />
-                        <span className="min-w-0 flex-1 leading-tight">
+                        <UserAvatar user={user} className="shrink-0" />
+                        <span className={cn('min-w-0 flex-1 leading-tight transition-opacity duration-150', rail && 'opacity-0')}>
                             <span className="block truncate text-[13px] font-semibold text-foreground">
                                 {user.name}
                             </span>
@@ -1390,6 +1516,7 @@ function Topbar({
         if (recentRoute && recentRoute !== 'dashboard') rememberMenu(recentRoute);
     }, [recentRoute]);
 
+    const sidebar = useContext(SidebarToggleContext);
     const heldRoles = user?.roles ?? (user?.role ? [user.role] : []);
     const quickCreate = QUICK_CREATE.filter((item) => item.roles.some((role) => heldRoles.includes(role)));
 
@@ -1407,6 +1534,26 @@ function Topbar({
                         <SidebarContents />
                     </SheetContent>
                 </Sheet>
+                {sidebar && (
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="-ml-1.5 hidden text-daiku-muted hover:text-foreground lg:inline-flex"
+                                onClick={sidebar.toggle}
+                                aria-label={sidebar.rail ? 'Buka sidebar' : 'Tutup sidebar'}
+                                aria-expanded={!sidebar.rail}
+                            >
+                                {sidebar.rail ? <PanelLeftOpen className="size-5" /> : <PanelLeftClose className="size-5" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" sideOffset={6}>
+                            {sidebar.rail ? 'Buka sidebar' : 'Tutup sidebar'}
+                            <span className="text-background/70">Ctrl B</span>
+                        </TooltipContent>
+                    </Tooltip>
+                )}
                 <TopbarBreadcrumb extra={breadcrumbs ?? []} header={header} />
             </div>
 
@@ -1439,40 +1586,54 @@ export default function AppLayout({
     const { success, closeSuccess } = useFlashToasts();
     const isFieldStaff = useIsFieldStaff();
     const { pendingProjectOpenings } = usePage<PageProps>().props;
+    const [rail, toggleRail] = useSidebarRail();
+    const sidebarToggle = useMemo(() => ({ rail, toggle: toggleRail }), [rail, toggleRail]);
 
     return (
-        <div className="flex h-screen overflow-hidden bg-daiku-gray">
-            <Toaster position="top-right" richColors closeButton />
-            {/* Sprint 23 K1–K2 — success pop-up and loading in the middle of the screen. */}
-            <SuccessDialog message={success} onClose={closeSuccess} />
-            <GlobalLoadingOverlay />
-            {/* Sprint 23 K13 — the approving PM only; renders nothing when no RAB Proyek waits. */}
-            {pendingProjectOpenings && (
-                <Suspense fallback={null}>
-                    <ProjectOpeningPrompt />
-                </Suspense>
-            )}
-            <aside className="hidden h-full w-64 shrink-0 flex-col lg:flex">
-                <SidebarContents />
-            </aside>
+        <TooltipProvider delayDuration={150}>
+            <SidebarToggleContext.Provider value={sidebarToggle}>
+                <div className="flex h-screen overflow-hidden bg-daiku-gray">
+                    <Toaster position="top-right" richColors closeButton />
+                    {/* Sprint 23 K1–K2 — success pop-up and loading in the middle of the screen. */}
+                    <SuccessDialog message={success} onClose={closeSuccess} />
+                    <GlobalLoadingOverlay />
+                    {/* Sprint 23 K13 — the approving PM only; renders nothing when no RAB Proyek waits. */}
+                    {pendingProjectOpenings && (
+                        <Suspense fallback={null}>
+                            <ProjectOpeningPrompt />
+                        </Suspense>
+                    )}
+                    {/* The rail keeps every icon where it was (12px + 10px padding = centred in 60px) — only the width moves. */}
+                    <aside
+                        className={cn(
+                            'hidden h-full shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex',
+                            rail ? 'w-15' : 'w-64',
+                        )}
+                    >
+                        <SidebarRailContext.Provider value={rail}>
+                            <SidebarContents />
+                        </SidebarRailContext.Provider>
+                    </aside>
 
-            <div className="flex h-full min-w-0 flex-1 flex-col lg:py-2 lg:pr-2">
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background lg:rounded-2xl lg:shadow-sm lg:ring-1 lg:ring-border">
-                    <main className="scrollbar-thin relative flex-1 overflow-y-auto">
-                        <Topbar breadcrumbs={breadcrumbs} header={header} />
-                        {/* Room for the Tukang's bottom bar on a phone. */}
-                        <div
-                            className={cn(
-                                'mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
-                                isFieldStaff && 'pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8',
-                            )}
-                        >
-                            {children}
+                    <div className="flex h-full min-w-0 flex-1 flex-col lg:py-2 lg:pr-2">
+                        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background lg:rounded-2xl lg:shadow-sm lg:ring-1 lg:ring-border">
+                            <main className="scrollbar-thin relative flex-1 overflow-y-auto">
+                                <Topbar breadcrumbs={breadcrumbs} header={header} />
+                                {/* Room for the Tukang's bottom bar on a phone. */}
+                                <div
+                                    className={cn(
+                                        'mx-auto w-full max-w-screen-2xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
+                                        isFieldStaff && 'pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-8',
+                                    )}
+                                >
+                                    {children}
+                                </div>
+                            </main>
                         </div>
-                    </main>
+                    </div>
+                    {isFieldStaff && <BottomNav />}
                 </div>
-            </div>
-            {isFieldStaff && <BottomNav />}
-        </div>
+            </SidebarToggleContext.Provider>
+        </TooltipProvider>
     );
 }

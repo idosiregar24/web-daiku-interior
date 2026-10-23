@@ -101,6 +101,13 @@ test('Produksi: recurring work is ongoing until something waits — a sent penge
         ->and($steps['check-decide']['mine'])->toBeTrue()
         ->and($steps['check-decide']['target'])->toBe(['tab' => 'items', 'view' => 'progres'])
         ->and($steps['check']['detail'])->toBe('Terkirim — menunggu ACC PM');
+
+    // A recurring step stays `routine` while current, and "n/m selesai" counts the one-time steps only.
+    $all = app(ProjectStepsService::class)->for($this->project->fresh(), $this->pm);
+    expect($steps['check-decide']['routine'])->toBeTrue()
+        ->and($steps['departure']['routine'])->toBeFalse()
+        ->and($all['done'])->toBe(0)
+        ->and($all['total'])->toBe(1);
 });
 
 test('the steps reach whoever opens the Eksekusi tab; nobody else, and not a closed project', function () {

@@ -231,7 +231,7 @@ class SupervisorPaymentService
             $report = $payment->weekly_report_id ? WeeklyReport::find($payment->weekly_report_id) : null;
 
             if (! $fromReport && $report && $report->status === WeeklyReportStatus::Diajukan) {
-                throw ValidationException::withMessages(['payment' => "Putuskan lewat pengecekan {$report->label()} (tab Eksekusi)."]);
+                throw ValidationException::withMessages(['payment' => "Putuskan lewat pengecekan {$report->label()} (tab Tahapan)."]);
             }
 
             if (! $approve) {
@@ -454,8 +454,8 @@ class SupervisorPaymentService
             NotificationType::SupervisorPaymentRequested,
             $kind === SupervisorPaymentKind::Dp ? 'DP Upah Tukang Menunggu Persetujuan Anda' : 'Pengajuan Upah Tukang Menunggu Persetujuan Anda',
             "{$actor->name} mengajukan {$payment->label} sebesar Rp ".$this->rupiah($amount).($kind === SupervisorPaymentKind::Dp
-                ? ' — bila Anda setujui, Produksi dimulai. Setujui atau tolak di kartu Upah Tukang (tab Eksekusi).'
-                : ' — setujui atau tolak di kartu Upah Tukang (tab Eksekusi).'),
+                ? ' — bila Anda setujui, Produksi dimulai. Setujui atau tolak di kartu Upah Tukang (tab Tahapan).'
+                : ' — setujui atau tolak di kartu Upah Tukang (tab Tahapan).'),
             ['project_id' => $project->id],
         );
 
