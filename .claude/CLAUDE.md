@@ -331,6 +331,16 @@ status): [`plan/README.md`](plan/README.md). Source task list:
     late → Perlu Tindakan). The UI is Detail Proyek › **Item RAB**
     (Lembar Progres = laid out like the Excel sheet — NO · Uraian · Nilai · Bobot | days | TOTAL % · Kontribusi — incl. today's input · Upah Tukang · QC
     Item) — the Eksekusi tab keeps only the flow cards.
+    **Sprint 38 (`plan/sprint-38-daily-target-item-rab.md`):** a daily target
+    may work on one RAB item of its timeline (`tasks.project_work_item_id`,
+    `TaskService::workItemFor()` — auto when the timeline holds exactly one
+    item with a wage; the Tukang never changes it). The item's **Progres
+    Target** = its targets DONE ÷ all (repairs excluded), formula only in
+    `WorkItemService::targetProgress()` — a **reference** on the Lembar
+    Progres / pengecekan form, with a yellow mark past
+    `daiku.execution.target_gap_warning` (`lib/workCheck.ts` `targetGap()`).
+    It never moves money, the progres berbobot, the 70 % or QA: the
+    pengecekan % stays the Pengawas's.
 
 ## Local environment
 

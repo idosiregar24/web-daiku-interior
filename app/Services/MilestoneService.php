@@ -7,6 +7,7 @@ use App\Enums\NotificationType;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
+use App\Models\Task;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 
@@ -128,6 +129,13 @@ class MilestoneService
             }
 
             $milestone->workItems()->sync($ids->all());
+
+            // Sprint 38 — a target keeps only an item its timeline still holds.
+            Task::query()
+                ->where('milestone_id', $milestone->id)
+                ->whereNotNull('project_work_item_id')
+                ->whereNotIn('project_work_item_id', $ids->all())
+                ->update(['project_work_item_id' => null]);
         }
 
         $this->workItemService->syncTimelineSchedule($milestone->project);

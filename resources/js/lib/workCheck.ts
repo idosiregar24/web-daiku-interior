@@ -1,4 +1,4 @@
-import type { WageShare, WorkCheck } from '@/types';
+import type { WageShare, WorkCheck, WorkItemTarget } from '@/types';
 
 /**
  * Sprint 29 Sub 09 — the live preview of the pengecekan form. Mirrors
@@ -144,4 +144,55 @@ export function formatPercent(value: number | null | undefined): string {
     if (value === null || value === undefined) return '—';
 
     return `${value.toLocaleString('id-ID', { maximumFractionDigits: 2 })} %`;
+}
+
+/**
+ * Sprint 38 — an item's pengecekan % far from its Progres Target (daily
+ * targets done ÷ all): the difference (pengecekan − target, points) when it is
+ * at least `gap` (`daiku.execution.target_gap_warning`), else null. Only a
+ * yellow mark — it never blocks sending or approving.
+ */
+export function targetGap(progress: number, target: WorkItemTarget | null | undefined, gap: number): number | null {
+    if (!target || target.planned === 0) return null;
+    const difference = Math.round((progress - target.percent) * 100) / 100;
+
+    return Math.abs(difference) >= gap ? difference : null;
+}
+
+/** "jauh di atas daily target selesai (50 % · 2 dari 4)" — the sentence of a targetGap(). */
+export function targetGapText(difference: number, target: WorkItemTarget): string {
+    return `${difference > 0 ? 'jauh di atas' : 'jauh di bawah'} daily target selesai (${formatPercent(target.percent)} · ${target.done} dari ${target.planned})`;
+}
+
+/**
+ * Sprint 38 — what the two columns say together, in words (the Lembar
+ * Progres, the pengecekan form), always with Total % as the subject: the
+ * pengecekan % against the daily targets done. `above` = the % runs ahead of
+ * the work on record (check before sending); `below` = the targets are
+ * further than the % (it may go up).
+ */
+export type TargetStatus = 'aligned' | 'above' | 'below' | 'not_started';
+
+export const TARGET_STATUS: Record<TargetStatus, { label: string; hint: string; className: string }> = {
+    aligned: { label: 'Total sesuai target', hint: 'Total % sejalan dengan daily target yang sudah selesai.', className: 'text-success-ink' },
+    above: {
+        label: 'Total di atas target',
+        hint: 'Total % jauh di atas daily target yang selesai — cek daily target yang belum dicentang, atau persennya.',
+        className: 'text-warning-ink',
+    },
+    below: {
+        label: 'Total di bawah target',
+        hint: 'Daily target sudah banyak selesai, Total % belum mengikuti — naikkan persennya bila pekerjaannya memang sudah sejauh itu.',
+        className: 'text-info-ink',
+    },
+    not_started: { label: 'Belum mulai', hint: 'Belum ada daily target selesai dan Total % masih 0.', className: 'text-daiku-muted' },
+};
+
+/** The status of an item (null without daily targets). */
+export function targetStatus(progress: number, target: WorkItemTarget | null | undefined, gap: number): TargetStatus | null {
+    if (!target || target.planned === 0) return null;
+    if (target.done === 0 && progress === 0) return 'not_started';
+    const difference = targetGap(progress, target, gap);
+
+    return difference === null ? 'aligned' : difference > 0 ? 'above' : 'below';
 }

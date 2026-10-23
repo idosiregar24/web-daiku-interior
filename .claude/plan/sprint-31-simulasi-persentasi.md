@@ -65,4 +65,4 @@ Dasar: cek browser 2026-10-22 — tab Eksekusi Pengawas 9 kartu ±3.500 px, satu
 | 04 (#2) | Blok biru kedua akhir Oktober **dianggap pemasangan** — benar? |
 | 05 (#5) | "Marking" = kegiatan apa (ukur/tandai di lokasi)? Perlu dicatat sebagai langkah/tahap? |
 | 06 (#6) | "Parsial 1" = serah terima bertahap? Perlu progres & serah terima per parsial? Kode item (PN5) perlu di RAB? |
-| 08 | **Daily target ↔ item RAB** (dicatat 2026-10-22, atas permintaan user). Sekarang keduanya terpisah: daily target terikat ke **Timeline** (actual activity, penalti), item RAB diukur **% pengecekan Pengawas** (progres berbobot, upah, QA). Usulan Claude: (1) daily target punya pilihan **Item RAB** (opsional); (2) Lembar Progres menandai hari-hari ada target selesai untuk item itu (bantu Pengawas sebelum mengisi %); (3) % tetap diisi Pengawas, **tidak** dihitung otomatis dari jumlah target (target tidak sama besar). Disambung atau tetap terpisah? |
+| 08 | ~~Daily target ↔ item RAB~~ — **diputuskan 2026-10-23: disambung, Opsi A (longgar)** → [Sprint 38](sprint-38-daily-target-item-rab.md). % pengecekan tetap manual Pengawas; target memberi Progres Target per item sebagai acuan. |

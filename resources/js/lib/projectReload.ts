@@ -60,8 +60,9 @@ export const RELOAD = {
     /**
      * Sprint 29 Sub 08 — Upah Tukang per item (the card, the DP conditions and the fee live in `execution`).
      * Sub 10 — `project` too: the first Satuan Upah turns the project progress into the progres berbobot.
+     * Sprint 38 — `timelineItems`: an item with a wage is the one a timeline's new target picks by itself.
      */
-    wages: ['execution', 'project'],
+    wages: ['execution', 'project', 'timelineItems'],
     /** Sprint 32 — Pembagian Upah per Orang (only `execution.wageSplit` changes). */
     wageSplit: ['execution'],
     /** Termin & invoice. */

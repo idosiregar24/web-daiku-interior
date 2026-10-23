@@ -41,6 +41,10 @@ class StoreTaskRequest extends FormRequest
                     }
                 },
             ],
+            // Sprint 38 — the RAB item it works on: an item of this project
+            // (TaskService checks it is one of the timeline's). Left out → the
+            // timeline's only item with a wage, if it has exactly one.
+            'project_work_item_id' => ['nullable', 'integer', Rule::exists('project_work_items', 'id')->where('project_id', $project->id)],
             'title' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string'],
             'assignee_id' => [
@@ -69,6 +73,8 @@ class StoreTaskRequest extends FormRequest
         return [
             'milestone_id.required' => 'Pilih timeline daily target ini.',
             'milestone_id.integer' => 'Timeline tidak valid.',
+            'project_work_item_id.integer' => 'Item RAB tidak valid.',
+            'project_work_item_id.exists' => 'Item RAB harus milik proyek ini.',
             'title.required' => 'Judul task wajib diisi.',
             'title.max' => 'Judul task maksimal 150 karakter.',
             'assignee_id.required' => 'Task harus di-assign ke salah satu tukang.',

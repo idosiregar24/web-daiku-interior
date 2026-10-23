@@ -49,6 +49,9 @@ class UpdateTaskRequest extends FormRequest
                     }
                 },
             ],
+            // Sprint 38 — sent → set (null = no item); left out (Tugas page) →
+            // kept while it is still an item of the task's timeline.
+            'project_work_item_id' => ['nullable', 'integer', Rule::exists('project_work_items', 'id')->where('project_id', $task->project_id)],
             // A deactivated tukang may keep a task they already hold; any new
             // assignee must be an active Field Staff.
             'assignee_id' => [
@@ -82,6 +85,8 @@ class UpdateTaskRequest extends FormRequest
             'priority.required' => 'Prioritas wajib dipilih.',
             'priority.in' => 'Prioritas tidak valid.',
             'milestone_id.integer' => 'Timeline tidak valid.',
+            'project_work_item_id.integer' => 'Item RAB tidak valid.',
+            'project_work_item_id.exists' => 'Item RAB harus milik proyek yang sama dengan task ini.',
             'assignee_id.required' => 'Task harus di-assign ke salah satu tukang.',
             'assignee_id.integer' => 'Tukang tidak valid.',
             'rate_per_task.numeric' => 'Rate harus berupa angka.',

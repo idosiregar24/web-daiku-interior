@@ -5,7 +5,7 @@ import type { Task } from '@/types';
 import { Check, CircleCheck, CircleX, ChevronRight, Loader2 } from 'lucide-react';
 
 /** A Tukang's task as the phone screens show it (+ today's form mark where known). */
-export type FieldTask = Pick<Task, 'id' | 'title' | 'status' | 'kendala' | 'note' | 'due_date' | 'project' | 'milestone'> & {
+export type FieldTask = Pick<Task, 'id' | 'title' | 'status' | 'kendala' | 'note' | 'due_date' | 'project' | 'milestone' | 'work_item'> & {
     /** Today's daily form sent — undefined where the page doesn't know (no mark shown). */
     has_form_today?: boolean;
 };
@@ -49,6 +49,10 @@ export function TaskCard({
                     {task.project?.name}
                     {task.milestone?.name ? ` · ${task.milestone.name}` : ''}
                 </span>
+                {/* Sprint 38 — the RAB item this target works on. */}
+                {task.work_item?.quotation_item?.description && (
+                    <span className="mt-0.5 block truncate text-xs text-foreground/80">Item: {task.work_item.quotation_item.description}</span>
+                )}
                 <span className="mt-2 flex flex-wrap items-center gap-2">
                     {/* The Tukang's own card: name the holder only when it isn't them ("Minta dicek · PM / Asisten PM"). */}
                     <StatusChip domain="task" status={task.status} waitingOn={task.status === 'PENGECEKAN' ? undefined : null} />

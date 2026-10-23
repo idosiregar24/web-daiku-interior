@@ -3,19 +3,23 @@
 namespace App\Services;
 
 use App\Enums\QuotationStatus;
+use App\Enums\TaskStatus;
 use App\Models\Milestone;
 use App\Models\Project;
 use App\Models\ProjectWorkItem;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
 use App\Models\SupervisorFee;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\WeeklyReport;
 use App\Models\WorkItemProgress;
 use App\Models\WorkItemProgressDraft;
 use App\Models\WorkTeam;
+use App\Support\DailyFormSchedule;
 use App\Support\Quantity;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -586,6 +590,7 @@ class WorkItemService
         $fee = $withPayments ? SupervisorFee::where('project_id', $project->id)->first() : null;
         $committed = $withPayments ? ($fee?->committedAmount() ?? 0.0) : null;
         $draft = WorkItemProgressDraft::with('updater:id,name')->where('project_id', $project->id)->first();
+        $targets = $this->targetProgress($project)['items'];
 
         return [
             'items' => $items->map(fn (ProjectWorkItem $item) => [
@@ -598,6 +603,8 @@ class WorkItemService
                 'rab_subtotal' => $this->money($this->cents($item->quotationItem->total_price)),
                 'weight' => $rabOfPaid > 0 ? round($this->cents($item->quotationItem->total_price) / $rabOfPaid * 100, 2) : 0.0,
                 'progress' => (float) (($progress[$item->id] ?? 0) / 100),
+                // Sprint 38 — the item's Progres Target beside the % typed (null without targets).
+                'target' => isset($targets[$item->id]) ? Arr::except($targets[$item->id], 'days') : null,
             ])->all(),
             'summary' => [
                 'total_wage' => $figures['total_wage'],
@@ -610,6 +617,7 @@ class WorkItemService
                     : null,
                 'all_done' => $figures['all_done'],
                 'teams' => $figures['teams'],
+                'target_gap' => self::targetGapWarning(),
             ],
             'draft' => $draft ? [
                 'entries' => (object) ($draft->entries ?? []),
@@ -628,7 +636,7 @@ class WorkItemService
      * 100 (column AV) — and per date the progres berbobot it added and the
      * running total; the last running total is the project's (AV24).
      *
-     * @return array{dates: list<string>, items: list<array<string, mixed>>, per_date: list<array{date: string, added: float, cumulative: float}>, total: float|null}
+     * @return array{dates: list<string>, items: list<array<string, mixed>>, per_date: list<array{date: string, added: float, cumulative: float}>, total: float|null, target_total: float|null, target_gap: int}
      */
     public function progressRecap(Project $project): array
     {
@@ -648,6 +656,7 @@ class WorkItemService
             });
 
         $dates = collect($cells)->flatMap(fn (array $byDate) => array_keys($byDate))->unique()->sort()->values();
+        $targets = $this->targetProgress($project);
         // Σ RAB cents × hundredths, per date — divided once, so the rounding never piles up.
         $weightedOf = fn (string $date) => $items->sum(fn (ProjectWorkItem $item) => $rabCents[$item->id] * ($cells[$item->id][$date] ?? 0));
         $percentOf = fn (int|float $weighted) => $rabTotal > 0 ? round($weighted / $rabTotal / 100, 2) : 0.0;
@@ -655,7 +664,7 @@ class WorkItemService
 
         return [
             'dates' => $dates->all(),
-            'items' => $items->map(function (ProjectWorkItem $item) use ($cells, $rabCents, $rabTotal) {
+            'items' => $items->map(function (ProjectWorkItem $item) use ($cells, $rabCents, $rabTotal, $targets) {
                 $total = array_sum($cells[$item->id] ?? []);
 
                 return [
@@ -667,6 +676,8 @@ class WorkItemService
                     'cells' => (object) array_map(fn (int $hundredths) => $hundredths / 100, $cells[$item->id] ?? []),
                     'total' => $total / 100,
                     'contribution' => $rabTotal > 0 ? round($rabCents[$item->id] * $total / $rabTotal / 100, 2) : 0.0,
+                    // Sprint 38 — Progres Target (daily targets done ÷ all, + the days they were done); null without targets.
+                    'target' => isset($targets['items'][$item->id]) ? [...$targets['items'][$item->id], 'days' => (object) $targets['items'][$item->id]['days']] : null,
                 ];
             })->all(),
             'per_date' => $dates->map(function (string $date) use ($weightedOf, $percentOf, &$running) {
@@ -676,7 +687,75 @@ class WorkItemService
                 return ['date' => $date, 'added' => $percentOf($added), 'cumulative' => $percentOf($running)];
             })->all(),
             'total' => $items->isEmpty() ? null : $percentOf($running),
+            'target_total' => $targets['total'],
+            'target_gap' => self::targetGapWarning(),
         ];
+    }
+
+    // ── Sprint 38 — Progres Target: the daily targets per RAB item ──────────
+
+    /**
+     * What the Tukang's daily targets say about each item with a wage — a
+     * reference beside the Pengawas's pengecekan, never money nor the
+     * project progress:
+     *
+     *   Progres Target item   = targets of the item done ÷ all its targets × 100
+     *   Progres Target proyek = Σ (bobot_i × Progres Target_i) ÷ Σ bobot_i   (items with ≥ 1 target)
+     *
+     * "Done" = ProductionService's actual activity: status DONE, on the day of
+     * `completed_at` (WIB); OVER / unfinished targets stay in the count. A
+     * repair task (from a finding) never counts. One query.
+     *
+     * @return array{items: array<int, array{planned: int, done: int, percent: float, days: array<string, int>}>, total: float|null}
+     */
+    public function targetProgress(Project $project): array
+    {
+        $rabCents = ProjectWorkItem::query()
+            ->join('quotation_items', 'quotation_items.id', '=', 'project_work_items.quotation_item_id')
+            ->where('project_work_items.project_id', $project->id)
+            ->where('project_work_items.unit_wage', '>', 0)
+            ->pluck('quotation_items.total_price', 'project_work_items.id')
+            ->map(fn ($value) => $this->cents($value));
+
+        $tasks = Task::query()
+            ->where('project_id', $project->id)
+            ->whereIn('project_work_item_id', $rabCents->keys())
+            ->whereNotExists(fn ($repair) => $repair->selectRaw('1')->from('site_findings')->whereColumn('site_findings.task_id', 'tasks.id'))
+            ->get(['id', 'project_work_item_id', 'status', 'completed_at']);
+
+        $items = [];
+        $weight = 0;
+        $weighted = 0;
+
+        foreach ($tasks->groupBy('project_work_item_id') as $itemId => $rows) {
+            $done = $rows->filter(fn (Task $task) => $task->status === TaskStatus::Done);
+            // Hundredths of a percent, like the pengecekan.
+            $hundredths = (int) round($done->count() * 10000 / $rows->count());
+            $weight += $rabCents[$itemId];
+            $weighted += $rabCents[$itemId] * $hundredths;
+
+            $items[(int) $itemId] = [
+                'planned' => $rows->count(),
+                'done' => $done->count(),
+                'percent' => (float) ($hundredths / 100),
+                // Day (WIB) → targets finished that day — the dots on the Lembar Progres.
+                'days' => $done
+                    ->filter(fn (Task $task) => $task->completed_at !== null)
+                    ->countBy(fn (Task $task) => $task->completed_at->copy()->timezone(DailyFormSchedule::TIMEZONE)->toDateString())
+                    ->all(),
+            ];
+        }
+
+        return [
+            'items' => $items,
+            'total' => $weight > 0 ? round($weighted / $weight / 100, 2) : null,
+        ];
+    }
+
+    /** Sprint 38 — points between an item's pengecekan % and its Progres Target that earn the yellow mark. */
+    public static function targetGapWarning(): int
+    {
+        return (int) config('daiku.execution.target_gap_warning', 30);
     }
 
     // ── Sprint 31 Sub 03 — jadwal per item (File C, the light-blue cells) ───

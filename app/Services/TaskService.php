@@ -12,6 +12,7 @@ use App\Models\DailyTaskForm;
 use App\Models\Milestone;
 use App\Models\Penalty;
 use App\Models\Project;
+use App\Models\ProjectWorkItem;
 use App\Models\SiteFinding;
 use App\Models\Task;
 use App\Models\TaskScheduleChange;
@@ -28,8 +29,11 @@ class TaskService
     /** Sprint 9 decision #2 — a task with a trail is corrected, never deleted. */
     public const HISTORY_MESSAGE = 'Task sudah punya riwayat (form harian/lembur/penalti/pembayaran) — ubah task-nya, jangan dihapus.';
 
-    /** What a DONE-but-unpaid task still lets the PM change — the rest describes work already accepted. */
-    private const DONE_EDITABLE = ['title', 'description', 'rate_per_task'];
+    /**
+     * What a DONE-but-unpaid task still lets the PM change — the rest describes work already accepted.
+     * Sprint 38: its RAB item too (a finished target linked afterwards counts in the item's Progres Target).
+     */
+    private const DONE_EDITABLE = ['title', 'description', 'rate_per_task', 'project_work_item_id'];
 
     /**
      * PRD §7.1 "Task – Create/Edit" — PM only, no ownership scoping (same
@@ -70,6 +74,8 @@ class TaskService
         $task = Task::create([
             'project_id' => $project->id,
             'milestone_id' => $milestone?->id,
+            // Sprint 38 — a repair task is not part of an item's Progres Target.
+            'project_work_item_id' => $repair ? null : $this->workItemFor($milestone, $data, auto: true),
             'title' => $data['title'],
             'description' => $data['description'] ?? null,
             'assignee_id' => $data['assignee_id'],
@@ -121,14 +127,22 @@ class TaskService
             }
 
             $before = $this->editableSnapshot($locked);
+            $milestoneId = filled($data['milestone_id'] ?? null) ? (int) $data['milestone_id'] : null;
             $incoming = [
                 'title' => $data['title'],
                 'description' => filled($data['description'] ?? null) ? $data['description'] : null,
                 'due_date' => Carbon::parse($data['due_date'])->toDateString(),
                 'priority' => $data['priority'],
-                'milestone_id' => filled($data['milestone_id'] ?? null) ? (int) $data['milestone_id'] : null,
+                'milestone_id' => $milestoneId,
                 'assignee_id' => (int) $data['assignee_id'],
                 'rate_per_task' => filled($data['rate_per_task'] ?? null) ? $this->money($data['rate_per_task']) : null,
+                // Sprint 38 — moved to another timeline: its only item with a wage, unless one was picked.
+                'project_work_item_id' => $this->workItemFor(
+                    $milestoneId ? Milestone::find($milestoneId) : null,
+                    $data,
+                    current: $before['project_work_item_id'],
+                    auto: $milestoneId !== $before['milestone_id'],
+                ),
             ];
 
             $changed = array_keys(array_filter(
@@ -192,7 +206,7 @@ class TaskService
                 $this->notifyAssigneeOfChange($locked, $locked->project, in_array('due_date', $changed, true) ? $before['due_date'] : null);
             }
 
-            if (array_intersect($changed, ['rate_per_task', 'assignee_id']) !== []) {
+            if (array_intersect($changed, ['rate_per_task', 'assignee_id', 'project_work_item_id']) !== []) {
                 $old = array_intersect_key($before, array_flip($changed));
                 $new = array_intersect_key($incoming, array_flip($changed));
 
@@ -845,12 +859,59 @@ class TaskService
             'milestone_id' => $task->milestone_id === null ? null : (int) $task->milestone_id,
             'assignee_id' => (int) $task->assignee_id,
             'rate_per_task' => $task->rate_per_task === null ? null : $this->money($task->rate_per_task),
+            'project_work_item_id' => $task->project_work_item_id === null ? null : (int) $task->project_work_item_id,
         ];
     }
 
-    /** Audit rows show names, not foreign keys, for the assignee/milestone. */
+    /**
+     * Sprint 38 — the RAB item a target works on: one of its timeline's items
+     * (`milestone_work_item`). Sent (`project_work_item_id` in `$data`, null =
+     * none) → that one, refused when the timeline doesn't hold it. Left out →
+     * `$current` while the timeline still holds it, else (`$auto`: a new
+     * target or a new timeline) the timeline's only item with a wage, else none.
+     */
+    private function workItemFor(?Milestone $milestone, array $data, ?int $current = null, bool $auto = false): ?int
+    {
+        $itemIds = $milestone
+            ? DB::table('milestone_work_item')->where('milestone_id', $milestone->id)->pluck('project_work_item_id')->map(fn ($id) => (int) $id)
+            : collect();
+
+        if (array_key_exists('project_work_item_id', $data)) {
+            $picked = filled($data['project_work_item_id']) ? (int) $data['project_work_item_id'] : null;
+
+            if ($picked !== null && ! $itemIds->contains($picked)) {
+                throw ValidationException::withMessages([
+                    'project_work_item_id' => $milestone
+                        ? "Item RAB harus salah satu item di timeline \"{$milestone->name}\"."
+                        : 'Pilih timeline dulu — item RAB dipilih dari item timeline itu.',
+                ]);
+            }
+
+            return $picked;
+        }
+
+        if ($current !== null && $itemIds->contains($current)) {
+            return $current;
+        }
+
+        if (! $auto || $itemIds->isEmpty()) {
+            return null;
+        }
+
+        $withWage = ProjectWorkItem::query()->whereIn('id', $itemIds)->where('unit_wage', '>', 0)->pluck('id');
+
+        return $withWage->count() === 1 ? (int) $withWage->first() : null;
+    }
+
+    /** Audit rows show names, not foreign keys, for the assignee/milestone/RAB item. */
     private function readableAuditValues(array $values, ?string $assignee, ?string $milestone): array
     {
+        if (array_key_exists('project_work_item_id', $values)) {
+            $itemId = $values['project_work_item_id'];
+            unset($values['project_work_item_id']);
+            $values['item_rab'] = $itemId ? ProjectWorkItem::with('quotationItem:id,description')->find($itemId)?->quotationItem?->description : null;
+        }
+
         if (array_key_exists('assignee_id', $values)) {
             unset($values['assignee_id']);
             $values['assignee'] = $assignee;

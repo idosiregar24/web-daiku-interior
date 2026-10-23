@@ -77,6 +77,7 @@ import type {
     SupplierDebt,
     Task,
     Termin,
+    TimelineItem,
     User,
     UnitOption,
     VendorOption,
@@ -452,6 +453,7 @@ function TaskAssigneeTable({
                             <p className="text-xs text-daiku-muted">
                                 {task.milestone?.name ?? '—'} · Prioritas {TASK_PRIORITY_LABEL[task.priority].toLowerCase()} · jatuh tempo {formatDate(task.due_date)}
                             </p>
+                            {task.work_item?.quotation_item && <p className="text-xs text-foreground/80">Item: {task.work_item.quotation_item.description}</p>}
                             {statusOf(task)}
                         </div>
                         {canEdit && (
@@ -475,7 +477,11 @@ function TaskAssigneeTable({
                     {tasks.map((task) => (
                         <tr key={task.id} className="border-t border-border transition-colors hover:bg-daiku-gray/60">
                             <td className="px-4 py-3 font-medium">{task.title}</td>
-                            <td className="px-4 py-3 text-daiku-muted">{task.milestone?.name ?? '—'}</td>
+                            <td className="px-4 py-3 text-daiku-muted">
+                                {task.milestone?.name ?? '—'}
+                                {/* Sprint 38 — the RAB item it works on. */}
+                                {task.work_item?.quotation_item && <span className="block text-xs text-foreground/80">Item: {task.work_item.quotation_item.description}</span>}
+                            </td>
                             <td className="px-4 py-3">{statusOf(task)}</td>
                             <td className="px-4 py-3 text-daiku-muted">{TASK_PRIORITY_LABEL[task.priority]}</td>
                             <td className="px-4 py-3 text-daiku-muted">{formatDate(task.due_date)}</td>
@@ -540,7 +546,8 @@ function TaskTab({
     canViewTasks: boolean;
 }) {
     // Sprint 29 Sub 08 (B8) — wages per RAB item: the target form has no "Upah".
-    const usesWorkItems = usePage<PageProps<{ usesWorkItems?: boolean }>>().props.usesWorkItems ?? false;
+    // Sprint 38 — and it offers the timeline's RAB items (`timelineItems`).
+    const { usesWorkItems = false, timelineItems = [] } = usePage<PageProps<{ usesWorkItems?: boolean; timelineItems?: TimelineItem[] }>>().props;
     const [formOpen, setFormOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [statusOpen, setStatusOpen] = useState(false);
@@ -652,6 +659,7 @@ function TaskTab({
                         fieldStaff={fieldStaff}
                         reload={RELOAD.tasks}
                         hideWage={usesWorkItems}
+                        workItems={timelineItems}
                     />
                     <TaskDeleteDialog open={deleteOpen} onOpenChange={setDeleteOpen} task={activeTask} reload={RELOAD.tasks} />
                     <RescheduleTaskDialog task={reschedulingTask} onOpenChange={(open) => !open && setReschedulingTask(null)} reload={RELOAD.tasks} />

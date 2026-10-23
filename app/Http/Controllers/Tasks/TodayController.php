@@ -30,12 +30,13 @@ class TodayController extends Controller
         $user = $request->user();
         $now = DailyFormSchedule::now();
         $isWorkDay = DailyFormSchedule::isWorkDay($now);
-        $columns = ['id', 'project_id', 'milestone_id', 'title', 'description', 'status', 'kendala', 'note', 'due_date', 'priority'];
+        $columns = ['id', 'project_id', 'milestone_id', 'project_work_item_id', 'title', 'description', 'status', 'kendala', 'note', 'due_date', 'priority'];
 
         $open = fn () => Task::query()
             ->where('assignee_id', $user->id)
             ->where('status', '!=', TaskStatus::Done->value)
-            ->with(['project:id,name', 'milestone:id,name']);
+            // Sprint 38 — the RAB item the target works on (its name only, no price).
+            ->with(['project:id,name', 'milestone:id,name', 'workItem:id,quotation_item_id', 'workItem.quotationItem:id,description']);
 
         if ($isWorkDay) {
             $filled = DailyTaskForm::query()

@@ -550,6 +550,13 @@ function DepartureCard({ project, execution }: { project: Project; execution: Pr
                 </span>
             </p>
             <ProgressBar value={progress} tone={reached ? 'success' : 'default'} label={`${basisLabel} proyek`} className="mt-3" />
+            {/* Sprint 38 — the daily targets per RAB item, beside (never instead of) the progress above. */}
+            {execution.progressRecap?.target_total != null && (
+                <p className="mt-2 text-xs text-muted-foreground" title="Daily target tiap item RAB yang selesai ÷ semua target item itu, ditimbang bobot item">
+                    Daily target selesai <span className="font-medium text-foreground tabular-nums">{formatProgress(execution.progressRecap.target_total)}</span> —
+                    pembanding dari kerja tukang; yang membuka Berangkat ke Lokasi tetap progres di atas.
+                </p>
+            )}
             {departure ? (
                 <p className="mt-3 text-sm text-success-ink">
                     Berangkat ke lokasi disetujui {formatDateTime(departure.approved_at)}

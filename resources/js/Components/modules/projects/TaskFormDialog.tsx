@@ -29,7 +29,7 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Milestone, Task, TaskPriority, User } from '@/types';
+import type { Milestone, Task, TaskPriority, TimelineItem, User } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type TaskReload, taskVisit } from '@/Components/modules/tasks/taskSave';
 import { formatDate } from '@/lib/format';
@@ -49,6 +49,8 @@ const PRIORITY_OPTIONS: TaskPriority[] = ['HIGH', 'MEDIUM', 'LOW'];
 // narrowed in the option lists below — the server re-checks both.
 const schema = z.object({
     milestone_id: z.string().optional(),
+    // Sprint 38 — '' = no item (StoreTaskRequest: nullable, one of the timeline's items).
+    project_work_item_id: z.string(),
     title: z.string().trim().min(1, 'Judul daily target wajib diisi').max(150, 'Judul daily target maksimal 150 karakter'),
     description: z.string().optional(),
     assignee_id: z.string().min(1, 'Tukang wajib dipilih'),
@@ -68,6 +70,7 @@ type FormValues = z.infer<typeof schema>;
 
 const EMPTY_VALUES: FormValues = {
     milestone_id: '',
+    project_work_item_id: '',
     title: '',
     description: '',
     assignee_id: '',
@@ -92,7 +95,20 @@ function nextWorkDay(day: Date, lastDay: string | null): Date {
 }
 
 /** What a DONE-but-unpaid task still allows — TaskService::update()'s DONE_EDITABLE. */
-const DONE_EDITABLE: (keyof FormValues)[] = ['title', 'description', 'rate_per_task'];
+const DONE_EDITABLE: (keyof FormValues)[] = ['title', 'description', 'rate_per_task', 'project_work_item_id'];
+
+/**
+ * Sprint 38 — the item a target of `milestoneId` starts with: the one it has
+ * while the timeline still holds it, else the timeline's only item with a
+ * wage (TaskService::workItemFor()), else none.
+ */
+function itemFor(items: TimelineItem[], milestoneId: string, current: string): string {
+    const inTimeline = items.filter((item) => item.milestone_ids.includes(Number(milestoneId)));
+    if (current && inTimeline.some((item) => String(item.id) === current)) return current;
+    const withWage = inTimeline.filter((item) => item.has_wage);
+
+    return withWage.length === 1 ? String(withWage[0].id) : '';
+}
 
 interface TaskFormDialogProps {
     open: boolean;
@@ -111,6 +127,11 @@ interface TaskFormDialogProps {
     reload?: TaskReload;
     /** Sprint 29 Sub 08 (B8) — the project pays per RAB item (Upah Tukang card): no per-target wage. */
     hideWage?: boolean;
+    /**
+     * Sprint 38 — the project's RAB items with their timelines (Detail Proyek's `timelineItems`):
+     * offers "Item RAB" for the picked timeline. Omitted (Tugas page) → the field is not shown nor sent.
+     */
+    workItems?: TimelineItem[];
 }
 
 /**
@@ -123,7 +144,7 @@ interface TaskFormDialogProps {
  * priority and upah kept, the day moved to the next working day inside the
  * timeline, and the cursor back in Judul. "Simpan" saves and closes.
  */
-export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff, reload, hideWage = false }: TaskFormDialogProps) {
+export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, milestones, fieldStaff, reload, hideWage = false, workItems = [] }: TaskFormDialogProps) {
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues: EMPTY_VALUES,
@@ -162,6 +183,7 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
         if (editing) {
             form.reset({
                 milestone_id: editing.milestone_id ? String(editing.milestone_id) : '',
+                project_work_item_id: editing.project_work_item_id ? String(editing.project_work_item_id) : '',
                 title: editing.title,
                 description: editing.description ?? '',
                 assignee_id: editing.assignee_id ? String(editing.assignee_id) : '',
@@ -187,6 +209,9 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
             : null;
     // Sprint 24 D6 — a new daily target always sits in a timeline (an old task without one may keep none).
     const milestoneRequired = !editing || editing.milestone_id !== null;
+    // Sprint 38 — the RAB items of the picked timeline.
+    const usesItems = workItems.length > 0;
+    const itemOptions = workItems.filter((item) => item.milestone_ids.includes(Number(form.watch('milestone_id'))));
 
     function onSubmit(values: FormValues, again: boolean) {
         if (saving) return;
@@ -235,6 +260,8 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
             due_date: format(values.due_date, 'yyyy-MM-dd'),
             priority: values.priority,
             rate_per_task: values.rate_per_task ? Number(values.rate_per_task) : null,
+            // Sprint 38 — only where the item list is known (else the server keeps / picks it).
+            ...(usesItems ? { project_work_item_id: values.project_work_item_id ? Number(values.project_work_item_id) : null } : {}),
         };
         const keepGoing = again && !editing;
         const options = {
@@ -354,7 +381,11 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                         <FormLabel required={milestoneRequired}>Timeline</FormLabel>
                                         <Select
                                             value={field.value || 'none'}
-                                            onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                                            onValueChange={(value) => {
+                                                const next = value === 'none' ? '' : value;
+                                                field.onChange(next);
+                                                if (usesItems) form.setValue('project_work_item_id', itemFor(workItems, next, form.getValues('project_work_item_id')));
+                                            }}
                                             disabled={isLocked('milestone_id')}
                                         >
                                             <FormControl>
@@ -376,6 +407,39 @@ export function TaskFormDialog({ open, onOpenChange, projectId, editing = null, 
                                 )}
                             />
                         </div>
+                        {usesItems && itemOptions.length > 0 && (
+                            <FormField
+                                control={form.control}
+                                name="project_work_item_id"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Item RAB</FormLabel>
+                                        <Select
+                                            value={field.value || 'none'}
+                                            onValueChange={(value) => field.onChange(value === 'none' ? '' : value)}
+                                            disabled={isLocked('project_work_item_id')}
+                                        >
+                                            <FormControl>
+                                                <SelectTrigger className="w-full">
+                                                    <SelectValue placeholder="Tanpa item" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="none">— Tanpa item (mis. beli bahan, bersih-bersih)</SelectItem>
+                                                {itemOptions.map((item) => (
+                                                    <SelectItem key={item.id} value={String(item.id)}>
+                                                        {item.description} · {item.volume_label}
+                                                        {!item.has_wage && ' (tanpa upah)'}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">Target selesai ikut dihitung di Progres Target item ini (Lembar Progres).</p>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        )}
                         {!editing && staffOptions.filter((staff) => staff.is_active !== false).length > 1 && (
                             <FormField
                                 control={form.control}

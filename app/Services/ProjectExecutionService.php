@@ -196,6 +196,8 @@ class ProjectExecutionService
                         'breakdown' => $report->payment->breakdown,
                     ] : null,
                     'progress' => $report->progressRows->map(fn ($row) => [
+                        // Sprint 38 — which item (its Progres Target mark on the PM's banner).
+                        'item_id' => $row->project_work_item_id,
                         'description' => $row->workItem?->quotationItem?->description,
                         'percent' => (float) $row->percent,
                         'note' => $row->note,

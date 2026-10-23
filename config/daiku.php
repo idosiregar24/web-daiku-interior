@@ -38,6 +38,9 @@ return [
         'weekly_report_reminder_at' => '15:00',
         // D4 — default DP of the Jasa Pengawas, editable per project at the TM.
         'supervisor_dp_percent' => 10,
+        // Sprint 38 — an item's pengecekan % this many points away from its Progres Target
+        // (daily targets done ÷ all) gets a yellow mark. A hint only — never blocks sending / approving.
+        'target_gap_warning' => 30,
     ],
 
     /*

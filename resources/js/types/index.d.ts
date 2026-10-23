@@ -832,6 +832,9 @@ export interface Task {
     project?: Pick<Project, 'id' | 'name'> & Partial<Pick<Project, 'status'>>;
     milestone_id: number | null;
     milestone?: Pick<Milestone, 'id' | 'name'> & Partial<Pick<Milestone, 'start_date' | 'target_date'>>;
+    /** Sprint 38 — the RAB item of its timeline this target works on (its Progres Target). */
+    project_work_item_id?: number | null;
+    work_item?: { id: number; quotation_item?: { id: number; description: string } | null } | null;
     title: string;
     description: string | null;
     assignee_id: number | null;
@@ -2497,9 +2500,25 @@ export interface ProgressRecap {
         total: number;
         /** total × weight ÷ 100 — the item's share of the project progress. */
         contribution: number;
+        /** Sprint 38 — Progres Target (daily targets done ÷ all, + day → targets done); null without targets. */
+        target: WorkItemTarget | null;
     }[];
     per_date: { date: string; added: number; cumulative: number }[];
     total: number | null;
+    /** Sprint 38 — Progres Target of the project, weighted like the bobot (items with targets); null without any. */
+    target_total: number | null;
+    /** Sprint 38 — points of difference (pengecekan % vs Progres Target) that earn the yellow mark. */
+    target_gap: number;
+}
+
+/** Sprint 38 — WorkItemService::targetProgress(): an item's daily targets — a reference, never money. */
+export interface WorkItemTarget {
+    planned: number;
+    done: number;
+    /** done ÷ planned × 100. */
+    percent: number;
+    /** Y-m-d (WIB) → targets finished that day — only on the Lembar Progres. */
+    days?: Record<string, number>;
 }
 
 /** Sprint 29 Sub 12 — App\Enums\WorkItemQaStatus (a check row is only LOLOS / PERBAIKAN). */
@@ -2612,6 +2631,8 @@ export interface WorkCheck {
         weight: number;
         /** Σ % recorded so far (0–100). */
         progress: number;
+        /** Sprint 38 — the item's Progres Target; null without targets. */
+        target: WorkItemTarget | null;
     }[];
     summary: {
         total_wage: number;
@@ -2622,6 +2643,8 @@ export interface WorkCheck {
         payable_now: number | null;
         all_done: boolean;
         teams: { label: string; total_wage: number; progress: number | null; payable: number }[];
+        /** Sprint 38 — see ProgressRecap::target_gap. */
+        target_gap: number;
     };
     draft: {
         entries: Record<string, { percent: number | null; note: string | null }>;
@@ -2773,7 +2796,7 @@ export interface ProjectExecution {
         /** Sprint 29 Sub 09 — the request this pengecekan asked (money viewers only). */
         payment: { id: number; kind: SupervisorPaymentKind; amount: number; status: SupervisorPaymentStatus; breakdown: WageShare[] | null } | null;
         /** Sprint 29 Sub 09 — the % added per item with this report. */
-        progress: { description: string | null; percent: number; note: string | null }[];
+        progress: { item_id: number; description: string | null; percent: number; note: string | null }[];
     }[];
     /** `is_due` — Sprint 29 Sub 02: from the report day (Friday) on; it may be sent any day. */
     /** `open` — Sprint 31: another report / pengecekan may be sent now (WeeklyReportService::canSubmit()). */

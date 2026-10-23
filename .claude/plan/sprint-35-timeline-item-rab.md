@@ -21,4 +21,4 @@ status terlambat). Nama timeline sering = item RAB, tanggalnya bisa bertentangan
 - [x] **[Test]** `WorkItemScheduleTest` ditulis ulang (tautan, tanggal ikut timeline, hapus timeline, item proyek lain ditolak, RBAC, terlambat & antrean); `ProjectStepsTest`
 
 ## Menunggu
-- Penanda di Lembar Progres "ada daily target selesai untuk item ini hari itu" (sekarang daily target → timeline → item sudah tersambung datanya).
+- Penanda di Lembar Progres "ada daily target selesai untuk item ini hari itu" — dijadwalkan di [Sprint 38](sprint-38-daily-target-item-rab.md) Sub 03 (target terikat ke satu item RAB, Progres Target per item).

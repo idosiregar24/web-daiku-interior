@@ -21,6 +21,7 @@ class Task extends Model
     protected $fillable = [
         'project_id',
         'milestone_id',
+        'project_work_item_id',
         'title',
         'description',
         'assignee_id',
@@ -63,6 +64,12 @@ class Task extends Model
     public function milestone(): BelongsTo
     {
         return $this->belongsTo(Milestone::class);
+    }
+
+    /** Sprint 38 — the RAB item of its timeline this target works on (its "Progres Target"), if any. */
+    public function workItem(): BelongsTo
+    {
+        return $this->belongsTo(ProjectWorkItem::class, 'project_work_item_id');
     }
 
     public function assignee(): BelongsTo

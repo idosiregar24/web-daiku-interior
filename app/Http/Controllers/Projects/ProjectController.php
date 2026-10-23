@@ -203,7 +203,8 @@ class ProjectController extends Controller
                 ? $project->milestones()->with(['qaForm:id,milestone_id,status,rejection_count', 'workItems:id'])->get()
                 : [],
             // Sprint 35 — the RAB items a timeline can hold (the Timeline form's checklist).
-            'timelineItems' => fn () => $canManageMilestones && $project->workItems()->exists()
+            // Sprint 38 — also the daily target form's "Item RAB" (the items of the picked timeline).
+            'timelineItems' => fn () => ($canManageMilestones || $canManageTasks) && $project->workItems()->exists()
                 ? app(WorkItemService::class)->timelineOptions($project)
                 : [],
             'canViewMilestones' => $canViewMilestones,
@@ -215,7 +216,8 @@ class ProjectController extends Controller
                 ? []
                 : $project->tasks()
                     ->when($taskVisibility === 'own', fn ($query) => $query->where('assignee_id', $user->id))
-                    ->with(['assignee:id,name', 'milestone:id,name,start_date,target_date'])
+                    // Sprint 38 — the RAB item a target works on (its name on the lists).
+                    ->with(['assignee:id,name', 'milestone:id,name,start_date,target_date', 'workItem:id,quotation_item_id', 'workItem.quotationItem:id,description'])
                     // A DONE task whose wage is paid is locked (TaskService::update()).
                     ->when($canManageTasks, fn ($query) => $query->withExists('wagePayment as is_wage_paid'))
                     ->latest()

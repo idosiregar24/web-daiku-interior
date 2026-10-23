@@ -48,7 +48,7 @@ class TaskController extends Controller
         $formDay = DailyFormSchedule::isWorkDay($now);
 
         $tasks = Task::query()
-            ->with(['project:id,name,status', 'milestone:id,name', 'assignee:id,name'])
+            ->with(['project:id,name,status', 'milestone:id,name', 'assignee:id,name', 'workItem:id,quotation_item_id', 'workItem.quotationItem:id,description'])
             ->when($isFieldStaff, fn ($query) => $query->where('assignee_id', $user->id))
             ->when($isSupervisor, fn ($query) => $query->whereHas('project', fn ($project) => $project->supervisedBy($user)))
             ->when($isFieldStaff && $formDay, fn ($query) => $query->withExists([

@@ -5,8 +5,10 @@ use App\Models\Material;
 use App\Models\Project;
 use App\Models\ProjectMaterial;
 use App\Models\StockMovement;
+use App\Models\Task;
 use App\Models\User;
 use App\Models\Vendor;
+use App\Services\WorkItemService;
 use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\ProductionSeeder;
 
@@ -32,6 +34,11 @@ test('the full demo seed runs cleanly and populates every module', function () {
         ->and(Material::where('possible_duplicate', true)->count())->toBe(1)
         ->and(Vendor::count())->toBeGreaterThan(0)
         ->and(AuditLog::count())->toBeGreaterThan(0);
+
+    // Sprint 38 — Hendra's targets work on RAB items (Progres Target), the preparation ones on none.
+    $hendra = Project::whereHas('lead', fn ($lead) => $lead->where('client_name', 'Hendra Gunawan'))->firstOrFail();
+    expect(app(WorkItemService::class)->targetProgress($hendra)['total'])->toBeGreaterThan(0)
+        ->and(Task::where('project_id', $hendra->id)->whereNull('project_work_item_id')->exists())->toBeTrue();
 });
 
 test('the production seeder creates only the configured accounts, from env', function () {

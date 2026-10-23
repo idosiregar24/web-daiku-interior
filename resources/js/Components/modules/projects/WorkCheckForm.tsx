@@ -8,11 +8,11 @@ import { Textarea } from '@/Components/ui/textarea';
 import { formatDateTime, formatRupiah } from '@/lib/format';
 import { projectVisit, RELOAD } from '@/lib/projectReload';
 import { cn } from '@/lib/utils';
-import { formatPercent, parsePercent, previewWorkCheck } from '@/lib/workCheck';
+import { formatPercent, parsePercent, previewWorkCheck, TARGET_STATUS, targetStatus } from '@/lib/workCheck';
 import type { WorkCheck } from '@/types';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from '@inertiajs/react';
-import { Check, Eraser, HandCoins, Loader2 } from 'lucide-react';
+import { Check, Eraser, HandCoins, Loader2, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { z } from 'zod';
@@ -397,11 +397,13 @@ function ItemsTable({
                         <p className="text-sm font-medium text-foreground">{item.description}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                             {item.volume_label} · {item.team_lead} · sebelumnya {formatPercent(item.progress)}
+                            {item.progress < 100 && ` · maks. tambah ${formatPercent(restOf(item))}`}
                         </p>
                         <PercentField item={item} form={form} />
                         <p className="mt-2 text-xs text-muted-foreground">
                             Progres baru <span className="font-semibold text-foreground tabular-nums">{formatPercent(preview.progress[item.id])}</span>
                         </p>
+                        <TargetHint item={item} progress={preview.progress[item.id]} gap={check.summary.target_gap} />
                     </li>
                 ))}
             </ul>
@@ -431,7 +433,10 @@ function ItemsTable({
                                 <td className="px-3 py-2">
                                     <PercentField item={item} form={form} />
                                 </td>
-                                <td className="px-3 py-2 text-right font-medium tabular-nums">{formatPercent(preview.progress[item.id])}</td>
+                                <td className="px-3 py-2 text-right font-medium tabular-nums">
+                                    {formatPercent(preview.progress[item.id])}
+                                    <TargetHint item={item} progress={preview.progress[item.id]} gap={check.summary.target_gap} />
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -440,6 +445,28 @@ function ItemsTable({
             )}
         </>
     );
+}
+
+/**
+ * What is left of an item before 100 % — the most a pengecekan can add.
+ * Sprint 38 (user: "tidak bisa isi % di atas 100%"): a typed % is capped as it
+ * is typed — the item never goes above 100 % (nor a correction below 0 %);
+ * the server checks the same (WorkItemService::recordProgress()).
+ */
+function restOf(item: WorkCheck['items'][number]): number {
+    return Math.round((100 - item.progress) * 100) / 100;
+}
+
+function capTyped(raw: string, item: WorkCheck['items'][number]): string {
+    const typed = raw.trim().replace(',', '.');
+    // Still typing ("", "-", "12.") — left as it is.
+    if (typed === '' || typed === '-' || typed.endsWith('.')) return raw;
+    const value = Number(typed);
+    if (!Number.isFinite(value)) return raw;
+    if (value > restOf(item)) return String(restOf(item));
+    if (value < -item.progress) return String(-item.progress);
+
+    return raw;
 }
 
 /** Sprint 31 Sub 07 — the today cell of the Lembar Progres: just the % (Enter / Tab to the next item); a minus asks its note below. */
@@ -457,6 +484,7 @@ function CompactPercentField({ item, form }: { item: WorkCheck['items'][number];
                     <div className="relative mx-auto w-20">
                         <Input
                             {...field}
+                            onChange={(event) => field.onChange(capTyped(event.target.value, item))}
                             inputMode="decimal"
                             placeholder={done ? '✓' : '0'}
                             disabled={done}
@@ -467,6 +495,7 @@ function CompactPercentField({ item, form }: { item: WorkCheck['items'][number];
                     </div>
                 )}
             />
+            {!done && <p className="text-center text-[10px] whitespace-nowrap text-daiku-muted">maks. {formatPercent(restOf(item))}</p>}
             <FormMessageFor form={form} id={item.id} />
             {parsePercent(value) < 0 && (
                 <FormField
@@ -490,7 +519,7 @@ function CompactPercentField({ item, form }: { item: WorkCheck['items'][number];
 function PercentField({ item, form }: { item: WorkCheck['items'][number]; form: UseFormReturn<FormValues> }) {
     const name = `entries.${item.id}` as const;
     const value = useWatch({ control: form.control, name: `${name}.percent` }) ?? '';
-    const rest = Math.round((100 - item.progress) * 100) / 100;
+    const rest = restOf(item);
     const negative = parsePercent(value) < 0;
     const done = rest <= 0;
 
@@ -507,6 +536,7 @@ function PercentField({ item, form }: { item: WorkCheck['items'][number]; form: 
                     render={({ field }) => (
                         <Input
                             {...field}
+                            onChange={(event) => field.onChange(capTyped(event.target.value, item))}
                             inputMode="decimal"
                             placeholder={done ? 'Selesai' : '0'}
                             aria-label={`Tambahan persen ${item.description}`}
@@ -552,6 +582,29 @@ function PercentField({ item, form }: { item: WorkCheck['items'][number]; form: 
                 />
             )}
         </div>
+    );
+}
+
+/**
+ * Sprint 38 — the item's Daily Target Selesai (its daily targets done ÷ all)
+ * beside the % typed, and what the two say together (lib/workCheck
+ * targetStatus()). A hint only: the % stays the Pengawas's, sending is never
+ * blocked.
+ */
+function TargetHint({ item, progress, gap }: { item: WorkCheck['items'][number]; progress: number | undefined; gap: number }) {
+    if (!item.target) return null;
+    const status = targetStatus(progress ?? item.progress, item.target, gap);
+
+    return (
+        <p className="mt-1 text-xs text-muted-foreground">
+            Daily target selesai {formatPercent(item.target.percent)} ({item.target.done} dari {item.target.planned})
+            {status && (
+                <span className={cn('mt-0.5 flex items-start gap-1 font-medium', TARGET_STATUS[status].className)}>
+                    {status === 'above' && <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />}
+                    {status === 'above' || status === 'below' ? `${TARGET_STATUS[status].label} — ${TARGET_STATUS[status].hint}` : TARGET_STATUS[status].label}
+                </span>
+            )}
+        </p>
     );
 }
 

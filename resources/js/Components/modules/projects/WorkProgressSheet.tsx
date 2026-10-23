@@ -3,14 +3,16 @@ import { Notice } from '@/Components/shared/Notice';
 import { SectionCard } from '@/Components/shared/SectionCard';
 import { StatusChip } from '@/Components/shared/StatusChip';
 import { Button } from '@/Components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/Components/ui/popover';
 import { formatDateTime, formatRupiah, formatRupiahCompact } from '@/lib/format';
 import { formatProgress } from '@/lib/progress';
 import { cn } from '@/lib/utils';
-import type { ProjectExecution, WorkItemScheduleStatus } from '@/types';
+import { TARGET_STATUS, targetGap, targetGapText, targetStatus, type TargetStatus } from '@/lib/workCheck';
+import type { ProjectExecution, WorkItemScheduleStatus, WorkItemTarget } from '@/types';
 import { Link } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
-import { CalendarRange, Hourglass, PencilLine, Sheet, X } from 'lucide-react';
+import { CalendarRange, CircleCheck, Hourglass, Info, PencilLine, Sheet, TriangleAlert, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ExecutionDecisionDialog, type ExecutionDecisionTarget } from './ExecutionDecisionDialog';
 import { decisionTargetOf, workCheckState } from './WeeklyReportsCard';
@@ -35,6 +37,8 @@ interface Row {
     contribution: number | null;
     status: WorkItemScheduleStatus | null;
     timelines: Timeline[];
+    /** Sprint 38 — Progres Target (daily targets of the item done ÷ all); null without targets. */
+    target: WorkItemTarget | null;
 }
 
 type Report = ProjectExecution['weeklyReports'][number];
@@ -69,6 +73,7 @@ function rowsOf(execution: ProjectExecution): Row[] {
             contribution: summed?.contribution ?? null,
             status: timed?.status ?? null,
             timelines: timed?.timelines ?? [],
+            target: summed?.target ?? null,
         };
     });
 }
@@ -143,9 +148,13 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
                 </div>
             )}
 
+            <TargetSummary rows={rows} gap={recap?.target_gap ?? null} />
+
             {pending && (
                 <PendingCheckBanner
                     report={pending}
+                    rows={rows}
+                    gap={recap?.target_gap ?? null}
                     canDecide={can.decide}
                     sentBySelf={state.showsCheck}
                     onDecide={() => setDeciding(decisionTargetOf(pending, execution))}
@@ -168,7 +177,7 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
                 />
             ) : (
                 <>
-                    <PhoneCards rows={rows} pendingDate={pendingDate} />
+                    <PhoneCards rows={rows} pendingDate={pendingDate} gap={recap?.target_gap ?? null} />
                     <div className="hidden md:block">{table()}</div>
                     {recap && recap.total !== null && <p className="mt-3 text-sm text-daiku-muted md:hidden">Progres proyek {formatProgress(recap.total)}</p>}
                 </>
@@ -180,12 +189,16 @@ export function WorkProgressSheet({ projectId, execution }: { projectId: number;
 }
 
 const HEAD = 'bg-daiku-yellow-light px-2 py-1.5 text-[11px] font-semibold tracking-wide text-daiku-muted uppercase';
-// Kept in view while the days scroll: NO + Uraian on the left, TOTAL % + Kontribusi on the right (like the sheet's frozen panes).
+// Kept in view while the days scroll: NO + Uraian on the left, TOTAL % (+ Daily Target Selesai) + Kontribusi on the right (like the sheet's frozen panes).
 // Frozen left: NO · Uraian (+ volume) · Nilai · Bobot — offsets in px, the money columns only for who sees them.
 const W = { no: 40, item: 224, value: 104, weight: 88 };
 const LEFT = 'sticky z-10';
-const RIGHT_TOTAL = 'sticky right-24 z-10 w-20 min-w-20 border-l border-border';
 const RIGHT_SHARE = 'sticky right-0 z-10 w-24 min-w-24';
+// Sprint 38 — Total % | Daily Target Selesai | Kontribusi: read the pengecekan first, its comparison beside it.
+// Daily Target Selesai sits on Kontribusi (right-24 = w-24); Total % on both (right-52 = w-28 + w-24) — else on Kontribusi.
+const RIGHT_TARGET = 'sticky right-24 z-10 w-28 min-w-28 border-l border-border';
+const RIGHT_TOTAL_BESIDE_SHARE = 'sticky right-24 z-10 w-24 min-w-24 border-l border-border';
+const RIGHT_TOTAL_BESIDE_TARGET = 'sticky right-52 z-10 w-24 min-w-24 border-l border-border';
 
 function SheetTable({
     rows,
@@ -203,6 +216,10 @@ function SheetTable({
     const { workSchedule: schedule, progressRecap: recap, workCheck } = execution;
     const showValue = rows.some((row) => row.value !== null);
     const showWeight = recap !== null;
+    // Sprint 38 — the Target column once any item has a daily target.
+    const showTarget = recap !== null && rows.some((row) => row.target !== null);
+    const RIGHT_TOTAL = showTarget ? RIGHT_TOTAL_BESIDE_TARGET : RIGHT_TOTAL_BESIDE_SHARE;
+    const gap = recap?.target_gap ?? null;
     const at = {
         no: { left: 0, width: W.no, minWidth: W.no },
         item: { left: W.no, width: W.item, minWidth: W.item, maxWidth: W.item },
@@ -290,7 +307,23 @@ function SheetTable({
                             ))}
                             <th rowSpan={2} className={cn(HEAD, RIGHT_TOTAL, 'text-right')}>
                                 Total %
+                                <span className="block text-[10px] leading-tight font-normal tracking-normal normal-case">
+                                    cek Pengawas
+                                    <InfoTip label="Total %">
+                                        Jumlah persen yang diisi Pengawas di tiap pengecekan. Inilah progres resmi item —{' '}
+                                        <strong>dasar pencairan upah</strong> dan syarat Berangkat ke Lokasi.
+                                    </InfoTip>
+                                </span>
                             </th>
+                            {showTarget && (
+                                <th rowSpan={2} className={cn(HEAD, RIGHT_TARGET, 'text-right')}>
+                                    Daily Target Selesai
+                                    <InfoTip label="Daily Target Selesai">
+                                        Daily target item ini yang sudah selesai (dicentang Pengawas) ÷ semua daily target item ini. Dihitung otomatis dari
+                                        kerja tukang — <strong>pembanding</strong>, bukan dasar upah.
+                                    </InfoTip>
+                                </th>
+                            )}
                             <th rowSpan={2} className={cn(HEAD, RIGHT_SHARE, 'text-right')}>
                                 Kontribusi
                             </th>
@@ -333,6 +366,7 @@ function SheetTable({
                             const shownTotal = changed ? newTotal : row.total;
                             const late = row.status === 'TERLAMBAT';
                             const cell = 'border-t border-border';
+                            const status = gap !== null ? targetStatus(shownTotal, row.target, gap) : null;
 
                             return (
                                 <tr key={row.id}>
@@ -382,17 +416,43 @@ function SheetTable({
                                                             <span className="text-[10px] font-medium whitespace-nowrap text-daiku-muted">sudah {added(row.cells[day])}</span>
                                                         ) : null}
                                                         {input.field(checkItem)}
+                                                        <TargetDot count={row.target?.days?.[day]} />
                                                     </span>
                                                 ) : (
-                                                    <CellValue value={row.cells[day]} pending={day === pendingDate} />
+                                                    <>
+                                                        <CellValue value={row.cells[day]} pending={day === pendingDate} />
+                                                        <TargetDot count={row.target?.days?.[day]} />
+                                                    </>
                                                 )}
                                             </td>
                                         );
                                     })}
                                     <td className={cn(cell, RIGHT_TOTAL, 'bg-background px-2 py-2 text-right align-top font-semibold tabular-nums')}>
                                         <span className={cn(shownTotal >= 100 && 'text-success-ink')}>{formatProgress(shownTotal)}</span>
-                                        {changed && <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted">dari {formatProgress(row.total)}</span>}
+                                        {changed && newTotal !== undefined && (
+                                            <span className="block text-[11px] font-normal whitespace-nowrap text-daiku-muted" title={`Sebelumnya ${formatProgress(row.total)}`}>
+                                                {added(newTotal - row.total)} hari ini
+                                            </span>
+                                        )}
                                     </td>
+                                    {showTarget && (
+                                        <td
+                                            className={cn(cell, RIGHT_TARGET, 'bg-background px-2 py-2 text-right align-top tabular-nums')}
+                                            title={status ? TARGET_STATUS[status].hint : 'Belum ada daily target untuk item ini.'}
+                                        >
+                                            {row.target ? (
+                                                <>
+                                                    {formatProgress(row.target.percent)}
+                                                    <span className="block text-[11px] whitespace-nowrap text-daiku-muted">
+                                                        {row.target.done} dari {row.target.planned} target
+                                                    </span>
+                                                    {status && <StatusLine status={status} />}
+                                                </>
+                                            ) : (
+                                                <span className="text-[11px] text-daiku-muted">belum ada daily target</span>
+                                            )}
+                                        </td>
+                                    )}
                                     <td className={cn(cell, RIGHT_SHARE, 'bg-background px-2 py-2 text-right align-top tabular-nums')}>
                                         {row.contribution !== null ? formatProgress(changed && row.weight !== null ? (shownTotal * row.weight) / 100 : row.contribution) : '—'}
                                     </td>
@@ -438,15 +498,25 @@ function SheetTable({
                                     );
                                 })}
                                 <td className={cn('border-t-2 border-border', RIGHT_TOTAL, 'bg-daiku-gray px-2 py-2 text-right tabular-nums')} />
+                                {showTarget && (
+                                    <td
+                                        className={cn('border-t-2 border-border', RIGHT_TARGET, 'bg-daiku-gray px-2 py-2 text-right tabular-nums')}
+                                        title="Daily target selesai tiap item, ditimbang bobot item (hanya item yang punya daily target)"
+                                    >
+                                        {formatProgress(recap.target_total)}
+                                        <span className="block text-[11px] font-normal text-daiku-muted">proyek</span>
+                                    </td>
+                                )}
                                 <td className={cn('border-t-2 border-border', RIGHT_SHARE, 'bg-daiku-yellow px-2 py-2 text-right text-daiku-dark tabular-nums')}>
                                     {projectTotal !== null ? formatProgress(projectTotal) : '—'}
+                                    <span className="block text-[11px] font-normal">progres proyek</span>
                                 </td>
                             </tr>
                         </tfoot>
                     )}
                 </table>
             </div>
-            <Legend pending={pendingDate !== null} />
+            <Legend pending={pendingDate !== null} target={showTarget} gap={gap} />
         </div>
     );
 }
@@ -468,12 +538,141 @@ function CellValue({ value, pending = false }: { value: number | undefined; pend
     );
 }
 
+/** Sprint 38 — daily targets of the item finished that day: a small dot beside the %. */
+function TargetDot({ count }: { count: number | undefined }) {
+    if (!count) return null;
+
+    return (
+        <span
+            title={`${count} daily target selesai`}
+            aria-label={`${count} daily target selesai`}
+            className="ml-0.5 inline-block size-1.5 rounded-full bg-success-ink align-middle"
+        />
+    );
+}
+
+/** Sprint 38 — the two columns in words: "✓ Sejalan", "⚠ Progres lebih tinggi", … */
+function StatusLine({ status, inline = false }: { status: TargetStatus; inline?: boolean }) {
+    const { label, className } = TARGET_STATUS[status];
+    const Icon = status === 'aligned' ? CircleCheck : status === 'above' ? TriangleAlert : null;
+
+    return (
+        <span className={cn('items-center gap-0.5 text-[11px] font-medium', inline ? 'inline-flex' : 'mt-0.5 flex justify-end text-right', className)}>
+            {Icon && <Icon className="size-3 shrink-0" aria-hidden />}
+            {label}
+        </span>
+    );
+}
+
+/** Sprint 38 — ⓘ beside a column title: what the number means (a tap on phones, unlike a `title`). */
+function InfoTip({ label, children }: { label: string; children: ReactNode }) {
+    return (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    aria-label={`Penjelasan ${label}`}
+                    className="ml-1 inline-flex align-middle text-daiku-muted transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+                >
+                    <Info className="size-3.5" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 text-xs leading-relaxed">{children}</PopoverContent>
+        </Popover>
+    );
+}
+
+const EXPLAIN_KEY = 'daiku.progressSheet.explainClosed.v2';
+
+/**
+ * Sprint 38 — above the sheet: how to read Total % against Daily Target
+ * Selesai (closable, remembered on this device) and which items need a look —
+ * from the recorded pengecekan, not today's typing.
+ */
+function TargetSummary({ rows, gap }: { rows: Row[]; gap: number | null }) {
+    const [closed, setClosed] = useState(() => {
+        try {
+            return window.localStorage.getItem(EXPLAIN_KEY) === '1';
+        } catch {
+            return false;
+        }
+    });
+
+    if (gap === null || !rows.some((row) => row.target !== null)) return null;
+
+    const byStatus = (wanted: TargetStatus) => rows.filter((row) => targetStatus(row.total, row.target, gap) === wanted).map((row) => row.description);
+    const above = byStatus('above');
+    const below = byStatus('below');
+
+    function close() {
+        setClosed(true);
+        try {
+            window.localStorage.setItem(EXPLAIN_KEY, '1');
+        } catch {
+            // Private mode — closed for this visit only.
+        }
+    }
+
+    return (
+        <div className="mb-4 space-y-2">
+            {!closed && (
+                <div className="flex items-start gap-2.5 rounded-lg border border-border bg-daiku-gray/60 px-3.5 py-3 text-sm text-foreground">
+                    <Info className="mt-0.5 size-4 shrink-0 text-info-ink" aria-hidden />
+                    <p className="min-w-0 flex-1">
+                        <span className="font-medium">Cara baca (dari kiri):</span> <span className="font-medium">Total %</span> = progres item yang diisi
+                        Pengawas — dasar upah. <span className="font-medium">Daily Target Selesai</span> di sebelahnya = berapa daily target tukang untuk
+                        item itu yang sudah selesai. Keterangan di bawahnya menjawab: <span className="font-medium">apakah Total % sesuai dengan kerja
+                        tukang?</span> (beda ≥ {gap} poin = di atas / di bawah target).
+                    </p>
+                    <Button size="icon" variant="ghost" className="-my-1 size-7" aria-label="Tutup penjelasan" onClick={close}>
+                        <X className="size-4" />
+                    </Button>
+                </div>
+            )}
+            {above.length > 0 && (
+                <Notice tone="warning">
+                    {above.length} item Total %-nya di atas daily target yang selesai: <span className="font-medium">{above.join(', ')}</span>. Cek
+                    daily target yang belum dicentang, atau persennya, sebelum mengirim.
+                </Notice>
+            )}
+            {below.length > 0 && (
+                <Notice tone="info">
+                    {below.length} item Total %-nya di bawah daily target yang selesai: <span className="font-medium">{below.join(', ')}</span> — naikkan
+                    persennya di pengecekan berikutnya bila pekerjaannya memang sudah sejauh itu.
+                </Notice>
+            )}
+        </div>
+    );
+}
+
 /**
  * Sprint 31 — the pengecekan the Pengawas sent, waiting for the PM: what was
  * sent (per item, the money asked) and, for the PM, the decision right here.
  */
-function PendingCheckBanner({ report, canDecide, sentBySelf, onDecide }: { report: Report; canDecide: boolean; sentBySelf: boolean; onDecide: () => void }) {
+function PendingCheckBanner({
+    report,
+    rows,
+    gap,
+    canDecide,
+    sentBySelf,
+    onDecide,
+}: {
+    report: Report;
+    rows: Row[];
+    /** Sprint 38 — target_gap; null for viewers without the recap. */
+    gap: number | null;
+    canDecide: boolean;
+    sentBySelf: boolean;
+    onDecide: () => void;
+}) {
     const asked = report.payment?.status === 'DIAJUKAN' ? report.payment : null;
+    // Sprint 38 — an item whose total (with this pengecekan) is far from its Progres Target.
+    const warnOf = (itemId: number) => {
+        const row = rows.find((candidate) => candidate.id === itemId);
+        const difference = row && gap !== null ? targetGap(row.total, row.target, gap) : null;
+
+        return row?.target && difference !== null && difference > 0 ? targetGapText(difference, row.target) : null;
+    };
 
     return (
         <div role="status" className="mb-4 flex flex-col gap-3 rounded-xl border-2 border-warning bg-warning/10 p-4 sm:flex-row sm:items-start">
@@ -489,11 +688,20 @@ function PendingCheckBanner({ report, canDecide, sentBySelf, onDecide }: { repor
                 </p>
                 {report.progress.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                        {report.progress.map((row, index) => (
-                            <span key={index} className="rounded-md bg-background px-2 py-0.5 text-xs text-foreground tabular-nums ring-1 ring-warning">
-                                {row.description ?? 'Item'} <span className="font-semibold">{added(row.percent)}</span>
-                            </span>
-                        ))}
+                        {report.progress.map((row, index) => {
+                            const warn = warnOf(row.item_id);
+
+                            return (
+                                <span
+                                    key={index}
+                                    title={warn ? `Total item ini ${warn}` : undefined}
+                                    className="inline-flex items-center gap-1 rounded-md bg-background px-2 py-0.5 text-xs text-foreground tabular-nums ring-1 ring-warning"
+                                >
+                                    {row.description ?? 'Item'} <span className="font-semibold">{added(row.percent)}</span>
+                                    {warn && <TriangleAlert className="size-3 text-warning-ink" aria-label={`Total ${warn}`} />}
+                                </span>
+                            );
+                        })}
                     </div>
                 )}
                 {!canDecide && sentBySelf && (
@@ -561,7 +769,7 @@ function TodayPrompt({ label, canSend, sendDays }: { label: string; canSend: boo
     );
 }
 
-function Legend({ pending }: { pending: boolean }) {
+function Legend({ pending, target, gap }: { pending: boolean; target: boolean; gap: number | null }) {
     const swatch = (className: string, label: ReactNode) => (
         <span className="inline-flex items-center gap-1.5">
             <span className={cn('inline-block size-3 rounded-sm', className)} /> {label}
@@ -573,16 +781,29 @@ function Legend({ pending }: { pending: boolean }) {
             {swatch('bg-info/25', 'Jadwal (timeline item)')}
             {swatch('bg-daiku-yellow ring-1 ring-daiku-yellow-dark', 'Isi hari ini')}
             {pending && swatch('bg-warning/20 ring-1 ring-warning', 'Terkirim, menunggu ACC PM')}
+            {target && (
+                <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block size-1.5 rounded-full bg-success-ink" /> Daily target item selesai hari itu
+                </span>
+            )}
+            {target && gap !== null && (
+                <span className="inline-flex items-center gap-1.5">
+                    <TriangleAlert className="size-3 text-warning-ink" aria-hidden /> Total % ≥ {gap} poin di atas Daily Target Selesai (hanya penanda)
+                </span>
+            )}
             <span>Angka di sel = persen yang ditambahkan pada pengecekan tanggal itu. Baris bawah = progres proyek kumulatif.</span>
         </p>
     );
 }
 
 /** Phones: one card per item — timelines, status, total, the dates it moved. */
-function PhoneCards({ rows, pendingDate }: { rows: Row[]; pendingDate: string | null }) {
+function PhoneCards({ rows, pendingDate, gap }: { rows: Row[]; pendingDate: string | null; gap: number | null }) {
     return (
         <ul className="divide-y divide-border rounded-lg ring-1 ring-border md:hidden">
-            {rows.map((row, index) => (
+            {rows.map((row, index) => {
+                const status = gap !== null ? targetStatus(row.total, row.target, gap) : null;
+
+                return (
                 <li key={row.id} className="space-y-1.5 px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -601,6 +822,14 @@ function PhoneCards({ rows, pendingDate }: { rows: Row[]; pendingDate: string | 
                             ? row.timelines.map((timeline) => `${timeline.name} ${rangeLabel(timeline.start, timeline.end)}`).join(' · ')
                             : 'Belum masuk timeline'}
                     </p>
+                    {row.target && (
+                        <div className="flex flex-wrap items-center gap-x-2 text-xs">
+                            <span className="text-daiku-muted">
+                                Daily target selesai {formatProgress(row.target.percent)} ({row.target.done} dari {row.target.planned})
+                            </span>
+                            {status && <StatusLine status={status} inline />}
+                        </div>
+                    )}
                     {Object.keys(row.cells).length > 0 && (
                         <div className="flex flex-wrap gap-1.5">
                             {Object.entries(row.cells)
@@ -619,7 +848,8 @@ function PhoneCards({ rows, pendingDate }: { rows: Row[]; pendingDate: string | 
                         </div>
                     )}
                 </li>
-            ))}
+                );
+            })}
         </ul>
     );
 }

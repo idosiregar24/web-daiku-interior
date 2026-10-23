@@ -146,7 +146,11 @@ final class ExecutionFlowDemo
         'install' => ['Pemasangan & Instalasi di Lokasi', 13, 17, ['Kitchen Set Custom', 'Partisi Ruangan', 'Instalasi Listrik & Lampu']],
     ];
 
-    /** [day, timeline, title, crew member] — each target inside its timeline, on a working day. */
+    /**
+     * [day, timeline, title, crew member, RAB item?] — each target inside its timeline, on a working day.
+     * Sprint 38 — a timeline with one RAB item gives it to its targets by itself; on the installation
+     * timeline (three items) the item is named, the first and last target have none.
+     */
     private const TARGETS = [
         [0, 'prep', 'Cek ukuran lapangan & cocokkan gambar kerja', 'fieldstaff'],
         [1, 'prep', 'Ambil bahan dari gudang (MDF, HPL, engsel, rel laci)', 'rudi'],
@@ -159,9 +163,9 @@ final class ExecutionFlowDemo
         [5, 'partisi', 'Pasang panel & tempel HPL partisi', 'slamet'],
         [7, 'partisi', 'Finishing tepi (edging) partisi', 'rudi'],
         [13, 'install', 'Muat & kirim kitchen set dan partisi ke lokasi', 'rudi'],
-        [14, 'install', 'Pasang kitchen set di lokasi', 'budi'],
-        [15, 'install', 'Pasang partisi ruangan di lokasi', 'slamet'],
-        [16, 'install', 'Instalasi listrik & lampu', 'yanto'],
+        [14, 'install', 'Pasang kitchen set di lokasi', 'budi', 'Kitchen Set Custom'],
+        [15, 'install', 'Pasang partisi ruangan di lokasi', 'slamet', 'Partisi Ruangan'],
+        [16, 'install', 'Instalasi listrik & lampu', 'yanto', 'Instalasi Listrik & Lampu'],
         [17, 'install', 'Cek akhir & bersihkan lokasi', 'fieldstaff'],
     ];
 
@@ -235,9 +239,11 @@ final class ExecutionFlowDemo
     {
         $crew = self::crew();
         $tasks = app(TaskService::class);
+        $items = self::itemIds($project);
 
-        return collect(self::TARGETS)->map(function (array $row) use ($project, $timelines, $dayZero, $pengawas, $crew, $tasks) {
+        return collect(self::TARGETS)->map(function (array $row) use ($project, $timelines, $dayZero, $pengawas, $crew, $tasks, $items) {
             [$day, $key, $title, $who] = $row;
+            $item = $row[4] ?? null;
             $timeline = $timelines[$key];
             $date = $dayZero->copy()->startOfDay()->addDays($day);
 
@@ -251,6 +257,7 @@ final class ExecutionFlowDemo
                 'assignee_id' => $crew[$who]->id,
                 'due_date' => $date->toDateString(),
                 'priority' => 'MEDIUM',
+                ...($item ? ['project_work_item_id' => $items->get($item)] : []),
             ], $pengawas);
 
             return ['task' => $task, 'date' => $date];
